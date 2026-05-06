@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react'
 import {
   ArrowLeft, Send, CalendarDays, CheckCircle2, Loader2, Copy, Check,
   AlertCircle, Image, Trash2, ExternalLink, Eye, Pencil,
-  ChevronLeft, ChevronRight, Play, Video, RefreshCw,
+  ChevronLeft, ChevronRight, Play, Video, RefreshCw, RotateCcw,
 } from 'lucide-react'
 import PostPreview from '@/components/PostPreview'
 import { Button } from '@/components/ui/button'
@@ -166,6 +166,11 @@ export default function ReviewPost() {
   async function approve() {
     const updated = await save({ status: 'approved', reviewedBy: user?.primaryEmailAddress?.emailAddress })
     if (updated) setSuccess('Approved! Ready to schedule or publish.')
+  }
+
+  async function unapprove() {
+    const updated = await save({ status: 'in_review' })
+    if (updated) setSuccess('Approval removed. Back in review.')
   }
 
   async function handlePublish() {
@@ -599,10 +604,14 @@ export default function ReviewPost() {
 
               <Separator />
 
-              {/* Approve */}
+              {/* Approve / Remove approval */}
               {item.status === 'draft' || item.status === 'in_review' ? (
                 <Button variant="outline" size="sm" className="w-full border-blue-200 text-blue-700 hover:bg-blue-50" onClick={approve} disabled={saving}>
                   <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Approve
+                </Button>
+              ) : item.status === 'approved' ? (
+                <Button variant="outline" size="sm" className="w-full border-amber-200 text-amber-700 hover:bg-amber-50" onClick={unapprove} disabled={saving}>
+                  <RotateCcw className="h-3.5 w-3.5 mr-1.5" />Remove approval
                 </Button>
               ) : null}
 
