@@ -1,6 +1,7 @@
 import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
 import { tagAndPersist } from '../_lib/tagAsset.js'
+import { segmentAndPersist } from '../_lib/segmentInterview.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
 
@@ -136,9 +137,11 @@ export default async function handler(req, res) {
           return
         }
 
-        // Auto-kick AI tagging. waitUntil keeps the function alive while the
-        // tagging runs in the background; the Blob completion webhook still
-        // returns immediately to the platform.
+        // Auto-kick the Phase 2 → Phase 3 pipeline. waitUntil keeps the
+        // function alive while it runs in the background; the Blob completion
+        // webhook still returns immediately to the platform.
+        //
+        //   tag (Phase 2) → segment interview into content_pieces (Phase 3, video only)
         try {
           const inserted = await ins.json()
           const newRow = inserted?.[0]
@@ -155,10 +158,21 @@ export default async function handler(req, res) {
               brand:   meta.brand || brandId(),
             }).catch((e) => console.error('Audit record failed:', e?.message)))
 
-            waitUntil(tagAndPersist(newRow).catch((e) => console.error('Auto-tag failed:', e?.message)))
+            // Auto-pipeline: tag (Phase 2) → segment interview into
+            // content_pieces (Phase 3, video only). tagAndPersist's own
+            // audit row writes inside _lib/tagAsset.js.
+            waitUntil(
+              tagAndPersist(newRow)
+                .then((tagged) => {
+                  if (tagged?.kind === 'video' && tagged?.transcription?.trim()) {
+                    return segmentAndPersist(tagged)
+                  }
+                })
+                .catch((e) => console.error('Auto-pipeline failed:', e?.message)),
+            )
           }
         } catch (e) {
-          console.error('Auto-tag dispatch error:', e?.message)
+          console.error('Auto-pipeline dispatch error:', e?.message)
         }
       },
     })
