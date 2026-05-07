@@ -50,6 +50,8 @@ function buildSystemPrompt(kind) {
     lines.push(
       '',
       'If the clip contains spoken word, also return a clean transcription with light punctuation. Skip filler, music notes, or onscreen text. If there is no speech, return an empty string.',
+      '',
+      'Also return a short visual_narrative (1–3 sentences) describing what the camera shows beat-by-beat — the demonstration, the patient movement, the clinician\'s hands, what is being taught visually. This is paired with the transcript downstream so an editor can spot moments where the visual is the primary signal. If the clip is unremarkable visually, return a single sentence summarizing what is shown.',
     )
   }
   return lines.join('\n')
@@ -60,8 +62,9 @@ const photoSchema = z.object({
 })
 
 const videoSchema = z.object({
-  tags:          z.array(z.string()).min(1).max(10),
-  transcription: z.string(),
+  tags:             z.array(z.string()).min(1).max(10),
+  transcription:    z.string(),
+  visual_narrative: z.string(),
 })
 
 function normalizeTag(raw) {
@@ -118,7 +121,8 @@ async function callModel(asset) {
 
   const ai_tags = normalizeTags(object.tags, asset.tags)
   const transcription = isVideo ? (object.transcription || '').trim() : null
-  return { ai_tags, transcription }
+  const visual_narrative = isVideo ? (object.visual_narrative || '').trim() : null
+  return { ai_tags, transcription, visual_narrative }
 }
 
 // Run AI tagging on an existing media_assets row and persist the result.
@@ -127,9 +131,12 @@ async function callModel(asset) {
 export async function tagAndPersist(asset) {
   const where = `id=eq.${asset.id}&brand=eq.${brandId()}`
   try {
-    const { ai_tags, transcription } = await callModel(asset)
+    const { ai_tags, transcription, visual_narrative } = await callModel(asset)
     const patch = { ai_tags, status: 'tagged' }
-    if (asset.kind === 'video') patch.transcription = transcription
+    if (asset.kind === 'video') {
+      patch.transcription = transcription
+      patch.visual_narrative = visual_narrative
+    }
 
     const upd = await sb(`media_assets?${where}`, { method: 'PATCH', body: JSON.stringify(patch) })
     if (!upd.ok) {

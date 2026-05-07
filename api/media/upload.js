@@ -101,6 +101,9 @@ export default async function handler(req, res) {
             condition: meta.condition || null,
             capturedAt: meta.capturedAt || null,
             notes: meta.notes || null,
+            speakerRole: meta.speakerRole || null,
+            parentId: meta.parentId || null,
+            contentPieceId: meta.contentPieceId || null,
           }),
         }
       },
@@ -112,10 +115,14 @@ export default async function handler(req, res) {
         const kind = kindFromMime(blob.contentType)
         if (!kind) return  // unknown type → don't record
 
+        // If this is a return-upload of a finished edit (parentId set), it
+        // lands in 'approved' status and is linked to the source. Skips Phase
+        // 2/3 auto-pipeline because the contractor has already done the work.
+        const isReturnUpload = !!meta.parentId
         const row = {
           brand: meta.brand || brandId(),
           kind,
-          status: 'raw',
+          status: isReturnUpload ? 'approved' : 'raw',
           source: 'upload',
           blob_url: blob.url,
           blob_pathname: blob.pathname,
@@ -127,6 +134,8 @@ export default async function handler(req, res) {
           captured_at: meta.capturedAt || null,
           notes: meta.notes || null,
           created_by: meta.createdBy || null,
+          speaker_role: meta.speakerRole || 'clinician',
+          parent_id: meta.parentId || null,
         }
 
         const ins = await sb('media_assets', { method: 'POST', body: JSON.stringify(row) })
@@ -137,36 +146,60 @@ export default async function handler(req, res) {
           return
         }
 
+        // Handle return-uploads (finished edits) before kicking the pipeline.
+        // A return upload links back to its source via parent_id and to its
+        // brief via content_piece_id; we patch the brief to status='returned'.
+        let insertedRow = null
+        try {
+          const inserted = await ins.json()
+          insertedRow = inserted?.[0]
+        } catch {}
+
+        if (isReturnUpload && insertedRow?.id && meta.contentPieceId) {
+          try {
+            await sb(`content_pieces?id=eq.${meta.contentPieceId}&brand=eq.${brandId()}`, {
+              method: 'PATCH',
+              body: JSON.stringify({
+                final_asset_id: insertedRow.id,
+                status: 'returned',
+                returned_at: new Date().toISOString(),
+              }),
+            })
+          } catch (e) {
+            console.error('Brief link-up after return-upload failed:', e?.message)
+          }
+          return  // skip auto-pipeline; finished media doesn't need re-tagging
+        }
+
         // Auto-kick the Phase 2 → Phase 3 pipeline. waitUntil keeps the
         // function alive while it runs in the background; the Blob completion
         // webhook still returns immediately to the platform.
         //
-        //   tag (Phase 2) → segment interview into content_pieces (Phase 3, video only)
+        //   tag (Phase 2) → segment into content_pieces (Phase 3, video only)
         try {
-          const inserted = await ins.json()
-          const newRow = inserted?.[0]
-          if (newRow?.id) {
+          if (insertedRow?.id) {
             // Record the upload in the audit log. actor comes from the token
             // payload (created_by), since the Blob completion webhook doesn't
             // carry the original user's session.
             waitUntil(recordAudit({
-              assetId: newRow.id,
+              assetId: insertedRow.id,
               action:  'upload',
               actor:   meta.createdBy || 'unknown',
               before:  null,
-              after:   snapshot(newRow),
+              after:   snapshot(insertedRow),
               brand:   meta.brand || brandId(),
             }).catch((e) => console.error('Audit record failed:', e?.message)))
 
-            // Auto-pipeline: tag (Phase 2) → segment interview into
-            // content_pieces (Phase 3, video only). tagAndPersist's own
-            // audit row writes inside _lib/tagAsset.js.
+            // Auto-pipeline: tag (Phase 2) → segment into content_pieces
+            // (Phase 3, video only). tagAndPersist's own audit row writes
+            // inside _lib/tagAsset.js.
             waitUntil(
-              tagAndPersist(newRow)
+              tagAndPersist(insertedRow)
                 .then((tagged) => {
-                  if (tagged?.kind === 'video' && tagged?.transcription?.trim()) {
-                    return segmentAndPersist(tagged)
-                  }
+                  if (tagged?.kind !== 'video') return
+                  const hasSpeech = tagged?.transcription?.trim()
+                  const hasVisual = tagged?.visual_narrative?.trim()
+                  if (hasSpeech || hasVisual) return segmentAndPersist(tagged)
                 })
                 .catch((e) => console.error('Auto-pipeline failed:', e?.message)),
             )

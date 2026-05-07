@@ -3,12 +3,19 @@ import { Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { uploadMedia } from '@/lib/mediaLib'
 
+const SPEAKER_ROLES = [
+  { id: 'clinician',     label: 'Clinician (in clinic, treating patient)' },
+  { id: 'admin',         label: 'Admin staff (operations / business)' },
+  { id: 'patient_guest', label: 'Patient guest (consent required)' },
+]
+
 // Drag-drop / click uploader for the Media Hub.
 // Multiple files supported; uploads run in parallel.
 export default function MediaUploader({ onUploaded, createdBy }) {
   const inputRef = useRef(null)
-  const [dragOver, setDragOver]  = useState(false)
-  const [uploads, setUploads]    = useState([])  // [{ id, name, status:'uploading'|'done'|'error', error? }]
+  const [dragOver, setDragOver]    = useState(false)
+  const [uploads, setUploads]      = useState([])  // [{ id, name, status:'uploading'|'done'|'error', error? }]
+  const [speakerRole, setSpeakerRole] = useState('clinician')
 
   async function handleFiles(fileList) {
     const files = Array.from(fileList || [])
@@ -24,7 +31,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
     await Promise.all(files.map(async (file, i) => {
       const rowId = newRows[i].id
       try {
-        await uploadMedia(file, { createdBy: createdBy || null })
+        await uploadMedia(file, { createdBy: createdBy || null, speakerRole })
         setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'done' } : r))
       } catch (e) {
         setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'error', error: e.message } : r))
@@ -42,6 +49,23 @@ export default function MediaUploader({ onUploaded, createdBy }) {
 
   return (
     <div>
+      {/* Speaker role — sets the segmenter framing. Default 'clinician'. */}
+      <div className="mb-2 flex items-center gap-2">
+        <label className="text-xs font-medium text-muted-foreground">Who's speaking in these clips?</label>
+        <select
+          value={speakerRole}
+          onChange={(e) => setSpeakerRole(e.target.value)}
+          className="text-[11px] h-7 px-2 rounded-md border border-border bg-background text-foreground"
+        >
+          {SPEAKER_ROLES.map((r) => (
+            <option key={r.id} value={r.id}>{r.label}</option>
+          ))}
+        </select>
+        {speakerRole === 'patient_guest' && (
+          <span className="text-[11px] text-amber-600">⚠ Verify written consent before uploading.</span>
+        )}
+      </div>
+
       <div
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
