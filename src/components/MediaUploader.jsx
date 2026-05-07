@@ -1,12 +1,32 @@
 import { useRef, useState } from 'react'
-import { Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { Upload, Loader2, AlertCircle, CheckCircle2, Stethoscope, Briefcase, UserCircle, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { uploadMedia } from '@/lib/mediaLib'
 
+// The speaker role drives how AI processes each upload — clinician captures
+// surface treatment pearls, admin captures surface operational stories, and
+// patient-guest captures require consent verification before AI even runs.
+// We render this as a deliberate workflow step (not a small dropdown) so
+// users feel the weight of the choice.
 const SPEAKER_ROLES = [
-  { id: 'clinician',     label: 'Clinician (in clinic, treating patient)' },
-  { id: 'admin',         label: 'Admin staff (operations / business)' },
-  { id: 'patient_guest', label: 'Patient guest (consent required)' },
+  {
+    id: 'clinician',
+    label: 'Clinician',
+    sublabel: 'In clinic, treating a patient',
+    icon: Stethoscope,
+  },
+  {
+    id: 'admin',
+    label: 'Admin staff',
+    sublabel: 'Operations or business interview',
+    icon: Briefcase,
+  },
+  {
+    id: 'patient_guest',
+    label: 'Patient guest',
+    sublabel: 'Patient telling their story (consent required)',
+    icon: UserCircle,
+  },
 ]
 
 // Drag-drop / click uploader for the Media Hub.
@@ -49,35 +69,80 @@ export default function MediaUploader({ onUploaded, createdBy }) {
 
   return (
     <div>
-      {/* Speaker role — sets the segmenter framing. Default 'clinician'. */}
-      <div className="mb-2 flex items-center gap-2">
-        <label className="text-xs font-medium text-muted-foreground">Who's speaking in these clips?</label>
-        <select
-          value={speakerRole}
-          onChange={(e) => setSpeakerRole(e.target.value)}
-          className="text-[11px] h-7 px-2 rounded-md border border-border bg-background text-foreground"
-        >
-          {SPEAKER_ROLES.map((r) => (
-            <option key={r.id} value={r.id}>{r.label}</option>
-          ))}
-        </select>
+      {/* Step 1 — speaker role. Numbered + radio cards make this read as a
+          deliberate workflow step, not an optional sidebar setting. */}
+      <div className="mb-3 rounded-xl border bg-card p-4">
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">1</span>
+          <div>
+            <div className="text-sm font-semibold">
+              Who's speaking in these clips? <span className="text-destructive">*</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              This shapes how AI reviews the upload. Pick before dropping files.
+            </p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {SPEAKER_ROLES.map((r) => {
+            const Icon = r.icon
+            const active = speakerRole === r.id
+            return (
+              <button
+                type="button"
+                key={r.id}
+                onClick={() => setSpeakerRole(r.id)}
+                className={`text-left rounded-lg border-2 p-2.5 transition-colors ${
+                  active
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/40'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
+                  <span className={`text-sm font-medium ${active ? 'text-primary' : ''}`}>{r.label}</span>
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                  {r.sublabel}
+                </div>
+              </button>
+            )
+          })}
+        </div>
         {speakerRole === 'patient_guest' && (
-          <span className="text-[11px] text-amber-600">⚠ Verify written consent before uploading.</span>
+          <div className="mt-2.5 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2.5">
+            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-amber-900 dark:text-amber-200">
+              Verify written consent from the patient before uploading. Patient-guest content cannot be published without it.
+            </p>
+          </div>
         )}
       </div>
 
-      <div
-        onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
-          dragOver ? 'border-primary bg-accent/30' : 'border-border hover:border-primary/50 hover:bg-accent/20'
-        }`}
-      >
-        <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-        <p className="text-sm font-medium mb-0.5">Drop photos or videos here, or click to browse</p>
-        <p className="text-xs text-muted-foreground">JPG, PNG, HEIC, MP4, MOV — uploads go to your private library</p>
+      {/* Step 2 — drop zone. Numbered + tied visually to step 1. */}
+      <div className="rounded-xl border bg-card p-4">
+        <div className="flex items-center gap-2 mb-2.5">
+          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">2</span>
+          <div>
+            <div className="text-sm font-semibold">Drop your files</div>
+            <p className="text-[11px] text-muted-foreground">
+              JPG, PNG, HEIC, MP4, MOV — uploads go to your private library.
+            </p>
+          </div>
+        </div>
+        <div
+          onClick={() => inputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors ${
+            dragOver ? 'border-primary bg-accent/30' : 'border-border hover:border-primary/50 hover:bg-accent/20'
+          }`}
+        >
+          <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+          <p className="text-sm font-medium mb-0.5">Drop photos or videos here, or click to browse</p>
+          <p className="text-xs text-muted-foreground">Speaker role above will be applied to every file in this batch.</p>
+        </div>
       </div>
       <input
         ref={inputRef}

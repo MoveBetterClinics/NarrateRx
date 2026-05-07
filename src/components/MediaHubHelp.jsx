@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { HelpCircle, X, Camera, Sparkles, Pencil, Upload, Send } from 'lucide-react'
+import { HelpCircle, X, Camera, Sparkles, Pencil, Upload, Send, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const WELCOME_KEY = 'mediahub:welcomed:v1'
@@ -29,11 +29,12 @@ export default function MediaHubHelp() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center justify-center h-7 w-7 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+        className="inline-flex items-center gap-1.5 px-2.5 h-7 rounded-full border border-primary/30 bg-primary/10 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
         title="How the Media Hub works"
         aria-label="Help"
       >
-        <HelpCircle className="h-4 w-4" />
+        <HelpCircle className="h-3.5 w-3.5" />
+        <span>Help / How this works</span>
       </button>
 
       {open && (
@@ -45,6 +46,17 @@ export default function MediaHubHelp() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-5 text-sm">
+              {/* Recall hint — surfaced first so it's seen before users scroll. */}
+              <div className="rounded-md border-2 border-primary/40 bg-primary/5 p-3 flex items-start gap-2.5">
+                <BookOpen className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-semibold text-foreground">You can come back to this guide anytime.</p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Look for the <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-primary/30 bg-primary/10 text-primary font-medium"><HelpCircle className="h-3 w-3" />Help / How this works</span> button at the top of the Media Hub page, just below the title. Click it any time you need a refresher.
+                  </p>
+                </div>
+              </div>
+
               <p className="text-muted-foreground">
                 The Media Hub is where raw clinic capture and finished edits live together. The system suggests what each clip could become; an editor (typically Phillip) takes accepted suggestions to CapCut, brings finished files back, then attaches them to posts in Content Hub.
               </p>

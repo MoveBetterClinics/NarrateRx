@@ -68,16 +68,14 @@ export default function MediaHub() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            Media Hub
-            <MediaHubHelp />
-          </h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold">Media Hub</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Your library of raw and edited clips. AI suggests posts to make from each upload — accept, edit, return finished files, then attach to Content Hub.
           </p>
         </div>
+        <MediaHubHelp />
       </div>
 
       {/* Uploader — surfaced to every role per HANDOFF role table */}
