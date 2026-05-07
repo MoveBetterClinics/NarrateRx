@@ -28,8 +28,9 @@ const err = (msg, status = 400)  => new Response(JSON.stringify({ error: msg }),
 const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,notes,content_item_ids,created_at,updated_at,created_by'
 
 export default async function handler(req) {
-  // Vercel routes [id].js — id is in the URL path. Edge runtime exposes it via the URL.
-  const url = new URL(req.url)
+  // Vercel routes [id].js — id is in the URL path. On Node runtime req.url
+  // is a relative path; the base just lets URL parse it.
+  const url = new URL(req.url, 'http://localhost')
   const id  = url.pathname.split('/').pop()
   if (!id) return err('Missing id')
 

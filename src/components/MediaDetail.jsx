@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
-import { X, Trash2, Loader2, Plus } from 'lucide-react'
+import { X, Trash2, Loader2, Plus, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { updateMediaAsset, deleteMediaAsset } from '@/lib/mediaLib'
+import { updateMediaAsset, deleteMediaAsset, tagMediaAsset } from '@/lib/mediaLib'
 
 const STATUSES = ['raw', 'tagged', 'rendered', 'approved', 'archived']
 
@@ -17,8 +17,11 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [patient, setPatient]   = useState(asset.patient_pseudonym || '')
   const [condition, setCondition] = useState(asset.condition || '')
   const [status, setStatus]     = useState(asset.status || 'raw')
+  const [aiTags, setAiTags]     = useState(asset.ai_tags || [])
+  const [transcription, setTranscription] = useState(asset.transcription || '')
   const [saving, setSaving]     = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [tagging, setTagging]   = useState(false)
   const [error, setError]       = useState('')
 
   // Sync local state if a different asset is loaded into the same drawer.
@@ -28,6 +31,8 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setPatient(asset.patient_pseudonym || '')
     setCondition(asset.condition || '')
     setStatus(asset.status || 'raw')
+    setAiTags(asset.ai_tags || [])
+    setTranscription(asset.transcription || '')
     setTagInput('')
     setError('')
   }, [asset.id])
@@ -52,6 +57,23 @@ export default function MediaDetail({ asset, onClose, onChange }) {
       setError(e.message)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleTag() {
+    setTagging(true); setError('')
+    try {
+      const updated = await tagMediaAsset(asset.id)
+      if (updated) {
+        setAiTags(updated.ai_tags || [])
+        if (updated.transcription !== undefined) setTranscription(updated.transcription || '')
+        if (updated.status) setStatus(updated.status)
+      }
+      onChange?.()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setTagging(false)
     }
   }
 
@@ -108,16 +130,33 @@ export default function MediaDetail({ asset, onClose, onChange }) {
 
             {/* Tags */}
             <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Tags</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Tags</label>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleTag}
+                  disabled={tagging}
+                  className="h-7 gap-1.5 text-[11px]"
+                  title={asset.kind === 'video'
+                    ? 'Run AI tagging + transcription (10–60s)'
+                    : 'Run AI tagging on this image'}
+                >
+                  {tagging
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <Sparkles className="h-3.5 w-3.5" />}
+                  {aiTags.length ? 'Re-tag with AI' : 'Tag with AI'}
+                </Button>
+              </div>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {tags.map((t) => (
                   <Badge key={t} variant="secondary" className="gap-1 cursor-pointer" onClick={() => removeTag(t)}>
                     {t} <X className="h-3 w-3" />
                   </Badge>
                 ))}
-                {asset.ai_tags?.length > 0 && (
+                {aiTags.length > 0 && (
                   <span className="text-[10px] text-muted-foreground self-center">
-                    AI suggested: {asset.ai_tags.join(', ')}
+                    AI suggested: {aiTags.join(', ')}
                   </span>
                 )}
               </div>
@@ -157,10 +196,10 @@ export default function MediaDetail({ asset, onClose, onChange }) {
             <div className="text-[11px] text-muted-foreground space-y-0.5">
               <div>Uploaded {new Date(asset.created_at).toLocaleString()}</div>
               {asset.size_bytes && <div>{(asset.size_bytes / (1024 * 1024)).toFixed(1)} MB · {asset.mime_type}</div>}
-              {asset.transcription && (
+              {transcription && (
                 <details className="mt-2">
                   <summary className="cursor-pointer hover:text-foreground">View transcription</summary>
-                  <p className="mt-1 text-foreground whitespace-pre-wrap">{asset.transcription}</p>
+                  <p className="mt-1 text-foreground whitespace-pre-wrap">{transcription}</p>
                 </details>
               )}
             </div>

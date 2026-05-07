@@ -28,7 +28,9 @@ const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,
 export default async function handler(req) {
   if (req.method !== 'GET') return err('Method not allowed', 405)
 
-  const { searchParams } = new URL(req.url)
+  // On Vercel's Node runtime req.url is a relative path; supply a base so
+  // URL parsing works on both Node (relative) and Edge (absolute) shapes.
+  const { searchParams } = new URL(req.url, 'http://localhost')
   const kind     = searchParams.get('kind')      // 'video' | 'photo'
   const status   = searchParams.get('status')    // raw | tagged | rendered | approved | archived
   const search   = searchParams.get('q')         // ilike on filename/notes/condition/patient

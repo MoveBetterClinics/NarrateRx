@@ -41,6 +41,16 @@ export function deleteMediaAsset(id) {
   return api(`/api/media/${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
+// Trigger AI auto-tagging for an asset (vision + transcription for video).
+// Synchronous on the server — caller should expect 10–60s for video clips.
+export function tagMediaAsset(id) {
+  return api(`/api/media/tag`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id }),
+  })
+}
+
 // ── Upload ────────────────────────────────────────────────────────────────────
 
 // Direct-to-Blob upload. The handleUpload endpoint records the asset on

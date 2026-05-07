@@ -18,6 +18,8 @@
     "@radix-ui/react-slot": "^1.0.2",
     "@radix-ui/react-tabs": "^1.0.4",
     "@vercel/blob": "^2.3.3",
+    "@vercel/functions": "^3.5.0",
+    "ai": "^6.0.175",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "lucide-react": "^0.344.0",
@@ -26,7 +28,8 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.22.3",
-    "tailwind-merge": "^2.2.1"
+    "tailwind-merge": "^2.2.1",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
