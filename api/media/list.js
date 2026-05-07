@@ -1,4 +1,5 @@
-export const config = { runtime: 'edge' }
+// Runs on Node (Fluid Compute) for consistency with the other media routes,
+// which need Node for @vercel/blob.
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY

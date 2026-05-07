@@ -1,6 +1,6 @@
 import { del as blobDel } from '@vercel/blob'
 
-export const config = { runtime: 'edge' }
+// Runs on Node (Fluid Compute) — @vercel/blob's server bits aren't edge-safe.
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY

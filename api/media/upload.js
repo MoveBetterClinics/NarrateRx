@@ -9,8 +9,9 @@ import { handleUpload } from '@vercel/blob/client'
 //   3. Browser uploads file directly to Vercel Blob.
 //   4. Blob calls back here with { type:'blob.upload-completed', payload:{ blob, tokenPayload } }.
 //      onUploadCompleted writes the row to media_assets.
-
-export const config = { runtime: 'edge' }
+//
+// Runs on Node (Fluid Compute) — @vercel/blob's server bits depend on undici
+// and Node built-ins, which the Edge runtime cannot bundle.
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
