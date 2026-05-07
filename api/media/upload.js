@@ -1,5 +1,6 @@
 import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
+import { tagAndPersist } from '../_lib/tagAsset.js'
 
 // Client-direct upload to Vercel Blob using a token issued by this endpoint.
 //
@@ -113,18 +114,14 @@ export default async function handler(req) {
           return
         }
 
-        // Auto-kick AI tagging. waitUntil keeps the function alive for the
-        // background fetch without blocking the Blob completion webhook.
+        // Auto-kick AI tagging. waitUntil keeps the function alive while the
+        // tagging runs in the background; the Blob completion webhook still
+        // returns immediately to the platform.
         try {
           const inserted = await res.json()
-          const newId = inserted?.[0]?.id
-          if (newId) {
-            const origin = new URL(req.url).origin
-            waitUntil(fetch(`${origin}/api/media/tag`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: newId }),
-            }).catch((e) => console.error('Auto-tag dispatch failed:', e?.message)))
+          const newRow = inserted?.[0]
+          if (newRow?.id) {
+            waitUntil(tagAndPersist(newRow).catch((e) => console.error('Auto-tag failed:', e?.message)))
           }
         } catch (e) {
           console.error('Auto-tag dispatch error:', e?.message)
