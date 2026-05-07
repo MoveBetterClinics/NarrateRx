@@ -17,6 +17,7 @@ import Strategy from '@/pages/Strategy'
 import ContentHub from '@/pages/ContentHub'
 import ReviewPost from '@/pages/ReviewPost'
 import ContentCalendar from '@/pages/ContentCalendar'
+import MediaHub from '@/pages/MediaHub'
 import Integrations from '@/pages/Integrations'
 import { brand } from '@/lib/brand'
 
@@ -65,6 +66,7 @@ function ProtectedApp() {
               <Route path="/hub" element={<ContentHub />} />
               <Route path="/review/:itemId" element={<ReviewPost />} />
               <Route path="/calendar" element={<ContentCalendar />} />
+              <Route path="/media" element={<MediaHub />} />
               <Route path="/settings/integrations" element={<Integrations />} />
             </Routes>
           </Layout>

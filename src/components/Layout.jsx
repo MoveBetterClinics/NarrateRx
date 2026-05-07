@@ -29,6 +29,7 @@ export default function Layout({ children }) {
 
           <NavLink to="/"        label="Interviews" active={location.pathname === '/'} />
           <NavLink to="/hub"     label="Content Hub" active={location.pathname.startsWith('/hub') || location.pathname.startsWith('/review') || location.pathname.startsWith('/calendar')} />
+          <NavLink to="/media"   label="Media"       active={location.pathname.startsWith('/media')} />
           <NavLink to="/strategy" label="Strategy"   active={isStrategy} />
 
           {isHome && (
