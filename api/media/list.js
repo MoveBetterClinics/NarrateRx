@@ -44,8 +44,21 @@ export default async function handler(req, res) {
   const speakerRole = searchParams.get('speakerRole')  // clinician | admin | patient_guest
   const sources     = searchParams.get('sources')      // 'true' → parent_id IS NULL (sources only)
   const parent      = searchParams.get('parent')       // parent_id for variants of one source
+  const collectionId = searchParams.get('collectionId')// limit to assets in a given collection
   const limit       = Math.min(parseInt(searchParams.get('limit') || '60'), 200)
   const offset      = parseInt(searchParams.get('offset') || '0')
+
+  // Resolve a collection filter into an asset-id whitelist before composing
+  // the main query. Two queries instead of a PostgREST embed because the
+  // embed syntax fights with the existing or= text-search filter below.
+  let collectionAssetIds = null
+  if (collectionId) {
+    const ciRes = await sb(`collection_items?collection_id=eq.${collectionId}&select=asset_id`)
+    if (!ciRes.ok) return res.status(500).json({ error: 'Database error' })
+    const ciRows = await ciRes.json()
+    collectionAssetIds = ciRows.map((r) => r.asset_id)
+    if (collectionAssetIds.length === 0) return res.status(200).json([])
+  }
 
   // Always brand-scoped.
   let qs = `media_assets?select=${SELECT}&brand=eq.${brandId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
@@ -62,6 +75,9 @@ export default async function handler(req, res) {
   if (speakerRole) qs += `&speaker_role=eq.${speakerRole}`
   if (sources === 'true') qs += `&parent_id=is.null`
   if (parent)      qs += `&parent_id=eq.${encodeURIComponent(parent)}`
+  if (collectionAssetIds) {
+    qs += `&id=in.(${collectionAssetIds.map(encodeURIComponent).join(',')})`
+  }
   if (search) {
     const term = encodeURIComponent(`%${search}%`)
     // PostgREST `or` syntax. Note: jsonb columns can't be ilike'd directly here.

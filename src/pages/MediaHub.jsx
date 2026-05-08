@@ -7,6 +7,7 @@ import MediaUploader from '@/components/MediaUploader'
 import MediaGrid from '@/components/MediaGrid'
 import MediaDetail from '@/components/MediaDetail'
 import ContentBriefList from '@/components/ContentBriefList'
+import CollectionsBar from '@/components/CollectionsBar'
 import MediaHubHelp from '@/components/MediaHubHelp'
 import { listMedia, getMediaAsset } from '@/lib/mediaLib'
 import { useUserRole } from '@/lib/useUserRole'
@@ -33,6 +34,8 @@ export default function MediaHub() {
   const [status, setStatus]     = useState('')
   const [search, setSearch]     = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [collectionId, setCollectionId] = useState(null)
+  const [collectionRefreshKey, setCollectionRefreshKey] = useState(0)
   const [selected, setSelected] = useState(null)  // full asset row
   const [briefRefreshKey, setBriefRefreshKey] = useState(0)
 
@@ -45,14 +48,20 @@ export default function MediaHub() {
   const refresh = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const rows = await listMedia({ kind: kind || undefined, status: status || undefined, q: debouncedSearch || undefined, limit: 120 })
+      const rows = await listMedia({
+        kind: kind || undefined,
+        status: status || undefined,
+        q: debouncedSearch || undefined,
+        collectionId: collectionId || undefined,
+        limit: 120,
+      })
       setAssets(rows)
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [kind, status, debouncedSearch])
+  }, [kind, status, debouncedSearch, collectionId])
 
   useEffect(() => { refresh() }, [refresh])
 
@@ -83,6 +92,13 @@ export default function MediaHub() {
 
       {/* Edit briefs (AI suggestions + manual overrides) */}
       <ContentBriefList refreshKey={briefRefreshKey} />
+
+      {/* Collections — editorial groupings; click a chip to filter the library */}
+      <CollectionsBar
+        selectedId={collectionId}
+        onSelect={setCollectionId}
+        refreshKey={collectionRefreshKey}
+      />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -145,7 +161,11 @@ export default function MediaHub() {
         <MediaDetail
           asset={selected}
           onClose={() => setSelected(null)}
-          onChange={() => { refresh(); setBriefRefreshKey((k) => k + 1) }}
+          onChange={() => {
+            refresh()
+            setBriefRefreshKey((k) => k + 1)
+            setCollectionRefreshKey((k) => k + 1)
+          }}
         />
       )}
     </div>
