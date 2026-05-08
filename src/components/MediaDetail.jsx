@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check } from 'lucide-react'
+import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -10,6 +10,7 @@ import {
   restoreMediaAsset,
   purgeMediaAsset,
   tagMediaAsset,
+  regenerateThumbnail,
 } from '@/lib/mediaLib'
 import { listContentPieces, createContentPiece, segmentMediaAsset } from '@/lib/contentLib'
 import { useUserRole } from '@/lib/useUserRole'
@@ -49,6 +50,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [purgeConfirm, setPurgeConfirm] = useState('')
   const [showPurge, setShowPurge] = useState(false)
   const [tagging, setTagging]   = useState(false)
+  const [thumbing, setThumbing] = useState(false)
   const [segmenting, setSegmenting] = useState(false)
   const [creatingBrief, setCreatingBrief] = useState(false)
   const [error, setError]       = useState('')
@@ -137,6 +139,18 @@ export default function MediaDetail({ asset, onClose, onChange }) {
       setError(e.message)
     } finally {
       setTagging(false)
+    }
+  }
+
+  async function handleRegenerateThumbnail() {
+    setThumbing(true); setError('')
+    try {
+      await regenerateThumbnail(asset.id)
+      onChange?.()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setThumbing(false)
     }
   }
 
@@ -304,6 +318,23 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 : <Download className="h-3.5 w-3.5" />}
               Download
             </Button>
+            {asset.kind === 'video' && canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleRegenerateThumbnail}
+                disabled={thumbing}
+                className="h-7 gap-1.5 text-[11px]"
+                title={asset.thumbnail_url
+                  ? 'Re-extract poster frame from this video'
+                  : 'Extract a poster frame so this video shows a thumbnail in the grid'}
+              >
+                {thumbing
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : <ImageIcon className="h-3.5 w-3.5" />}
+                {asset.thumbnail_url ? 'Redo thumbnail' : 'Make thumbnail'}
+              </Button>
+            )}
             {asset.kind === 'photo' && (
               <span className="text-[11px] text-muted-foreground">
                 · or drag the preview straight into another browser tab

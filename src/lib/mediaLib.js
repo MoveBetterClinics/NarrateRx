@@ -95,6 +95,26 @@ export function tagMediaAsset(id) {
   })
 }
 
+// (Re)generate a poster-frame thumbnail for a video. New uploads get one
+// automatically via the upload pipeline; this is for backfilling older
+// videos or redoing a frame that landed on a black flash.
+export function regenerateThumbnail(id) {
+  return api(`/api/media/${encodeURIComponent(id)}/thumbnail`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+// Admin-only batch backfill: scans this brand for videos missing thumbnails
+// and processes up to `limit` of them sequentially. Re-run until processed=0.
+export function backfillThumbnails(limit = 25) {
+  return api(`/api/media/backfill-thumbnails`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ limit }),
+  })
+}
+
 // ── Upload ────────────────────────────────────────────────────────────────────
 
 // iPhone-shot HEIC/HEIF can't be rendered by browsers and isn't accepted by

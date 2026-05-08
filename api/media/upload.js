@@ -2,6 +2,7 @@ import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
 import { tagAndPersist } from '../_lib/tagAsset.js'
 import { segmentAndPersist } from '../_lib/segmentInterview.js'
+import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
 
@@ -209,6 +210,16 @@ export default async function handler(req, res) {
                 })
                 .catch((e) => console.error('Auto-pipeline failed:', e?.message)),
             )
+
+            // Poster-frame extraction runs in parallel with tagging — neither
+            // depends on the other, and a thumbnail is the user-visible signal
+            // in the Media Hub grid even when AI tagging fails.
+            if (insertedRow.kind === 'video') {
+              waitUntil(
+                generateAndPersistThumbnail(insertedRow)
+                  .catch((e) => console.error('Thumbnail generation failed:', e?.message)),
+              )
+            }
           }
         } catch (e) {
           console.error('Auto-pipeline dispatch error:', e?.message)
