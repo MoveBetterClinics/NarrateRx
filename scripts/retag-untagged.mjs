@@ -123,7 +123,7 @@ const { tagAndPersist } = await import('../api/_lib/tagAsset.js')
 // ─── Query untagged rows ──────────────────────────────────────────────────
 
 async function listUntagged(brand) {
-  const select = 'id,brand,kind,status,blob_url,mime_type,size_bytes,tags,notes'
+  const select = 'id,brand,kind,status,blob_url,mime_type,tags,notes'
   const url    = `${process.env.SUPABASE_URL}/rest/v1/media_assets?brand=eq.${brand}&status=eq.raw&select=${select}&order=created_at.asc`
   const r = await fetch(url, {
     headers: {

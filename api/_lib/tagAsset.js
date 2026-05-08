@@ -10,21 +10,7 @@ import { recordAudit, snapshot } from './audit.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-// Flash handles photos and small clips cheaply; Pro is needed for longer
-// clinical-session videos that Flash rejects with "invalid argument" once
-// the inline file context blows past its limit. The 50 MB cutoff is
-// empirical from the bulk-import retag pass — every Flash refusal in that
-// run was a multi-hundred-MB clip; everything below tagged fine.
-const MODEL_FLASH         = 'google/gemini-2.5-flash'
-const MODEL_PRO           = 'google/gemini-2.5-pro'
-const VIDEO_PRO_THRESHOLD = 50 * 1024 * 1024
-
-function pickModel(asset) {
-  if (asset?.kind === 'video' && Number(asset?.size_bytes || 0) >= VIDEO_PRO_THRESHOLD) {
-    return MODEL_PRO
-  }
-  return MODEL_FLASH
-}
+const MODEL = 'google/gemini-2.5-flash'
 
 function brandId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
@@ -126,7 +112,7 @@ async function callModel(asset) {
   ]
 
   const { object } = await generateObject({
-    model: pickModel(asset),
+    model: MODEL,
     schema: isVideo ? videoSchema : photoSchema,
     system: buildSystemPrompt(asset.kind),
     messages: [{ role: 'user', content: userParts }],
@@ -184,7 +170,7 @@ export async function tagAndPersist(asset) {
 // Look up an asset by id (brand-scoped) and run tagAndPersist on it.
 export async function tagById(id) {
   const where = `id=eq.${id}&brand=eq.${brandId()}`
-  const lookup = await sb(`media_assets?${where}&select=id,brand,kind,status,blob_url,mime_type,size_bytes,tags,notes`)
+  const lookup = await sb(`media_assets?${where}&select=id,brand,kind,status,blob_url,mime_type,tags,notes`)
   if (!lookup.ok) throw new Error('Database error')
   const rows = await lookup.json()
   const asset = rows[0]
