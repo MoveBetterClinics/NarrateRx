@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
 import { Plus, LayoutDashboard, Layers, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { CampaignModeChip } from '@/components/CampaignWidget'
 import { brand } from '@/lib/brand'
 
 export default function Layout({ children }) {
@@ -31,6 +32,8 @@ export default function Layout({ children }) {
           <NavLink to="/hub"     label="Content Hub" active={location.pathname.startsWith('/hub') || location.pathname.startsWith('/review') || location.pathname.startsWith('/calendar')} />
           <NavLink to="/media"   label="Media"       active={location.pathname.startsWith('/media')} />
           <NavLink to="/strategy" label="Strategy"   active={isStrategy} />
+
+          <CampaignModeChip />
 
           {isHome && (
             <Button asChild size="sm">
