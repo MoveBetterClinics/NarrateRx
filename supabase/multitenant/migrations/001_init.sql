@@ -34,7 +34,6 @@ create table workspaces (
   app_name text,                             -- "Move Better — NarrateRx"
   tagline text,
   sign_in_blurb text,
-  auth_domain text,                          -- email domain for org-bound sign-in
 
   -- Web presence
   website text,
@@ -65,11 +64,7 @@ create table workspaces (
   location_hashtag text,
   brand_hashtag text,
   spoken_url text,
-  sport_context text,
-
-  -- Newsletter
-  newsletter_template_name text,
-  newsletter_copy_header text,
+  activity_context text,                     -- audience day-to-day context (sport / hobby / discipline / etc.)
 
   -- Capabilities (developer-defined keys, tenant-editable values).
   capabilities jsonb default '{}'::jsonb,    -- { websitePublish: bool, ... }

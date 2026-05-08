@@ -9,18 +9,22 @@
 --     codified and the brand owner picks their channels in the settings UI.
 --   - clerk_org_id gets bound when each workspace's Clerk Organization is
 --     provisioned during Phase 2 cutover.
+--
+-- TDC newsletter config (template_name + copy_header) is NOT a workspace
+-- column — it lives in workspace_credentials.config keyed by service='tdc'
+-- since it only matters for workspaces that use TrustDrivenCare. See the
+-- second insert block below.
 
 insert into workspaces (
   slug, display_name, app_name, tagline, sign_in_blurb,
-  auth_domain, website, website_hostname,
+  website, website_hostname,
   location, region, region_short,
   logo, colors, social_avatar_initials, link_preview_blurb, linkedin_industry, social,
   clinic_context, audience_description, audience_short, brand_voice,
   internal_links_markdown, booking_url,
   signature_system_name, signature_system_url,
   pinterest_boards, location_keyword, location_hashtag, brand_hashtag,
-  spoken_url, sport_context,
-  newsletter_template_name, newsletter_copy_header,
+  spoken_url, activity_context,
   capabilities
 ) values
 -- =============================================================================
@@ -32,7 +36,6 @@ insert into workspaces (
   'Move Better — NarrateRx',
   'Movement Based Medicine',
   'Move Better · Sign in with your @movebetter.co account',
-  'movebetter.co',
   'https://www.movebetter.co/',
   'movebetter.co',
   'Portland, OR',
@@ -99,8 +102,6 @@ STRENGTH & REHAB:
   '#MoveBetter',
   'MoveBetter.co',
   'sport-specific scenarios relevant to the Pacific Northwest (running, lifting, cycling, climbing, hiking, skiing)',
-  'Move Better Newsletter - Master',
-  'Copy into TrustDrivenCare — Move Better Newsletter · Master',
   '{"websitePublish": false}'::jsonb
 ),
 -- =============================================================================
@@ -112,7 +113,6 @@ STRENGTH & REHAB:
   'Move Better Equine — NarrateRx',
   'Restoring Movement, Balance, and Comfort for Horses',
   'Move Better Equine · Sign in with your @movebetter.co account',
-  'movebetter.co',
   'https://movebetterequine.com/',
   'movebetterequine.com',
   'Ridgefield, WA',
@@ -150,8 +150,6 @@ BLOG POSTS:
   '#MoveBetterEquine',
   'MoveBetterEquine.com',
   'discipline-specific scenarios across English, Western, and sport horse work — dressage, jumping, eventing, reining, ranch and trail riding common to the Pacific Northwest',
-  'Move Better Equine Newsletter - Master',
-  'Copy into TrustDrivenCare — Move Better Equine Newsletter · Master',
   '{"websitePublish": true}'::jsonb
 ),
 -- =============================================================================
@@ -163,7 +161,6 @@ BLOG POSTS:
   'Move Better Animal Chiropractic — NarrateRx',
   'Chiropractic care for the pets you love',
   'Move Better Animal Chiropractic · Sign in with your @movebetter.co account',
-  'movebetter.co',
   'https://movebetteranimal.co/',
   'movebetteranimal.co',
   'Portland, OR & Vancouver, WA',
@@ -210,7 +207,38 @@ BLOG POSTS:
   '#MoveBetterAnimal',
   'MoveBetterAnimal.co',
   'working- and athletic-dog scenarios common to the Pacific Northwest — agility competition, hunting and field work, dock diving, herding, and trail/hiking companionship',
-  'Move Better Animal Newsletter - Master',
-  'Copy into TrustDrivenCare — Move Better Animal Newsletter · Master',
   '{"websitePublish": true}'::jsonb
 );
+
+-- =============================================================================
+-- TDC (TrustDrivenCare) credentials per workspace.
+-- Lives in workspace_credentials so external workspaces that use a different
+-- newsletter provider don't carry dead TDC columns. The actual TDC API token
+-- (when provisioned) goes in secret_encrypted; template_name + copy_header
+-- are non-secret config and live in the config jsonb.
+-- =============================================================================
+insert into workspace_credentials (workspace_id, service, config) values
+  (
+    (select id from workspaces where slug = 'movebetter-people'),
+    'tdc',
+    jsonb_build_object(
+      'template_name', 'Move Better Newsletter - Master',
+      'copy_header', 'Copy into TrustDrivenCare — Move Better Newsletter · Master'
+    )
+  ),
+  (
+    (select id from workspaces where slug = 'movebetter-equine'),
+    'tdc',
+    jsonb_build_object(
+      'template_name', 'Move Better Equine Newsletter - Master',
+      'copy_header', 'Copy into TrustDrivenCare — Move Better Equine Newsletter · Master'
+    )
+  ),
+  (
+    (select id from workspaces where slug = 'movebetter-animals'),
+    'tdc',
+    jsonb_build_object(
+      'template_name', 'Move Better Animal Newsletter - Master',
+      'copy_header', 'Copy into TrustDrivenCare — Move Better Animal Newsletter · Master'
+    )
+  );
