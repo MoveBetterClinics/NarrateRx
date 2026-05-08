@@ -1,6 +1,18 @@
 // GET / PATCH / DELETE for a single content_piece (edit brief).
 // Runs on Node (Fluid Compute). All brand-scoped.
 
+import { requireRole } from '../_lib/auth.js'
+
+// Per-method role requirements — mirrors /api/media/[id]:
+//   GET    → any authenticated user
+//   PATCH  → admin or editor (brief edits + status transitions)
+//   DELETE → admin or editor (brief teardown)
+const ROLE_REQUIREMENTS = {
+  GET:    null,
+  PATCH:  ['admin', 'editor'],
+  DELETE: ['admin', 'editor'],
+}
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
@@ -30,6 +42,14 @@ const SELECT =
   'published_at,published_target_id'
 
 export default async function handler(req, res) {
+  if (!(req.method in ROLE_REQUIREMENTS)) {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+  const auth = await requireRole(req, ROLE_REQUIREMENTS[req.method])
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
   const url = new URL(req.url, 'http://localhost')
   const id  = url.pathname.split('/').pop()
   if (!id) return res.status(400).json({ error: 'Missing id' })

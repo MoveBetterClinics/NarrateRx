@@ -326,23 +326,27 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                     </div>
                   </div>
                   <div className="flex gap-1.5">
-                    <Button
-                      size="sm" variant="outline" onClick={handleSegment}
-                      disabled={segmenting || !canSegment}
-                      title={canSegment ? 'Re-run AI segmenter on this source' : 'Tag with AI first to enable'}
-                      className="h-7 gap-1.5 text-[11px]"
-                    >
-                      {segmenting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-                      {linkedBriefs.length ? 'Re-segment' : 'Segment'}
-                    </Button>
-                    <Button
-                      size="sm" variant="outline" onClick={handleNewBrief}
-                      disabled={creatingBrief}
-                      className="h-7 gap-1.5 text-[11px]"
-                    >
-                      {creatingBrief ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePlus2 className="h-3.5 w-3.5" />}
-                      New brief
-                    </Button>
+                    {canEdit && (
+                      <>
+                        <Button
+                          size="sm" variant="outline" onClick={handleSegment}
+                          disabled={segmenting || !canSegment}
+                          title={canSegment ? 'Re-run AI segmenter on this source' : 'Tag with AI first to enable'}
+                          className="h-7 gap-1.5 text-[11px]"
+                        >
+                          {segmenting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                          {linkedBriefs.length ? 'Re-segment' : 'Segment'}
+                        </Button>
+                        <Button
+                          size="sm" variant="outline" onClick={handleNewBrief}
+                          disabled={creatingBrief}
+                          className="h-7 gap-1.5 text-[11px]"
+                        >
+                          {creatingBrief ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePlus2 className="h-3.5 w-3.5" />}
+                          New brief
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
                 {linkedBriefs.length > 0 && (

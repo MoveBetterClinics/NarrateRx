@@ -4,6 +4,8 @@
 //
 // Runs on Node (Fluid Compute). Brand-scoped reads only.
 
+import { requireRole } from '../_lib/auth.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
@@ -34,6 +36,11 @@ const SELECT =
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const auth = await requireRole(req)
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
   const { searchParams } = new URL(req.url, 'http://localhost')

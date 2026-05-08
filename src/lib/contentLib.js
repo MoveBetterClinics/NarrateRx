@@ -1,9 +1,26 @@
 // Client-side helpers for content_pieces (a.k.a. "edit briefs"). Each piece
 // is a draft post candidate surfaced from a source media row by the AI
 // segmenter, OR created manually by an editor as a backdoor override.
+//
+// Every request carries a short-lived Clerk JWT in the Authorization header.
+// requireRole() on the server-side endpoints verifies it and enforces
+// per-method role rules. window.Clerk is the official browser handle exposed
+// by @clerk/clerk-react.
+
+async function getClerkToken() {
+  if (typeof window === 'undefined') return null
+  try {
+    return await window.Clerk?.session?.getToken?.()
+  } catch {
+    return null
+  }
+}
 
 async function api(path, init = {}) {
-  const res = await fetch(path, init)
+  const token   = await getClerkToken()
+  const headers = { ...(init.headers || {}) }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res  = await fetch(path, { ...init, headers })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json.error || `Request failed: ${res.status}`)
   return json

@@ -2,6 +2,8 @@
 // wants to spin up a brief for a moment AI didn't surface — the
 // "always-have-a-backdoor" override path. Brand-scoped.
 
+import { requireRole } from '../_lib/auth.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
@@ -25,6 +27,12 @@ function sb(path, init = {}) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  // Brief creation is the same gate as media metadata edits — admin/editor.
+  const auth = await requireRole(req, ['admin', 'editor'])
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
   const body = req.body || {}
