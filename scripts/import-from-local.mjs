@@ -440,10 +440,20 @@ async function main() {
   }
 
   if (argv.dryRun) {
-    console.log('\nDry-run — listing what would be imported:')
+    console.log('\nDry-run — listing what would be imported (source → renamed blob):')
     for (const f of todo.slice(0, 200)) {
       const sizeMb = (f.size / (1024 * 1024)).toFixed(1)
-      console.log(`  ${sizeMb.padStart(8)} MB  ${f.path}`)
+      const k = kindForExt(extname(f.path))
+      const newName = k
+        ? renamedBasename({
+            brand: argv.brand,
+            kind: k.kind,
+            capturedAt: f.mtime ? new Date(f.mtime).toISOString() : null,
+            fingerprint: f.fp,
+            ext: extname(f.path),
+          })
+        : '?'
+      console.log(`  ${sizeMb.padStart(8)} MB  ${basename(f.path)}  →  ${newName}`)
     }
     if (todo.length > 200) console.log(`  …and ${todo.length - 200} more (truncated)`)
     return

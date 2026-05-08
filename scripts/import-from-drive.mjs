@@ -463,10 +463,20 @@ async function main() {
   }
 
   if (argv.dryRun) {
-    console.log('\nDry-run — listing what would be imported:')
+    console.log('\nDry-run — listing what would be imported (source → renamed blob):')
     for (const f of todo) {
       const sizeMb = f.size ? (parseInt(f.size, 10) / (1024 * 1024)).toFixed(1) : '?'
-      console.log(`  ${f.mimeType.padEnd(18)}  ${sizeMb.padStart(7)} MB  ${f.name}`)
+      const kind = kindFromMime(f.mimeType)
+      const newName = kind
+        ? renamedBasename({
+            brand: argv.brand,
+            kind,
+            capturedAt: f.createdTime || null,
+            fingerprint: f.id,
+            ext: extname(f.name),
+          })
+        : '?'
+      console.log(`  ${f.mimeType.padEnd(18)}  ${sizeMb.padStart(7)} MB  ${f.name}  →  ${newName}`)
     }
     return
   }
