@@ -41,7 +41,8 @@
 
 import { put as blobPut } from '@vercel/blob'
 import { readFile } from 'node:fs/promises'
-import { createSign } from 'node:crypto'
+import { createHash, createSign } from 'node:crypto'
+import { extname } from 'node:path'
 
 // ─── CLI ──────────────────────────────────────────────────────────────────
 
@@ -301,13 +302,29 @@ function kindFromMime(mime) {
   return null
 }
 
-function pathnameFor(brand, file) {
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const safe  = file.name.replace(/[^a-zA-Z0-9._-]+/g, '-')
-  return `media/raw/${brand}/${stamp}-${file.id.slice(0, 8)}-${safe}`
+// Deterministic rename: {brand}-{kind}-{yyyymmdd}-{hash8}.{ext}
+// e.g. people-video-20260507-a3f2b119.mp4 — sortable, traceable, stable
+// per Drive file (re-import → same name → blob overwrite, not duplicate).
+function renamedBasename({ brand, kind, capturedAt, fingerprint, ext }) {
+  const date = capturedAt
+    ? new Date(capturedAt).toISOString().slice(0, 10).replace(/-/g, '')
+    : 'undated'
+  const hash = createHash('sha1').update(fingerprint).digest('hex').slice(0, 8)
+  const cleanExt = (ext || '').toLowerCase().replace(/^\./, '').replace(/^jpeg$/, 'jpg')
+  return `${brand}-${kind}-${date}-${hash}.${cleanExt}`
 }
 
-async function streamFileToBlob(brand, file) {
+function pathnameFor(brand, file, kind) {
+  return `media/raw/${brand}/${renamedBasename({
+    brand,
+    kind,
+    capturedAt: file.createdTime || null,
+    fingerprint: file.id,
+    ext: extname(file.name),
+  })}`
+}
+
+async function streamFileToBlob(brand, file, kind) {
   const token = await getGoogleToken()
   const dl = await fetch(
     `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(file.id)}?alt=media&supportsAllDrives=true`,
@@ -315,10 +332,13 @@ async function streamFileToBlob(brand, file) {
   )
   if (!dl.ok) throw new Error(`Drive download ${file.id} → ${dl.status}`)
 
-  const blob = await blobPut(pathnameFor(brand, file), dl.body, {
+  // addRandomSuffix:false — keep the deterministic name; re-imports overwrite
+  // the same blob rather than creating duplicates.
+  const blob = await blobPut(pathnameFor(brand, file, kind), dl.body, {
     access: 'public',
     contentType: file.mimeType,
     token: BLOB_TOKEN,
+    addRandomSuffix: false,
   })
   return blob
 }
@@ -329,7 +349,7 @@ async function importOne(brand, file) {
   const kind = kindFromMime(file.mimeType)
   if (!kind) return { skipped: 'unknown-kind' }
 
-  const blob = await streamFileToBlob(brand, file)
+  const blob = await streamFileToBlob(brand, file, kind)
 
   const row = {
     brand,

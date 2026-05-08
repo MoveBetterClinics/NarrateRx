@@ -40,6 +40,7 @@
 // already imported. Safe to Ctrl+C and re-run.
 
 import { put as blobPut } from '@vercel/blob'
+import { createHash } from 'node:crypto'
 import { createReadStream } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { join, extname, basename } from 'node:path'
@@ -272,26 +273,43 @@ async function recordAudit({ assetId, brand, snapshot }) {
 
 // ─── Stream local file → Blob ─────────────────────────────────────────────
 
-function pathnameFor(brand, filename) {
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  const safe  = filename.replace(/[^a-zA-Z0-9._-]+/g, '-')
-  // 8-char random suffix to avoid collisions when two files share a name.
-  const suffix = Math.random().toString(36).slice(2, 10)
-  return `media/raw/${brand}/${stamp}-${suffix}-${safe}`
+// Deterministic rename: {brand}-{kind}-{yyyymmdd}-{hash8}.{ext}
+// e.g. people-video-20260507-a3f2b119.mp4 — sortable, traceable, stable
+// per source file (re-import → same name → blob overwrite, not duplicate).
+function renamedBasename({ brand, kind, capturedAt, fingerprint, ext }) {
+  const date = capturedAt
+    ? new Date(capturedAt).toISOString().slice(0, 10).replace(/-/g, '')
+    : 'undated'
+  const hash = createHash('sha1').update(fingerprint).digest('hex').slice(0, 8)
+  const cleanExt = (ext || '').toLowerCase().replace(/^\./, '').replace(/^jpeg$/, 'jpg')
+  return `${brand}-${kind}-${date}-${hash}.${cleanExt}`
 }
 
-async function streamFileToBlob(brand, fullPath, mime) {
-  const filename = basename(fullPath)
+function pathnameFor({ brand, kind, capturedAt, fingerprint, ext }) {
+  return `media/raw/${brand}/${renamedBasename({ brand, kind, capturedAt, fingerprint, ext })}`
+}
+
+async function streamFileToBlob(brand, file, kind, mime) {
   // createReadStream returns a Node Readable — convert to Web ReadableStream
   // via Readable.toWeb. @vercel/blob's put() accepts Web streams, Buffers,
   // strings, etc. Streaming keeps memory flat for the 1 GB videos.
   const { Readable } = await import('node:stream')
-  const nodeStream = createReadStream(fullPath)
+  const nodeStream = createReadStream(file.path)
   const webStream  = Readable.toWeb(nodeStream)
-  const blob = await blobPut(pathnameFor(brand, filename), webStream, {
+  const pathname = pathnameFor({
+    brand,
+    kind,
+    capturedAt: file.mtime ? new Date(file.mtime).toISOString() : null,
+    fingerprint: file.fp,
+    ext: extname(file.path),
+  })
+  // addRandomSuffix:false — keep the deterministic name; re-imports overwrite
+  // the same blob rather than creating duplicates.
+  const blob = await blobPut(pathname, webStream, {
     access: 'public',
     contentType: mime,
     token: BLOB_TOKEN,
+    addRandomSuffix: false,
   })
   return blob
 }
@@ -303,7 +321,7 @@ async function importOne(brand, file) {
   const k = kindForExt(ext)
   if (!k) return { skipped: 'unknown-kind' }
 
-  const blob = await streamFileToBlob(brand, file.path, k.mime)
+  const blob = await streamFileToBlob(brand, file, k.kind, k.mime)
 
   const row = {
     brand,
