@@ -1,3 +1,7 @@
+import { spawn } from 'node:child_process'
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { brand } from '../../src/lib/brand.js'
@@ -11,6 +15,17 @@ const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 const MODEL = 'google/gemini-2.5-flash'
+
+// Gemini's inline-data cap on Vertex (the path the AI Gateway uses) is ~20 MB
+// per request, after base64 inflation. Anything larger handed to the SDK as a
+// URL (which it fetches + base64-encodes) returns "Request contains an invalid
+// argument". Workaround: for videos at or above PROXY_TRIGGER_BYTES, download
+// + transcode to a 720p/CRF30/64k-mono proxy capped at 18 MB, then hand the
+// model the proxy bytes. Original blob is untouched — editors still get full
+// quality in CapCut downstream.
+const PROXY_TRIGGER_BYTES = 15 * 1024 * 1024
+const PROXY_MAX_OUTPUT    = '18000000'                          // ffmpeg -fs
+const FFMPEG_BIN          = process.env.FFMPEG_PATH || 'ffmpeg' // override if needed
 
 function brandId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
@@ -91,6 +106,44 @@ function normalizeTags(tags, existingUserTags = []) {
   return out
 }
 
+// Download the blob locally and ffmpeg-transcode to a small H.264 proxy that
+// fits under Gemini's inline cap. Returns the proxy bytes; caller is
+// responsible for handing them to the model. Originals are never modified.
+async function transcodeProxy(blobUrl) {
+  const dir     = await mkdtemp(join(tmpdir(), 'tagproxy-'))
+  const inPath  = join(dir, 'in.bin')
+  const outPath = join(dir, 'out.mp4')
+  try {
+    const res = await fetch(blobUrl)
+    if (!res.ok) throw new Error(`Proxy download failed: ${res.status}`)
+    await writeFile(inPath, Buffer.from(await res.arrayBuffer()))
+
+    await new Promise((resolve, reject) => {
+      const args = [
+        '-y', '-i', inPath,
+        '-vf', "scale='min(720,iw)':-2",
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '30',
+        '-c:a', 'aac', '-b:a', '64k', '-ac', '1',
+        '-movflags', '+faststart',
+        '-fs', PROXY_MAX_OUTPUT,
+        outPath,
+      ]
+      const proc = spawn(FFMPEG_BIN, args, { stdio: ['ignore', 'ignore', 'pipe'] })
+      let stderr = ''
+      proc.stderr.on('data', (d) => { stderr += d.toString() })
+      proc.on('error', (e) => reject(new Error(`ffmpeg spawn failed (${e.code || e.message}); set FFMPEG_PATH or install ffmpeg`)))
+      proc.on('close', (code) => {
+        if (code === 0) resolve()
+        else reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-400).trim()}`))
+      })
+    })
+
+    return await readFile(outPath)
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
 async function callModel(asset) {
   if (!process.env.AI_GATEWAY_API_KEY) {
     throw new Error('AI_GATEWAY_API_KEY is not set on this deployment')
@@ -99,16 +152,20 @@ async function callModel(asset) {
     throw new Error('Asset has no blob_url to analyze')
   }
 
-  const isVideo = asset.kind === 'video'
+  const isVideo  = asset.kind === 'video'
+  const sizeBytes = Number(asset.size_bytes || 0)
+  const needsProxy = isVideo && sizeBytes >= PROXY_TRIGGER_BYTES
+
+  const fileData = needsProxy ? await transcodeProxy(asset.blob_url) : asset.blob_url
+  const mediaType = needsProxy
+    ? 'video/mp4'
+    : (asset.mime_type || (isVideo ? 'video/mp4' : 'image/jpeg'))
+
   const userParts = [
     { type: 'text', text: isVideo
         ? 'Watch this clip and return tags + transcription as specified.'
         : 'Look at this image and return tags as specified.' },
-    {
-      type: 'file',
-      data: asset.blob_url,
-      mediaType: asset.mime_type || (isVideo ? 'video/mp4' : 'image/jpeg'),
-    },
+    { type: 'file', data: fileData, mediaType },
   ]
 
   const { object } = await generateObject({
@@ -170,7 +227,7 @@ export async function tagAndPersist(asset) {
 // Look up an asset by id (brand-scoped) and run tagAndPersist on it.
 export async function tagById(id) {
   const where = `id=eq.${id}&brand=eq.${brandId()}`
-  const lookup = await sb(`media_assets?${where}&select=id,brand,kind,status,blob_url,mime_type,tags,notes`)
+  const lookup = await sb(`media_assets?${where}&select=id,brand,kind,status,blob_url,mime_type,size_bytes,tags,notes`)
   if (!lookup.ok) throw new Error('Database error')
   const rows = await lookup.json()
   const asset = rows[0]
