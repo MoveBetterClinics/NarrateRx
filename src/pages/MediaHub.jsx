@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button'
 import MediaUploader from '@/components/MediaUploader'
 import MediaGrid from '@/components/MediaGrid'
 import MediaDetail from '@/components/MediaDetail'
+import ContentBriefList from '@/components/ContentBriefList'
+import MediaHubHelp from '@/components/MediaHubHelp'
 import { listMedia, getMediaAsset } from '@/lib/mediaLib'
 import { useUserRole } from '@/lib/useUserRole'
 
@@ -32,6 +34,7 @@ export default function MediaHub() {
   const [search, setSearch]     = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [selected, setSelected] = useState(null)  // full asset row
+  const [briefRefreshKey, setBriefRefreshKey] = useState(0)
 
   // Debounce search input.
   useEffect(() => {
@@ -65,15 +68,21 @@ export default function MediaHub() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Media Hub</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Your library of raw and edited clips. Tag, organize, and drop into posts.
-        </p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold">Media Hub</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Your library of raw and edited clips. AI suggests posts to make from each upload — accept, edit, return finished files, then attach to Content Hub.
+          </p>
+        </div>
+        <MediaHubHelp />
       </div>
 
       {/* Uploader — surfaced to every role per HANDOFF role table */}
       {canUpload && <MediaUploader createdBy={user?.id} onUploaded={refresh} />}
+
+      {/* Edit briefs (AI suggestions + manual overrides) */}
+      <ContentBriefList refreshKey={briefRefreshKey} />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -136,7 +145,7 @@ export default function MediaHub() {
         <MediaDetail
           asset={selected}
           onClose={() => setSelected(null)}
-          onChange={refresh}
+          onChange={() => { refresh(); setBriefRefreshKey((k) => k + 1) }}
         />
       )}
     </div>

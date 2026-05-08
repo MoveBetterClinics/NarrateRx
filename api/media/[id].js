@@ -40,7 +40,7 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
 
 async function fetchRow(where) {
   const r = await sb(`media_assets?${where}&select=${SELECT}`)
@@ -84,6 +84,8 @@ export default async function handler(req, res) {
       condition:         patch.condition,
       captured_at:       patch.capturedAt,
       transcription:     patch.transcription,
+      visual_narrative:  patch.visualNarrative,
+      speaker_role:      patch.speakerRole,
       duration_s:        patch.durationS,
       aspect_ratio:      patch.aspectRatio,
       width:             patch.width,

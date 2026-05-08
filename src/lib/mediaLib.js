@@ -99,11 +99,21 @@ export function tagMediaAsset(id) {
 // Direct-to-Blob upload. The handleUpload endpoint records the asset on
 // completion. We pass metadata via clientPayload so the server sees who/what
 // the file is for without making the browser trust-record it.
+//
+// meta keys (all optional):
+//   createdBy, patientPseudonym, condition, capturedAt, notes,
+//   speakerRole       — 'clinician' (default) | 'admin' | 'patient_guest'
+//   parentId          — when set, this is a return-upload of a finished edit;
+//                       server inserts with parent_id set, status='approved',
+//                       and skips the AI auto-pipeline.
+//   contentPieceId    — paired with parentId; server marks the brief as
+//                       'returned' and links its final_asset_id.
 export async function uploadMedia(file, meta = {}) {
   const ext       = (file.name.match(/\.[^.]+$/) || [''])[0]
   const baseName  = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()
   const stamp     = new Date().toISOString().replace(/[:.]/g, '-')
-  const pathname  = `media/raw/${stamp}-${baseName}${ext}`
+  const folder    = meta.parentId ? 'media/edited' : 'media/raw'
+  const pathname  = `${folder}/${stamp}-${baseName}${ext}`
 
   const token = await getClerkToken()
 
@@ -122,6 +132,9 @@ export async function uploadMedia(file, meta = {}) {
       condition: meta.condition || null,
       capturedAt: meta.capturedAt || null,
       notes: meta.notes || null,
+      speakerRole: meta.speakerRole || 'clinician',
+      parentId: meta.parentId || null,
+      contentPieceId: meta.contentPieceId || null,
     }),
   })
 

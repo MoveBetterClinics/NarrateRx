@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,9 +11,16 @@ import {
   purgeMediaAsset,
   tagMediaAsset,
 } from '@/lib/mediaLib'
+import { listContentPieces, createContentPiece, segmentMediaAsset } from '@/lib/contentLib'
 import { useUserRole } from '@/lib/useUserRole'
+import ContentBriefDetail from './ContentBriefDetail'
 
 const STATUSES = ['raw', 'tagged', 'rendered', 'approved', 'archived']
+const SPEAKER_ROLES = [
+  { id: 'clinician',     label: 'Clinician' },
+  { id: 'admin',         label: 'Admin staff' },
+  { id: 'patient_guest', label: 'Patient guest' },
+]
 const PURGE_COOLDOWN_DAYS = 30
 
 function daysSince(iso) {
@@ -30,8 +37,10 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [patient, setPatient]   = useState(asset.patient_pseudonym || '')
   const [condition, setCondition] = useState(asset.condition || '')
   const [status, setStatus]     = useState(asset.status || 'raw')
+  const [speakerRole, setSpeakerRole] = useState(asset.speaker_role || 'clinician')
   const [aiTags, setAiTags]     = useState(asset.ai_tags || [])
   const [transcription, setTranscription] = useState(asset.transcription || '')
+  const [visualNarrative, setVisualNarrative] = useState(asset.visual_narrative || '')
   const [saving, setSaving]     = useState(false)
   const [archiving, setArchiving] = useState(false)
   const [restoring, setRestoring] = useState(false)
@@ -39,7 +48,11 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [purgeConfirm, setPurgeConfirm] = useState('')
   const [showPurge, setShowPurge] = useState(false)
   const [tagging, setTagging]   = useState(false)
+  const [segmenting, setSegmenting] = useState(false)
+  const [creatingBrief, setCreatingBrief] = useState(false)
   const [error, setError]       = useState('')
+  const [linkedBriefs, setLinkedBriefs] = useState([])
+  const [openBrief, setOpenBrief] = useState(null)
 
   const { canEdit, canArchive, canRestore, canPurge } = useUserRole()
 
@@ -57,13 +70,24 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setPatient(asset.patient_pseudonym || '')
     setCondition(asset.condition || '')
     setStatus(asset.status || 'raw')
+    setSpeakerRole(asset.speaker_role || 'clinician')
     setAiTags(asset.ai_tags || [])
     setTranscription(asset.transcription || '')
+    setVisualNarrative(asset.visual_narrative || '')
     setTagInput('')
     setError('')
     setShowPurge(false)
     setPurgeConfirm('')
   }, [asset.id])
+
+  const refreshBriefs = useCallback(async () => {
+    try {
+      const rows = await listContentPieces({ sourceId: asset.id, limit: 50 })
+      setLinkedBriefs(rows)
+    } catch {}
+  }, [asset.id])
+
+  useEffect(() => { refreshBriefs() }, [refreshBriefs])
 
   function addTag() {
     const t = tagInput.trim().toLowerCase()
@@ -77,7 +101,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setSaving(true); setError('')
     try {
       await updateMediaAsset(asset.id, {
-        tags, notes, patientPseudonym: patient, condition, status,
+        tags, notes, patientPseudonym: patient, condition, status, speakerRole,
       })
       onChange?.()
       onClose?.()
@@ -95,6 +119,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
       if (updated) {
         setAiTags(updated.ai_tags || [])
         if (updated.transcription !== undefined) setTranscription(updated.transcription || '')
+        if (updated.visual_narrative !== undefined) setVisualNarrative(updated.visual_narrative || '')
         if (updated.status) setStatus(updated.status)
       }
       onChange?.()
@@ -102,6 +127,38 @@ export default function MediaDetail({ asset, onClose, onChange }) {
       setError(e.message)
     } finally {
       setTagging(false)
+    }
+  }
+
+  async function handleSegment() {
+    setSegmenting(true); setError('')
+    try {
+      await segmentMediaAsset(asset.id)
+      await refreshBriefs()
+      onChange?.()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSegmenting(false)
+    }
+  }
+
+  async function handleNewBrief() {
+    setCreatingBrief(true); setError('')
+    try {
+      const piece = await createContentPiece({
+        sourceAssetId: asset.id,
+        sourceQuote: '',
+        caption: '',
+        targetPlatform: '',
+      })
+      await refreshBriefs()
+      onChange?.()
+      if (piece?.id) setOpenBrief(piece)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setCreatingBrief(false)
     }
   }
 
@@ -146,6 +203,8 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     }
   }
 
+  const canSegment = asset.kind === 'video' && (transcription || visualNarrative)
+
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
       <div className="bg-background rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
@@ -172,21 +231,33 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               </div>
             )}
 
-            {/* Status */}
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
-              <div className="flex flex-wrap gap-1.5">
-                {STATUSES.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setStatus(s)}
-                    className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                      status === s ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {s}
-                  </button>
-                ))}
+            {/* Status + speaker role */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {STATUSES.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setStatus(s)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                        status === s ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                      }`}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Who's speaking?</label>
+                <select
+                  value={speakerRole}
+                  onChange={(e) => setSpeakerRole(e.target.value)}
+                  className="text-sm h-8 px-2 rounded-md border border-border bg-background text-foreground w-full"
+                >
+                  {SPEAKER_ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+                </select>
               </div>
             </div>
 
@@ -202,7 +273,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                     disabled={tagging}
                     className="h-7 gap-1.5 text-[11px]"
                     title={asset.kind === 'video'
-                      ? 'Run AI tagging + transcription (10–60s)'
+                      ? 'Run AI tagging + transcription + visual narrative (10–60s)'
                       : 'Run AI tagging on this image'}
                   >
                     {tagging
@@ -238,6 +309,71 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               </div>
             </div>
 
+            {/* Edit briefs */}
+            {asset.kind === 'video' && (
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <div className="text-xs font-medium flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      Edit briefs
+                      {linkedBriefs.length > 0 && (
+                        <Badge variant="secondary" className="text-[10px]">{linkedBriefs.length}</Badge>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Moments AI surfaced (or you added) for this clip.
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5">
+                    {canEdit && (
+                      <>
+                        <Button
+                          size="sm" variant="outline" onClick={handleSegment}
+                          disabled={segmenting || !canSegment}
+                          title={canSegment ? 'Re-run AI segmenter on this source' : 'Tag with AI first to enable'}
+                          className="h-7 gap-1.5 text-[11px]"
+                        >
+                          {segmenting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
+                          {linkedBriefs.length ? 'Re-segment' : 'Segment'}
+                        </Button>
+                        <Button
+                          size="sm" variant="outline" onClick={handleNewBrief}
+                          disabled={creatingBrief}
+                          className="h-7 gap-1.5 text-[11px]"
+                        >
+                          {creatingBrief ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePlus2 className="h-3.5 w-3.5" />}
+                          New brief
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {linkedBriefs.length > 0 && (
+                  <ul className="divide-y -mx-3">
+                    {linkedBriefs.map((b) => (
+                      <li
+                        key={b.id}
+                        onClick={() => setOpenBrief(b)}
+                        className="px-3 py-2 hover:bg-muted/40 cursor-pointer flex items-start gap-2"
+                      >
+                        <Badge variant="outline" className="text-[10px] uppercase shrink-0 mt-0.5">{b.status}</Badge>
+                        <div className="min-w-0 flex-1 text-xs">
+                          <div className="truncate">
+                            {b.target_platform && <span className="text-primary mr-1">[{b.target_platform}]</span>}
+                            {b.source_quote ? `"${b.source_quote.slice(0, 80)}${b.source_quote.length > 80 ? '…' : ''}"` : '(no quote)'}
+                          </div>
+                          <div className="text-muted-foreground truncate">
+                            {b.final_caption?.slice(0, 100) || b.ai_caption?.slice(0, 100) || '(no caption)'}
+                          </div>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             {/* Patient + condition */}
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -260,6 +396,13 @@ export default function MediaDetail({ asset, onClose, onChange }) {
             <div className="text-[11px] text-muted-foreground space-y-0.5">
               <div>Uploaded {new Date(asset.created_at).toLocaleString()}</div>
               {asset.size_bytes && <div>{(asset.size_bytes / (1024 * 1024)).toFixed(1)} MB · {asset.mime_type}</div>}
+              {asset.parent_id && <div>Edited from another source clip</div>}
+              {visualNarrative && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer hover:text-foreground">View visual narrative</summary>
+                  <p className="mt-1 text-foreground whitespace-pre-wrap">{visualNarrative}</p>
+                </details>
+              )}
               {transcription && (
                 <details className="mt-2">
                   <summary className="cursor-pointer hover:text-foreground">View transcription</summary>
@@ -348,6 +491,14 @@ export default function MediaDetail({ asset, onClose, onChange }) {
           </div>
         </div>
       </div>
+
+      {openBrief && (
+        <ContentBriefDetail
+          brief={openBrief}
+          onClose={() => setOpenBrief(null)}
+          onChange={() => { refreshBriefs(); onChange?.() }}
+        />
+      )}
     </div>
   )
 }
