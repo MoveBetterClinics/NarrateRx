@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ChevronDown, ChevronRight, FileText, Share2, Globe, Video, Mail, MoreHorizontal, Zap } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { CampaignWidget, useCampaign } from '@/components/CampaignWidget'
 import { brand } from '@/lib/brand'
 
 function Accordion({ title, children, defaultOpen = false }) {
@@ -90,6 +91,8 @@ const AUTOMATION_ROWS = [
 ]
 
 export default function Strategy() {
+  const { campaign, saving, notesSaved, handleModeChange, handleNotesChange } = useCampaign()
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
 
@@ -103,6 +106,15 @@ export default function Strategy() {
           How to take each piece of content NarrateRx generates and deploy it for maximum reach and patient acquisition.
         </p>
       </div>
+
+      {/* Content Focus — campaign mode editor */}
+      <CampaignWidget
+        campaign={campaign}
+        saving={saving}
+        notesSaved={notesSaved}
+        onModeChange={handleModeChange}
+        onNotesChange={handleNotesChange}
+      />
 
       {/* Overview */}
       <div className="rounded-xl border bg-card p-5 space-y-4">

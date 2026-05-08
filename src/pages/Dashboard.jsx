@@ -1,61 +1,35 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { Plus, MessageSquare, Clock, ChevronRight, Users, Loader2, LayoutGrid, User, Tag, TrendingUp, AlertCircle, Target, Check, FileText, Share2, Globe, Video, Mail, Mic, Sparkles } from 'lucide-react'
+import {
+  Plus, MessageSquare, Clock, ChevronRight, Users, Loader2, LayoutGrid, User, Tag,
+  AlertCircle, FileText, Image as ImageIcon, Compass, Mic, TrendingUp, PlayCircle,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { Textarea } from '@/components/ui/textarea'
-import { fetchClinicians, fetchCampaign, updateCampaign } from '@/lib/api'
-import { CAMPAIGN_MODES } from '@/lib/campaigns'
+import { fetchClinicians } from '@/lib/api'
 import { getSuggestedTopics } from '@brand-overlay/topicSuggestions'
 import { getInitials, formatRelativeDate } from '@/lib/utils'
 import { brand } from '@/lib/brand'
+
+const RESUME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
+const RESUME_INITIAL_CAP = 6
 
 export default function Dashboard() {
   const { user } = useUser()
   const [clinicians, setClinicians] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [campaign, setCampaign] = useState({ mode: 'bookings', notes: '' })
-  const [campaignSaving, setCampaignSaving] = useState(false)
-  const [notesSaved, setNotesSaved] = useState(false)
-  const notesTimerRef = useRef(null)
 
   useEffect(() => {
     fetchClinicians()
       .then(setClinicians)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
-    fetchCampaign()
-      .then(setCampaign)
-      .catch(() => {})
   }, [])
-
-  async function handleModeChange(mode) {
-    const next = { ...campaign, mode }
-    setCampaign(next)
-    setCampaignSaving(true)
-    try {
-      await updateCampaign({ mode }, user?.id)
-    } catch {}
-    setCampaignSaving(false)
-  }
-
-  function handleNotesChange(notes) {
-    setCampaign((c) => ({ ...c, notes }))
-    setNotesSaved(false)
-    clearTimeout(notesTimerRef.current)
-    notesTimerRef.current = setTimeout(async () => {
-      try {
-        await updateCampaign({ notes }, user?.id)
-        setNotesSaved(true)
-        setTimeout(() => setNotesSaved(false), 2000)
-      } catch {}
-    }, 800)
-  }
 
   const allInterviews = clinicians.flatMap((c) =>
     (c.interviews || []).map((i) => ({ ...i, clinicianName: c.name, clinicianId: c.id }))
@@ -65,11 +39,15 @@ export default function Dashboard() {
   const byInterviewer = groupBy(allInterviews, (i) => i.owner_email || 'unknown')
   const byTopic = groupBy(allInterviews, (i) => i.topic)
 
-  // Topic coverage analysis
   const existingTopics = allInterviews.map((i) => i.topic)
   const topicGaps = getSuggestedTopics(existingTopics)
-    .filter((t) => t.interviewCount === 0 && t.priority === 'high')
-    .slice(0, 5)
+    .filter((t) => t.interviewCount === 0 && t.priority !== 'low')
+    .slice(0, 8)
+
+  const now = Date.now()
+  const resumeInterviews = allInterviews
+    .filter((i) => i.status !== 'completed' && i.updated_at && (now - new Date(i.updated_at).getTime()) <= RESUME_WINDOW_MS)
+    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
 
   if (loading) {
     return (
@@ -90,66 +68,29 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">{brand.appName}</h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Capture your clinicians' expertise and turn it into patient-facing content.
-          </p>
-        </div>
-        <Button asChild>
-          <Link to="/new">
-            <Plus className="h-4 w-4 mr-1.5" />
-            New Interview
-          </Link>
-        </Button>
+      {/* Hero */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">{brand.appName}</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Capture your clinicians' expertise and turn it into patient-facing content.
+        </p>
       </div>
 
-      <AboutPanel />
-
-      {clinicians.length > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Clinicians" value={clinicians.length} icon={<Users className="h-4 w-4" />} />
-          <StatCard label="Interviews" value={allInterviews.length} icon={<MessageSquare className="h-4 w-4" />} />
-          <StatCard label="Completed" value={completedCount} icon={<Clock className="h-4 w-4" />} />
-        </div>
-      )}
-
-      {/* Campaign Mode */}
-      <CampaignWidget
-        campaign={campaign}
-        saving={campaignSaving}
-        notesSaved={notesSaved}
-        onModeChange={handleModeChange}
-        onNotesChange={handleNotesChange}
+      {/* Launchpad — App outline */}
+      <LaunchpadTiles
+        cliniciansCount={clinicians.length}
+        interviewsCount={allInterviews.length}
+        completedCount={completedCount}
       />
 
-      {/* Content gaps callout */}
+      {/* Resume strip — in-progress interviews within 14 days */}
+      {resumeInterviews.length > 0 && (
+        <ResumeStrip interviews={resumeInterviews} currentUserId={user?.id} />
+      )}
+
+      {/* Plan next interview — high-search topic gaps + New Interview CTA */}
       {topicGaps.length > 0 && allInterviews.length > 0 && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex items-start gap-3">
-            <TrendingUp className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-amber-900">
-                High-search topics with no content yet
-              </p>
-              <p className="text-xs text-amber-700 mt-0.5 mb-3">
-                Patients in the Pacific Northwest are actively searching for these — consider scheduling interviews to cover them.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {topicGaps.map((t) => (
-                  <Link
-                    key={t.topic}
-                    to={`/new?topic=${encodeURIComponent(t.topic)}`}
-                    className="text-xs px-2.5 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 hover:bg-amber-200 transition-colors"
-                  >
-                    + {t.topic}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <PlanNextInterview gaps={topicGaps} />
       )}
 
       {clinicians.length === 0 ? (
@@ -204,6 +145,188 @@ export default function Dashboard() {
   )
 }
 
+// ── Launchpad ────────────────────────────────────────────────────────────────
+
+function LaunchpadTiles({ cliniciansCount, interviewsCount, completedCount }) {
+  const tiles = [
+    {
+      to: '/new',
+      icon: <Mic className="h-4 w-4" />,
+      label: 'New Interview',
+      detail: 'Start a 15–30 min conversation',
+      cta: true,
+    },
+    {
+      to: '/hub',
+      icon: <FileText className="h-4 w-4" />,
+      label: 'Content Hub',
+      detail: 'Review, edit, and schedule generated posts',
+    },
+    {
+      to: '/media',
+      icon: <ImageIcon className="h-4 w-4" />,
+      label: 'Media',
+      detail: 'Photos, videos, and brand assets',
+    },
+    {
+      to: '/strategy',
+      icon: <Compass className="h-4 w-4" />,
+      label: 'Strategy',
+      detail: 'Distribution plan & campaign focus',
+    },
+  ]
+
+  return (
+    <div>
+      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+        App
+      </p>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {tiles.map((t) => (
+          <Link
+            key={t.to}
+            to={t.to}
+            className={`group rounded-xl border p-4 transition-colors ${
+              t.cta
+                ? 'border-primary/40 bg-primary/5 hover:bg-primary/10'
+                : 'bg-card hover:border-primary/40 hover:bg-primary/5'
+            }`}
+          >
+            <div className={`h-8 w-8 rounded-lg flex items-center justify-center mb-3 ${
+              t.cta ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary'
+            }`}>
+              {t.icon}
+            </div>
+            <p className="text-sm font-semibold">{t.label}</p>
+            <p className="text-xs text-muted-foreground mt-0.5 leading-snug">{t.detail}</p>
+          </Link>
+        ))}
+      </div>
+      {(cliniciansCount > 0 || interviewsCount > 0) && (
+        <div className="grid grid-cols-3 gap-3 mt-3">
+          <StatCard label="Clinicians" value={cliniciansCount} icon={<Users className="h-4 w-4" />} />
+          <StatCard label="Interviews" value={interviewsCount} icon={<MessageSquare className="h-4 w-4" />} />
+          <StatCard label="Completed" value={completedCount} icon={<Clock className="h-4 w-4" />} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Resume strip ─────────────────────────────────────────────────────────────
+
+function ResumeStrip({ interviews, currentUserId }) {
+  const [showAll, setShowAll] = useState(false)
+  const visible = showAll ? interviews : interviews.slice(0, RESUME_INITIAL_CAP)
+  const hiddenCount = interviews.length - RESUME_INITIAL_CAP
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-3">
+        <PlayCircle className="h-3.5 w-3.5 text-amber-600" />
+        <p className="text-xs font-medium uppercase tracking-wider text-amber-800">
+          In progress — pick up where you left off
+        </p>
+        <span className="text-xs text-muted-foreground">
+          {interviews.length} active
+        </span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {visible.map((i) => (
+          <ResumeCard key={i.id} interview={i} currentUserId={currentUserId} />
+        ))}
+      </div>
+      {hiddenCount > 0 && !showAll && (
+        <button
+          type="button"
+          onClick={() => setShowAll(true)}
+          className="mt-3 text-xs font-medium text-primary hover:underline"
+        >
+          View all {interviews.length} in-progress interviews →
+        </button>
+      )}
+      {showAll && hiddenCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setShowAll(false)}
+          className="mt-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:underline"
+        >
+          Show fewer
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ResumeCard({ interview, currentUserId }) {
+  const isOwner = interview.owner_id === currentUserId
+  const href = isOwner
+    ? `/interview/${interview.clinicianId}/${interview.id}`
+    : `/clinician/${interview.clinicianId}`
+
+  return (
+    <Link
+      to={href}
+      className="block rounded-xl border-2 border-amber-200 bg-amber-50/50 p-3.5 hover:border-amber-300 hover:bg-amber-50 transition-colors"
+    >
+      <div className="flex items-center gap-2 mb-1.5">
+        <Avatar className="h-6 w-6">
+          <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
+            {getInitials(interview.clinicianName)}
+          </AvatarFallback>
+        </Avatar>
+        <p className="text-xs font-medium text-foreground/80 truncate">{interview.clinicianName}</p>
+      </div>
+      <p className="text-sm font-semibold text-amber-900 truncate">{interview.topic}</p>
+      <p className="text-[11px] text-amber-700/80 mt-0.5">
+        Updated {formatRelativeDate(interview.updated_at)}
+        {!isOwner && interview.owner_email ? ` · by ${formatInterviewerName(interview.owner_email)}` : ''}
+      </p>
+      <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
+        Resume
+        <ChevronRight className="h-3 w-3" />
+      </div>
+    </Link>
+  )
+}
+
+// ── Plan next interview ──────────────────────────────────────────────────────
+
+function PlanNextInterview({ gaps }) {
+  return (
+    <div className="rounded-xl border-2 border-amber-200 bg-amber-50/60 p-5">
+      <div className="flex flex-col sm:flex-row items-start gap-4">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <TrendingUp className="h-4 w-4 text-amber-700" />
+            <p className="text-sm font-semibold text-amber-900">Plan your next interview</p>
+          </div>
+          <p className="text-xs text-amber-800/80 mb-3">
+            High-search topics with no content yet — pick one to start an interview.
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {gaps.map((t) => (
+              <Link
+                key={t.topic}
+                to={`/new?topic=${encodeURIComponent(t.topic)}`}
+                className="text-xs px-2.5 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-900 hover:bg-amber-200 transition-colors"
+              >
+                + {t.topic}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <Button asChild className="shrink-0">
+          <Link to="/new">
+            <Plus className="h-4 w-4 mr-1.5" />
+            New Interview
+          </Link>
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ── By Topic view ────────────────────────────────────────────────────────────
 
 function TopicView({ byTopic, existingTopics, currentUserId }) {
@@ -212,7 +335,6 @@ function TopicView({ byTopic, existingTopics, currentUserId }) {
   const allSuggestions = getSuggestedTopics(existingTopics)
   const gaps = allSuggestions.filter((t) => t.interviewCount === 0 && t.priority !== 'low')
 
-  // Build sorted topic rows from actual interviews
   const topicRows = Object.entries(byTopic)
     .map(([topic, interviews]) => ({
       topic,
@@ -226,7 +348,6 @@ function TopicView({ byTopic, existingTopics, currentUserId }) {
 
   return (
     <div className="space-y-8">
-      {/* Topic count grid */}
       <div>
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
           Interview Count by Topic
@@ -296,7 +417,6 @@ function TopicView({ byTopic, existingTopics, currentUserId }) {
         </div>
       </div>
 
-      {/* Coverage gaps */}
       {gaps.length > 0 && (
         <div>
           <div className="flex items-center gap-2 mb-4">
@@ -349,132 +469,6 @@ function formatInterviewerName(email) {
     .split('.')
     .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(' ')
-}
-
-function CampaignWidget({ campaign, saving, notesSaved, onModeChange, onNotesChange }) {
-  const currentMode = CAMPAIGN_MODES[campaign.mode] || CAMPAIGN_MODES.bookings
-  const showNotes = currentMode.showNotes
-
-  return (
-    <div className="rounded-xl border bg-card p-5 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Target className="h-4 w-4 text-primary" />
-          <p className="text-sm font-semibold">Content Focus</p>
-        </div>
-        {saving && <span className="text-xs text-muted-foreground">Saving…</span>}
-        {!saving && notesSaved && (
-          <span className="flex items-center gap-1 text-xs text-green-600">
-            <Check className="h-3 w-3" /> Saved
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-2">
-        {Object.entries(CAMPAIGN_MODES).map(([key, def]) => (
-          <button
-            key={key}
-            onClick={() => onModeChange(key)}
-            className={`text-left rounded-lg border p-3 transition-colors text-sm ${
-              campaign.mode === key
-                ? 'bg-primary/5 border-primary/40 text-primary'
-                : 'hover:bg-muted/50 text-foreground'
-            }`}
-          >
-            <p className="font-medium text-xs leading-snug">{def.label}</p>
-            <p className="text-[11px] text-muted-foreground mt-1 leading-snug line-clamp-2">{def.description}</p>
-          </button>
-        ))}
-      </div>
-
-      {showNotes && (
-        <div className="space-y-1.5">
-          <p className="text-xs text-muted-foreground">{currentMode.notesPlaceholder}</p>
-          <Textarea
-            value={campaign.notes || ''}
-            onChange={(e) => onNotesChange(e.target.value)}
-            placeholder={currentMode.notesPlaceholder}
-            className="text-sm min-h-[72px] resize-none"
-          />
-          <p className="text-[11px] text-muted-foreground">
-            These details are injected into every content generation for this condition. Update them whenever event or campaign details change.
-          </p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function AboutPanel() {
-  const outputs = [
-    { icon: <FileText className="h-3.5 w-3.5" />, label: 'Blog Post', detail: 'SEO-optimized, 700–950 words, with internal and external links' },
-    { icon: <Share2 className="h-3.5 w-3.5" />, label: 'Social Media', detail: 'Instagram, Facebook, LinkedIn, Pinterest — each formatted for the platform' },
-    { icon: <Globe className="h-3.5 w-3.5" />, label: 'Google', detail: 'Business Profile post, Search Ad copy (RSA), and a landing page with SEO meta' },
-    { icon: <Video className="h-3.5 w-3.5" />, label: 'Video Scripts', detail: 'YouTube script (5–8 min, with B-roll cues) and TikTok / Reels script (45–60 sec)' },
-    { icon: <Mail className="h-3.5 w-3.5" />, label: 'Email Newsletter', detail: 'GoHighLevel-ready with subject lines, preview text, and body copy' },
-  ]
-
-  return (
-    <div className="rounded-xl border bg-card divide-y">
-      {/* What and why */}
-      <div className="p-5 space-y-4">
-        <div className="grid sm:grid-cols-3 gap-4 text-sm">
-          <div className="space-y-1.5">
-            <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">What this is</p>
-            <p className="text-sm leading-relaxed text-foreground/80">
-              A structured interview tool that captures how each {brand.name} clinician practices {brand.tagline} — in their own words. That clinical perspective is what patients and referring providers actually want to know, but it rarely makes it off the treatment table.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Why the interview format</p>
-            <p className="text-sm leading-relaxed text-foreground/80">
-              Clinicians don't have time to write content — and generic health articles don't reflect {brand.name}'s movement-first philosophy anyway. An interview takes 15–30 minutes of conversation. The AI does the writing. The result sounds like {brand.name} because it came directly from your clinicians.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <p className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">How to get started</p>
-            <p className="text-sm leading-relaxed text-foreground/80">
-              Click <strong>New Interview</strong>, choose a clinician and a condition, then speak naturally when the interviewer asks questions. When you're satisfied with the conversation, click <strong>Finish</strong> and the AI generates everything below automatically.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Output types */}
-      <div className="p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <Sparkles className="h-3.5 w-3.5 text-primary" />
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            What each interview produces — automatically
-          </p>
-        </div>
-        <div className="grid sm:grid-cols-5 gap-2">
-          {outputs.map(({ icon, label, detail }) => (
-            <div key={label} className="rounded-lg bg-muted/40 border px-3 py-2.5 space-y-1">
-              <div className="flex items-center gap-1.5 text-primary">
-                {icon}
-                <span className="text-xs font-semibold">{label}</span>
-              </div>
-              <p className="text-[11px] text-muted-foreground leading-snug">{detail}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Distribution strategy link */}
-      <div className="px-5 py-3 border-t bg-muted/20 rounded-b-xl">
-        <p className="text-xs text-muted-foreground">
-          Want to understand how this content gets distributed across channels?{' '}
-          <Link
-            to="/strategy"
-            className="text-primary underline underline-offset-2 hover:opacity-80"
-          >
-            Read the {brand.name} Content Distribution Strategy
-          </Link>
-        </p>
-      </div>
-    </div>
-  )
 }
 
 function StatCard({ label, value, icon }) {
