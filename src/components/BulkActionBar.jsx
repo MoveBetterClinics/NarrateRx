@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Loader2, Plus, FolderPlus, X, Check } from 'lucide-react'
+import { Loader2, Plus, FolderPlus, X, Check, CheckCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   listCollections,
@@ -14,10 +14,13 @@ import { useUserRole } from '@/lib/useUserRole'
 //
 // Selection state is owned by MediaHub.jsx; this component only renders the
 // UI and dispatches the bulk mutations. `onChange` lets the parent refresh
-// collection chip counts after a successful add.
+// collection chip counts after a successful add. `assets` is the currently
+// visible (filtered) list — used to power "Select all visible".
 export default function BulkActionBar({
   selectedIds,
+  assets = [],
   onClear,
+  onSelectAll,
   onExit,
   onChange,
 }) {
@@ -32,6 +35,9 @@ export default function BulkActionBar({
   const [error, setError]             = useState('')
 
   const count = selectedIds.length
+  const visibleCount = assets.length
+  const allVisibleSelected = visibleCount > 0 && count >= visibleCount &&
+    assets.every((a) => selectedIds.includes(a.id))
 
   const loadCollections = useCallback(async () => {
     setLoadingList(true); setError('')
@@ -91,24 +97,41 @@ export default function BulkActionBar({
   }
 
   return (
-    <div className="sticky top-2 z-30">
-      <div className="rounded-lg border bg-background/95 backdrop-blur shadow-sm p-2.5 space-y-2">
+    <div className="sticky top-14 z-30">
+      <div className="rounded-lg border-2 border-primary/30 bg-background/95 backdrop-blur shadow-md p-3 space-y-2">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium pl-1">
+          <span className="text-sm font-semibold pl-1">
             {count === 0
-              ? 'Select media…'
-              : `${count} selected`}
+              ? `0 of ${visibleCount} selected`
+              : `${count} selected${count < visibleCount ? ` of ${visibleCount}` : ''}`}
           </span>
 
-          {canEdit && count > 0 && (
+          {visibleCount > 0 && onSelectAll && (
             <Button
               size="sm"
               variant="outline"
-              onClick={() => setPicking((v) => !v)}
-              className="h-7 gap-1.5 text-[11px] rounded-full"
+              onClick={allVisibleSelected ? onClear : onSelectAll}
+              className="h-8 gap-1.5 text-xs rounded-full"
+              title={allVisibleSelected
+                ? 'Deselect all currently visible items'
+                : 'Select every visible (filtered) item'}
             >
-              <Plus className="h-3.5 w-3.5" />
-              Add to collection
+              <CheckCheck className="h-3.5 w-3.5" />
+              {allVisibleSelected ? 'Deselect all' : `Select all ${visibleCount}`}
+            </Button>
+          )}
+
+          {canEdit && (
+            <Button
+              size="sm"
+              onClick={() => setPicking((v) => !v)}
+              disabled={count === 0}
+              className="h-8 gap-1.5 text-xs rounded-full px-3"
+            >
+              <Plus className="h-4 w-4" />
+              {count === 0
+                ? 'Add to collection…'
+                : `Add ${count} to collection…`}
             </Button>
           )}
 
@@ -118,7 +141,7 @@ export default function BulkActionBar({
                 size="sm"
                 variant="ghost"
                 onClick={onClear}
-                className="h-7 text-[11px]"
+                className="h-8 text-xs"
               >
                 Clear
               </Button>
@@ -127,7 +150,7 @@ export default function BulkActionBar({
               size="sm"
               variant="ghost"
               onClick={onExit}
-              className="h-7 text-[11px] gap-1"
+              className="h-8 text-xs gap-1"
               title="Exit selection mode"
             >
               <X className="h-3.5 w-3.5" />
@@ -135,6 +158,12 @@ export default function BulkActionBar({
             </Button>
           </div>
         </div>
+
+        {count === 0 && (
+          <p className="text-[11px] text-muted-foreground pl-1">
+            Tip: filter the library above (Photo, search "staff"…) then <span className="font-medium">Select all</span> to grab everything visible.
+          </p>
+        )}
 
         {picking && canEdit && count > 0 && (
           <div className="rounded-md border bg-muted/40 p-2 space-y-2">
