@@ -96,6 +96,28 @@ export function tagMediaAsset(id) {
 
 // ── Upload ────────────────────────────────────────────────────────────────────
 
+// iPhone-shot HEIC/HEIF can't be rendered by browsers and isn't accepted by
+// most vision models. We transcode to JPEG client-side before upload so the
+// canonical blob is always a format every downstream consumer (workbench
+// preview, AI Gateway, segmenter) handles natively. heic2any pulls in a
+// libheif WASM bundle (~3 MB) — kept out of the main chunk via dynamic
+// import so the cost is paid only when a HEIC is actually selected.
+async function maybeTranscodeHeic(file) {
+  const name = (file.name || '').toLowerCase()
+  const type = (file.type || '').toLowerCase()
+  const isHeic = type === 'image/heic' || type === 'image/heif'
+                 || name.endsWith('.heic') || name.endsWith('.heif')
+  if (!isHeic) return file
+
+  const { default: heic2any } = await import('heic2any')
+  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 })
+  // heic2any returns a Blob for single-image input or an array for sequences;
+  // we only ever publish the primary frame.
+  const jpeg = Array.isArray(out) ? out[0] : out
+  const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg')
+  return new File([jpeg], newName, { type: 'image/jpeg', lastModified: file.lastModified })
+}
+
 // Direct-to-Blob upload. The handleUpload endpoint records the asset on
 // completion. We pass metadata via clientPayload so the server sees who/what
 // the file is for without making the browser trust-record it.
@@ -109,6 +131,8 @@ export function tagMediaAsset(id) {
 //   contentPieceId    — paired with parentId; server marks the brief as
 //                       'returned' and links its final_asset_id.
 export async function uploadMedia(file, meta = {}) {
+  file = await maybeTranscodeHeic(file)
+
   const ext       = (file.name.match(/\.[^.]+$/) || [''])[0]
   const baseName  = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()
   const stamp     = new Date().toISOString().replace(/[:.]/g, '-')

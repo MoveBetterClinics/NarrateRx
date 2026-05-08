@@ -43,6 +43,7 @@ import { put as blobPut } from '@vercel/blob'
 import { readFile } from 'node:fs/promises'
 import { createHash, createSign } from 'node:crypto'
 import { extname } from 'node:path'
+import heicConvert from 'heic-convert'
 
 // ─── CLI ──────────────────────────────────────────────────────────────────
 
@@ -314,14 +315,27 @@ function renamedBasename({ brand, kind, capturedAt, fingerprint, ext }) {
   return `${brand}-${kind}-${date}-${hash}.${cleanExt}`
 }
 
-function pathnameFor(brand, file, kind) {
+function pathnameFor(brand, file, kind, ext) {
   return `media/raw/${brand}/${renamedBasename({
     brand,
     kind,
     capturedAt: file.createdTime || null,
     fingerprint: file.id,
-    ext: extname(file.name),
+    ext: ext || extname(file.name),
   })}`
+}
+
+function isHeicMime(mime) {
+  return mime === 'image/heic' || mime === 'image/heif'
+}
+
+// HEIC/HEIF can't be rendered by browsers and most vision models reject it,
+// so we transcode to JPEG at ingest. heic-convert is pure-WASM (libheif-js)
+// and works the same on a Mac dev box and a Linux runner — no native libvips.
+async function transcodeHeicResponseToJpeg(response) {
+  const ab = await response.arrayBuffer()
+  const out = await heicConvert({ buffer: Buffer.from(ab), format: 'JPEG', quality: 0.92 })
+  return Buffer.from(out)
 }
 
 async function streamFileToBlob(brand, file, kind) {
@@ -332,15 +346,28 @@ async function streamFileToBlob(brand, file, kind) {
   )
   if (!dl.ok) throw new Error(`Drive download ${file.id} → ${dl.status}`)
 
+  let body = dl.body
+  let contentType = file.mimeType
+  let ext = extname(file.name)
+  let outSize = null
+
+  if (isHeicMime(file.mimeType)) {
+    const jpeg = await transcodeHeicResponseToJpeg(dl)
+    body = jpeg
+    contentType = 'image/jpeg'
+    ext = '.jpg'
+    outSize = jpeg.byteLength
+  }
+
   // addRandomSuffix:false — keep the deterministic name; re-imports overwrite
   // the same blob rather than creating duplicates.
-  const blob = await blobPut(pathnameFor(brand, file, kind), dl.body, {
+  const blob = await blobPut(pathnameFor(brand, file, kind, ext), body, {
     access: 'public',
-    contentType: file.mimeType,
+    contentType,
     token: BLOB_TOKEN,
     addRandomSuffix: false,
   })
-  return blob
+  return { blob, mime: contentType, size: outSize }
 }
 
 // ─── One-file import ──────────────────────────────────────────────────────
@@ -349,7 +376,12 @@ async function importOne(brand, file) {
   const kind = kindFromMime(file.mimeType)
   if (!kind) return { skipped: 'unknown-kind' }
 
-  const blob = await streamFileToBlob(brand, file, kind)
+  // streamFileToBlob may transcode HEIC→JPEG; `mime` and `size` describe the
+  // on-blob bytes (JPEG), not the Drive metadata. The recorded `filename`
+  // keeps the original Drive name so users can still recognize where it came
+  // from; the deterministic blob path lives in blob_pathname.
+  const { blob, mime, size } = await streamFileToBlob(brand, file, kind)
+  const filename = isHeicMime(file.mimeType) ? file.name.replace(/\.(heic|heif)$/i, '.jpg') : file.name
 
   const row = {
     brand,
@@ -358,9 +390,9 @@ async function importOne(brand, file) {
     source: 'drive-import',
     blob_url: blob.url,
     blob_pathname: blob.pathname,
-    filename: file.name,
-    mime_type: file.mimeType,
-    size_bytes: file.size ? parseInt(file.size, 10) : null,
+    filename,
+    mime_type: mime,
+    size_bytes: size ?? (file.size ? parseInt(file.size, 10) : null),
     drive_id: file.id,
     captured_at: file.createdTime || null,
     created_by: 'drive-migrator',

@@ -50,8 +50,14 @@ async function sb(path, init = {}) {
   })
 }
 
+// HEIC/HEIF intentionally absent: the browser uploader transcodes those to
+// JPEG client-side (src/lib/mediaLib.js) so the canonical blob is always
+// renderable. Keeping HEIC out of the allowlist makes that invariant a
+// hard contract — any path that bypasses the client transcode (e.g. a curl
+// of a raw .heic) is rejected at the handshake instead of producing a
+// preview-broken asset row downstream.
 const ALLOWED_MIME = [
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/heic', 'image/heif',
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v',
 ]
 

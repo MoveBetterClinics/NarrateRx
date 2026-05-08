@@ -44,6 +44,7 @@ import { createHash } from 'node:crypto'
 import { openAsBlob } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { join, extname, basename } from 'node:path'
+import heicConvert from 'heic-convert'
 
 // ─── CLI ──────────────────────────────────────────────────────────────────
 
@@ -289,34 +290,61 @@ function pathnameFor({ brand, kind, capturedAt, fingerprint, ext }) {
   return `media/raw/${brand}/${renamedBasename({ brand, kind, capturedAt, fingerprint, ext })}`
 }
 
+function isHeicMime(mime) {
+  return mime === 'image/heic' || mime === 'image/heif'
+}
+
+// HEIC/HEIF can't be rendered by browsers and most vision models reject it,
+// so we transcode to JPEG at ingest. heic-convert is pure-WASM (libheif-js)
+// — no native libvips, works the same on a Mac dev box and a Linux runner.
+async function transcodeHeicToJpeg(fullPath) {
+  const buf = await readFile(fullPath)
+  const out = await heicConvert({ buffer: buf, format: 'JPEG', quality: 0.92 })
+  // heic-convert returns an ArrayBuffer-ish object; coerce to Buffer.
+  return Buffer.from(out)
+}
+
 async function streamFileToBlob(brand, file, kind, mime) {
-  // openAsBlob returns a Web Blob backed by the file on disk — calling
-  // .stream() on it yields a fresh ReadableStream each time. The previous
-  // implementation passed a one-shot Web ReadableStream, which broke when
-  // @vercel/blob's internal retry logic tried to re-read the body on a
-  // transient network blip ("Response body object should not be disturbed
-  // or locked"). Memory stays flat: the Blob is lazy, not buffered.
-  const fileBlob = await openAsBlob(file.path, { type: mime })
+  let body
+  let contentType = mime
+  let ext = extname(file.path)
+
+  if (isHeicMime(mime)) {
+    // HEIC must be decoded to bytes before upload — there's no streaming path
+    // through libheif. Buffer is fine: HEIC files are camera photos, not 1 GB
+    // videos.
+    body = await transcodeHeicToJpeg(file.path)
+    contentType = 'image/jpeg'
+    ext = '.jpg'
+  } else {
+    // openAsBlob returns a Web Blob backed by the file on disk — calling
+    // .stream() on it yields a fresh ReadableStream each time. A one-shot
+    // ReadableStream breaks @vercel/blob's internal retry on transient
+    // blips ("Response body object should not be disturbed or locked").
+    // Memory stays flat: the Blob is lazy, not buffered.
+    body = await openAsBlob(file.path, { type: mime })
+  }
+
   const pathname = pathnameFor({
     brand,
     kind,
     capturedAt: file.mtime ? new Date(file.mtime).toISOString() : null,
     fingerprint: file.fp,
-    ext: extname(file.path),
+    ext,
   })
   // addRandomSuffix:false — keep the deterministic name; re-imports overwrite
   // the same blob rather than creating duplicates.
   // multipart:true — required for files larger than ~100 MB. Without it the
   // SDK fails with "Vercel Blob: Unknown error" on big videos. Safe to leave
   // on for small files too; the SDK falls back to single-shot under 50 MB.
-  const blob = await blobPut(pathname, fileBlob, {
+  const blob = await blobPut(pathname, body, {
     access: 'public',
-    contentType: mime,
+    contentType,
     token: BLOB_TOKEN,
     addRandomSuffix: false,
     multipart: true,
   })
-  return blob
+  return { blob, mime: contentType, size: Buffer.isBuffer(body) ? body.byteLength : null }
 }
 
 // ─── One-file import ──────────────────────────────────────────────────────
@@ -326,7 +354,13 @@ async function importOne(brand, file) {
   const k = kindForExt(ext)
   if (!k) return { skipped: 'unknown-kind' }
 
-  const blob = await streamFileToBlob(brand, file, k.kind, k.mime)
+  // streamFileToBlob may transcode HEIC→JPEG, in which case `mime` and `size`
+  // describe the on-blob bytes (JPEG), not the source on disk. The recorded
+  // `filename` keeps the original basename so users can still recognize where
+  // a clip came from; the deterministic blob path lives in blob_pathname.
+  const { blob, mime, size } = await streamFileToBlob(brand, file, k.kind, k.mime)
+  const sourceName = basename(file.path)
+  const filename = isHeicMime(k.mime) ? sourceName.replace(/\.(heic|heif)$/i, '.jpg') : sourceName
 
   const row = {
     brand,
@@ -335,10 +369,10 @@ async function importOne(brand, file) {
     source:        'local-import',
     blob_url:      blob.url,
     blob_pathname: blob.pathname,
-    filename:      basename(file.path),
-    mime_type:     k.mime,
-    size_bytes:    file.size,
-    drive_id:      file.fp,                    // synthetic dedupe key
+    filename,
+    mime_type:     mime,
+    size_bytes:    size ?? file.size,
+    drive_id:      file.fp,                    // synthetic dedupe key — keyed off source file, not transcoded blob
     captured_at:   file.mtime ? new Date(file.mtime).toISOString() : null,
     created_by:    'local-import',
     speaker_role:  'clinician',
