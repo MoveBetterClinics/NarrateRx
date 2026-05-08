@@ -10,3 +10,4 @@ dist
 # Claude Code cowork session worktrees — local-only
 .claude/worktrees/
 .vercel
+.env*.local
