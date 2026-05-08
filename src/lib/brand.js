@@ -139,10 +139,13 @@ const EQUINE = {
   name: 'Move Better Equine',
   appName: 'Move Better Equine — NarrateRx',
   tagline: 'Restoring Movement, Balance, and Comfort for Horses',
-  signInBlurb: 'Move Better Equine · Sign in with your @movebetterequine.com account',
+  signInBlurb: 'Move Better Equine · Sign in with your @movebetter.co account',
 
-  // Auth
-  authDomain: 'movebetterequine.com',
+  // Auth — Whitney signs in with her existing @movebetter.co Workspace email.
+  // The equine brand has no email hosting on its own domain. Same auth pool
+  // as the human brand, but a separate Clerk app keeps sessions and the user
+  // list distinct per deployment.
+  authDomain: 'movebetter.co',
 
   // Web presence
   website: 'https://movebetterequine.com/',
