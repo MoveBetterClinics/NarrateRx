@@ -289,11 +289,17 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                     {t} <X className="h-3 w-3" />
                   </Badge>
                 ))}
-                {aiTags.length > 0 && (
-                  <span className="text-[10px] text-muted-foreground self-center">
-                    AI suggested: {aiTags.join(', ')}
-                  </span>
-                )}
+                {aiTags.map((t) => (
+                  <Badge
+                    key={`ai-${t}`}
+                    variant="outline"
+                    className="gap-1 border-dashed border-violet-300 bg-violet-50 text-violet-700 hover:bg-violet-100 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300"
+                    title="AI-suggested tag"
+                  >
+                    <Sparkles className="h-2.5 w-2.5" />
+                    {t}
+                  </Badge>
+                ))}
               </div>
               <div className="flex gap-2">
                 <Input
