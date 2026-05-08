@@ -23,6 +23,7 @@
     "ai": "^6.0.175",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "ffmpeg-static": "^5.2.0",
     "heic-convert": "^2.1.0",
     "heic2any": "^0.0.4",
     "lucide-react": "^0.344.0",

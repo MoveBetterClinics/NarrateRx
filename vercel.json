@@ -4,5 +4,13 @@
   ],
   "crons": [
     { "path": "/api/cron/publish-due", "schedule": "*/5 * * * *" }
-  ]
+  ],
+  "functions": {
+    "api/media/upload.js": {
+      "includeFiles": "node_modules/ffmpeg-static/**"
+    },
+    "api/media/tag.js": {
+      "includeFiles": "node_modules/ffmpeg-static/**"
+    }
+  }
 }

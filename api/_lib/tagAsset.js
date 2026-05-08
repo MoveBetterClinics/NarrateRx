@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { generateObject } from 'ai'
+import ffmpegStaticPath from 'ffmpeg-static'
 import { z } from 'zod'
 import { brand } from '../../src/lib/brand.js'
 import { recordAudit, snapshot } from './audit.js'
@@ -25,7 +26,13 @@ const MODEL = 'google/gemini-2.5-flash'
 // quality in CapCut downstream.
 const PROXY_TRIGGER_BYTES = 15 * 1024 * 1024
 const PROXY_MAX_OUTPUT    = '18000000'                          // ffmpeg -fs
-const FFMPEG_BIN          = process.env.FFMPEG_PATH || 'ffmpeg' // override if needed
+
+// Binary resolution priority:
+//   1. FFMPEG_PATH env (lets ops point at a system binary if needed)
+//   2. ffmpeg-static (bundled, ships per-platform — used in production on
+//      Vercel because the function runtime has no system ffmpeg)
+//   3. 'ffmpeg' on PATH (local dev fallback)
+const FFMPEG_BIN = process.env.FFMPEG_PATH || ffmpegStaticPath || 'ffmpeg'
 
 function brandId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
