@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Search, Loader2, Filter, X, CheckSquare } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,8 @@ import BulkActionBar from '@/components/BulkActionBar'
 import MediaHubHelp from '@/components/MediaHubHelp'
 import { listMedia, getMediaAsset } from '@/lib/mediaLib'
 import { useUserRole } from '@/lib/useUserRole'
+
+const PAGE_SIZE = 120
 
 const KIND_FILTERS   = [{ id: '', label: 'All' }, { id: 'video', label: 'Video' }, { id: 'photo', label: 'Photo' }]
 // Default ('Any active') excludes archived rows server-side. The explicit
@@ -30,6 +32,8 @@ export default function MediaHub() {
   const { canUpload, canEdit } = useUserRole()
   const [assets, setAssets]     = useState([])
   const [loading, setLoading]   = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore]   = useState(false)
   const [error, setError]       = useState('')
   const [kind, setKind]         = useState('')
   const [status, setStatus]     = useState('')
@@ -56,9 +60,11 @@ export default function MediaHub() {
         status: status || undefined,
         q: debouncedSearch || undefined,
         collectionId: collectionId || undefined,
-        limit: 120,
+        limit: PAGE_SIZE,
+        offset: 0,
       })
       setAssets(rows)
+      setHasMore(rows.length === PAGE_SIZE)
     } catch (e) {
       setError(e.message)
     } finally {
@@ -67,6 +73,74 @@ export default function MediaHub() {
   }, [kind, status, debouncedSearch, collectionId])
 
   useEffect(() => { refresh() }, [refresh])
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || loading || !hasMore) return
+    setLoadingMore(true)
+    try {
+      const rows = await listMedia({
+        kind: kind || undefined,
+        status: status || undefined,
+        q: debouncedSearch || undefined,
+        collectionId: collectionId || undefined,
+        limit: PAGE_SIZE,
+        offset: assets.length,
+      })
+      setAssets((prev) => [...prev, ...rows])
+      setHasMore(rows.length === PAGE_SIZE)
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, loading, hasMore, kind, status, debouncedSearch, collectionId, assets.length])
+
+  // Walk every remaining page of the current filter, append the rows into the
+  // grid, then mark the entire result set as selected. Without this, "Select
+  // all" would only cover the visible pages and silently miss off-screen
+  // matches — a footgun on libraries that have grown past one page.
+  const selectAllMatching = useCallback(async () => {
+    let collected = assets.slice()
+    let offset = collected.length
+    let more = hasMore
+    try {
+      // Hard ceiling so a corrupted hasMore signal can't loop forever.
+      while (more && offset < 5000) {
+        const rows = await listMedia({
+          kind: kind || undefined,
+          status: status || undefined,
+          q: debouncedSearch || undefined,
+          collectionId: collectionId || undefined,
+          limit: PAGE_SIZE,
+          offset,
+        })
+        if (!rows.length) break
+        collected = collected.concat(rows)
+        setAssets(collected)
+        offset += rows.length
+        more = rows.length === PAGE_SIZE
+      }
+      setHasMore(false)
+      setSelectedIds(collected.map((a) => a.id))
+    } catch (e) {
+      setError(e.message)
+    }
+  }, [assets, hasMore, kind, status, debouncedSearch, collectionId])
+
+  // IntersectionObserver-driven infinite scroll. The sentinel sits 400px below
+  // the last grid row so the next page starts loading before the user reaches
+  // the bottom — keeps the scroll feeling continuous on long libraries.
+  const sentinelRef = useRef(null)
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !hasMore || loading) return
+    const io = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) loadMore() },
+      { rootMargin: '400px' }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [hasMore, loading, loadMore])
 
   async function openDetail(asset) {
     // Refetch full row so any AI fields populated since list runs are visible.
@@ -198,10 +272,11 @@ export default function MediaHub() {
         <BulkActionBar
           selectedIds={selectedIds}
           assets={assets}
+          hasMore={hasMore}
           currentStatus={status}
           currentCollectionId={collectionId}
           onClear={() => setSelectedIds([])}
-          onSelectAll={() => setSelectedIds(assets.map((a) => a.id))}
+          onSelectAll={selectAllMatching}
           onExit={exitMultiSelect}
           onChange={() => setCollectionRefreshKey((k) => k + 1)}
           onRefresh={() => {
@@ -221,13 +296,29 @@ export default function MediaHub() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <MediaGrid
-          assets={assets}
-          selectedId={selected?.id}
-          onSelect={multiSelectMode ? toggleSelected : openDetail}
-          multiSelect={multiSelectMode}
-          selectedIds={selectedIds}
-        />
+        <>
+          <MediaGrid
+            assets={assets}
+            selectedId={selected?.id}
+            onSelect={multiSelectMode ? toggleSelected : openDetail}
+            multiSelect={multiSelectMode}
+            selectedIds={selectedIds}
+          />
+          {hasMore && (
+            <div ref={sentinelRef} className="flex items-center justify-center py-6">
+              {loadingMore ? (
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              ) : (
+                <Button size="sm" variant="outline" onClick={loadMore} className="text-xs">
+                  Load more
+                </Button>
+              )}
+            </div>
+          )}
+          {!hasMore && assets.length > PAGE_SIZE && (
+            <div className="text-center py-4 text-xs text-muted-foreground">End of library — {assets.length} items.</div>
+          )}
+        </>
       )}
 
       {selected && (

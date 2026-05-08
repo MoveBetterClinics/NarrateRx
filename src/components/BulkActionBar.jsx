@@ -77,6 +77,7 @@ function summarize(results, verb) {
 export default function BulkActionBar({
   selectedIds,
   assets = [],
+  hasMore = false,
   currentStatus = '',
   currentCollectionId = null,
   onClear,
@@ -97,10 +98,14 @@ export default function BulkActionBar({
   const [message, setMessage]         = useState('')
   const [purgeOpen, setPurgeOpen]     = useState(false)
   const [purgeConfirm, setPurgeConfirm] = useState('')
+  const [selectingAll, setSelectingAll] = useState(false)
 
   const count = selectedIds.length
   const visibleCount = assets.length
-  const allVisibleSelected = visibleCount > 0 && count >= visibleCount &&
+  // We only claim "all selected" when there's nothing more on the server to
+  // load — otherwise the user could think they have everything when more
+  // pages still exist off-screen.
+  const allVisibleSelected = visibleCount > 0 && !hasMore && count >= visibleCount &&
     assets.every((a) => selectedIds.includes(a.id))
   const viewingArchived = currentStatus === 'archived'
   const inCollection    = !!currentCollectionId
@@ -268,14 +273,29 @@ export default function BulkActionBar({
             <Button
               size="sm"
               variant="outline"
-              onClick={allVisibleSelected ? onClear : onSelectAll}
+              onClick={async () => {
+                if (allVisibleSelected) { onClear?.(); return }
+                setSelectingAll(true)
+                try { await onSelectAll() } finally { setSelectingAll(false) }
+              }}
+              disabled={selectingAll}
               className="h-8 gap-1.5 text-xs rounded-full"
               title={allVisibleSelected
-                ? 'Deselect all currently visible items'
-                : 'Select every visible (filtered) item'}
+                ? 'Deselect all currently loaded items'
+                : hasMore
+                  ? 'Load every remaining page in the current filter and select all of them'
+                  : 'Select every item in the current filter'}
             >
-              <CheckCheck className="h-3.5 w-3.5" />
-              {allVisibleSelected ? 'Deselect all' : `Select all ${visibleCount}`}
+              {selectingAll
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <CheckCheck className="h-3.5 w-3.5" />}
+              {selectingAll
+                ? 'Selecting all…'
+                : allVisibleSelected
+                  ? 'Deselect all'
+                  : hasMore
+                    ? `Select all matching${visibleCount ? ` (${visibleCount}+)` : ''}`
+                    : `Select all ${visibleCount}`}
             </Button>
           )}
 
