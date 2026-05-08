@@ -429,14 +429,14 @@ export default function ReviewPost() {
                     ? 'No media attached'
                     : item.platform === 'email'
                       ? 'Add a header photo for this newsletter — skip for text-only sends like clinic updates'
-                      : 'Click to add photos or videos from Google Drive or upload your own'}
+                      : 'Click to add photos or videos from your Media library or upload your own'}
                 </p>
               </div>
             ) : (
               <div className="flex gap-3 overflow-x-auto pb-2">
                 {item.media_urls.map((m, i) => {
                   const total = item.media_urls.length
-                  const imgSrc = m.proxyUrl || (m.id ? `/api/drive/media?id=${m.id}` : m.thumbnailUrl || m.url)
+                  const imgSrc = m.url || m.thumbnailUrl || null
                   return (
                     <div key={i} className="relative group shrink-0 w-32 rounded-lg overflow-hidden border bg-muted" style={{ aspectRatio: '1' }}>
                       {/* Thumbnail */}
@@ -486,15 +486,6 @@ export default function ReviewPost() {
                         </div>
                       )}
 
-                      {m.viewUrl && (
-                        <a
-                          href={m.viewUrl} target="_blank" rel="noopener noreferrer"
-                          className="absolute top-1 right-1 h-5 w-5 rounded bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          title="Open in Drive"
-                        >
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      )}
                     </div>
                   )
                 })}

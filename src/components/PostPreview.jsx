@@ -30,10 +30,12 @@ function SocialText({ text }) {
   )
 }
 
-// Resolve the best displayable URL for a media item
+// Resolve the best displayable URL for a media item. After the Drive
+// phase-out, every media item ships a direct Vercel Blob URL; the
+// historical /api/drive/media fallback (now removed) is no longer needed.
 function mediaSrc(m) {
   if (!m) return null
-  return m.proxyUrl || (m.id ? `/api/drive/media?id=${m.id}` : m.thumbnailUrl || m.url || null)
+  return m.url || m.thumbnailUrl || null
 }
 
 // ── Carousel — shared by Instagram and Facebook ───────────────────────────────
@@ -534,7 +536,7 @@ function EmailPreview({ content, mediaUrls = [] }) {
   const s = parseEmailSections(content)
   const hasSections = Object.keys(s).length > 0
   const heroMedia = mediaUrls.find((m) => m.type === 'image' || m.kind === 'image')
-  const heroSrc   = heroMedia ? (heroMedia.proxyUrl || (heroMedia.id ? `/api/drive/media?id=${heroMedia.id}` : heroMedia.url)) : null
+  const heroSrc   = heroMedia ? (heroMedia.url || heroMedia.thumbnailUrl || null) : null
 
   // Old-format email: show a notice + raw content instead of the broken shell
   if (!hasSections) {

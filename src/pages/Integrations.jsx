@@ -63,22 +63,6 @@ const INTEGRATIONS = [
     ],
     docsUrl: 'https://developers.google.com/my-business/content/get-started',
   },
-  {
-    id: 'drive',
-    name: 'Google Drive',
-    description: 'Browse your Team Drive to attach existing photos and videos to posts.',
-    platforms: ['Media Library'],
-    envVars: [
-      { key: 'GOOGLE_DRIVE_ID', label: 'Team Drive ID', placeholder: '1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs' },
-    ],
-    setupSteps: [
-      'Uses the same Google Service Account as GBP above.',
-      'Share your Team Drive with the service account email (Viewer access is enough).',
-      'Find your Team Drive ID in the URL when you open the drive: drive.google.com/drive/folders/DRIVE_ID.',
-      'Add it as GOOGLE_DRIVE_ID in Vercel.',
-    ],
-    docsUrl: 'https://developers.google.com/drive/api/guides/about-sdk',
-  },
 ]
 
 const EMAIL_MERGE_TAGS = [
