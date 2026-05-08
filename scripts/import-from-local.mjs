@@ -41,7 +41,7 @@
 
 import { put as blobPut } from '@vercel/blob'
 import { createHash } from 'node:crypto'
-import { createReadStream } from 'node:fs'
+import { openAsBlob } from 'node:fs'
 import { readFile, readdir, stat } from 'node:fs/promises'
 import { join, extname, basename } from 'node:path'
 
@@ -290,12 +290,13 @@ function pathnameFor({ brand, kind, capturedAt, fingerprint, ext }) {
 }
 
 async function streamFileToBlob(brand, file, kind, mime) {
-  // createReadStream returns a Node Readable — convert to Web ReadableStream
-  // via Readable.toWeb. @vercel/blob's put() accepts Web streams, Buffers,
-  // strings, etc. Streaming keeps memory flat for the 1 GB videos.
-  const { Readable } = await import('node:stream')
-  const nodeStream = createReadStream(file.path)
-  const webStream  = Readable.toWeb(nodeStream)
+  // openAsBlob returns a Web Blob backed by the file on disk — calling
+  // .stream() on it yields a fresh ReadableStream each time. The previous
+  // implementation passed a one-shot Web ReadableStream, which broke when
+  // @vercel/blob's internal retry logic tried to re-read the body on a
+  // transient network blip ("Response body object should not be disturbed
+  // or locked"). Memory stays flat: the Blob is lazy, not buffered.
+  const fileBlob = await openAsBlob(file.path, { type: mime })
   const pathname = pathnameFor({
     brand,
     kind,
@@ -305,11 +306,15 @@ async function streamFileToBlob(brand, file, kind, mime) {
   })
   // addRandomSuffix:false — keep the deterministic name; re-imports overwrite
   // the same blob rather than creating duplicates.
-  const blob = await blobPut(pathname, webStream, {
+  // multipart:true — required for files larger than ~100 MB. Without it the
+  // SDK fails with "Vercel Blob: Unknown error" on big videos. Safe to leave
+  // on for small files too; the SDK falls back to single-shot under 50 MB.
+  const blob = await blobPut(pathname, fileBlob, {
     access: 'public',
     contentType: mime,
     token: BLOB_TOKEN,
     addRandomSuffix: false,
+    multipart: true,
   })
   return blob
 }
