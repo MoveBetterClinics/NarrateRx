@@ -1,6 +1,7 @@
 import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
 import { tagAndPersist } from '../_lib/tagAsset.js'
+import { recordAudit, snapshot } from '../_lib/audit.js'
 
 // Client-direct upload to Vercel Blob using a token issued by this endpoint.
 //
@@ -122,6 +123,18 @@ export default async function handler(req, res) {
           const inserted = await ins.json()
           const newRow = inserted?.[0]
           if (newRow?.id) {
+            // Record the upload in the audit log. actor comes from the token
+            // payload (created_by), since the Blob completion webhook doesn't
+            // carry the original user's session.
+            waitUntil(recordAudit({
+              assetId: newRow.id,
+              action:  'upload',
+              actor:   meta.createdBy || 'unknown',
+              before:  null,
+              after:   snapshot(newRow),
+              brand:   meta.brand || brandId(),
+            }).catch((e) => console.error('Audit record failed:', e?.message)))
+
             waitUntil(tagAndPersist(newRow).catch((e) => console.error('Auto-tag failed:', e?.message)))
           }
         } catch (e) {

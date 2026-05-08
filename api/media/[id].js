@@ -1,4 +1,5 @@
 import { del as blobDel } from '@vercel/blob'
+import { recordAudit, snapshot } from '../_lib/audit.js'
 
 // Runs on Node (Fluid Compute) — @vercel/blob's server bits aren't edge-safe.
 // Uses the (req, res) handler shape; req is IncomingMessage with auto-parsed
@@ -25,6 +26,13 @@ function sb(path, init = {}) {
 }
 
 const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,notes,content_item_ids,created_at,updated_at,created_by'
+
+async function fetchRow(where) {
+  const r = await sb(`media_assets?${where}&select=${SELECT}`)
+  if (!r.ok) return null
+  const rows = await r.json()
+  return rows[0] || null
+}
 
 export default async function handler(req, res) {
   // req.url is a relative path on Node runtime; the base lets URL parse it.
@@ -63,27 +71,49 @@ export default async function handler(req, res) {
     }
     const body = Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined))
 
+    // Snapshot before so the audit trail captures what changed.
+    const before = await fetchRow(where)
+    if (!before) return res.status(404).json({ error: 'Not found' })
+
     const r = await sb(`media_assets?${where}`, { method: 'PATCH', body: JSON.stringify(body) })
     if (!r.ok) return res.status(500).json({ error: 'Update failed' })
     const data = await r.json()
-    return res.status(200).json(data[0] ?? null)
+    const after = data[0] ?? null
+
+    await recordAudit({
+      assetId: id,
+      action:  'edit',
+      before:  snapshot(before),
+      after:   snapshot(after),
+      req,
+    })
+
+    return res.status(200).json(after)
   }
 
   if (req.method === 'DELETE') {
-    // Look up first to get blob_pathname, then delete from Blob, then DB.
-    const lookup = await sb(`media_assets?${where}&select=blob_pathname,blob_url`)
-    if (!lookup.ok) return res.status(500).json({ error: 'Database error' })
-    const rows = await lookup.json()
-    const row  = rows[0]
-    if (!row) return res.status(404).json({ error: 'Not found' })
+    // Look up first to get full row for the audit snapshot, then delete from
+    // Blob, then DB. NB: PR-3 will rewrite this to a soft-delete (status =
+    // 'archived') and move blob deletion behind an admin-only purge endpoint.
+    const before = await fetchRow(where)
+    if (!before) return res.status(404).json({ error: 'Not found' })
 
-    if (row.blob_url) {
-      try { await blobDel(row.blob_url) }
+    if (before.blob_url) {
+      try { await blobDel(before.blob_url) }
       catch (e) { console.error('Blob delete failed:', e.message) }
     }
 
     const r = await sb(`media_assets?${where}`, { method: 'DELETE' })
     if (!r.ok) return res.status(500).json({ error: 'Delete failed' })
+
+    await recordAudit({
+      assetId: id,
+      action:  'purge',
+      before:  snapshot(before),
+      after:   null,
+      req,
+    })
+
     return res.status(200).json({ deleted: true })
   }
 

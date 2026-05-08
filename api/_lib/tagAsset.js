@@ -1,6 +1,7 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
 import { brand } from '../../src/lib/brand.js'
+import { recordAudit, snapshot } from './audit.js'
 
 // Shared AI auto-tagging logic. Used by api/media/tag.js (manual button)
 // and api/media/upload.js (auto-kick on upload). Talks to the Vercel AI
@@ -136,7 +137,19 @@ export async function tagAndPersist(asset) {
       throw new Error(`Update failed: ${text}`)
     }
     const data = await upd.json()
-    return data[0] ?? null
+    const after = data[0] ?? null
+
+    // Audit AI tagging as a 'tag' action with actor='system'. before/after
+    // snapshots let us see exactly what tags + transcription the AI produced.
+    await recordAudit({
+      assetId: asset.id,
+      action:  'tag',
+      actor:   'system',
+      before:  snapshot(asset),
+      after:   snapshot(after),
+    })
+
+    return after
   } catch (e) {
     const message = e?.message || 'Tagging failed'
     const stamp = new Date().toISOString()
