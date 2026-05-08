@@ -1,4 +1,16 @@
 import { recordAudit, snapshot } from '../_lib/audit.js'
+import { requireRole } from '../_lib/auth.js'
+
+// Per-method role requirements (HANDOFF.md → Locked decisions):
+//   GET    → any authenticated user
+//   PATCH  → admin or editor (metadata edits + restore)
+//   DELETE → admin or editor (soft-archive)
+//   purge  → admin only (lives in api/media/[id]/purge.js)
+const ROLE_REQUIREMENTS = {
+  GET:    null,
+  PATCH:  ['admin', 'editor'],
+  DELETE: ['admin', 'editor'],
+}
 
 // Runs on Node (Fluid Compute) — @vercel/blob's server bits aren't edge-safe.
 // Uses the (req, res) handler shape; req is IncomingMessage with auto-parsed
@@ -38,6 +50,14 @@ async function fetchRow(where) {
 }
 
 export default async function handler(req, res) {
+  if (!(req.method in ROLE_REQUIREMENTS)) {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+  const auth = await requireRole(req, ROLE_REQUIREMENTS[req.method])
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
   // req.url is a relative path on Node runtime; the base lets URL parse it.
   const url = new URL(req.url, 'http://localhost')
   const id  = url.pathname.split('/').pop()

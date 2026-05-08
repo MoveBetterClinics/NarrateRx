@@ -2,6 +2,8 @@
 // which need Node for @vercel/blob. Uses the (req, res) handler shape — on
 // Vercel's Node runtime req is an IncomingMessage, not a Web Request.
 
+import { requireRole } from '../_lib/auth.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
@@ -26,6 +28,11 @@ const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const auth = await requireRole(req)
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
   // req.url is a relative path on Node runtime; supply a base so URL parses.

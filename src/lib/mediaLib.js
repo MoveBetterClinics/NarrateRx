@@ -1,11 +1,29 @@
 // Client-side helpers for the Media Hub. Uploads use @vercel/blob/client which
 // hits /api/media/upload for a token, then PUTs the file directly to Vercel
 // Blob. Server-side completion writes the media_assets row.
+//
+// Every request to /api/media/* carries a short-lived Clerk JWT in the
+// Authorization header. Server-side requireRole() verifies it and enforces
+// per-method roles. window.Clerk is the official browser handle exposed by
+// @clerk/clerk-react; we read the token off the active session here so each
+// caller doesn't have to thread getToken through props or context.
 
 import { upload } from '@vercel/blob/client'
 
+async function getClerkToken() {
+  if (typeof window === 'undefined') return null
+  try {
+    return await window.Clerk?.session?.getToken?.()
+  } catch {
+    return null
+  }
+}
+
 async function api(path, init = {}) {
-  const res = await fetch(path, init)
+  const token   = await getClerkToken()
+  const headers = { ...(init.headers || {}) }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const res  = await fetch(path, { ...init, headers })
   const json = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(json.error || `Request failed: ${res.status}`)
   return json
@@ -87,10 +105,16 @@ export async function uploadMedia(file, meta = {}) {
   const stamp     = new Date().toISOString().replace(/[:.]/g, '-')
   const pathname  = `media/raw/${stamp}-${baseName}${ext}`
 
+  const token = await getClerkToken()
+
   const blob = await upload(pathname, file, {
     access: 'public',  // private blobs require additional plan + signed URL routing
     handleUploadUrl: '/api/media/upload',
     contentType: file.type || undefined,
+    // Forward Clerk JWT on the handshake to /api/media/upload. The completion
+    // webhook (Vercel Blob → server) is signature-verified by handleUpload
+    // and doesn't need a user token.
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     clientPayload: JSON.stringify({
       filename: file.name,
       createdBy: meta.createdBy || null,

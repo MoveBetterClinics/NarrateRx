@@ -11,6 +11,7 @@ import {
   purgeMediaAsset,
   tagMediaAsset,
 } from '@/lib/mediaLib'
+import { useUserRole } from '@/lib/useUserRole'
 
 const STATUSES = ['raw', 'tagged', 'rendered', 'approved', 'archived']
 const PURGE_COOLDOWN_DAYS = 30
@@ -40,12 +41,14 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [tagging, setTagging]   = useState(false)
   const [error, setError]       = useState('')
 
+  const { canEdit, canArchive, canRestore, canPurge } = useUserRole()
+
   const isArchived  = asset.status === 'archived'
   const archivedAge = daysSince(asset.archived_at)
   const cooldownLeft = archivedAge != null
     ? Math.max(0, Math.ceil(PURGE_COOLDOWN_DAYS - archivedAge))
     : PURGE_COOLDOWN_DAYS
-  const purgeReady  = isArchived && asset.archived_at && cooldownLeft === 0
+  const purgeReady  = isArchived && asset.archived_at && cooldownLeft === 0 && canPurge
 
   // Sync local state if a different asset is loaded into the same drawer.
   useEffect(() => {
@@ -163,6 +166,12 @@ export default function MediaDetail({ asset, onClose, onChange }) {
           </div>
 
           <div className="p-5 space-y-4">
+            {!canEdit && !isArchived && (
+              <div className="text-[11px] text-muted-foreground bg-muted/40 border border-border rounded-md px-3 py-2">
+                View-only — your role can browse the library but cannot edit metadata or archive assets. Ask an admin to change your role in Clerk.
+              </div>
+            )}
+
             {/* Status */}
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
@@ -185,21 +194,23 @@ export default function MediaDetail({ asset, onClose, onChange }) {
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Tags</label>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleTag}
-                  disabled={tagging}
-                  className="h-7 gap-1.5 text-[11px]"
-                  title={asset.kind === 'video'
-                    ? 'Run AI tagging + transcription (10–60s)'
-                    : 'Run AI tagging on this image'}
-                >
-                  {tagging
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Sparkles className="h-3.5 w-3.5" />}
-                  {aiTags.length ? 'Re-tag with AI' : 'Tag with AI'}
-                </Button>
+                {canEdit && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleTag}
+                    disabled={tagging}
+                    className="h-7 gap-1.5 text-[11px]"
+                    title={asset.kind === 'video'
+                      ? 'Run AI tagging + transcription (10–60s)'
+                      : 'Run AI tagging on this image'}
+                  >
+                    {tagging
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      : <Sparkles className="h-3.5 w-3.5" />}
+                    {aiTags.length ? 'Re-tag with AI' : 'Tag with AI'}
+                  </Button>
+                )}
               </div>
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {tags.map((t) => (
@@ -269,9 +280,9 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               <div>
                 Archived {asset.archived_at ? new Date(asset.archived_at).toLocaleDateString() : ''}.
                 {' '}
-                {purgeReady
-                  ? <>Cooldown complete — admins may permanently delete.</>
-                  : <>Permanent delete unlocks in <strong>{cooldownLeft} day{cooldownLeft === 1 ? '' : 's'}</strong> (admin only).</>}
+                {cooldownLeft === 0
+                  ? <>Cooldown complete{canPurge ? ' — you can permanently delete this asset.' : ' — only admins can permanently delete.'}</>
+                  : <>Permanent delete unlocks in <strong>{cooldownLeft} day{cooldownLeft === 1 ? '' : 's'}</strong>{canPurge ? '.' : ' (admin only).'}</>}
               </div>
               {showPurge && purgeReady && (
                 <div className="space-y-1.5">
@@ -293,10 +304,12 @@ export default function MediaDetail({ asset, onClose, onChange }) {
           <div className="flex gap-2">
             {isArchived ? (
               <>
-                <Button variant="outline" size="sm" onClick={handleRestore} disabled={restoring}>
-                  {restoring ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <ArchiveRestore className="h-3.5 w-3.5 mr-1.5" />}
-                  Restore
-                </Button>
+                {canRestore && (
+                  <Button variant="outline" size="sm" onClick={handleRestore} disabled={restoring}>
+                    {restoring ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <ArchiveRestore className="h-3.5 w-3.5 mr-1.5" />}
+                    Restore
+                  </Button>
+                )}
                 {purgeReady && !showPurge && (
                   <Button variant="ghost" size="sm" onClick={() => setShowPurge(true)} className="text-destructive hover:text-destructive">
                     <Trash2 className="h-3.5 w-3.5 mr-1.5" />
@@ -316,15 +329,17 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 )}
               </>
             ) : (
-              <Button variant="ghost" size="sm" onClick={handleArchive} disabled={archiving} className="text-destructive hover:text-destructive">
-                {archiving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Archive className="h-3.5 w-3.5 mr-1.5" />}
-                Move to archive
-              </Button>
+              canArchive && (
+                <Button variant="ghost" size="sm" onClick={handleArchive} disabled={archiving} className="text-destructive hover:text-destructive">
+                  {archiving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Archive className="h-3.5 w-3.5 mr-1.5" />}
+                  Move to archive
+                </Button>
+              )
             )}
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-            {!isArchived && (
+            <Button variant="outline" size="sm" onClick={onClose}>{canEdit && !isArchived ? 'Cancel' : 'Close'}</Button>
+            {!isArchived && canEdit && (
               <Button size="sm" onClick={save} disabled={saving}>
                 {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
                 Save
