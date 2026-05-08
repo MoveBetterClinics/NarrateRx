@@ -31,14 +31,15 @@ async function api(path, init = {}) {
 
 // ── List & detail ────────────────────────────────────────────────────────────
 
-export function listMedia({ kind, status, q, tag, limit, offset } = {}) {
+export function listMedia({ kind, status, q, tag, collectionId, limit, offset } = {}) {
   const params = new URLSearchParams()
-  if (kind)   params.set('kind', kind)
-  if (status) params.set('status', status)
-  if (q)      params.set('q', q)
-  if (tag)    params.set('tag', tag)
-  if (limit)  params.set('limit', String(limit))
-  if (offset) params.set('offset', String(offset))
+  if (kind)         params.set('kind', kind)
+  if (status)       params.set('status', status)
+  if (q)            params.set('q', q)
+  if (tag)          params.set('tag', tag)
+  if (collectionId) params.set('collectionId', collectionId)
+  if (limit)        params.set('limit', String(limit))
+  if (offset)       params.set('offset', String(offset))
   const qs = params.toString()
   return api(`/api/media/list${qs ? `?${qs}` : ''}`)
 }

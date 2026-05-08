@@ -14,6 +14,7 @@ import {
 import { listContentPieces, createContentPiece, segmentMediaAsset } from '@/lib/contentLib'
 import { useUserRole } from '@/lib/useUserRole'
 import ContentBriefDetail from './ContentBriefDetail'
+import CollectionPicker from './CollectionPicker'
 
 const STATUSES = ['raw', 'tagged', 'rendered', 'approved', 'archived']
 const SPEAKER_ROLES = [
@@ -344,6 +345,9 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 </Button>
               </div>
             </div>
+
+            {/* Collections — editorial groupings (campaigns, series, etc.) */}
+            <CollectionPicker assetId={asset.id} onChange={() => onChange?.()} />
 
             {/* Edit briefs */}
             {asset.kind === 'video' && (
