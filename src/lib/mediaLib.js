@@ -105,7 +105,7 @@ export function regenerateThumbnail(id) {
   })
 }
 
-// Admin-only batch backfill: scans this brand for videos missing thumbnails
+// Admin-only batch backfill: scans this workspace for videos missing thumbnails
 // and processes up to `limit` of them sequentially. Re-run until processed=0.
 export function backfillThumbnails(limit = 25) {
   return api(`/api/media/backfill-thumbnails`, {

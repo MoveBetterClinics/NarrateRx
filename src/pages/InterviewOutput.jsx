@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label'
 import { fetchClinician, fetchInterview, fetchCampaign, updateInterview } from '@/lib/api'
 import { fetchContentItemsByInterview, createContentItems, publishBlogToWebsite } from '@/lib/publish'
 import { generateContent } from '@/lib/claude'
-import { brand } from '@/lib/brand'
+import { workspace } from '@/lib/workspace'
 import {
   getSocialBatchSystemPrompt,
   getVideoScriptBatchSystemPrompt,
@@ -241,7 +241,7 @@ export default function InterviewOutput() {
             badge="Markdown"
             editId={itemMap['blog']}
           />
-          {brand.capabilities?.websitePublish && outputs.blogPost && (
+          {workspace.capabilities?.websitePublish && outputs.blogPost && (
             <WebsitePublishPanel
               markdown={outputs.blogPost}
               fallbackTitle={interview.topic}
@@ -278,7 +278,7 @@ export default function InterviewOutput() {
                 <OutputCard title="Facebook Post" subtitle="Copy and paste into your Facebook page — URL generates a rich link preview" content={outputs.facebook} badge="Facebook" editId={itemMap['facebook']} />
               </TabsContent>
               <TabsContent value="linkedin">
-                <OutputCard title="LinkedIn Post" subtitle={`Post from the ${brand.name} LinkedIn page`} content={outputs.linkedin} badge="LinkedIn" editId={itemMap['linkedin']} />
+                <OutputCard title="LinkedIn Post" subtitle={`Post from the ${workspace.name} LinkedIn page`} content={outputs.linkedin} badge="LinkedIn" editId={itemMap['linkedin']} />
               </TabsContent>
               <TabsContent value="pinterest">
                 <OutputCard title="Pinterest Pins" subtitle="3 pin variations — use with a vertical image linked to the blog post" content={outputs.pinterest} badge="Pinterest" editId={itemMap['pinterest']} />
@@ -582,7 +582,7 @@ function WebsitePublishPanel({ markdown, fallbackTitle }) {
         <div className="flex items-start gap-3">
           <Check className="h-5 w-5 text-green-700 mt-0.5 shrink-0" />
           <div className="space-y-1">
-            <p className="font-medium text-sm text-green-900">Published to {brand.websiteHostname}</p>
+            <p className="font-medium text-sm text-green-900">Published to {workspace.websiteHostname}</p>
             <p className="text-xs text-green-800">
               The post is live (or queued as a draft if you ticked the box). The link below opens it on the website.
             </p>
@@ -620,13 +620,13 @@ function WebsitePublishPanel({ markdown, fallbackTitle }) {
         <div>
           <p className="font-medium text-sm flex items-center gap-2">
             <Globe className="h-4 w-4 text-primary" />
-            Publish to {brand.websiteHostname}
+            Publish to {workspace.websiteHostname}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
             Sends the post to the marketing site. Live in seconds (or saved as a draft if you tick the box).
           </p>
         </div>
-        <Badge variant="outline" className="text-xs capitalize">{brand.id}</Badge>
+        <Badge variant="outline" className="text-xs capitalize">{workspace.id}</Badge>
       </div>
 
       <div className="p-5 space-y-4">

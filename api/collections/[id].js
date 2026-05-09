@@ -19,7 +19,7 @@ const ROLE_REQUIREMENTS = {
 const ALLOWED_KINDS    = new Set(['campaign', 'series', 'session', 'adhoc'])
 const ALLOWED_STATUSES = new Set(['active', 'archived'])
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -55,7 +55,7 @@ export default async function handler(req, res) {
   const id  = url.pathname.split('/').pop()
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
-  const where = `id=eq.${id}&brand=eq.${brandId()}`
+  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
 
   if (req.method === 'GET') {
     const r = await sb(`collections?${where}&select=${SELECT}`)

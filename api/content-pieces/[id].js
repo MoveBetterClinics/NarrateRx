@@ -1,5 +1,5 @@
 // GET / PATCH / DELETE for a single content_piece (edit brief).
-// Runs on Node (Fluid Compute). All brand-scoped.
+// Runs on Node (Fluid Compute). All workspace-scoped.
 
 import { requireRole } from '../_lib/auth.js'
 
@@ -16,7 +16,7 @@ const ROLE_REQUIREMENTS = {
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -54,7 +54,7 @@ export default async function handler(req, res) {
   const id  = url.pathname.split('/').pop()
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
-  const where = `id=eq.${id}&brand=eq.${brandId()}`
+  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
 
   if (req.method === 'GET') {
     const r = await sb(`content_pieces?${where}&select=${SELECT}`)

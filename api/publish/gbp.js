@@ -1,6 +1,6 @@
 export const config = { runtime: 'edge' }
 
-import { brand } from '../../src/lib/brand.js'
+import { workspace } from '../../src/lib/workspace.js'
 
 // Google Business Profile posting via service account
 // Required env vars:
@@ -9,7 +9,7 @@ import { brand } from '../../src/lib/brand.js'
 //   GOOGLE_SERVICE_ACCOUNT_EMAIL
 //   GOOGLE_SERVICE_ACCOUNT_KEY  (private key — paste as-is with \n newlines)
 // Optional:
-//   BRAND_URL         - overrides the brand's bookingUrl for the GBP post CTA
+//   BRAND_URL         - overrides the workspace's bookingUrl for the GBP post CTA
 
 const ok  = (data)       => new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } })
 const err = (msg, status = 400) => new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
@@ -75,7 +75,7 @@ export function buildPost(content, mediaUrls = []) {
     languageCode: 'en-US',
     summary: content,
     topicType: 'STANDARD',
-    callToAction: { actionType: 'BOOK', url: process.env.BRAND_URL || brand.prompt.bookingUrl },
+    callToAction: { actionType: 'BOOK', url: process.env.BRAND_URL || workspace.prompt.bookingUrl },
   }
   const media = Array.isArray(mediaUrls) ? mediaUrls : []
   if (media.length > 0) {

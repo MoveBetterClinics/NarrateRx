@@ -34,7 +34,7 @@ const HANDSHAKE_ALLOWED_ROLES = ['admin', 'editor', 'clinician']
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -101,7 +101,7 @@ export default async function handler(req, res) {
           maximumSizeInBytes: 500 * 1024 * 1024,
           // tokenPayload is echoed back to onUploadCompleted as a string.
           tokenPayload: JSON.stringify({
-            brand: brandId(),
+            brand: workspaceId(),
             filename: meta.filename || pathname.split('/').pop(),
             createdBy: meta.createdBy || null,
             patientPseudonym: meta.patientPseudonym || null,
@@ -127,7 +127,7 @@ export default async function handler(req, res) {
         // 2/3 auto-pipeline because the contractor has already done the work.
         const isReturnUpload = !!meta.parentId
         const row = {
-          brand: meta.brand || brandId(),
+          brand: meta.brand || workspaceId(),
           kind,
           status: isReturnUpload ? 'approved' : 'raw',
           source: 'upload',
@@ -164,7 +164,7 @@ export default async function handler(req, res) {
 
         if (isReturnUpload && insertedRow?.id && meta.contentPieceId) {
           try {
-            await sb(`content_pieces?id=eq.${meta.contentPieceId}&brand=eq.${brandId()}`, {
+            await sb(`content_pieces?id=eq.${meta.contentPieceId}&brand=eq.${workspaceId()}`, {
               method: 'PATCH',
               body: JSON.stringify({
                 final_asset_id: insertedRow.id,
@@ -189,12 +189,12 @@ export default async function handler(req, res) {
             // payload (created_by), since the Blob completion webhook doesn't
             // carry the original user's session.
             waitUntil(recordAudit({
-              assetId: insertedRow.id,
-              action:  'upload',
-              actor:   meta.createdBy || 'unknown',
-              before:  null,
-              after:   snapshot(insertedRow),
-              brand:   meta.brand || brandId(),
+              assetId:   insertedRow.id,
+              action:    'upload',
+              actor:     meta.createdBy || 'unknown',
+              before:    null,
+              after:     snapshot(insertedRow),
+              workspace: meta.brand || workspaceId(),
             }).catch((e) => console.error('Audit record failed:', e?.message)))
 
             // Auto-pipeline: tag (Phase 2) → segment into content_pieces

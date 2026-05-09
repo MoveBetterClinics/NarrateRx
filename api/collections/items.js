@@ -6,15 +6,15 @@
 //
 // Add is idempotent — duplicates collapse onto the (collection_id, asset_id)
 // composite primary key. We verify both the collection and every asset
-// belong to the current brand before touching the junction so a leaked id
-// from another brand can't cross-link rows.
+// belong to the current workspace before touching the junction so a leaked id
+// from another workspace can't cross-link rows.
 
 import { requireRole } from '../_lib/auth.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -34,7 +34,7 @@ function sb(path, init = {}) {
 async function verifyBrand(table, ids) {
   if (!ids?.length) return { ok: true, missing: [] }
   const idList = ids.map(encodeURIComponent).join(',')
-  const r = await sb(`${table}?id=in.(${idList})&brand=eq.${brandId()}&select=id`)
+  const r = await sb(`${table}?id=in.(${idList})&brand=eq.${workspaceId()}&select=id`)
   if (!r.ok) return { ok: false, error: 'lookup-failed' }
   const rows = await r.json()
   const found = new Set(rows.map((row) => row.id))
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
   const collectionId = body.collectionId || searchParams.get('collectionId')
   if (!collectionId) return res.status(400).json({ error: 'collectionId required' })
 
-  // Always confirm the collection belongs to this brand.
+  // Always confirm the collection belongs to this workspace.
   const colCheck = await verifyBrand('collections', [collectionId])
   if (!colCheck.ok) return res.status(404).json({ error: 'Collection not found' })
 

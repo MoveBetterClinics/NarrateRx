@@ -1,4 +1,4 @@
-// List content_pieces (a.k.a. "edit briefs") for the current brand. Each piece
+// List content_pieces (a.k.a. "edit briefs") for the current workspace. Each piece
 // is a draft/edit task: AI surfaced a moment from a source media row, and the
 // editor reviews/accepts/rejects/returns through this list.
 //
@@ -9,7 +9,7 @@ import { requireRole } from '../_lib/auth.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -51,7 +51,7 @@ export default async function handler(req, res) {
   const limit       = Math.min(parseInt(searchParams.get('limit') || '60'), 200)
   const offset      = parseInt(searchParams.get('offset') || '0')
 
-  let qs = `content_pieces?select=${SELECT}&brand=eq.${brandId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
+  let qs = `content_pieces?select=${SELECT}&brand=eq.${workspaceId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
   if (status)     qs += `&status=eq.${status}`
   if (platform)   qs += `&target_platform=eq.${platform}`
   if (sourceId)   qs += `&source_asset_id=eq.${sourceId}`

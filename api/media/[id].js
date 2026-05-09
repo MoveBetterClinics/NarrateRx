@@ -23,7 +23,7 @@ const ROLE_REQUIREMENTS = {
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
   // Brand-scope every read & write.
-  const where = `id=eq.${id}&brand=eq.${brandId()}`
+  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
 
   if (req.method === 'GET') {
     const r = await sb(`media_assets?${where}&select=${SELECT}`)

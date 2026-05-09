@@ -10,7 +10,7 @@
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -54,14 +54,14 @@ export function uaFromRequest(req) {
   return req?.headers?.['user-agent'] || null
 }
 
-export async function recordAudit({ assetId, action, actor, before, after, req, brand }) {
+export async function recordAudit({ assetId, action, actor, before, after, req, workspace }) {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.warn('[audit] Supabase env not configured; skipping')
     return
   }
   try {
     const body = {
-      brand:      brand || brandId(),
+      brand:      workspace || workspaceId(),
       asset_id:   assetId || null,
       action,
       actor:      actor || (req ? actorFromRequest(req) : 'system'),

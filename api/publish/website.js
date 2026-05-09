@@ -2,8 +2,9 @@ import { marked } from 'marked'
 
 export const config = { runtime: 'edge' }
 
-// Publishes a generated blog post to the brand's marketing site. Two receiving
-// modes are supported, dispatched on env vars set by each brand's deployment:
+// Publishes a generated blog post to the workspace's marketing site. Two
+// receiving modes are supported, dispatched on env vars set by each
+// workspace's deployment:
 //
 //   • Astro mode (animals → movebetteranimal.co)
 //     Required: NARRATERX_PUBLISH_SECRET, WEBSITE_PUBLISH_URL

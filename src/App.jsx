@@ -19,10 +19,10 @@ import ReviewPost from '@/pages/ReviewPost'
 import ContentCalendar from '@/pages/ContentCalendar'
 import MediaHub from '@/pages/MediaHub'
 import Integrations from '@/pages/Integrations'
-import { brand } from '@/lib/brand'
+import { workspace } from '@/lib/workspace'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-const ALLOWED_DOMAIN = brand.authDomain
+const ALLOWED_DOMAIN = workspace.authDomain
 
 function DomainGuard({ children }) {
   const { user } = useUser()
@@ -77,8 +77,8 @@ function ProtectedApp() {
         <div className="min-h-screen flex items-center justify-center bg-background">
           <div className="w-full max-w-md">
             <div className="text-center mb-6">
-              <h1 className="text-xl font-bold">{brand.name}</h1>
-              <p className="text-sm text-muted-foreground">{brand.signInBlurb}</p>
+              <h1 className="text-xl font-bold">{workspace.name}</h1>
+              <p className="text-sm text-muted-foreground">{workspace.signInBlurb}</p>
             </div>
             <SignIn
               appearance={{
@@ -97,7 +97,7 @@ function ProtectedApp() {
 
 export default function App() {
   useEffect(() => {
-    document.title = brand.appName
+    document.title = workspace.appName
   }, [])
 
   if (!PUBLISHABLE_KEY) {

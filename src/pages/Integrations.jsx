@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { brand } from '@/lib/brand'
+import { workspace } from '@/lib/workspace'
 
 const INTEGRATIONS = [
   {
@@ -25,7 +25,7 @@ const INTEGRATIONS = [
   {
     id: 'facebook',
     name: 'Facebook Page',
-    description: `Post directly to your ${brand.name} Facebook Page.`,
+    description: `Post directly to your ${workspace.name} Facebook Page.`,
     platforms: ['Facebook'],
     envVars: [
       { key: 'FACEBOOK_PAGE_ID',    label: 'Page ID',           placeholder: '123456789' },
@@ -44,7 +44,7 @@ const INTEGRATIONS = [
   {
     id: 'gbp',
     name: 'Google Business Profile',
-    description: `Post updates directly to your ${brand.name} GBP listing.`,
+    description: `Post updates directly to your ${workspace.name} GBP listing.`,
     platforms: ['Google Business Profile'],
     envVars: [
       { key: 'GBP_ACCOUNT_ID',     label: 'Account ID',                        placeholder: 'accounts/123456789' },
@@ -70,7 +70,7 @@ const EMAIL_MERGE_TAGS = [
   { tag: '{{headline}}',        desc: 'Large bold heading at the top of the email body' },
   { tag: '{{pull_quote}}',      desc: 'Styled green callout block — most compelling line from the piece' },
   { tag: '{{body_paragraph_1}}', desc: 'Opening hook paragraph' },
-  { tag: '{{body_paragraph_2}}', desc: `${brand.name} perspective paragraph` },
+  { tag: '{{body_paragraph_2}}', desc: `${workspace.name} perspective paragraph` },
   { tag: '{{body_paragraph_3}}', desc: 'Patient story + bridge to action paragraph' },
   { tag: '{{cta_text}}',        desc: 'Button label only (e.g. "Book a Free Consultation")' },
   { tag: '{{cta_url}}',         desc: 'Button destination URL' },
@@ -225,7 +225,7 @@ function TrustDrivenCareCard() {
           <div>
             <p className="font-medium">TrustDrivenCare — Email Newsletter</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Email previews render the actual {brand.newsletterTemplateName} template. Here's how to keep it in sync.
+              Email previews render the actual {workspace.newsletterTemplateName} template. Here's how to keep it in sync.
             </p>
             <div className="flex gap-1 mt-1.5">
               <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Email</span>
@@ -257,7 +257,7 @@ function TrustDrivenCareCard() {
           <div>
             <p className="text-sm font-medium mb-2">Updating the template design</p>
             <p className="text-sm text-muted-foreground mb-3">
-              When you update the <strong>{brand.newsletterTemplateName.replace(' - ', ' · ')}</strong> template in TrustDrivenCare, do the following to keep the preview in sync:
+              When you update the <strong>{workspace.newsletterTemplateName.replace(' - ', ' · ')}</strong> template in TrustDrivenCare, do the following to keep the preview in sync:
             </p>
             <ol className="space-y-1.5">
               {[

@@ -1,7 +1,9 @@
-// Brand registry. NarrateRx is one codebase deployed once per brand — each
-// deployment sets BRAND (server) / VITE_BRAND (client) and the active brand
-// object is selected here. Add a new brand by appending a sibling entry to
-// BRANDS below and registering its Vercel project with matching env vars.
+// Workspace registry. NarrateRx is one codebase deployed once per workspace
+// — each deployment sets BRAND (server) / VITE_BRAND (client; env var names
+// retained pre-multitenant cutover) and the active workspace object is
+// selected here. Slated for retirement in the multi-tenant cutover PR that
+// flips reads to the DB-backed `workspaces` table; until then this file is
+// the source of truth for the three Move Better workspaces.
 
 const PEOPLE = {
   id: 'people',
@@ -164,7 +166,7 @@ const EQUINE = {
   linkPreviewBlurb: 'Mobile equine chiropractic care across Southwest Washington and the greater Portland area — restoring movement, balance, and comfort for horses.',
   linkedInIndustry: 'Veterinary',
 
-  // Social handles — none claimed yet for the equine brand. Placeholders mirror
+  // Social handles — none claimed yet for the equine workspace. Placeholders mirror
   // expected usernames so PostPreview mocks render coherently. Update when claimed.
   social: {
     instagram: 'movebetterequine',
@@ -205,7 +207,7 @@ BLOG POSTS:
     // online booking — this is the contact page where owners arrange a visit.
     bookingUrl: 'https://movebetterequine.com/contact/',
 
-    // No signature assessment system for the equine brand. prompts.js checks
+    // No signature assessment system for the equine workspace. prompts.js checks
     // for null and omits the relevant sentences when these are absent.
     signatureSystemName: null,
     signatureSystemUrl: null,
@@ -316,7 +318,7 @@ BLOG POSTS:
 - "A Dog's Toenail Length Matters": https://movebetteranimal.co/blog/a-dogs-toenail-length-matters`,
 
     // The single anchor link the blog CTA must always land on. The animal
-    // brand uses the same Jane booking instance as the human brand.
+    // brand uses the same Jane booking instance as the human workspace.
     bookingUrl: 'https://movebetter.janeapp.com/',
 
     // No proprietary signature assessment system for the animal brand yet.
@@ -350,19 +352,20 @@ BLOG POSTS:
   },
 }
 
-const BRANDS = {
+const WORKSPACES = {
   people: PEOPLE,
   equine: EQUINE,
   animals: ANIMALS,
 }
 
-function readBrandId() {
+function readWorkspaceId() {
   // Vite replaces import.meta.env.VITE_BRAND at build time. Wrapped in
   // try/catch so this file is also safe to import from Node ESM (where
-  // import.meta exists but import.meta.env does not).
-  let viteBrand
-  try { viteBrand = import.meta.env.VITE_BRAND } catch {}
-  if (viteBrand) return String(viteBrand).toLowerCase()
+  // import.meta exists but import.meta.env does not). Env var names
+  // (VITE_BRAND, BRAND) retained pre-multitenant cutover.
+  let viteWorkspace
+  try { viteWorkspace = import.meta.env.VITE_BRAND } catch {}
+  if (viteWorkspace) return String(viteWorkspace).toLowerCase()
 
   if (typeof process !== 'undefined' && process.env && process.env.BRAND) {
     return String(process.env.BRAND).toLowerCase()
@@ -370,7 +373,7 @@ function readBrandId() {
   return 'people'
 }
 
-const activeId = readBrandId()
-export const brand = BRANDS[activeId] || PEOPLE
-export function getBrand() { return brand }
-export function getBrandById(id) { return BRANDS[id] || PEOPLE }
+const activeId = readWorkspaceId()
+export const workspace = WORKSPACES[activeId] || PEOPLE
+export function getWorkspace() { return workspace }
+export function getWorkspaceById(id) { return WORKSPACES[id] || PEOPLE }

@@ -1,9 +1,9 @@
 import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
 import { requireRole } from '../_lib/auth.js'
 
-// One-shot backfill: extract thumbnails for any video in this brand that has
-// blob_url set but thumbnail_url null. Safe to re-run — the WHERE filters out
-// videos that already got thumbnails on a previous pass.
+// One-shot backfill: extract thumbnails for any video in this workspace that
+// has blob_url set but thumbnail_url null. Safe to re-run — the WHERE filters
+// out videos that already got thumbnails on a previous pass.
 //
 // Routing: POST /api/media/backfill-thumbnails
 // Body:    { limit?: number }   default 25, max 100
@@ -20,7 +20,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 const DEFAULT_LIMIT = 25
 const MAX_LIMIT     = 100
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -49,10 +49,10 @@ export default async function handler(req, res) {
   const requested = Number(req.body?.limit) || DEFAULT_LIMIT
   const limit = Math.max(1, Math.min(MAX_LIMIT, requested))
 
-  const brand = brandId()
+  const ws = workspaceId()
   // Order by created_at asc so successive runs naturally walk forward through
   // the backlog. Each pass picks up the next chunk of un-thumbnailed videos.
-  const query = `media_assets?brand=eq.${brand}&kind=eq.video&thumbnail_url=is.null&blob_url=not.is.null&select=id,brand,kind,blob_url&order=created_at.asc&limit=${limit}`
+  const query = `media_assets?brand=eq.${ws}&kind=eq.video&thumbnail_url=is.null&blob_url=not.is.null&select=id,brand,kind,blob_url&order=created_at.asc&limit=${limit}`
 
   const lookup = await sb(query)
   if (!lookup.ok) {

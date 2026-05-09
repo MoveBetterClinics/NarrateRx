@@ -7,7 +7,7 @@ import { requireRole } from '../_lib/auth.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -39,14 +39,14 @@ export default async function handler(req, res) {
   const sourceAssetId = body.sourceAssetId
   if (!sourceAssetId) return res.status(400).json({ error: 'sourceAssetId required' })
 
-  // Verify the source belongs to this brand before linking a brief to it.
-  const lookup = await sb(`media_assets?id=eq.${sourceAssetId}&brand=eq.${brandId()}&select=id`)
+  // Verify the source belongs to this workspace before linking a brief to it.
+  const lookup = await sb(`media_assets?id=eq.${sourceAssetId}&brand=eq.${workspaceId()}&select=id`)
   if (!lookup.ok) return res.status(500).json({ error: 'Database error' })
   const rows = await lookup.json()
   if (!rows[0]) return res.status(404).json({ error: 'Source asset not found' })
 
   const row = {
-    brand: brandId(),
+    brand: workspaceId(),
     source_asset_id: sourceAssetId,
     source_quote: body.sourceQuote || null,
     source_trim_start: body.sourceTrimStart ?? null,

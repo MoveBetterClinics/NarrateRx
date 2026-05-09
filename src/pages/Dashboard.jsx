@@ -13,7 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { fetchClinicians } from '@/lib/api'
 import { getSuggestedTopics } from '@brand-overlay/topicSuggestions'
 import { getInitials, formatRelativeDate } from '@/lib/utils'
-import { brand } from '@/lib/brand'
+import { workspace } from '@/lib/workspace'
 
 const RESUME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 const RESUME_INITIAL_CAP = 6
@@ -70,7 +70,7 @@ export default function Dashboard() {
     <div className="space-y-8">
       {/* Hero */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{brand.appName}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{workspace.appName}</h1>
         <p className="text-muted-foreground text-sm mt-1">
           Capture your clinicians' expertise and turn it into patient-facing content.
         </p>

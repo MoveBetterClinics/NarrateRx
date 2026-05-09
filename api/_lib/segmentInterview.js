@@ -1,6 +1,6 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { brand } from '../../src/lib/brand.js'
+import { workspace } from '../../src/lib/workspace.js'
 
 // Phase 3: AI segmenter for clinic-capture footage. Reads the transcription
 // Phase 2 already produced (and the visual narrative when available) and
@@ -26,7 +26,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 const MODEL = 'anthropic/claude-sonnet-4-6'
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -101,18 +101,18 @@ const ROLE_FRAMINGS = {
 function buildSystemPrompt(speakerRole = 'clinician') {
   const role = ROLE_FRAMINGS[speakerRole] || ROLE_FRAMINGS.clinician
   const lines = [
-    `You are a senior social media editor for ${brand.appName} (${brand.location}).`,
+    `You are a senior social media editor for ${workspace.appName} (${workspace.location}).`,
     '',
     role.setting,
     '',
     'You are reading the transcript (and a brief visual narrative when present) of one such captured clip. Your job: identify the 1–5 strongest moments worth editing into finished, reusable social clips. Each moment becomes an "edit brief" the contractor reviews, accepts, and takes to CapCut Pro to produce a finished file. Lengthier sources yield more briefs (rough rule: one brief per 5–7 minutes of source). Pick fewer if the source is short, repetitive, or thin.',
     '',
-    `Clinic context: ${brand.prompt.clinicContext}`,
+    `Clinic context: ${workspace.prompt.clinicContext}`,
     '',
-    `Audience: ${brand.prompt.audienceShort}`,
+    `Audience: ${workspace.prompt.audienceShort}`,
     '',
     'Brand voice:',
-    brand.prompt.brandVoice,
+    workspace.prompt.brandVoice,
     '',
     'A "moment worth editing" is:',
     '- A self-contained idea that lands in 15–60 seconds of speech and/or demonstration',
@@ -138,8 +138,8 @@ function buildSystemPrompt(speakerRole = 'clinician') {
     '- source_quote        — verbatim transcript chunk (1–3 sentences) the moment is built around. If the moment is primarily visual demonstration with little dialog, summarize what is shown in 1–2 sentences and prefix with "[demo]".',
     '- ai_suggested_platform — single best fit from the list above (advisory only; contractor may change)',
     '- ai_caption          — draft caption in brand voice, platform-appropriate length',
-    `- ai_hashtags         — 3–8 hashtags. Include ${brand.prompt.brandHashtag} where it fits.`,
-    `- ai_cta_text         — short CTA (e.g. "Book at ${brand.prompt.spokenUrl}", "Read more on the blog")`,
+    `- ai_hashtags         — 3–8 hashtags. Include ${workspace.prompt.brandHashtag} where it fits.`,
+    `- ai_cta_text         — short CTA (e.g. "Book at ${workspace.prompt.spokenUrl}", "Read more on the blog")`,
     '- ai_reasoning        — 1 sentence: why this moment is worth editing',
   ]
   return lines.join('\n')
@@ -217,7 +217,7 @@ export async function segmentAndPersist(asset) {
     // No-op for photos in v1. Phase 3c may revisit.
     return []
   }
-  const where = `id=eq.${asset.id}&brand=eq.${brandId()}`
+  const where = `id=eq.${asset.id}&brand=eq.${workspaceId()}`
   try {
     const moments = await callModel(asset)
     if (!moments?.length) return []
@@ -242,10 +242,10 @@ export async function segmentAndPersist(asset) {
   }
 }
 
-// Look up an asset by id (brand-scoped) and run segmentAndPersist. Used by
+// Look up an asset by id (workspace-scoped) and run segmentAndPersist. Used by
 // the manual /api/media/segment endpoint.
 export async function segmentById(id) {
-  const where = `id=eq.${id}&brand=eq.${brandId()}`
+  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
   const lookup = await sb(
     `media_assets?${where}&select=id,brand,kind,status,blob_url,mime_type,tags,ai_tags,transcription,visual_narrative,speaker_role,condition,patient_pseudonym,notes`,
   )

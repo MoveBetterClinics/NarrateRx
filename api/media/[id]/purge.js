@@ -7,7 +7,7 @@ import { requireRole } from '../../_lib/auth.js'
 // Routing: POST /api/media/:id/purge
 // Gates (in order — every one of these must be true to proceed):
 //   1. Caller's Clerk role is 'admin'.
-//   2. Asset exists and is brand-scoped to this deployment.
+//   2. Asset exists and is workspace-scoped to this deployment.
 //   3. Asset.status === 'archived' AND archived_at is set.
 //   4. Now() - archived_at >= 30 days (cooldown).
 //   5. Body { confirmFilename } matches asset.filename verbatim.
@@ -23,7 +23,7 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 const COOLDOWN_DAYS = 30
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
   const id = parts[parts.length - 2]
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
-  const where  = `id=eq.${id}&brand=eq.${brandId()}`
+  const where  = `id=eq.${id}&brand=eq.${workspaceId()}`
   const before = await fetchRow(where)
   if (!before) return res.status(404).json({ error: 'Not found' })
 

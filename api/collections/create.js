@@ -7,7 +7,7 @@ import { requireRole } from '../_lib/auth.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
   const kind = ALLOWED_KINDS.has(body.kind) ? body.kind : 'campaign'
 
   const row = {
-    brand: brandId(),
+    brand: workspaceId(),
     name,
     slug,
     description: body.description || null,

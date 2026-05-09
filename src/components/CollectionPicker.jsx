@@ -12,7 +12,7 @@ import { useUserRole } from '@/lib/useUserRole'
 
 // Membership manager surfaced inside MediaDetail. Shows the collections the
 // asset already belongs to as removable chips, and offers a dropdown of all
-// active brand collections to add the asset to. Editor/admin only — read-only
+// active workspace collections to add the asset to. Editor/admin only — read-only
 // users see the chips but no add/remove affordances.
 //
 // Notifies the parent when membership changes (`onChange`) so the parent can

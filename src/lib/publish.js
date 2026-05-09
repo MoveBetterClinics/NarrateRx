@@ -78,7 +78,7 @@ export function fetchGBPLocations() {
   return apiFetch('/api/gbp/locations')
 }
 
-// ── Website publish (brand-agnostic; gated by brand.capabilities.websitePublish) ─
+// ── Website publish (workspace-agnostic; gated by workspace.capabilities.websitePublish) ─
 // Server-side dispatcher in api/publish/website.js picks Astro or WordPress
 // mode from env vars. Throws an Error whose `.code` is one of: slug_taken,
 // invalid_payload, auth_failed, website_misconfigured, github_error,

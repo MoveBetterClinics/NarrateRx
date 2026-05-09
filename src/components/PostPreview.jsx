@@ -2,17 +2,17 @@ import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Heart, MessageCircle, Send, Bookmark, ThumbsUp, Repeat2, Globe, MapPin, Video, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import emailTemplateHtml from '../email-template.html?raw'
-import { brand } from '@/lib/brand'
+import { workspace } from '@/lib/workspace'
 
-// Brand identity used in mock previews — sourced from src/lib/brand.js
-const MB_HANDLE   = brand.social.instagram
-const MB_NAME     = brand.name
-const MB_LOCATION = brand.location
-const MB_INITIALS = brand.socialAvatarInitials
-const MB_BLURB    = brand.linkPreviewBlurb
-const MB_HOSTNAME = brand.websiteHostname
-const MB_INDUSTRY = brand.linkedInIndustry
-const MB_BOOKING  = brand.prompt.bookingUrl
+// Brand identity used in mock previews — sourced from src/lib/workspace.js
+const MB_HANDLE   = workspace.social.instagram
+const MB_NAME     = workspace.name
+const MB_LOCATION = workspace.location
+const MB_INITIALS = workspace.socialAvatarInitials
+const MB_BLURB    = workspace.linkPreviewBlurb
+const MB_HOSTNAME = workspace.websiteHostname
+const MB_INDUSTRY = workspace.linkedInIndustry
+const MB_BOOKING  = workspace.prompt.bookingUrl
 
 // Highlight hashtags and @mentions in social copy
 function SocialText({ text }) {
@@ -46,7 +46,7 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
   if (total === 0) {
     return (
       <div className={`bg-gradient-to-br from-orange-100 to-orange-50 ${aspectClass} flex flex-col items-center justify-center gap-2`}>
-        <img src={brand.logo.main} alt={brand.name} className="h-16 w-auto opacity-30" />
+        <img src={workspace.logo.main} alt={workspace.name} className="h-16 w-auto opacity-30" />
         <p className="text-xs text-muted-foreground">Add media in the editor</p>
       </div>
     )
@@ -498,7 +498,7 @@ const EMAIL_FIELDS = [
   { key: 'HEADLINE',       tag: '{{headline}}',           label: 'Headline',          hint: 'Large bold heading at top of email' },
   { key: 'PULL QUOTE',     tag: '{{pull_quote}}',         label: 'Pull Quote',        hint: 'Styled callout block — most compelling line' },
   { key: 'BODY PARAGRAPH 1', tag: '{{body_paragraph_1}}', label: 'Body Paragraph 1', hint: 'Opening hook' },
-  { key: 'BODY PARAGRAPH 2', tag: '{{body_paragraph_2}}', label: 'Body Paragraph 2', hint: `${brand.name} perspective` },
+  { key: 'BODY PARAGRAPH 2', tag: '{{body_paragraph_2}}', label: 'Body Paragraph 2', hint: `${workspace.name} perspective` },
   { key: 'BODY PARAGRAPH 3', tag: '{{body_paragraph_3}}', label: 'Body Paragraph 3', hint: 'Patient story + bridge to action' },
   { key: 'CTA TEXT',       tag: '{{cta_text}}',           label: 'CTA Button Text',   hint: 'Button label only' },
   { key: 'CTA URL',        tag: '{{cta_url}}',            label: 'CTA URL',           hint: 'Button destination URL' },
@@ -586,7 +586,7 @@ function EmailPreview({ content, mediaUrls = [] }) {
       {/* Section copy cards */}
       <div className="space-y-2">
         <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-          {brand.newsletterCopyHeader}
+          {workspace.newsletterCopyHeader}
         </p>
         {EMAIL_FIELDS.map(({ key, tag, label, hint }) => {
           const value = s[key]

@@ -149,7 +149,7 @@ export default function NewInterview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Patient prototype selector — only rendered when the brand has archetypes */}
+            {/* Patient prototype selector — only rendered when the workspace has archetypes */}
             {PATIENT_PROTOTYPES_UI.length > 1 && (
               <div className="space-y-2">
                 <Label className="text-sm">Patient archetype</Label>

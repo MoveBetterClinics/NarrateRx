@@ -1,4 +1,4 @@
-// List collections for the current brand. Editor-side groupings of
+// List collections for the current workspace. Editor-side groupings of
 // media_assets — campaigns, series, ad-hoc bundles. Filter by status (active
 // is the default; archived must be opted into) and kind. Includes a count of
 // items per collection so the UI can show "12 items" without a second hop.
@@ -8,7 +8,7 @@ import { requireRole } from '../_lib/auth.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
     if (membershipCollectionIds.length === 0) return res.status(200).json([])
   }
 
-  let qs = `collections?select=${SELECT}&brand=eq.${brandId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
+  let qs = `collections?select=${SELECT}&brand=eq.${workspaceId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
   if (kind) qs += `&kind=eq.${kind}`
   if (status === 'archived') {
     qs += `&status=eq.archived`

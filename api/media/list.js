@@ -7,7 +7,7 @@ import { requireRole } from '../_lib/auth.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -60,8 +60,8 @@ export default async function handler(req, res) {
     if (collectionAssetIds.length === 0) return res.status(200).json([])
   }
 
-  // Always brand-scoped.
-  let qs = `media_assets?select=${SELECT}&brand=eq.${brandId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
+  // Always workspace-scoped.
+  let qs = `media_assets?select=${SELECT}&brand=eq.${workspaceId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
   if (kind)        qs += `&kind=eq.${kind}`
   if (status) {
     qs += `&status=eq.${status}`

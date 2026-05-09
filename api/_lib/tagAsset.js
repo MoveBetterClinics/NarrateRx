@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { generateObject } from 'ai'
 import ffmpegStaticPath from 'ffmpeg-static'
 import { z } from 'zod'
-import { brand } from '../../src/lib/brand.js'
+import { workspace } from '../../src/lib/workspace.js'
 import { recordAudit, snapshot } from './audit.js'
 
 // Shared AI auto-tagging logic. Used by api/media/tag.js (manual button)
@@ -34,7 +34,7 @@ const PROXY_MAX_OUTPUT    = '18000000'                          // ffmpeg -fs
 //   3. 'ffmpeg' on PATH (local dev fallback)
 const FFMPEG_BIN = process.env.FFMPEG_PATH || ffmpegStaticPath || 'ffmpeg'
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -58,12 +58,12 @@ const VOCAB = {
 }
 
 function buildSystemPrompt(kind) {
-  const id = brandId()
+  const id = workspaceId()
   const vocab = VOCAB[id] || VOCAB.people
   const lines = [
-    `You are tagging clinical media for a ${brand.prompt.clinicContext}`,
-    `Audience: ${brand.prompt.audienceShort}`,
-    `Relevant context: ${brand.prompt.sportContext}.`,
+    `You are tagging clinical media for a ${workspace.prompt.clinicContext}`,
+    `Audience: ${workspace.prompt.audienceShort}`,
+    `Relevant context: ${workspace.prompt.sportContext}.`,
     `Anatomy / scene vocabulary to prefer: ${vocab}.`,
     '',
     'Return 4–8 short, lowercase, kebab-case tags that describe what is visibly happening in this clip. Use single tokens or short phrases (e.g. "low-back", "post-op", "senior-dog", "lead-refusal"). Avoid filler tags like "video", "photo", "person", or generic camera/edit terms.',
@@ -193,7 +193,7 @@ async function callModel(asset) {
 // On success: PATCH ai_tags + (video) transcription, status='tagged', return the row.
 // On failure: stamp the failure into `notes` and rethrow.
 export async function tagAndPersist(asset) {
-  const where = `id=eq.${asset.id}&brand=eq.${brandId()}`
+  const where = `id=eq.${asset.id}&brand=eq.${workspaceId()}`
   try {
     const { ai_tags, transcription, visual_narrative } = await callModel(asset)
     const patch = { ai_tags, status: 'tagged' }
@@ -231,9 +231,9 @@ export async function tagAndPersist(asset) {
   }
 }
 
-// Look up an asset by id (brand-scoped) and run tagAndPersist on it.
+// Look up an asset by id (workspace-scoped) and run tagAndPersist on it.
 export async function tagById(id) {
-  const where = `id=eq.${id}&brand=eq.${brandId()}`
+  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
   const lookup = await sb(`media_assets?${where}&select=id,brand,kind,status,blob_url,mime_type,size_bytes,tags,notes`)
   if (!lookup.ok) throw new Error('Database error')
   const rows = await lookup.json()

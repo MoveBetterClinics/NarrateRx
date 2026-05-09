@@ -24,7 +24,7 @@ const THUMB_WIDTH   = 480
 // poster frames stay crisp without ballooning the blob storage cost.
 const JPEG_QUALITY  = '4'
 
-function brandId() {
+function workspaceId() {
   return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
 }
 
@@ -114,7 +114,7 @@ export async function generateAndPersistThumbnail(asset) {
       allowOverwrite: true,
     })
 
-    const where = `id=eq.${asset.id}&brand=eq.${brandId()}`
+    const where = `id=eq.${asset.id}&brand=eq.${workspaceId()}`
     const upd = await sb(`media_assets?${where}`, {
       method: 'PATCH',
       body: JSON.stringify({ thumbnail_url: uploaded.url }),
@@ -128,9 +128,9 @@ export async function generateAndPersistThumbnail(asset) {
   }
 }
 
-// Look up an asset by id (brand-scoped) and run generateAndPersistThumbnail.
+// Look up an asset by id (workspace-scoped) and run generateAndPersistThumbnail.
 export async function thumbnailById(id) {
-  const where = `id=eq.${id}&brand=eq.${brandId()}`
+  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
   const lookup = await sb(`media_assets?${where}&select=id,brand,kind,blob_url,thumbnail_url`)
   if (!lookup.ok) throw new Error('Database error')
   const rows = await lookup.json()

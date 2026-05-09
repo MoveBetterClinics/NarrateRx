@@ -3,7 +3,7 @@ import { UserButton } from '@clerk/clerk-react'
 import { Plus, LayoutDashboard, Layers, Settings } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CampaignModeChip } from '@/components/CampaignWidget'
-import { brand } from '@/lib/brand'
+import { workspace } from '@/lib/workspace'
 
 export default function Layout({ children }) {
   const location = useLocation()
@@ -15,13 +15,13 @@ export default function Layout({ children }) {
       <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm">
         <div className="container flex h-14 items-center gap-4">
           <Link to="/" className="flex items-center gap-3">
-            <img src={brand.logo.main} alt={brand.name} className="h-9 w-auto" />
+            <img src={workspace.logo.main} alt={workspace.name} className="h-9 w-auto" />
             <div className="hidden sm:block border-l border-border pl-3">
               <p className="text-xs font-semibold leading-none text-foreground" style={{ fontFamily: "'Titillium Web', sans-serif" }}>
                 NarrateRx
               </p>
               <p className="text-[10px] text-muted-foreground mt-0.5 leading-none">
-                {brand.tagline}
+                {workspace.tagline}
               </p>
             </div>
           </Link>
