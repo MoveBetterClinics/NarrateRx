@@ -403,6 +403,118 @@ a:hover { color: var(--orange-dark); }
 }
 .feature:nth-child(even) .feature-num { color: var(--sage); }
 
+/* Three-up variant for the 3-step "how it works" grid */
+.features.three-up {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px 32px;
+}
+@media (max-width: 960px) {
+  .features.three-up { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 640px) {
+  .features.three-up { grid-template-columns: 1fr; gap: 24px; }
+}
+/* Third feature in three-up gets the orange accent (cycling 1→3) */
+.features.three-up .feature:nth-child(3) {
+  border-left-color: var(--orange);
+}
+.features.three-up .feature:nth-child(3) .feature-num {
+  color: var(--orange);
+}
+
+/* ============================================================
+   Problem list (band-light)
+   ============================================================ */
+.problem-list {
+  list-style: none;
+  margin: 36px 0 32px;
+  padding: 0;
+  max-width: 760px;
+}
+.problem-list li {
+  position: relative;
+  padding: 16px 4px 16px 28px;
+  border-bottom: 1px solid var(--line);
+  font-size: 16px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.problem-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 26px;
+  width: 14px;
+  height: 2px;
+  background: var(--orange);
+  transform: skewX(-20deg);
+}
+.problem-list li:last-child { border-bottom: 0; }
+.problem-list li strong { color: var(--ink); font-weight: 700; }
+
+/* ============================================================
+   Does / Doesn't grid (the AI's job)
+   ============================================================ */
+.does-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  margin: 48px 0 32px;
+  max-width: 980px;
+}
+@media (max-width: 760px) {
+  .does-grid { grid-template-columns: 1fr; gap: 36px; }
+}
+
+.does-col h3 {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin: 0 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid;
+}
+.does-col.yes h3 { color: var(--orange); border-color: var(--orange); }
+.does-col.no  h3 { color: var(--grey);   border-color: var(--line); }
+
+.does-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.does-list li {
+  position: relative;
+  padding: 10px 0 10px 32px;
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.does-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  width: 18px;
+  height: 18px;
+}
+.does-list.yes li::before {
+  background-color: var(--orange);
+  -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.does-list.no li::before {
+  background-color: var(--grey);
+  -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.lede.ai-closer {
+  margin-top: 8px;
+  color: var(--ink);
+  font-size: clamp(18px, 1.5vw, 22px);
+}
+
 /* ============================================================
    Two-column layouts
    ============================================================ */
@@ -509,11 +621,58 @@ a:hover { color: var(--orange-dark); }
 }
 .cta-sub {
   font-size: clamp(17px, 1.5vw, 20px);
-  color: rgba(255, 255, 255, 0.88);
-  max-width: 620px;
-  margin: 0 auto 36px;
+  color: rgba(255, 255, 255, 0.92);
+  max-width: 720px;
+  margin: 0 0 48px;
   line-height: 1.55;
 }
+
+.founding-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  max-width: 920px;
+  margin: 0 0 48px;
+}
+@media (max-width: 760px) {
+  .founding-grid { grid-template-columns: 1fr; gap: 36px; }
+}
+.founding-grid h3 {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0 0 18px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.25);
+}
+.founding-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.founding-list li {
+  position: relative;
+  padding: 8px 0 8px 26px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 16px;
+  line-height: 1.5;
+}
+.founding-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  width: 16px;
+  height: 16px;
+  background-color: #fff;
+  -webkit-mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.cta-apply { margin: 0; }
+.cta-apply .btn-primary { display: inline-flex; }
 .band-cta .btn-primary {
   background: #fff;
   color: var(--orange-dark);
