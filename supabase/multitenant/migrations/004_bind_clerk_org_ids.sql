@@ -10,7 +10,7 @@
 
 update workspaces set clerk_org_id = 'org_3DV1gIBLwmfPqFKVsaJt8V8MoGp' where slug = 'movebetter-people';
 update workspaces set clerk_org_id = 'org_3DV1mUpF1sgPkgJ7EfszkhVH9Rz' where slug = 'movebetter-equine';
-update workspaces set clerk_org_id = 'org_3DV1p9TnW7tp0jQW2HklftfO4gn' where slug = 'movebetter-animals';
+update workspaces set clerk_org_id = 'org_3DV1p9TnW7tp0jQW2HklftfO4gn' where slug = 'movebetter-animal';
 
 -- Verify
 select slug, display_name, clerk_org_id from workspaces order by slug;
