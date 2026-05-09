@@ -1,14 +1,16 @@
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
-import { Plus, LayoutDashboard, Layers, Settings } from 'lucide-react'
+import { Plus, LayoutDashboard, Layers, Settings, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { CampaignModeChip } from '@/components/CampaignWidget'
 import { workspace } from '@/lib/workspace'
+import { useUserRole } from '@/lib/useUserRole'
 
 export default function Layout({ children }) {
   const location = useLocation()
   const isHome = location.pathname === '/'
   const isStrategy = location.pathname === '/strategy'
+  const { role } = useUserRole()
 
   return (
     <div className="min-h-screen bg-background">
@@ -44,6 +46,11 @@ export default function Layout({ children }) {
             </Button>
           )}
 
+          {role === 'admin' && (
+            <Link to="/settings/workspace" className="text-muted-foreground hover:text-foreground transition-colors" title="Workspace settings">
+              <Building2 className="h-4 w-4" />
+            </Link>
+          )}
           <Link to="/settings/integrations" className="text-muted-foreground hover:text-foreground transition-colors" title="Integrations">
             <Settings className="h-4 w-4" />
           </Link>

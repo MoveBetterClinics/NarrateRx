@@ -1,29 +1,91 @@
-// Returns the active workspace (full row) for the request. Resolved by
-// reading the Host header → extracting subdomain slug → fetching the
-// workspace row from the shared narraterx Supabase. See
-// api/_lib/workspaceContext.js for why slug extraction lives there
-// rather than in routing middleware.
+// Workspace profile endpoint.
 //
-// 404 when there's no resolvable workspace (apex, www, preview URL,
-// unknown subdomain).
+// GET  — returns the active workspace row (resolved from Host header). No auth required.
+// PATCH — updates tenant-editable fields on the workspace row. Requires Clerk admin role.
+//
+// 404 when no resolvable workspace (apex, www, preview URL, unknown subdomain).
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { requireRole } from '../_lib/auth.js'
 
-export const config = { runtime: 'edge' }
+// Hard allowlist — only these columns may be patched via this endpoint.
+// slug, clerk_org_id, capabilities, enabled_outputs, status are developer-owned.
+const PATCHABLE_FIELDS = new Set([
+  'display_name', 'tagline', 'sign_in_blurb',
+  'website', 'location', 'region',
+  'clinic_context', 'audience_short', 'brand_voice', 'booking_url',
+  'internal_links_markdown', 'signature_system_name', 'signature_system_url',
+  'social',
+])
 
-const json = (body, status = 200) =>
-  new Response(JSON.stringify(body), {
-    status,
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+
+function sb(path, init = {}) {
+  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
     headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
       'Content-Type': 'application/json',
-      // Don't cache at the edge — workspace data changes when settings are
-      // saved. Phase 1C will add tag-based invalidation via Runtime Cache.
-      'Cache-Control': 'private, no-store',
+      ...init.headers,
     },
   })
+}
 
-export default async function handler(req) {
-  const workspace = await workspaceContext(req)
-  if (!workspace) return json({ error: 'no-workspace-context' }, 404)
-  return json(workspace)
+export default async function handler(req, res) {
+  if (req.method === 'GET') {
+    const workspace = await workspaceContext(req)
+    if (!workspace) return res.status(404).json({ error: 'no-workspace-context' })
+    res.setHeader('Cache-Control', 'private, no-store')
+    return res.status(200).json(workspace)
+  }
+
+  if (req.method === 'PATCH') {
+    const auth = await requireRole(req, ['admin'])
+    if (!auth.ok) {
+      const status = auth.reason === 'forbidden' ? 403 : 401
+      return res.status(status).json({ error: auth.reason })
+    }
+
+    const workspace = await workspaceContext(req)
+    if (!workspace) return res.status(404).json({ error: 'no-workspace-context' })
+
+    const body = req.body || {}
+    const patch = {}
+    for (const [key, value] of Object.entries(body)) {
+      if (PATCHABLE_FIELDS.has(key)) patch[key] = value
+    }
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'no-patchable-fields' })
+    }
+
+    let r
+    try {
+      r = await sb(
+        `workspaces?id=eq.${encodeURIComponent(workspace.id)}`,
+        {
+          method: 'PATCH',
+          headers: { Prefer: 'return=representation' },
+          body: JSON.stringify(patch),
+        },
+      )
+    } catch (e) {
+      console.error('[workspace/me PATCH] network error:', e?.message)
+      return res.status(500).json({ error: 'db-error' })
+    }
+
+    if (!r.ok) {
+      const text = await r.text().catch(() => '')
+      console.error(`[workspace/me PATCH] supabase ${r.status}:`, text)
+      return res.status(500).json({ error: 'db-error' })
+    }
+
+    const rows = await r.json().catch(() => null)
+    const updated = Array.isArray(rows) ? rows[0] : null
+    if (!updated) return res.status(500).json({ error: 'db-error' })
+    return res.status(200).json(updated)
+  }
+
+  return res.status(405).json({ error: 'method-not-allowed' })
 }

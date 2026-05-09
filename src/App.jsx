@@ -20,6 +20,7 @@ import ReviewPost from '@/pages/ReviewPost'
 import ContentCalendar from '@/pages/ContentCalendar'
 import MediaHub from '@/pages/MediaHub'
 import Integrations from '@/pages/Integrations'
+import WorkspaceSettings from '@/pages/WorkspaceSettings'
 import { workspace } from '@/lib/workspace'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
@@ -135,6 +136,7 @@ function AppRoutes() {
         <Route path="/calendar" element={<ContentCalendar />} />
         <Route path="/media" element={<MediaHub />} />
         <Route path="/settings/integrations" element={<Integrations />} />
+        <Route path="/settings/workspace" element={<WorkspaceSettings />} />
       </Routes>
     </Layout>
   )
