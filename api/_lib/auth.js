@@ -13,12 +13,15 @@
 // Default role for users with no publicMetadata.role set is 'clinician' — the
 // least-privileged tier. Only an admin can grant elevated roles via Clerk.
 //
-// Usage:
-//   const auth = await requireRole(req, ['admin'])
+// Phase 1B: optional orgId check. When a workspace's clerk_org_id is passed,
+// verifies that the JWT's org_id claim matches. The frontend OrgGate calls
+// setActive({ organization }) so the JWT includes org_id for workspace-scoped
+// subdomains. Endpoints can opt in via the third parameter:
+//
+//   const ws = await workspaceContext(req)
+//   const auth = await requireRole(req, ['admin'], { orgId: ws?.clerk_org_id })
 //   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401)
 //                          .json({ error: auth.reason })
-//   // req.clerk = { userId, role } is now populated for downstream code
-//   // (audit log reads req.clerk.userId via actorFromRequest()).
 
 import { createClerkClient, verifyToken } from '@clerk/backend'
 
@@ -30,7 +33,7 @@ function clerk() {
   return _clerk
 }
 
-export async function requireRole(req, allowedRoles = null) {
+export async function requireRole(req, allowedRoles = null, { orgId = null } = {}) {
   if (!CLERK_SECRET) {
     // Fail closed. A missing secret is an ops misconfiguration, not a reason
     // to grant access. Surface clearly in logs so it's easy to diagnose.
@@ -53,6 +56,13 @@ export async function requireRole(req, allowedRoles = null) {
   const userId = payload.sub
   if (!userId) return { ok: false, reason: 'no-user' }
 
+  // Workspace org membership check. The frontend OrgGate activates the matching
+  // org so payload.org_id is set for all workspace-subdomain requests.
+  if (orgId && payload.org_id !== orgId) {
+    console.error(`[auth] org mismatch: expected ${orgId}, got ${payload.org_id}`)
+    return { ok: false, reason: 'wrong-org' }
+  }
+
   let user
   try {
     user = await clerk().users.getUser(userId)
@@ -68,6 +78,6 @@ export async function requireRole(req, allowedRoles = null) {
   }
 
   // Attach to req for downstream code (audit log).
-  req.clerk = { userId, role }
-  return { ok: true, user: { id: userId, role }, role, userId }
+  req.clerk = { userId, role, orgId: payload.org_id ?? null }
+  return { ok: true, user: { id: userId, role }, role, userId, orgId: payload.org_id ?? null }
 }
