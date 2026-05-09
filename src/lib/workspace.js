@@ -317,11 +317,11 @@ BLOG POSTS:
 - "An Outsider's View of Animal Chiropractic": https://movebetteranimal.co/blog/an-outsiders-view-of-animal-chiropractic
 - "A Dog's Toenail Length Matters": https://movebetteranimal.co/blog/a-dogs-toenail-length-matters`,
 
-    // The single anchor link the blog CTA must always land on. The animal
+    // The single anchor link the blog CTA must always land on. The animals
     // brand uses the same Jane booking instance as the human workspace.
     bookingUrl: 'https://movebetter.janeapp.com/',
 
-    // No proprietary signature assessment system for the animal brand yet.
+    // No proprietary signature assessment system for the animals brand yet.
     // prompts.js checks for null and omits the relevant sentences when these
     // are absent — same behavior as EQUINE.
     signatureSystemName: null,
@@ -332,7 +332,7 @@ BLOG POSTS:
 
     locationKeyword: 'Portland',
     locationHashtag: '#PortlandPets',
-    brandHashtag: '#MoveBetterAnimal',
+    brandHashtag: '#MoveBetterAnimals',
     spokenUrl: 'MoveBetterAnimal.co',
 
     // Tone-modifier vocabulary for working- and athletic-dog scenarios common
@@ -341,7 +341,7 @@ BLOG POSTS:
       'working- and athletic-dog scenarios common to the Pacific Northwest — agility competition, hunting and field work, dock diving, herding, and trail/hiking companionship',
   },
 
-  // Newsletter — the animal variant of the TrustDrivenCare master template
+  // Newsletter — the animals variant of the TrustDrivenCare master template
   // hasn't been authored yet. Names mirror the PEOPLE/EQUINE convention; update
   // once the actual TDC template exists.
   newsletterTemplateName: 'Move Better Animals Newsletter - Master',
