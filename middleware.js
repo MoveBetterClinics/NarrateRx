@@ -15,15 +15,15 @@
 //   x-workspace-id    — UUID of the resolved workspace row
 //   x-workspace-slug  — slug used to resolve it (matches the subdomain)
 //
-// On apex (`narraterx.ai`) and on preview URLs (`*.vercel.app` of the
-// new project), no slug is extracted and the request passes through. The
-// SPA can detect apex via window.location and render an
-// onboarding/marketing UI (Phase 1E).
+// On apex (`narraterx.ai` and `www.narraterx.ai`), root-path requests
+// rewrite to /landing.html (the static marketing page that lives in
+// public/). Other apex paths pass through to the SPA. Preview URLs
+// (`*.vercel.app`) also pass through.
 //
 // Unknown subdomain → 404 with a plain-text body. Phase 1E may redirect
 // to the apex onboarding flow instead.
 
-import { next } from '@vercel/functions'
+import { next, rewrite } from '@vercel/functions'
 
 export const config = {
   // Skip Vite-built assets and well-known browser noise. Everything else
@@ -81,11 +81,18 @@ export default async function middleware(request) {
   if (!process.env.MULTITENANT_DATABASE_URL) return next()
 
   const host = request.headers.get('host') || ''
+  const url  = new URL(request.url)
   const slug = extractSlug(host)
 
-  // Apex, www, preview URLs, or any non-narraterx.ai host: pass through.
-  // The SPA handles apex routing client-side (Phase 1E adds onboarding).
-  if (!slug) return next()
+  // Apex / www: serve the static landing page at root, pass other paths
+  // through to the SPA. Preview URLs (*.vercel.app) and any other host
+  // also pass through.
+  if (!slug) {
+    if (APEX_HOSTS.has(host.split(':')[0].toLowerCase()) && url.pathname === '/') {
+      return rewrite(new URL('/landing.html', request.url))
+    }
+    return next()
+  }
 
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY
