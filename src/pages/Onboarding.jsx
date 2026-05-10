@@ -16,7 +16,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { SignedIn, SignedOut, SignIn, SignUp, useAuth, useUser } from '@clerk/clerk-react'
-import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,7 +31,10 @@ export default function Onboarding() {
   const [form, setForm] = useState({
     display_name: '',
     website: '',
-    location: '',
+    // First entry is the primary location. Additional rows for multi-location
+    // practices (e.g. a clinic with two physical sites) — each becomes its own
+    // workspace_locations row at claim time.
+    locations: [{ label: '', city: '', region: '' }],
     clinic_context: '',
     audience_short: '',
     brand_voice: '',
@@ -80,6 +83,7 @@ export default function Onboarding() {
         {step === 'business' && (
           <BusinessScreen
             form={form}
+            setForm={setForm}
             setField={setField}
             scanState={scanState}
             setScanState={setScanState}
@@ -143,7 +147,13 @@ export default function Onboarding() {
                     slug: form.slug,
                     display_name: form.display_name,
                     website: form.website,
-                    location: form.location,
+                    locations: form.locations
+                      .map(l => ({
+                        label: (l.label || '').trim(),
+                        city: (l.city || '').trim(),
+                        region: (l.region || '').trim(),
+                      }))
+                      .filter(l => l.city),
                     clinic_context: form.clinic_context,
                     audience_short: form.audience_short,
                     brand_voice: form.brand_voice,
@@ -344,9 +354,26 @@ function SignedInPrompt({ onContinue }) {
 
 // ── 2. Business basics + scan ────────────────────────────────────────────────
 
-function BusinessScreen({ form, setField, scanState, setScanState, applyScan, onContinue }) {
+function BusinessScreen({ form, setForm, setField, scanState, setScanState, applyScan, onContinue }) {
   const canContinue = form.display_name.trim().length > 0
+    && form.locations.length > 0 && form.locations[0].city.trim().length > 0
   const canScan = /^https?:\/\/.+\..+/.test(form.website.trim()) || /^[^\s]+\.[^\s]+/.test(form.website.trim())
+
+  function updateLocation(idx, key, value) {
+    setForm(f => ({
+      ...f,
+      locations: f.locations.map((loc, i) => i === idx ? { ...loc, [key]: value } : loc),
+    }))
+  }
+  function addLocation() {
+    setForm(f => ({ ...f, locations: [...f.locations, { label: '', city: '', region: '' }] }))
+  }
+  function removeLocation(idx) {
+    setForm(f => ({
+      ...f,
+      locations: f.locations.length > 1 ? f.locations.filter((_, i) => i !== idx) : f.locations,
+    }))
+  }
 
   async function runScan() {
     setScanState({ status: 'scanning', error: null, sources: [] })
@@ -380,9 +407,68 @@ function BusinessScreen({ form, setField, scanState, setScanState, applyScan, on
       <FieldRow label="Website" hint="We can scan it to draft your brand voice — optional but recommended.">
         <Input value={form.website} onChange={e => setField('website')(e.target.value)} placeholder="https://yourpractice.com" />
       </FieldRow>
-      <FieldRow label="Location" hint="City, state — used in 'near me' SEO copy.">
-        <Input value={form.location} onChange={e => setField('location')(e.target.value)} placeholder="Portland, OR" />
-      </FieldRow>
+      <div className="space-y-2">
+        <Label className="text-xs">Location *</Label>
+        <p className="text-[11px] text-muted-foreground">
+          City and state — used in "near me" SEO copy. If your practice has more than one
+          location, add each one so each post can target the right city and hashtag.
+        </p>
+        <div className="space-y-2">
+          {form.locations.map((loc, idx) => (
+            <div key={idx} className="grid grid-cols-12 gap-2 items-start">
+              <div className="col-span-5">
+                <Input
+                  value={loc.city}
+                  onChange={e => updateLocation(idx, 'city', e.target.value)}
+                  placeholder={idx === 0 ? 'Portland' : 'Vancouver'}
+                />
+                {idx === 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-1">City (primary)</p>
+                )}
+              </div>
+              <div className="col-span-3">
+                <Input
+                  value={loc.region}
+                  onChange={e => updateLocation(idx, 'region', e.target.value)}
+                  placeholder={idx === 0 ? 'OR' : 'WA'}
+                />
+                {idx === 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-1">State</p>
+                )}
+              </div>
+              <div className="col-span-3">
+                <Input
+                  value={loc.label}
+                  onChange={e => updateLocation(idx, 'label', e.target.value)}
+                  placeholder="optional"
+                />
+                {idx === 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-1">Label (optional)</p>
+                )}
+              </div>
+              <div className="col-span-1 flex items-center justify-end pt-1">
+                {form.locations.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => removeLocation(idx)}
+                    className="text-muted-foreground hover:text-destructive p-1"
+                    aria-label="Remove location"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={addLocation}
+          className="inline-flex items-center gap-1 text-xs text-orange-600 hover:underline"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add another location
+        </button>
+      </div>
 
       <div className="border rounded-md p-3 bg-muted/30 space-y-2">
         <div className="flex items-center gap-2">
@@ -640,7 +726,15 @@ function ReviewScreen({ form, submitting, submitError, onBack, onSubmit }) {
       <ReviewRow label="Workspace name" value={form.display_name} />
       <ReviewRow label="Subdomain" value={`${form.slug}.narraterx.ai`} mono />
       {form.website && <ReviewRow label="Website" value={form.website} />}
-      {form.location && <ReviewRow label="Location" value={form.location} />}
+      {form.locations.filter(l => l.city.trim()).length > 0 && (
+        <ReviewRow
+          label={form.locations.filter(l => l.city.trim()).length > 1 ? 'Locations' : 'Location'}
+          value={form.locations
+            .filter(l => l.city.trim())
+            .map(l => [l.city.trim(), l.region.trim()].filter(Boolean).join(', '))
+            .join(' · ')}
+        />
+      )}
       {form.audience_short && <ReviewRow label="Audience" value={form.audience_short} />}
       <ReviewRow label="Channels" value={`${form.enabled_outputs.length} selected`} />
       {submitError && (

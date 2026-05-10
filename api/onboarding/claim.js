@@ -142,7 +142,6 @@ export default async function handler(req, res) {
 
   // Optional fields — wizard-collected and forwarded as-is (sanitized).
   const website          = sanitizeUrl(body.website)
-  const location         = sanitizeStr(body.location, 200)
   const clinic_context   = sanitizeStr(body.clinic_context, 4000)
   const audience_short   = sanitizeStr(body.audience_short, 400)
   const brand_voice      = sanitizeStr(body.brand_voice, 4000)
@@ -150,6 +149,26 @@ export default async function handler(req, res) {
   if (website) {
     try { website_hostname = new URL(website).hostname } catch { /* noop */ }
   }
+
+  // Locations: array of { label, city, region }. First entry becomes the
+  // primary; duplicates and empty cities are dropped. The umbrella
+  // workspaces.location string is derived from the primary so prompts that
+  // still read workspace.location keep rendering.
+  const incomingLocations = Array.isArray(body.locations) ? body.locations : []
+  const locations = []
+  for (const raw of incomingLocations) {
+    if (!raw || typeof raw !== 'object') continue
+    const city = sanitizeStr(raw.city, 100)
+    if (!city) continue
+    const region = sanitizeStr(raw.region, 50)
+    const label = sanitizeStr(raw.label, 100) || city
+    locations.push({ label, city, region })
+  }
+  const primary = locations[0] || null
+  const location = primary
+    ? [primary.city, primary.region].filter(Boolean).join(', ')
+    : null
+  const location_keyword = primary?.city || null
 
   // 2. Create Clerk Organization (creator becomes admin automatically).
   let org
@@ -174,6 +193,7 @@ export default async function handler(req, res) {
     website,
     website_hostname,
     location,
+    location_keyword,
     clinic_context,
     audience_short,
     brand_voice,
@@ -215,6 +235,33 @@ export default async function handler(req, res) {
   if (!row) {
     try { await clerk().organizations.deleteOrganization(org.id) } catch { /* swallow */ }
     return res.status(500).json({ error: 'db-error' })
+  }
+
+  // 3a. Insert workspace_locations rows. First entry is primary. If this fails
+  // we don't roll back — the workspace is usable and the admin can fix this
+  // from settings/locations. Logged so we can spot-fix.
+  if (locations.length > 0) {
+    const locInsert = locations.map((l, idx) => ({
+      workspace_id: row.id,
+      label: l.label,
+      city: l.city,
+      region: l.region,
+      location_keyword: l.city,
+      is_primary: idx === 0,
+      position: idx,
+    }))
+    try {
+      const lr = await sb('workspace_locations', {
+        method: 'POST',
+        body: JSON.stringify(locInsert),
+      })
+      if (!lr.ok) {
+        const text = await lr.text().catch(() => '')
+        console.error(`[claim] workspace_locations insert ${lr.status}:`, text)
+      }
+    } catch (e) {
+      console.error('[claim] workspace_locations insert error:', e?.message)
+    }
   }
 
   // 3.5. Register <slug>.narraterx.ai as a domain on the shared narraterx Vercel
@@ -283,7 +330,9 @@ export default async function handler(req, res) {
       `Slug:        ${slug}`,
       `Subdomain:   https://${slug}.narraterx.ai`,
       website  ? `Website:     ${website}`  : null,
-      location ? `Location:    ${location}` : null,
+      locations.length > 0
+        ? `Location${locations.length > 1 ? 's' : ''}:   ${locations.map(l => [l.city, l.region].filter(Boolean).join(', ')).join(' · ')}`
+        : null,
       `Channels:    ${enabled_outputs.join(', ')}`,
       `Founding:    yes`,
       '',

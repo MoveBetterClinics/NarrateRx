@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Trash2, Plus, Star } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 
@@ -243,6 +243,27 @@ export default function WorkspaceSettings() {
           value={form.link_preview_blurb} onChange={set('link_preview_blurb')}
           rows={2}
           hint="OG / link-preview blurb — one sentence under 130 chars" />
+      </Section>
+
+      <Separator />
+
+      <Section
+        title="Locations"
+        description="Each physical site you operate. The primary location's city/state and hashtag are mirrored back to the umbrella fields above so existing prompts keep rendering. Per-post location targeting comes online in a follow-up."
+      >
+        <LocationsPanel getToken={getToken} onSyncWorkspace={() => {
+          // Reload workspace so umbrella fields (location/keyword/hashtag)
+          // reflect the latest primary.
+          fetch('/api/workspace/me')
+            .then(r => r.ok ? r.json() : null)
+            .then(updated => {
+              if (updated) {
+                setWs(updated)
+                setForm(formFromWorkspace(updated))
+              }
+            })
+            .catch(() => {})
+        }} />
       </Section>
 
       <Separator />
@@ -735,5 +756,330 @@ function CredentialCard({ service, row, loading, onChange, getToken }) {
         </div>
       )}
     </div>
+  )
+}
+
+// ── Locations ─────────────────────────────────────────────────────────────────
+
+function LocationsPanel({ getToken, onSyncWorkspace }) {
+  const [locations, setLocations] = useState(null) // null=loading
+  const [error, setError] = useState(null)
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState(emptyLocationDraft())
+
+  async function reload() {
+    try {
+      const r = await fetch('/api/workspace/locations', {
+        headers: { Authorization: `Bearer ${await getToken()}` },
+      })
+      if (!r.ok) {
+        setLocations([])
+        setError(r.status === 403 ? 'forbidden' : `load-failed (${r.status})`)
+        return
+      }
+      const data = await r.json()
+      setLocations(Array.isArray(data?.locations) ? data.locations : [])
+      setError(null)
+    } catch {
+      setLocations([])
+      setError('network-error')
+    }
+  }
+
+  useEffect(() => { reload() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+
+  async function handleCreate() {
+    if (!draft.city.trim()) {
+      setError('city-required')
+      return
+    }
+    setError(null)
+    try {
+      const r = await fetch('/api/workspace/locations', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await getToken()}`,
+        },
+        body: JSON.stringify({
+          ...draft,
+          // First location ever inserted? Make it primary so umbrella stays in sync.
+          is_primary: locations && locations.length === 0,
+        }),
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        setError(e.error || 'save-failed')
+        return
+      }
+      setDraft(emptyLocationDraft())
+      setAdding(false)
+      await reload()
+      onSyncWorkspace?.()
+    } catch {
+      setError('network-error')
+    }
+  }
+
+  if (locations === null) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading locations…
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {error && (
+        <div className="text-xs text-destructive flex items-center gap-1">
+          <AlertCircle className="h-3.5 w-3.5" />{error}
+        </div>
+      )}
+      {locations.length === 0 && (
+        <p className="text-xs text-muted-foreground">No locations yet — add the first one below.</p>
+      )}
+      <div className="space-y-2">
+        {locations.map(loc => (
+          <LocationRow
+            key={loc.id}
+            location={loc}
+            getToken={getToken}
+            onChange={async () => { await reload(); onSyncWorkspace?.() }}
+            isOnlyLocation={locations.length === 1}
+          />
+        ))}
+      </div>
+
+      {adding ? (
+        <div className="rounded-md border border-input p-3 space-y-3">
+          <LocationFields draft={draft} setDraft={setDraft} />
+          <div className="flex items-center gap-2 justify-end">
+            <Button size="sm" variant="ghost" onClick={() => { setAdding(false); setDraft(emptyLocationDraft()) }}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleCreate}>Add location</Button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="inline-flex items-center gap-1 text-xs text-orange-600 hover:underline"
+        >
+          <Plus className="h-3.5 w-3.5" /> Add another location
+        </button>
+      )}
+    </div>
+  )
+}
+
+function emptyLocationDraft() {
+  return {
+    label: '', city: '', region: '',
+    location_keyword: '', location_hashtag: '',
+    visit_url: '',
+  }
+}
+
+function LocationRow({ location, getToken, onChange, isOnlyLocation }) {
+  const [open, setOpen] = useState(false)
+  const [draft, setDraft] = useState({
+    label: location.label || '',
+    city: location.city || '',
+    region: location.region || '',
+    location_keyword: location.location_keyword || '',
+    location_hashtag: location.location_hashtag || '',
+    visit_url: location.visit_url || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    setDraft({
+      label: location.label || '',
+      city: location.city || '',
+      region: location.region || '',
+      location_keyword: location.location_keyword || '',
+      location_hashtag: location.location_hashtag || '',
+      visit_url: location.visit_url || '',
+    })
+  }, [location])
+
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    try {
+      const r = await fetch(`/api/workspace/locations?id=${encodeURIComponent(location.id)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await getToken()}`,
+        },
+        body: JSON.stringify(draft),
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        setError(e.error || 'save-failed')
+      } else {
+        onChange?.()
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleMakePrimary() {
+    setSaving(true)
+    setError(null)
+    try {
+      const r = await fetch(`/api/workspace/locations?id=${encodeURIComponent(location.id)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await getToken()}`,
+        },
+        body: JSON.stringify({ is_primary: true }),
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        setError(e.error || 'save-failed')
+      } else {
+        onChange?.()
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleArchive() {
+    if (location.is_primary) return
+    if (!confirm(`Archive "${location.label || location.city}"? This won't delete past content tagged to it.`)) return
+    setSaving(true)
+    setError(null)
+    try {
+      const r = await fetch(`/api/workspace/locations?id=${encodeURIComponent(location.id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${await getToken()}` },
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        setError(e.error || 'archive-failed')
+      } else {
+        onChange?.()
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-input">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-accent/30"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+          <div className="text-sm font-medium">
+            {location.label || location.city}
+          </div>
+          {location.is_primary && (
+            <span className="text-[10px] uppercase tracking-wide bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+              <Star className="h-2.5 w-2.5" /> Primary
+            </span>
+          )}
+        </div>
+        <div className="text-[11px] text-muted-foreground truncate">
+          {[location.city, location.region].filter(Boolean).join(', ')}
+          {location.location_hashtag ? ` · ${location.location_hashtag}` : ''}
+        </div>
+      </button>
+      {open && (
+        <div className="border-t border-input p-3 space-y-3">
+          <LocationFields draft={draft} setDraft={setDraft} />
+          <div className="flex items-center gap-2 justify-end">
+            {error && (
+              <span className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3.5 w-3.5" />{error}
+              </span>
+            )}
+            {!location.is_primary && (
+              <Button size="sm" variant="ghost" onClick={handleMakePrimary} disabled={saving}>
+                <Star className="h-3.5 w-3.5 mr-1" /> Make primary
+              </Button>
+            )}
+            {!location.is_primary && !isOnlyLocation && (
+              <Button size="sm" variant="ghost" onClick={handleArchive} disabled={saving}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Archive
+              </Button>
+            )}
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function LocationFields({ draft, setDraft }) {
+  function set(k) { return v => setDraft(d => ({ ...d, [k]: v })) }
+  return (
+    <>
+      <div className="grid grid-cols-12 gap-2">
+        <div className="col-span-5 space-y-1">
+          <Label className="text-xs">City</Label>
+          <Input value={draft.city} onChange={e => set('city')(e.target.value)} placeholder="Portland" className="text-sm" />
+        </div>
+        <div className="col-span-3 space-y-1">
+          <Label className="text-xs">State</Label>
+          <Input value={draft.region} onChange={e => set('region')(e.target.value)} placeholder="OR" className="text-sm" />
+        </div>
+        <div className="col-span-4 space-y-1">
+          <Label className="text-xs">Label</Label>
+          <Input value={draft.label} onChange={e => set('label')(e.target.value)} placeholder="optional" className="text-sm" />
+        </div>
+      </div>
+      <div className="grid grid-cols-12 gap-2">
+        <div className="col-span-6 space-y-1">
+          <Label className="text-xs">Location keyword</Label>
+          <Input
+            value={draft.location_keyword}
+            onChange={e => set('location_keyword')(e.target.value)}
+            placeholder="Portland"
+            className="text-sm"
+          />
+          <p className="text-[10px] text-muted-foreground">Used in copy and 'near me' SEO.</p>
+        </div>
+        <div className="col-span-6 space-y-1">
+          <Label className="text-xs">Location hashtag</Label>
+          <Input
+            value={draft.location_hashtag}
+            onChange={e => set('location_hashtag')(e.target.value)}
+            placeholder="#PortlandPets"
+            className="text-sm"
+          />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Visit URL</Label>
+        <Input
+          value={draft.visit_url}
+          onChange={e => set('visit_url')(e.target.value)}
+          placeholder="https://yourpractice.com/visit/portland"
+          className="text-sm"
+        />
+      </div>
+    </>
   )
 }
