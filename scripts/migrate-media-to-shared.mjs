@@ -54,7 +54,11 @@ async function sb(base, key, path, init = {}) {
     const text = await r.text()
     throw new Error(`${path} → ${r.status}: ${text}`)
   }
-  return r.json()
+  // return=minimal responses have empty bodies — return null instead of crashing
+  // on the JSON parse.
+  const text = await r.text()
+  if (!text) return null
+  return JSON.parse(text)
 }
 
 async function fetchAll(base, key, table, select = '*') {
