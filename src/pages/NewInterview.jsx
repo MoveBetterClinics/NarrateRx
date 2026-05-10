@@ -27,6 +27,11 @@ export default function NewInterview() {
   const [tone, setTone] = useState('smart')
   const [voiceMode, setVoiceMode] = useState('practice')
   const [prototype, setPrototype] = useState(null)
+  const [locationId, setLocationId] = useState(null)
+  const activeLocations = Array.isArray(workspace?.locations)
+    ? workspace.locations.filter(l => l.status === 'active')
+    : []
+  const showLocationPicker = activeLocations.length > 1
   const [suggestions, setSuggestions] = useState([])
   const [suggestionsLoading, setSuggestionsLoading] = useState(true)
 
@@ -66,6 +71,7 @@ export default function NewInterview() {
         tone,
         voiceMode,
         prototypeId: prototype,
+        locationId,
       })
       navigate(`/interview/${clinician.id}/${interview.id}`)
     } catch (e) {
@@ -208,6 +214,57 @@ export default function NewInterview() {
                 </p>
               )}
             </div>
+
+            {/* Location selector — only when this workspace has more than one location */}
+            {showLocationPicker && (
+              <div className="space-y-2">
+                <Label className="text-sm">Location</Label>
+                <p className="text-[11px] text-muted-foreground leading-snug">
+                  Which clinic is this interview for? Affects local hashtags, "near me" copy,
+                  and (for GBP posts) which Google Business Profile receives the post.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLocationId(null)}
+                    className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
+                      locationId === null
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : 'border-input hover:border-primary/40 hover:bg-accent/30'
+                    }`}
+                  >
+                    <span className="text-base shrink-0 mt-0.5">🌐</span>
+                    <div>
+                      <p className="text-xs font-semibold leading-tight">All locations</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                        Generic copy that fits every site
+                      </p>
+                    </div>
+                  </button>
+                  {activeLocations.map((loc) => (
+                    <button
+                      key={loc.id}
+                      type="button"
+                      onClick={() => setLocationId(loc.id)}
+                      className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
+                        locationId === loc.id
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-input hover:border-primary/40 hover:bg-accent/30'
+                      }`}
+                    >
+                      <span className="text-base shrink-0 mt-0.5">📍</span>
+                      <div>
+                        <p className="text-xs font-semibold leading-tight">{loc.label || loc.city}</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                          {[loc.city, loc.region].filter(Boolean).join(', ')}
+                          {loc.location_hashtag ? ` · ${loc.location_hashtag}` : ''}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Tone selector */}
             <div className="space-y-2">

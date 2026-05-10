@@ -15,6 +15,7 @@ import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack
 import { fetchInterview } from '@/lib/api'
 import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
@@ -128,7 +129,19 @@ export default function ReviewPost() {
               // If the row already has a saved selection, restore it (filtered
               // against currently-configured locations). NULL = "all locations".
               const saved = Array.isArray(i.target_locations) ? i.target_locations.filter((id) => allIds.includes(id)) : null
-              setSelectedLocs(saved && saved.length ? saved : allIds)
+              // If this content item is bound to a single workspace_location
+              // and that location has a gbp_location_id, default the picker to
+              // just that one — the multi-location workflow.
+              const wsLoc = i.location_id
+                ? (workspace?.locations || []).find((l) => l.id === i.location_id)
+                : null
+              const wsGbpId = wsLoc?.gbp_location_id
+              const defaultFromWsLoc = wsGbpId && allIds.includes(wsGbpId) ? [wsGbpId] : null
+              setSelectedLocs(
+                saved && saved.length
+                  ? saved
+                  : (defaultFromWsLoc || allIds)
+              )
             })
             .catch(() => {})
         }
@@ -237,18 +250,25 @@ export default function ReviewPost() {
       let systemPrompt, inputMessages
       const blogPost = outputs?.blogPost || ''
 
+      // Use the location attached to this content item (or fall back to the
+      // interview's location) so regenerated copy targets the same site as the
+      // original generation.
+      const locationId = item.location_id || interview.location_id || null
+      const itemLocation = (workspace?.locations || []).find(l => l.id === locationId)
+      const ws = applyLocationOverlay(workspace, itemLocation)
+
       if (platform === 'blog') {
-        systemPrompt  = getBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, prototypeId)
+        systemPrompt  = getBlogPostSystemPrompt(ws, clinicianName, condition, tone, voiceMode, prototypeId)
         inputMessages = messages?.length ? messages : [{ role: 'user', content: 'Please write the blog post.' }]
       } else {
         if (!blogPost) throw new Error('The blog post for this interview must be generated first before regenerating other content.')
         inputMessages = [{ role: 'user', content: blogPost }]
         if (['instagram', 'facebook', 'gbp', 'linkedin'].includes(platform)) {
-          systemPrompt = getSocialBatchSystemPrompt(workspace, clinicianName, condition, '', tone, voiceMode, prototypeId)
+          systemPrompt = getSocialBatchSystemPrompt(ws, clinicianName, condition, '', tone, voiceMode, prototypeId)
         } else if (['youtube', 'tiktok'].includes(platform)) {
-          systemPrompt = getVideoScriptBatchSystemPrompt(workspace, clinicianName, condition, '', tone, voiceMode, prototypeId)
+          systemPrompt = getVideoScriptBatchSystemPrompt(ws, clinicianName, condition, '', tone, voiceMode, prototypeId)
         } else {
-          systemPrompt = getMarketingBatchSystemPrompt(workspace, clinicianName, condition, '', tone, prototypeId)
+          systemPrompt = getMarketingBatchSystemPrompt(ws, clinicianName, condition, '', tone, prototypeId)
         }
       }
 

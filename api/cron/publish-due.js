@@ -100,9 +100,24 @@ export default async function handler(req, res) {
     }
     const { token, accountId, allLocationIds } = resolved
 
-    const requested = Array.isArray(row.target_locations) && row.target_locations.length
+    // Resolution order:
+    //   1. row.target_locations explicitly saved on the content item (existing behavior)
+    //   2. row.location_id → workspace_locations.gbp_location_id (multi-location workflow)
+    //   3. fall back to all configured GBP locations
+    let requested = Array.isArray(row.target_locations) && row.target_locations.length
       ? row.target_locations
-      : allLocationIds
+      : null
+    if (!requested && row.location_id) {
+      const wlr = await sb(
+        `workspace_locations?id=eq.${encodeURIComponent(row.location_id)}&select=gbp_location_id`
+      )
+      if (wlr.ok) {
+        const wlRows = await wlr.json().catch(() => null)
+        const gbpId = Array.isArray(wlRows) && wlRows[0]?.gbp_location_id
+        if (gbpId) requested = [gbpId]
+      }
+    }
+    if (!requested) requested = allLocationIds
     const targets = requested.filter((id) => allLocationIds.includes(id))
 
     if (!targets.length) {

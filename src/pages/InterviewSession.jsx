@@ -12,6 +12,7 @@ import { getInterviewSystemPrompt, getBlogPostSystemPrompt, TONES, getVoiceModes
 import { getInitials } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { applyLocationOverlay } from '@/lib/locationOverlay'
 
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
@@ -165,7 +166,11 @@ export default function InterviewSession() {
     setStreamingText('')
     setError('')
 
-    const systemPrompt = getInterviewSystemPrompt(runtimeWorkspace, clinician.name, interviewRef.current.topic, pastInterviewsRef.current, interviewRef.current?.prototype_id)
+    const interviewLocation = (runtimeWorkspace?.locations || []).find(
+      l => l.id === interviewRef.current?.location_id
+    )
+    const overlaidWorkspace = applyLocationOverlay(runtimeWorkspace, interviewLocation)
+    const systemPrompt = getInterviewSystemPrompt(overlaidWorkspace, clinician.name, interviewRef.current.topic, pastInterviewsRef.current, interviewRef.current?.prototype_id)
     let apiMessages = currentMessages.map((m) => ({ role: m.role, content: m.content }))
     // Claude API requires at least one message — inject a silent starter for new interviews
     if (apiMessages.length === 0) {
@@ -309,9 +314,11 @@ export default function InterviewSession() {
       const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }))
       const tone = interview.tone || 'smart'
       const voiceMode = interview.voice_mode || 'practice'
+      const interviewLocation = (runtimeWorkspace?.locations || []).find(l => l.id === interview.location_id)
+      const overlaidWorkspace = applyLocationOverlay(runtimeWorkspace, interviewLocation)
       const blogPost = await generateContent(
         [...apiMessages, { role: 'user', content: 'Please write the blog post now based on our interview.' }],
-        getBlogPostSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id),
+        getBlogPostSystemPrompt(overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id),
         { model: 'claude-opus-4-7' }
       )
       const outputs = { blogPost, generatedAt: new Date().toISOString() }
