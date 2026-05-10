@@ -29,7 +29,7 @@ export default async function handler(req) {
   if (req.method === 'GET') {
     if (id) {
       const res = await sb(
-        `interviews?id=eq.${id}&select=id,clinician_id,topic,status,messages,outputs,owner_id,owner_email,tone,voice_mode,prototype_id,created_at,updated_at`
+        `interviews?id=eq.${id}&select=id,clinician_id,topic,status,messages,outputs,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,created_at,updated_at`
       )
       if (!res.ok) return err('Database error', 500)
       const data = await res.json()
@@ -52,7 +52,7 @@ export default async function handler(req) {
   }
 
   if (req.method === 'POST') {
-    const { clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId } = await req.json()
+    const { clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId } = await req.json()
     if (!clinicianId) return err('Missing clinicianId')
     if (!topic?.trim()) return err('Topic required')
     if (!ownerId) return err('Unauthorized', 401)
@@ -69,6 +69,7 @@ export default async function handler(req) {
         tone: tone || 'smart',
         voice_mode: voiceMode === 'personal' ? 'personal' : 'practice',
         prototype_id: prototypeId || null,
+        location_id: locationId || null,
       }),
     })
     if (!res.ok) return err('Create failed', 500)
@@ -80,7 +81,7 @@ export default async function handler(req) {
     if (!id) return err('Missing id')
     if (!userId) return err('Unauthorized', 401)
 
-    const chk = await sb(`interviews?id=eq.${id}&select=owner_id,clinician_id,topic`)
+    const chk = await sb(`interviews?id=eq.${id}&select=owner_id,clinician_id,topic,location_id`)
     if (!chk.ok) return err('Database error', 500)
     const rows = await chk.json()
     if (!rows.length) return err('Not found', 404)
@@ -91,6 +92,7 @@ export default async function handler(req) {
     if (body.messages !== undefined) patch.messages = body.messages
     if (body.outputs !== undefined) patch.outputs = body.outputs
     if (body.status !== undefined) patch.status = body.status
+    if (body.locationId !== undefined) patch.location_id = body.locationId || null
 
     const res = await sb(`interviews?id=eq.${id}`, {
       method: 'PATCH',
@@ -102,7 +104,7 @@ export default async function handler(req) {
     // Auto-create content_items when outputs are saved for the first time
     if (body.outputs && body.status === 'completed') {
       try {
-        const { clinician_id, topic } = rows[0]
+        const { clinician_id, topic, location_id } = rows[0]
         const o = body.outputs
 
         // Fetch clinician name
@@ -143,6 +145,7 @@ export default async function handler(req) {
               content:        o[key],
               status:         'draft',
               media_urls:     [],
+              location_id:    location_id ?? null,
             }))
 
           if (items.length > 0) {
