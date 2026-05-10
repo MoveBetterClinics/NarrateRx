@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "backup:db": "bash scripts/backup-db.sh"
   },
   "dependencies": {
     "@clerk/backend": "^1.13.0",
