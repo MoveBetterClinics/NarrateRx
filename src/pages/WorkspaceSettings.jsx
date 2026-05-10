@@ -46,6 +46,10 @@ function formFromWorkspace(ws) {
     color_accent:            ws.colors?.accent          ?? '',
     brandbook_url:           ws.brandbook?.url          ?? '',
     brandbook_notes:         ws.brandbook?.notes        ?? '',
+    tone_active:             ws.tone_modifiers?.active   ?? '',
+    tone_clinical:           ws.tone_modifiers?.clinical ?? '',
+    tone_warm:               ws.tone_modifiers?.warm     ?? '',
+    tone_smart:              ws.tone_modifiers?.smart    ?? '',
   }
 }
 
@@ -92,6 +96,12 @@ function formToPatch(form) {
     brandbook: {
       url:   form.brandbook_url   || null,
       notes: form.brandbook_notes || null,
+    },
+    tone_modifiers: {
+      active:   form.tone_active   ?? '',
+      clinical: form.tone_clinical ?? '',
+      warm:     form.tone_warm     ?? '',
+      smart:    form.tone_smart    ?? '',
     },
   }
 }
@@ -305,6 +315,26 @@ export default function WorkspaceSettings() {
           value={form.brand_voice} onChange={set('brand_voice')} rows={6} />
         <Field label="Booking URL"
           value={form.booking_url} onChange={set('booking_url')} placeholder="https://..." />
+      </Section>
+
+      <Separator />
+
+      <Section
+        title="AI tone modifiers"
+        description="Per-tone prompt fragments injected when generating content. Use {display_name} and {activity_context} as placeholders — they'll be replaced with this workspace's values at render time. Leave a tone blank to skip its modifier entirely."
+      >
+        <Textarea2 label="Active & Driven"
+          value={form.tone_active} onChange={set('tone_active')} rows={6}
+          hint="Used when the author picks the 'Active & Driven' tone." />
+        <Textarea2 label="Clinical & In-Depth"
+          value={form.tone_clinical} onChange={set('tone_clinical')} rows={6}
+          hint="Used when the author picks the 'Clinical & In-Depth' tone." />
+        <Textarea2 label="Warm & Reassuring"
+          value={form.tone_warm} onChange={set('tone_warm')} rows={6}
+          hint="Used when the author picks the 'Warm & Reassuring' tone." />
+        <Textarea2 label="Smart Default"
+          value={form.tone_smart} onChange={set('tone_smart')} rows={6}
+          hint="Used when the author picks 'Smart Default' or no tone." />
       </Section>
 
       <Separator />

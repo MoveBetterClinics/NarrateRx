@@ -1,12 +1,14 @@
-import { getToneModifier as getWorkspaceToneModifier } from '@brand-overlay/toneModifiers'
 import { formatPNWContextForPrompt } from '@brand-overlay/interviewContext'
 import { PATIENT_PROTOTYPES, getPatientContextForPrompt } from '@brand-overlay/patientContext'
 
-// Paradigm content (tone-modifier strings, interview context per condition)
-// lives under brands/<id>/ (filesystem layout retained pre-multitenant
-// cutover) and is selected at build time via the @brand-overlay Vite alias.
-// The TONES list below is product surface (the UI choices) and stays
-// workspace-agnostic on main.
+// Tone modifiers are now stored per-workspace in workspaces.tone_modifiers
+// (jsonb keyed by tone id). Templates may include {display_name} and
+// {activity_context}; substitution happens in renderToneTemplate below.
+// Empty / missing → empty string injected (safe default for self-onboarded
+// tenants until they fill the section in via Settings → AI tone modifiers).
+//
+// Interview context and patient context still live under brands/<id>/ and
+// will move to per-workspace columns in Phase 1F PR 2.
 
 export const TONES = [
   {
@@ -73,8 +75,18 @@ export const PATIENT_PROTOTYPES_UI = [
   })),
 ]
 
+function renderToneTemplate(tpl, workspace) {
+  if (!tpl) return ''
+  return String(tpl)
+    .replace(/\{display_name\}/g, workspace?.display_name ?? '')
+    .replace(/\{activity_context\}/g, workspace?.activity_context ?? '')
+}
+
 function getToneModifier(tone, workspace) {
-  return getWorkspaceToneModifier(tone, workspace)
+  const tones = workspace?.tone_modifiers
+  if (!tones || typeof tones !== 'object') return ''
+  const key = tone || 'smart'
+  return renderToneTemplate(tones[key] ?? '', workspace)
 }
 
 // Returns the framing-rule block injected into each generation prompt.
