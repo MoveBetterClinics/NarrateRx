@@ -1,26 +1,25 @@
-export const config = { runtime: 'edge' }
+// Google Business Profile publish endpoint — Node.js runtime.
+//
+// Resolves per-workspace creds via getCredential('gbp'):
+//   config: { account_id, location_ids[], location_names[], service_account_email }
+//   secret: service-account private key (PEM, with literal \n or real newlines)
+//
+// The cron dispatcher (api/cron/publish-due.js) imports getGoogleToken,
+// postToLocation, buildPost from this module — keep their signatures stable.
+// getGoogleToken now takes the resolved creds explicitly so it can be invoked
+// per-workspace inside the cron loop.
 
+import { createSign } from 'node:crypto'
 import { workspace as staticWorkspace } from '../../src/lib/workspace.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
+import { getCredential } from '../_lib/getCredential.js'
 
-// Google Business Profile posting via service account
-// Required env vars:
-//   GBP_ACCOUNT_ID    - e.g. accounts/123456789
-//   GBP_LOCATION_IDS  - comma-separated, e.g. "locations/111,locations/222"
-//   GOOGLE_SERVICE_ACCOUNT_EMAIL
-//   GOOGLE_SERVICE_ACCOUNT_KEY  (private key — paste as-is with \n newlines)
-// Optional:
-//   BRAND_URL         - overrides the workspace's bookingUrl for the GBP post CTA
-
-const ok  = (data)       => new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } })
-const err = (msg, status = 400) => new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
-
-export async function getGoogleToken() {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
-  const key   = (process.env.GOOGLE_SERVICE_ACCOUNT_KEY || '').replace(/\\n/g, '\n')
+export async function getGoogleToken(creds) {
+  const email = creds?.config?.service_account_email
+  const key = (creds?.secret || '').replace(/\\n/g, '\n')
   if (!email || !key) throw new Error('Google service account not configured')
 
-  const now   = Math.floor(Date.now() / 1000)
+  const now = Math.floor(Date.now() / 1000)
   const claim = {
     iss:   email,
     scope: 'https://www.googleapis.com/auth/business.manage',
@@ -29,26 +28,20 @@ export async function getGoogleToken() {
     exp:   now + 3600,
   }
 
-  // Build JWT (RS256) using Web Crypto API (available in edge runtime)
-  const header  = btoa(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
-  const payload = btoa(JSON.stringify(claim)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const b64url = (input) =>
+    Buffer.from(input).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+
+  const header  = b64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))
+  const payload = b64url(JSON.stringify(claim))
   const toSign  = `${header}.${payload}`
 
-  // Import the private key
-  const pemBody = key.replace(/-----BEGIN PRIVATE KEY-----/, '').replace(/-----END PRIVATE KEY-----/, '').replace(/\s/g, '')
-  const binaryKey = Uint8Array.from(atob(pemBody), (c) => c.charCodeAt(0))
-  const cryptoKey = await crypto.subtle.importKey(
-    'pkcs8', binaryKey.buffer,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-    false, ['sign']
-  )
-
-  const encoder  = new TextEncoder()
-  const sigBuffer = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, encoder.encode(toSign))
-  const sig = btoa(String.fromCharCode(...new Uint8Array(sigBuffer))).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
+  const signer = createSign('RSA-SHA256')
+  signer.update(toSign)
+  signer.end()
+  const signature = signer.sign(key)
+  const sig = signature.toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
   const jwt = `${toSign}.${sig}`
 
-  // Exchange JWT for access token
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -61,13 +54,13 @@ export async function getGoogleToken() {
 
 export async function postToLocation(token, accountId, locationId, post) {
   const url = `https://mybusiness.googleapis.com/v4/${accountId}/${locationId}/localPosts`
-  const res = await fetch(url, {
+  const r = await fetch(url, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(post),
   })
-  const data = await res.json()
-  if (!res.ok) throw new Error(data.error?.message || `GBP post failed for ${locationId}`)
+  const data = await r.json()
+  if (!r.ok) throw new Error(data.error?.message || `GBP post failed for ${locationId}`)
   return { locationId, name: data.name }
 }
 
@@ -91,29 +84,37 @@ export function buildPost(content, mediaUrls = [], bookingUrl) {
   return post
 }
 
-export default async function handler(req) {
-  const accountId    = process.env.GBP_ACCOUNT_ID
-  const allLocationIds = (process.env.GBP_LOCATION_IDS || '').split(',').map((s) => s.trim()).filter(Boolean)
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  if (!accountId || !allLocationIds.length) return err('GBP not configured — add GBP_ACCOUNT_ID and GBP_LOCATION_IDS to Vercel env vars', 503)
-  if (req.method !== 'POST') return err('Method not allowed', 405)
+  const scope = await workspaceScope(req)
+  const workspaceId = scope?.workspace?.id
+  const cred = await getCredential(workspaceId, 'gbp')
+  const accountId = cred?.config?.account_id
+  const allLocationIds = Array.isArray(cred?.config?.location_ids) ? cred.config.location_ids : []
 
-  const { content, mediaUrls = [], locationIds } = await req.json()
-  if (!content) return err('Missing content')
+  if (!cred?.secret || !accountId || !allLocationIds.length) {
+    return res.status(503).json({
+      error: `Google Business Profile is not configured for this workspace${scope?.workspace?.slug ? ` (${scope.workspace.slug})` : ''}. Add a service account, account_id, and location_ids in Workspace Settings → Publishing credentials.`,
+    })
+  }
+
+  const reqBody = (typeof req.body === 'object' && req.body) ? req.body : {}
+  const { content, mediaUrls = [], locationIds } = reqBody
+  if (!content) return res.status(400).json({ error: 'Missing content' })
 
   // Use requested locationIds if provided, otherwise post to all configured locations
   const targets = (locationIds?.length ? locationIds : allLocationIds)
     .filter((id) => allLocationIds.includes(id)) // only allow configured locations
 
-  if (!targets.length) return err('No valid location IDs specified', 400)
+  if (!targets.length) return res.status(400).json({ error: 'No valid location IDs specified' })
 
   let token
-  try { token = await getGoogleToken() }
-  catch (e) { return err(`Google auth failed: ${e.message}`, 503) }
+  try { token = await getGoogleToken(cred) }
+  catch (e) { return res.status(503).json({ error: `Google auth failed: ${e.message}` }) }
 
   // Resolve booking URL from workspace row when on a shared deployment, so
   // each subdomain's GBP CTA points at the correct clinic.
-  const scope = await workspaceScope(req)
   const bookingUrl = scope?.workspace?.booking_url
 
   const post = buildPost(content, mediaUrls, bookingUrl)
@@ -130,10 +131,12 @@ export default async function handler(req) {
   const failed    = tagged.filter(({ r }) => r.status === 'rejected')
                           .map(({ r, locationId }) => ({ locationId, error: r.reason?.message }))
 
-  if (!succeeded.length) return err(`All GBP posts failed: ${failed.map((f) => f.error).join('; ')}`, 502)
+  if (!succeeded.length) {
+    return res.status(502).json({ error: `All GBP posts failed: ${failed.map((f) => f.error).join('; ')}` })
+  }
 
   // postId surfaces in publish.js as result.direct?.postId — comma-join the
   // localPost names so multi-location publishes still get tracked.
   const postId = succeeded.map((s) => s.name).filter(Boolean).join(',')
-  return ok({ success: true, postId, posted: succeeded, failed })
+  return res.status(200).json({ success: true, postId, posted: succeeded, failed })
 }

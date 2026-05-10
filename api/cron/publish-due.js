@@ -1,16 +1,21 @@
-export const config = { runtime: 'edge' }
-
 // Scheduled-post dispatcher for platforms without native scheduling (today: GBP).
 // Vercel cron hits this on a schedule (see vercel.json). It atomically claims
 // due rows with status='scheduled' → 'publishing' (a filtered PostgREST PATCH
 // is the lock — two concurrent invocations can't double-claim), dispatches via
 // the GBP helpers, then transitions to 'published' or 'failed'.
 //
-// Required env: SUPABASE_URL, SUPABASE_SERVICE_KEY, GBP_ACCOUNT_ID,
-// GBP_LOCATION_IDS, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_KEY.
+// Per-workspace credential resolution: each claimed row carries workspace_id
+// (multitenant DB) or just brand (legacy per-brand DB). For each row, we
+// resolve GBP creds via getCredential(row.workspace_id, 'gbp') — the env-var
+// fallback inside getCredential covers legacy deployments.
+//
+// Required env: SUPABASE_URL, SUPABASE_SERVICE_KEY plus either
+// WORKSPACE_CREDENTIALS_KEY + a workspace_credentials row, or the legacy
+// GBP_* / GOOGLE_SERVICE_ACCOUNT_* env vars.
 // Optional: CRON_SECRET (when set, request must carry Authorization: Bearer <secret>).
 
 import { getGoogleToken, postToLocation, buildPost } from '../publish/gbp.js'
+import { getCredential } from '../_lib/getCredential.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -28,9 +33,6 @@ function sb(path, init = {}) {
   })
 }
 
-const ok  = (data, status = 200)  => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
-const err = (msg,  status = 400) => new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
-
 async function markRow(id, patch) {
   return sb(`content_items?id=eq.${id}`, {
     method: 'PATCH',
@@ -38,18 +40,14 @@ async function markRow(id, patch) {
   })
 }
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret) {
-    const auth = req.headers.get('authorization')
-    if (auth !== `Bearer ${cronSecret}`) return err('Unauthorized', 401)
+    const auth = req.headers?.authorization || req.headers?.Authorization
+    if (auth !== `Bearer ${cronSecret}`) return res.status(401).json({ error: 'Unauthorized' })
   }
 
-  if (!SUPABASE_URL || !SUPABASE_KEY) return err('Supabase not configured', 503)
-
-  const accountId      = process.env.GBP_ACCOUNT_ID
-  const allLocationIds = (process.env.GBP_LOCATION_IDS || '').split(',').map((s) => s.trim()).filter(Boolean)
-  if (!accountId || !allLocationIds.length) return err('GBP not configured', 503)
+  if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(503).json({ error: 'Supabase not configured' })
 
   const nowIso = new Date().toISOString()
 
@@ -60,24 +58,48 @@ export default async function handler(req) {
     `content_items?platform=eq.gbp&status=eq.scheduled&scheduled_at=lte.${encodeURIComponent(nowIso)}`,
     { method: 'PATCH', body: JSON.stringify({ status: 'publishing' }) }
   )
-  if (!claimRes.ok) return err(`Claim failed: ${claimRes.status}`, 500)
+  if (!claimRes.ok) return res.status(500).json({ error: `Claim failed: ${claimRes.status}` })
   const claimed = await claimRes.json()
-  if (!claimed.length) return ok({ claimed: 0, dispatched: [] })
+  if (!claimed.length) return res.status(200).json({ claimed: 0, dispatched: [] })
 
-  let token
-  try {
-    token = await getGoogleToken()
-  } catch (e) {
-    // Couldn't auth at all — release every claim back to scheduled so the next
-    // tick retries (vs leaving them stuck in 'publishing').
-    await Promise.all(claimed.map((row) =>
-      markRow(row.id, { status: 'scheduled', notes: `Cron auth failed: ${e.message}` })
-    ))
-    return err(`Google auth failed: ${e.message}`, 503)
+  // Resolve creds + token per workspace_id. Cache so a batch of rows for the
+  // same workspace doesn't re-fetch creds or re-mint a JWT for each row.
+  const tokenCache = new Map() // workspaceId|null → { token, accountId, allLocationIds } | { error }
+  async function resolveForRow(row) {
+    const key = row.workspace_id || '__legacy__'
+    if (tokenCache.has(key)) return tokenCache.get(key)
+    const cred = await getCredential(row.workspace_id, 'gbp')
+    const accountId = cred?.config?.account_id
+    const allLocationIds = Array.isArray(cred?.config?.location_ids) ? cred.config.location_ids : []
+    if (!cred?.secret || !accountId || !allLocationIds.length) {
+      const v = { error: 'GBP not configured for this workspace' }
+      tokenCache.set(key, v)
+      return v
+    }
+    try {
+      const token = await getGoogleToken(cred)
+      const v = { token, accountId, allLocationIds }
+      tokenCache.set(key, v)
+      return v
+    } catch (e) {
+      const v = { error: `Google auth failed: ${e.message}` }
+      tokenCache.set(key, v)
+      return v
+    }
   }
 
   const dispatched = []
   for (const row of claimed) {
+    const resolved = await resolveForRow(row)
+    if (resolved.error) {
+      // Release back to scheduled so another tick (after the user adds creds)
+      // picks it up — vs leaving it stuck in 'publishing'.
+      await markRow(row.id, { status: 'scheduled', notes: `Cron: ${resolved.error}` })
+      dispatched.push({ id: row.id, ok: false, error: resolved.error })
+      continue
+    }
+    const { token, accountId, allLocationIds } = resolved
+
     const requested = Array.isArray(row.target_locations) && row.target_locations.length
       ? row.target_locations
       : allLocationIds
@@ -116,5 +138,5 @@ export default async function handler(req) {
     }
   }
 
-  return ok({ claimed: claimed.length, dispatched })
+  return res.status(200).json({ claimed: claimed.length, dispatched })
 }

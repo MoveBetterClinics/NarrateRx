@@ -1,67 +1,69 @@
-import { marked } from 'marked'
-
-export const config = { runtime: 'edge' }
-
-// Publishes a generated blog post to the workspace's marketing site. Two
-// receiving modes are supported, dispatched on env vars set by each
-// workspace's deployment:
+// Website publish endpoint — Node.js runtime.
+//
+// Two receiving modes are supported, dispatched on which credential the
+// workspace has configured (resolved per-workspace via getCredential):
+//
+//   • WordPress mode (equine → movebetterequine.com)
+//     getCredential('wordpress') = { config: { site_url, user }, secret: app_password }
+//     site_url must include /wp-json/ — e.g. https://example.com/wp-json/wp/v2/posts.
+//     Calls the WP REST API directly: markdown → HTML, hero upload to /media,
+//     tag-name → term-ID resolution. HTTP Basic + WP Application Password.
 //
 //   • Astro mode (animals → movebetteranimal.co)
-//     Required: NARRATERX_PUBLISH_SECRET, WEBSITE_PUBLISH_URL
-//     Posts JSON to a single webhook on the receiving site, which commits a
+//     getCredential('astro_github') = { config: { url }, secret: shared_secret }
+//     POSTs JSON to a single webhook on the receiving site, which commits a
 //     markdown file to GitHub and lets Vercel rebuild. Contract:
 //     docs/api-publish-contract.md in the movebetteranimal repo.
 //
-//   • WordPress mode (equine → movebetterequine.com)
-//     Required: WORDPRESS_USER, WORDPRESS_APP_PASSWORD, WEBSITE_PUBLISH_URL
-//     (URL must point at /wp-json/wp/v2/posts). Calls the WP REST API directly,
-//     converting markdown → HTML, uploading the hero image to the media library,
-//     and resolving tag names to term IDs. Authenticates with HTTP Basic and a
-//     WordPress Application Password.
-//
-// Mode selection: presence of WORDPRESS_USER + WORDPRESS_APP_PASSWORD switches
-// to WordPress mode. Otherwise falls back to Astro mode (existing animals flow).
+// Mode selection: if 'wordpress' creds resolve, use WP. Else if 'astro_github'
+// or generic 'website' creds resolve, use Astro. The legacy env-var fallback in
+// getCredential keeps per-brand deployments working — WORDPRESS_USER/PASSWORD
+// surfaces as 'wordpress' creds, NARRATERX_PUBLISH_SECRET as 'website'.
 
-const ok  = (data)              => new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } })
-const err = (body, status = 400) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
+import { marked } from 'marked'
+import { getCredential } from '../_lib/getCredential.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
-export default async function handler(req) {
-  if (req.method !== 'POST') return err({ error: 'method_not_allowed', message: 'POST only' }, 405)
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed', message: 'POST only' })
 
-  let payload
-  try {
-    payload = await req.json()
-  } catch {
-    return err({ error: 'invalid_json', message: 'Request body is not valid JSON.' }, 400)
-  }
+  const payload = (typeof req.body === 'object' && req.body) ? req.body : null
+  if (!payload) return res.status(400).json({ error: 'invalid_json', message: 'Request body is not valid JSON.' })
 
   const required = ['slug', 'title', 'description', 'pubDate', 'markdown']
   const missing = required.filter((k) => !payload[k] || (typeof payload[k] === 'string' && !payload[k].trim()))
   if (missing.length) {
-    return err({ error: 'invalid_payload', message: `Missing required field(s): ${missing.join(', ')}` }, 400)
+    return res.status(400).json({ error: 'invalid_payload', message: `Missing required field(s): ${missing.join(', ')}` })
   }
 
-  if (process.env.WORDPRESS_USER && process.env.WORDPRESS_APP_PASSWORD) {
-    return publishToWordPress(payload)
+  const scope = await workspaceScope(req)
+  const workspaceId = scope?.workspace?.id
+
+  const wpCred = await getCredential(workspaceId, 'wordpress')
+  if (wpCred?.secret && wpCred?.config?.user) {
+    return publishToWordPress(res, payload, wpCred)
   }
 
-  if (process.env.NARRATERX_PUBLISH_SECRET) {
-    return publishToAstro(payload)
+  const astroCred =
+    (await getCredential(workspaceId, 'astro_github')) ||
+    (await getCredential(workspaceId, 'website'))
+  if (astroCred?.secret) {
+    return publishToAstro(res, payload, astroCred)
   }
 
-  return err({
+  return res.status(503).json({
     error:   'not_configured',
-    message: 'No publish target is configured. Set WORDPRESS_USER + WORDPRESS_APP_PASSWORD (WordPress mode) or NARRATERX_PUBLISH_SECRET (Astro mode) on this Vercel deployment.',
-  }, 503)
+    message: `No publish target is configured for this workspace${scope?.workspace?.slug ? ` (${scope.workspace.slug})` : ''}. Add WordPress or Astro+GitHub credentials in Workspace Settings → Publishing credentials.`,
+  })
 }
 
 // ── Astro mode ────────────────────────────────────────────────────────────────
 
-async function publishToAstro(payload) {
-  const secret = process.env.NARRATERX_PUBLISH_SECRET
-  const url = process.env.WEBSITE_PUBLISH_URL
+async function publishToAstro(res, payload, cred) {
+  const secret = cred.secret
+  const url = cred.config?.url
   if (!url) {
-    return err({ error: 'not_configured', message: 'WEBSITE_PUBLISH_URL is not set on this NarrateRx deployment.' }, 503)
+    return res.status(503).json({ error: 'not_configured', message: 'Astro+GitHub publish URL is not set in the workspace credential config.' })
   }
 
   const body = {
@@ -86,47 +88,47 @@ async function publishToAstro(payload) {
       body:    JSON.stringify(body),
     })
   } catch (e) {
-    return err({ error: 'network_error', message: `Could not reach the website: ${e.message}` }, 502)
+    return res.status(502).json({ error: 'network_error', message: `Could not reach the website: ${e.message}` })
   }
 
   let data = {}
   try { data = await upstream.json() } catch {}
 
   if (upstream.status === 200 && data.success) {
-    return ok({ success: true, slug: data.slug, commitUrl: data.commitUrl, postUrl: data.postUrl })
+    return res.status(200).json({ success: true, slug: data.slug, commitUrl: data.commitUrl, postUrl: data.postUrl })
   }
   if (upstream.status === 409) {
-    return err({ error: 'slug_taken', slug: payload.slug, message: data.message || `The slug "${payload.slug}" is already published. Rename and try again — the website never overwrites.` }, 409)
+    return res.status(409).json({ error: 'slug_taken', slug: payload.slug, message: data.message || `The slug "${payload.slug}" is already published. Rename and try again — the website never overwrites.` })
   }
   if (upstream.status === 400) {
-    return err({ error: 'invalid_payload', message: data.message || 'The website rejected the payload as invalid.', issues: data.issues }, 400)
+    return res.status(400).json({ error: 'invalid_payload', message: data.message || 'The website rejected the payload as invalid.', issues: data.issues })
   }
   if (upstream.status === 401) {
-    return err({ error: 'auth_failed', message: 'The website rejected the bearer token. Check that NARRATERX_PUBLISH_SECRET on this deployment matches the secret set on the website.' }, 502)
+    return res.status(502).json({ error: 'auth_failed', message: 'The website rejected the bearer token. Re-paste the Astro+GitHub secret in Workspace Settings.' })
   }
   if (upstream.status === 500) {
-    return err({ error: 'website_misconfigured', message: data.message || 'The website is misconfigured (missing GitHub token or env vars). Not retriable from here.' }, 502)
+    return res.status(502).json({ error: 'website_misconfigured', message: data.message || 'The website is misconfigured (missing GitHub token or env vars). Not retriable from here.' })
   }
   if (upstream.status === 502) {
-    return err({ error: 'github_error', message: data.message || 'The website could not commit to GitHub. Safe to retry shortly.', retriable: true }, 502)
+    return res.status(502).json({ error: 'github_error', message: data.message || 'The website could not commit to GitHub. Safe to retry shortly.', retriable: true })
   }
-  return err({ error: 'upstream_error', message: data.message || `Website returned ${upstream.status}.`, status: upstream.status }, 502)
+  return res.status(502).json({ error: 'upstream_error', message: data.message || `Website returned ${upstream.status}.`, status: upstream.status })
 }
 
 // ── WordPress mode ────────────────────────────────────────────────────────────
 
-async function publishToWordPress(payload) {
-  const baseUrl = process.env.WEBSITE_PUBLISH_URL
+async function publishToWordPress(res, payload, cred) {
+  const baseUrl = cred.config?.site_url
   if (!baseUrl) {
-    return err({ error: 'not_configured', message: 'WEBSITE_PUBLISH_URL is not set. For WordPress mode it must point at /wp-json/wp/v2/posts on the receiving site.' }, 503)
+    return res.status(503).json({ error: 'not_configured', message: 'WordPress site_url is not set in the workspace credential config. It must point at /wp-json/wp/v2/posts on the receiving site.' })
   }
   const wpRoot = wpRestRoot(baseUrl)
   if (!wpRoot) {
-    return err({ error: 'not_configured', message: `WEBSITE_PUBLISH_URL must include /wp-json/ (got ${baseUrl}). Expected something like https://example.com/wp-json/wp/v2/posts.` }, 503)
+    return res.status(503).json({ error: 'not_configured', message: `WordPress site_url must include /wp-json/ (got ${baseUrl}). Expected something like https://example.com/wp-json/wp/v2/posts.` })
   }
 
-  const user = process.env.WORDPRESS_USER
-  const appPassword = process.env.WORDPRESS_APP_PASSWORD.replace(/\s+/g, '')
+  const user = cred.config?.user
+  const appPassword = String(cred.secret || '').replace(/\s+/g, '')
   const authHeader = `Basic ${base64(`${user}:${appPassword}`)}`
   const wp = (path, init = {}) => fetch(`${wpRoot}${path}`, {
     ...init,
@@ -141,13 +143,13 @@ async function publishToWordPress(payload) {
     if (collisionRes.ok) {
       const existing = await collisionRes.json()
       if (Array.isArray(existing) && existing.length) {
-        return err({ error: 'slug_taken', slug: payload.slug, message: `The slug "${payload.slug}" is already used on the website. Rename and try again.` }, 409)
+        return res.status(409).json({ error: 'slug_taken', slug: payload.slug, message: `The slug "${payload.slug}" is already used on the website. Rename and try again.` })
       }
     } else if (collisionRes.status === 401 || collisionRes.status === 403) {
-      return err({ error: 'auth_failed', message: 'The WordPress site rejected the credentials. Check WORDPRESS_USER / WORDPRESS_APP_PASSWORD on this Vercel deployment.' }, 502)
+      return res.status(502).json({ error: 'auth_failed', message: 'The WordPress site rejected the credentials. Re-paste WordPress user / app password in Workspace Settings.' })
     }
   } catch (e) {
-    return err({ error: 'network_error', message: `Could not reach WordPress: ${e.message}` }, 502)
+    return res.status(502).json({ error: 'network_error', message: `Could not reach WordPress: ${e.message}` })
   }
 
   // 2. Hero image — fetch the source URL, upload binary to /media, capture
@@ -157,7 +159,7 @@ async function publishToWordPress(payload) {
     try {
       featuredMediaId = await uploadMedia(wp, payload.heroImage, payload.heroImageAlt)
     } catch (e) {
-      return err({ error: 'media_upload_failed', message: `Hero image upload failed: ${e.message}` }, 502)
+      return res.status(502).json({ error: 'media_upload_failed', message: `Hero image upload failed: ${e.message}` })
     }
   }
 
@@ -167,7 +169,7 @@ async function publishToWordPress(payload) {
     try {
       tagIds = await resolveTags(wp, payload.tags)
     } catch (e) {
-      return err({ error: 'tag_resolve_failed', message: `Tag resolution failed: ${e.message}` }, 502)
+      return res.status(502).json({ error: 'tag_resolve_failed', message: `Tag resolution failed: ${e.message}` })
     }
   }
 
@@ -192,14 +194,14 @@ async function publishToWordPress(payload) {
       body:    JSON.stringify(postBody),
     })
   } catch (e) {
-    return err({ error: 'network_error', message: `Could not reach WordPress: ${e.message}` }, 502)
+    return res.status(502).json({ error: 'network_error', message: `Could not reach WordPress: ${e.message}` })
   }
 
   let postData = {}
   try { postData = await postRes.json() } catch {}
 
   if (postRes.status === 201 || postRes.status === 200) {
-    return ok({
+    return res.status(200).json({
       success: true,
       slug:    postData.slug || payload.slug,
       postUrl: postData.link,
@@ -207,12 +209,12 @@ async function publishToWordPress(payload) {
     })
   }
   if (postRes.status === 401 || postRes.status === 403) {
-    return err({ error: 'auth_failed', message: 'WordPress rejected the credentials. The Application Password may be revoked or the user lacks publish_posts permission.' }, 502)
+    return res.status(502).json({ error: 'auth_failed', message: 'WordPress rejected the credentials. The Application Password may be revoked or the user lacks publish_posts permission.' })
   }
   if (postRes.status === 400) {
-    return err({ error: 'invalid_payload', message: postData.message || 'WordPress rejected the post as invalid.', code: postData.code }, 400)
+    return res.status(400).json({ error: 'invalid_payload', message: postData.message || 'WordPress rejected the post as invalid.', code: postData.code })
   }
-  return err({ error: 'upstream_error', message: postData.message || `WordPress returned ${postRes.status}.`, status: postRes.status }, 502)
+  return res.status(502).json({ error: 'upstream_error', message: postData.message || `WordPress returned ${postRes.status}.`, status: postRes.status })
 }
 
 async function uploadMedia(wp, sourceUrl, altText) {
@@ -228,7 +230,7 @@ async function uploadMedia(wp, sourceUrl, altText) {
       'Content-Type':        contentType,
       'Content-Disposition': `attachment; filename="${filename}"`,
     },
-    body: bytes,
+    body: Buffer.from(bytes),
   })
   if (!uploadRes.ok) {
     const errText = await uploadRes.text().catch(() => '')
@@ -292,13 +294,7 @@ function wpRestRoot(url) {
 }
 
 function base64(str) {
-  // Edge runtime exposes btoa, but it only handles latin-1. App passwords are
-  // ASCII so this is safe; user names theoretically could contain non-ASCII —
-  // encode through TextEncoder to be defensive.
-  const bytes = new TextEncoder().encode(str)
-  let bin = ''
-  for (const b of bytes) bin += String.fromCharCode(b)
-  return btoa(bin)
+  return Buffer.from(str, 'utf8').toString('base64')
 }
 
 function isoDate(input) {

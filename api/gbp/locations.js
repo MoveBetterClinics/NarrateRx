@@ -1,25 +1,27 @@
-export const config = { runtime: 'edge' }
+// Returns the list of configured GBP locations for the active workspace.
+// Reads from workspace_credentials.config (location_ids[], location_names[],
+// account_id) via getCredential('gbp'). Legacy env-var fallback inside
+// getCredential keeps per-brand deployments working.
 
-// Returns the list of configured GBP locations from env vars.
-// Required env vars:
-//   GBP_LOCATION_IDS   - comma-separated, e.g. "locations/111,locations/222"
-//   GBP_LOCATION_NAMES - comma-separated friendly names, e.g. "Seattle,Bellevue"
+import { getCredential } from '../_lib/getCredential.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
-const ok  = (data)       => new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } })
-const err = (msg, status = 400) => new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
+export default async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
-export default function handler(req) {
-  if (req.method !== 'GET') return err('Method not allowed', 405)
+  const scope = await workspaceScope(req)
+  const cred = await getCredential(scope?.workspace?.id, 'gbp')
+  const ids = Array.isArray(cred?.config?.location_ids) ? cred.config.location_ids : []
+  const names = Array.isArray(cred?.config?.location_names) ? cred.config.location_names : []
 
-  const ids   = (process.env.GBP_LOCATION_IDS   || '').split(',').map((s) => s.trim()).filter(Boolean)
-  const names = (process.env.GBP_LOCATION_NAMES  || '').split(',').map((s) => s.trim()).filter(Boolean)
-
-  if (!ids.length) return err('GBP not configured — add GBP_LOCATION_IDS to Vercel env vars', 503)
+  if (!ids.length) {
+    return res.status(503).json({ error: 'GBP not configured for this workspace. Add GBP credentials in Workspace Settings → Publishing credentials.' })
+  }
 
   const locations = ids.map((id, i) => ({
     id,
     name: names[i] || id, // fall back to raw ID if no friendly name provided
   }))
 
-  return ok({ locations, accountId: process.env.GBP_ACCOUNT_ID || '' })
+  return res.status(200).json({ locations, accountId: cred?.config?.account_id || '' })
 }

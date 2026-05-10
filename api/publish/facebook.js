@@ -1,18 +1,31 @@
-export const config = { runtime: 'edge' }
+// Facebook Page publish endpoint — Node.js runtime.
+//
+// Resolves the page_id (config) and page access token (secret) per-workspace
+// via getCredential('facebook'). Legacy env-var fallback in getCredential keeps
+// per-brand deployments working until decommissioned.
 
-const PAGE_ID    = process.env.FACEBOOK_PAGE_ID
-const PAGE_TOKEN = process.env.FACEBOOK_PAGE_TOKEN
-const GRAPH      = 'https://graph.facebook.com/v19.0'
+import { getCredential } from '../_lib/getCredential.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
-const ok  = (data)       => new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } })
-const err = (msg, status = 400) => new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
+const GRAPH = 'https://graph.facebook.com/v19.0'
 
-export default async function handler(req) {
-  if (!PAGE_ID || !PAGE_TOKEN) return err('Facebook not configured — add FACEBOOK_PAGE_ID and FACEBOOK_PAGE_TOKEN to Vercel env vars', 503)
-  if (req.method !== 'POST') return err('Method not allowed', 405)
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { content, mediaUrls = [], scheduledAt } = await req.json()
-  if (!content) return err('Missing content')
+  const scope = await workspaceScope(req)
+  const workspaceId = scope?.workspace?.id
+  const cred = await getCredential(workspaceId, 'facebook')
+  const PAGE_ID = cred?.config?.page_id
+  const PAGE_TOKEN = cred?.secret
+  if (!PAGE_ID || !PAGE_TOKEN) {
+    return res.status(503).json({
+      error: `Facebook is not configured for this workspace${scope?.workspace?.slug ? ` (${scope.workspace.slug})` : ''}. Add page_id + page token in Workspace Settings → Publishing credentials.`,
+    })
+  }
+
+  const reqBody = (typeof req.body === 'object' && req.body) ? req.body : {}
+  const { content, mediaUrls = [], scheduledAt } = reqBody
+  if (!content) return res.status(400).json({ error: 'Missing content' })
 
   const body = { message: content, access_token: PAGE_TOKEN }
 
@@ -23,7 +36,6 @@ export default async function handler(req) {
   }
 
   let endpoint = `${GRAPH}/${PAGE_ID}/feed`
-  let postRes
 
   if (mediaUrls.length > 0) {
     const first = mediaUrls[0]
@@ -42,7 +54,7 @@ export default async function handler(req) {
     }
   }
 
-  postRes = await fetch(endpoint, {
+  const postRes = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -50,8 +62,8 @@ export default async function handler(req) {
 
   const data = await postRes.json()
   if (!postRes.ok || data.error) {
-    return err(data.error?.message || 'Facebook post failed', 502)
+    return res.status(502).json({ error: data.error?.message || 'Facebook post failed' })
   }
 
-  return ok({ success: true, postId: data.id || data.post_id })
+  return res.status(200).json({ success: true, postId: data.id || data.post_id })
 }

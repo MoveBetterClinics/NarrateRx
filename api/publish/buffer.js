@@ -1,10 +1,13 @@
-export const config = { runtime: 'edge' }
+// Buffer publish endpoint — Node.js runtime.
+//
+// Resolves the Buffer access token per-workspace via getCredential() so each
+// tenant brings its own token. Falls back to BUFFER_ACCESS_TOKEN env var on
+// legacy per-brand deployments (handled inside getCredential).
 
-const BUFFER_TOKEN = process.env.BUFFER_ACCESS_TOKEN
-const BUFFER_API   = 'https://api.bufferapp.com/1'
+import { getCredential } from '../_lib/getCredential.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
-const ok  = (data)       => new Response(JSON.stringify(data), { status: 200, headers: { 'Content-Type': 'application/json' } })
-const err = (msg, status = 400) => new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
+const BUFFER_API = 'https://api.bufferapp.com/1'
 
 // Map our platform names → Buffer service names
 const PLATFORM_TO_SERVICE = {
@@ -12,23 +15,33 @@ const PLATFORM_TO_SERVICE = {
   linkedin:  'linkedin',
 }
 
-export default async function handler(req) {
-  if (!BUFFER_TOKEN) return err('Buffer not configured — add BUFFER_ACCESS_TOKEN to Vercel env vars', 503)
-  if (req.method !== 'POST') return err('Method not allowed', 405)
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { platform, content, mediaUrls = [], scheduledAt } = await req.json()
-  if (!platform || !content) return err('Missing platform or content')
+  const scope = await workspaceScope(req)
+  const workspaceId = scope?.workspace?.id
+  const cred = await getCredential(workspaceId, 'buffer')
+  if (!cred?.secret) {
+    return res.status(503).json({
+      error: `Buffer is not configured for this workspace${scope?.workspace?.slug ? ` (${scope.workspace.slug})` : ''}. Add a Buffer access token in Workspace Settings → Publishing credentials.`,
+    })
+  }
+  const BUFFER_TOKEN = cred.secret
+
+  const body = (typeof req.body === 'object' && req.body) ? req.body : {}
+  const { platform, content, mediaUrls = [], scheduledAt } = body
+  if (!platform || !content) return res.status(400).json({ error: 'Missing platform or content' })
 
   const service = PLATFORM_TO_SERVICE[platform]
-  if (!service) return err(`Unsupported Buffer platform: ${platform}`)
+  if (!service) return res.status(400).json({ error: `Unsupported Buffer platform: ${platform}` })
 
   // 1. Get profiles to find the right profile ID
   const profilesRes = await fetch(`${BUFFER_API}/profiles.json?access_token=${BUFFER_TOKEN}`)
-  if (!profilesRes.ok) return err('Failed to fetch Buffer profiles', 502)
+  if (!profilesRes.ok) return res.status(502).json({ error: 'Failed to fetch Buffer profiles' })
   const profiles = await profilesRes.json()
 
   const profile = profiles.find((p) => p.service === service)
-  if (!profile) return err(`No Buffer profile found for ${platform}. Connect it at buffer.com.`, 404)
+  if (!profile) return res.status(404).json({ error: `No Buffer profile found for ${platform}. Connect it at buffer.com.` })
 
   // 2. Build the update payload
   const params = new URLSearchParams()
@@ -62,10 +75,10 @@ export default async function handler(req) {
   const update = await updateRes.json()
 
   if (!updateRes.ok || update.error) {
-    return err(update.error || 'Buffer post failed', 502)
+    return res.status(502).json({ error: update.error || 'Buffer post failed' })
   }
 
-  return ok({
+  return res.status(200).json({
     success: true,
     bufferId: update.updates?.[0]?.id,
     scheduledAt: update.updates?.[0]?.scheduled_at,

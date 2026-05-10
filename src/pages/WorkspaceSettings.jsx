@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Trash2 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 
@@ -324,6 +324,10 @@ export default function WorkspaceSettings() {
           placeholder="MoveBetter.co"
           hint="Spoken URL — said aloud in video scripts, e.g. MoveBetter.co" />
       </Section>
+
+      <Separator />
+
+      <CredentialsSection getToken={getToken} />
     </div>
   )
 }
@@ -368,6 +372,306 @@ function Textarea2({ label, value, onChange, rows = 4, hint }) {
         className="text-sm font-mono resize-y"
       />
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+// ── Publishing credentials ────────────────────────────────────────────────────
+
+const CREDENTIAL_SERVICES = [
+  {
+    id: 'buffer',
+    label: 'Buffer',
+    description: 'Buffer access token (used for Instagram + LinkedIn queues).',
+    secretLabel: 'Access token',
+    fields: [],
+  },
+  {
+    id: 'facebook',
+    label: 'Facebook Page',
+    description: 'Page access token + page ID for direct Facebook publishing.',
+    secretLabel: 'Page access token',
+    fields: [
+      { key: 'page_id', label: 'Page ID', placeholder: '1234567890' },
+    ],
+  },
+  {
+    id: 'gbp',
+    label: 'Google Business Profile',
+    description: 'Service account key + GBP account/location IDs for direct + scheduled posts.',
+    secretLabel: 'Service account private key (PEM)',
+    secretIsTextarea: true,
+    fields: [
+      { key: 'service_account_email', label: 'Service account email', placeholder: 'name@project.iam.gserviceaccount.com' },
+      { key: 'account_id', label: 'GBP account ID', placeholder: 'accounts/123456789' },
+      { key: 'location_ids', label: 'Location IDs (comma-separated)', placeholder: 'locations/111,locations/222', isCsv: true },
+      { key: 'location_names', label: 'Location friendly names (comma-separated)', placeholder: 'Seattle,Bellevue', isCsv: true },
+    ],
+  },
+  {
+    id: 'wordpress',
+    label: 'WordPress',
+    description: 'WordPress REST publishing (equine). site_url must include /wp-json/.',
+    secretLabel: 'Application password',
+    fields: [
+      { key: 'site_url', label: 'Site URL (must include /wp-json/)', placeholder: 'https://example.com/wp-json/wp/v2/posts' },
+      { key: 'user', label: 'WordPress username', placeholder: 'editor' },
+    ],
+  },
+  {
+    id: 'astro_github',
+    label: 'Astro + GitHub website',
+    description: 'Webhook publishing to an Astro site that commits markdown to GitHub.',
+    secretLabel: 'Shared bearer secret',
+    fields: [
+      { key: 'url', label: 'Publish webhook URL', placeholder: 'https://example.com/api/publish' },
+    ],
+  },
+]
+
+function emptyConfigFor(service) {
+  const out = {}
+  for (const f of service.fields) out[f.key] = f.isCsv ? '' : ''
+  return out
+}
+
+function configFromRow(service, row) {
+  const cfg = emptyConfigFor(service)
+  if (!row?.config) return cfg
+  for (const f of service.fields) {
+    const v = row.config[f.key]
+    if (f.isCsv) cfg[f.key] = Array.isArray(v) ? v.join(', ') : (v ?? '')
+    else cfg[f.key] = v ?? ''
+  }
+  return cfg
+}
+
+function configToPayload(service, cfg) {
+  const out = {}
+  for (const f of service.fields) {
+    const v = cfg[f.key] ?? ''
+    if (f.isCsv) {
+      out[f.key] = String(v).split(',').map((s) => s.trim()).filter(Boolean)
+    } else {
+      out[f.key] = String(v).trim()
+    }
+  }
+  return out
+}
+
+function CredentialsSection({ getToken }) {
+  const [services, setServices] = useState(null) // null=loading, array of configured rows
+  const [error, setError] = useState(null)
+
+  const reload = async () => {
+    try {
+      const r = await fetch('/api/workspace/credentials', {
+        headers: { Authorization: `Bearer ${await getToken()}` },
+      })
+      if (!r.ok) {
+        setServices([])
+        setError(r.status === 403 ? 'forbidden' : `load-failed (${r.status})`)
+        return
+      }
+      const data = await r.json()
+      setServices(Array.isArray(data?.services) ? data.services : [])
+      setError(null)
+    } catch {
+      setServices([])
+      setError('network-error')
+    }
+  }
+
+  useEffect(() => { reload() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+
+  return (
+    <Section
+      title="Publishing credentials"
+      description="These tokens are stored encrypted (AES-256-GCM) and decrypted only at publish time. Each value applies to this workspace only. Secrets are write-only — they never come back on read."
+    >
+      {error && (
+        <div className="text-xs text-destructive flex items-center gap-1">
+          <AlertCircle className="h-3.5 w-3.5" />{error}
+        </div>
+      )}
+      <div className="space-y-2">
+        {CREDENTIAL_SERVICES.map((svc) => {
+          const row = services?.find?.((s) => s.service === svc.id) || null
+          return (
+            <CredentialCard
+              key={svc.id}
+              service={svc}
+              row={row}
+              loading={services === null}
+              onChange={reload}
+              getToken={getToken}
+            />
+          )
+        })}
+      </div>
+    </Section>
+  )
+}
+
+function CredentialCard({ service, row, loading, onChange, getToken }) {
+  const [open, setOpen] = useState(false)
+  const [config, setConfig] = useState(() => configFromRow(service, row))
+  const [secret, setSecret] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    setConfig(configFromRow(service, row))
+  }, [service, row])
+
+  const configured = Boolean(row)
+
+  async function handleSave() {
+    setSaving(true)
+    setError(null)
+    setSaved(false)
+    try {
+      if (!secret) {
+        setError('Secret is required')
+        setSaving(false)
+        return
+      }
+      const r = await fetch('/api/workspace/credentials', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await getToken()}`,
+        },
+        body: JSON.stringify({
+          service: service.id,
+          config: configToPayload(service, config),
+          secret,
+        }),
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        setError(e.error || 'save-failed')
+      } else {
+        setSecret('')
+        setSaved(true)
+        setTimeout(() => setSaved(false), 3000)
+        onChange?.()
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRemove() {
+    if (!configured) return
+    if (!confirm(`Remove ${service.label} credentials for this workspace?`)) return
+    setSaving(true)
+    setError(null)
+    try {
+      const r = await fetch(`/api/workspace/credentials?service=${encodeURIComponent(service.id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${await getToken()}` },
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        setError(e.error || 'remove-failed')
+      } else {
+        setSecret('')
+        setConfig(emptyConfigFor(service))
+        onChange?.()
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-input">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-accent/30"
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+          <div className="text-sm font-medium">{service.label}</div>
+          {configured && (
+            <span className="text-[10px] uppercase tracking-wide bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 px-1.5 py-0.5 rounded">
+              Configured
+            </span>
+          )}
+          {!loading && !configured && (
+            <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+              Not set
+            </span>
+          )}
+        </div>
+        <div className="text-[11px] text-muted-foreground truncate">{service.description}</div>
+      </button>
+      {open && (
+        <div className="border-t border-input p-3 space-y-3">
+          {service.fields.map((f) => (
+            <div className="space-y-1" key={f.key}>
+              <Label className="text-xs">{f.label}</Label>
+              <Input
+                value={config[f.key] ?? ''}
+                onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
+                placeholder={f.placeholder}
+                className="text-sm"
+              />
+            </div>
+          ))}
+          <div className="space-y-1">
+            <Label className="text-xs">{service.secretLabel}</Label>
+            {service.secretIsTextarea ? (
+              <Textarea
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                rows={4}
+                placeholder={configured ? '•••••• (write-only — paste a new value to rotate)' : 'Paste secret here'}
+                className="text-sm font-mono resize-y"
+              />
+            ) : (
+              <Input
+                type="password"
+                value={secret}
+                onChange={(e) => setSecret(e.target.value)}
+                placeholder={configured ? '•••••• (write-only — paste a new value to rotate)' : 'Paste secret here'}
+                className="text-sm"
+              />
+            )}
+            <p className="text-[11px] text-muted-foreground">
+              Secrets never come back on read. To rotate, paste the new value and Save.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 justify-end">
+            {saved && (
+              <span className="text-xs text-green-600 flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" />Saved
+              </span>
+            )}
+            {error && (
+              <span className="text-xs text-destructive flex items-center gap-1">
+                <AlertCircle className="h-3.5 w-3.5" />{error}
+              </span>
+            )}
+            {configured && (
+              <Button size="sm" variant="ghost" onClick={handleRemove} disabled={saving}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" />Remove
+              </Button>
+            )}
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+              Save
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
