@@ -39,6 +39,13 @@ function formFromWorkspace(ws) {
     brand_hashtag:           ws.brand_hashtag           ?? '',
     spoken_url:              ws.spoken_url              ?? '',
     enabled_outputs:         Array.isArray(ws.enabled_outputs) ? ws.enabled_outputs : [],
+    logo_main:               ws.logo?.main              ?? '',
+    logo_icon:               ws.logo?.icon              ?? '',
+    color_primary:           ws.colors?.primary         ?? '',
+    color_secondary:         ws.colors?.secondary       ?? '',
+    color_accent:            ws.colors?.accent          ?? '',
+    brandbook_url:           ws.brandbook?.url          ?? '',
+    brandbook_notes:         ws.brandbook?.notes        ?? '',
   }
 }
 
@@ -73,7 +80,29 @@ function formToPatch(form) {
     brand_hashtag:           form.brand_hashtag,
     spoken_url:              form.spoken_url,
     enabled_outputs:         form.enabled_outputs ?? [],
+    logo: {
+      main: form.logo_main || null,
+      icon: form.logo_icon || null,
+    },
+    colors: {
+      primary:   form.color_primary   || null,
+      secondary: form.color_secondary || null,
+      accent:    form.color_accent    || null,
+    },
+    brandbook: {
+      url:   form.brandbook_url   || null,
+      notes: form.brandbook_notes || null,
+    },
   }
+}
+
+// True if any first-party publish capability flag is set on this workspace.
+// External (founding) workspaces have capabilities={} and the credentials
+// section is hidden — direct-publish integrations are first-party only per
+// the export-first scope decision.
+function hasPublishCapability(ws) {
+  const caps = ws?.capabilities || {}
+  return Object.entries(caps).some(([k, v]) => k.endsWith('Publish') && Boolean(v))
 }
 
 export default function WorkspaceSettings() {
@@ -228,6 +257,36 @@ export default function WorkspaceSettings() {
       <Separator />
 
       <Section
+        title="Brand assets"
+        description="Logos, colors, and brandbook reference. Used for link previews, social avatars, and image generation. Paste hosted URLs (Vercel Blob, Drive share, etc.)."
+      >
+        <Field label="Logo URL (main)"
+          value={form.logo_main} onChange={set('logo_main')}
+          placeholder="https://..." hint="Wordmark / horizontal logo for headers and link previews." />
+        <Field label="Logo URL (icon)"
+          value={form.logo_icon} onChange={set('logo_icon')}
+          placeholder="https://..." hint="Square mark for social avatars and favicons." />
+        <Field label="Primary color"
+          value={form.color_primary} onChange={set('color_primary')}
+          placeholder="#E36525" hint="Hex code (e.g. #E36525)." />
+        <Field label="Secondary color"
+          value={form.color_secondary} onChange={set('color_secondary')}
+          placeholder="#1A2A3A" />
+        <Field label="Accent color"
+          value={form.color_accent} onChange={set('color_accent')}
+          placeholder="#9DB39C" />
+        <Field label="Brandbook URL"
+          value={form.brandbook_url} onChange={set('brandbook_url')}
+          placeholder="https://..." hint="Notion / PDF / Drive link to your brand guidelines." />
+        <Textarea2 label="Brandbook notes"
+          value={form.brandbook_notes} onChange={set('brandbook_notes')}
+          rows={4}
+          hint="Anything an image generator or designer should know — typography rules, photo style, what to avoid." />
+      </Section>
+
+      <Separator />
+
+      <Section
         title="AI voice context"
         description="Injected into AI prompts. Write these as if briefing a copywriter."
       >
@@ -325,9 +384,12 @@ export default function WorkspaceSettings() {
           hint="Spoken URL — said aloud in video scripts, e.g. MoveBetter.co" />
       </Section>
 
-      <Separator />
-
-      <CredentialsSection getToken={getToken} />
+      {hasPublishCapability(ws) && (
+        <>
+          <Separator />
+          <CredentialsSection getToken={getToken} />
+        </>
+      )}
     </div>
   )
 }
