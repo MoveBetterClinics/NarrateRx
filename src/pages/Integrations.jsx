@@ -1,127 +1,266 @@
-import { useState } from 'react'
-import { ExternalLink, CheckCircle2, AlertCircle, Loader2, ChevronDown, ChevronUp, Mail } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useAuth } from '@clerk/clerk-react'
+import {
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  ChevronDown,
+  ChevronUp,
+  Sparkles,
+  Mail,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
-import { workspace } from '@/lib/workspace'
+import { useWorkspace } from '@/lib/WorkspaceContext'
+import { useUserRole } from '@/lib/useUserRole'
+
+// Customer-facing publishing connect page. Per-workspace credentials are
+// stored encrypted via /api/workspace/credentials. Buffer is the recommended
+// integration for every workspace; Facebook / GBP / TDC stay first-party only
+// and only render when the workspace has the matching capability flag.
 
 const INTEGRATIONS = [
   {
     id: 'buffer',
-    name: 'Buffer',
-    description: 'Schedule and publish to Instagram and LinkedIn.',
-    platforms: ['Instagram', 'LinkedIn'],
-    envVars: [{ key: 'BUFFER_ACCESS_TOKEN', label: 'Buffer Access Token', placeholder: 'access_token_...' }],
+    label: 'Buffer',
+    recommended: true,
+    description:
+      'One connection that fans NarrateRx posts out to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. The fastest way to get NarrateRx publishing for your workspace.',
+    platforms: ['Instagram', 'Facebook', 'LinkedIn', 'Twitter/X', 'Threads', 'Pinterest', 'Mastodon', 'Bluesky'],
+    secretLabel: 'Buffer access token',
+    secretPlaceholder: 'access_token_…',
+    fields: [],
     setupSteps: [
-      'Go to buffer.com and create a free account.',
-      'Connect your Instagram and LinkedIn pages inside Buffer.',
-      'Go to buffer.com/developers/apps → Create an app.',
+      'Sign in (or sign up) at buffer.com.',
+      'In Buffer, connect every channel you want NarrateRx to publish to (Instagram, Facebook, LinkedIn, etc.).',
+      'Open buffer.com/developers/apps and Create an app.',
       'Copy the Access Token from your app settings.',
-      'Paste it in the field below and add it to Vercel (see instructions).',
+      'Paste it below and Save — your token is stored encrypted and used only at publish time.',
     ],
     docsUrl: 'https://buffer.com/developers/api',
   },
   {
     id: 'facebook',
-    name: 'Facebook Page',
-    description: `Post directly to your ${workspace.name} Facebook Page.`,
+    label: 'Facebook Page (direct)',
+    capabilityKey: 'facebookPublish',
+    description:
+      'Direct Graph API push to a Facebook Page. Most workspaces should use Buffer instead — this path requires Meta App Review and is reserved for first-party Move Better workspaces.',
     platforms: ['Facebook'],
-    envVars: [
-      { key: 'FACEBOOK_PAGE_ID',    label: 'Page ID',           placeholder: '123456789' },
-      { key: 'FACEBOOK_PAGE_TOKEN', label: 'Page Access Token', placeholder: 'EAABsbCS...' },
+    secretLabel: 'Page access token',
+    secretPlaceholder: 'EAABsbCS…',
+    fields: [
+      { key: 'page_id', label: 'Facebook Page ID', placeholder: '1234567890' },
     ],
     setupSteps: [
-      'Go to developers.facebook.com → Create App → Business type.',
-      'Add the "Pages" product to your app.',
-      'Go to Tools → Graph API Explorer.',
-      'Select your app and Page, request pages_manage_posts permission.',
-      'Generate a long-lived Page Access Token.',
-      'Your Page ID is in your Facebook Page URL or About section.',
+      'In Meta App Dashboard, add the Pages product and request pages_manage_posts.',
+      'Generate a long-lived Page Access Token via the Graph API Explorer.',
+      'Paste the token + Page ID below and Save.',
     ],
     docsUrl: 'https://developers.facebook.com/docs/pages/getting-started',
   },
   {
     id: 'gbp',
-    name: 'Google Business Profile',
-    description: `Post updates directly to your ${workspace.name} GBP listing.`,
+    label: 'Google Business Profile',
+    capabilityKey: 'gbpQueuePublish',
+    description:
+      'Scheduled posts to your Google Business Profile listings via a service account. Reserved for first-party Move Better workspaces.',
     platforms: ['Google Business Profile'],
-    envVars: [
-      { key: 'GBP_ACCOUNT_ID',     label: 'Account ID',                        placeholder: 'accounts/123456789' },
-      { key: 'GBP_LOCATION_IDS',   label: 'Location IDs (comma-separated)',     placeholder: 'locations/111,locations/222' },
-      { key: 'GBP_LOCATION_NAMES', label: 'Location Names (comma-separated)',   placeholder: 'Seattle,Bellevue' },
+    secretLabel: 'Service account private key (PEM)',
+    secretPlaceholder: '-----BEGIN PRIVATE KEY-----\n…',
+    secretIsTextarea: true,
+    fields: [
+      { key: 'service_account_email', label: 'Service account email', placeholder: 'name@project.iam.gserviceaccount.com' },
+      { key: 'account_id',            label: 'GBP account ID',         placeholder: 'accounts/123456789' },
+      { key: 'location_ids',          label: 'Location IDs (comma-separated)',   placeholder: 'locations/111,locations/222', isCsv: true },
+      { key: 'location_names',        label: 'Location names (comma-separated)', placeholder: 'Seattle,Bellevue',            isCsv: true },
     ],
     setupSteps: [
-      'Go to console.cloud.google.com → Create a project.',
-      'Enable the "Business Information API" and "Profile Performance API".',
-      'Create a Service Account under IAM & Admin → Service Accounts.',
-      'Give it the "Editor" role. Download the JSON key.',
-      'Share your Google Business Profile with the service account email (add it as a Manager for each location).',
-      'Find your Account ID and Location IDs via the GBP API or Google Business dashboard URL.',
-      'Add GOOGLE_SERVICE_ACCOUNT_EMAIL and GOOGLE_SERVICE_ACCOUNT_KEY (from the JSON key) to Vercel.',
-      'GBP_LOCATION_IDS and GBP_LOCATION_NAMES must be in the same order — e.g. "locations/111,locations/222" and "Seattle,Bellevue".',
+      'In Google Cloud, enable the Business Information + Profile Performance APIs.',
+      'Create a service account and download the JSON key.',
+      'Add the service account email as a Manager on each GBP location.',
+      'Paste the private key + IDs below and Save.',
     ],
     docsUrl: 'https://developers.google.com/my-business/content/get-started',
+  },
+  {
+    id: 'wordpress',
+    label: 'WordPress (REST publish)',
+    capabilityKey: 'websitePublish',
+    description: 'Publish blog posts directly to a WordPress site via the REST API + an application password.',
+    platforms: ['Website'],
+    secretLabel: 'Application password',
+    secretPlaceholder: 'xxxx xxxx xxxx xxxx',
+    fields: [
+      { key: 'site_url', label: 'REST endpoint (must include /wp-json/)', placeholder: 'https://example.com/wp-json/wp/v2/posts' },
+      { key: 'user',     label: 'WordPress username',                      placeholder: 'editor' },
+    ],
+    setupSteps: [
+      'In WordPress admin, generate an Application Password for an editor-level user.',
+      'Paste the username + app password below and Save.',
+    ],
+    docsUrl: 'https://wordpress.org/documentation/article/application-passwords/',
+  },
+  {
+    id: 'astro_github',
+    label: 'Astro + GitHub website',
+    capabilityKey: 'websitePublish',
+    description: 'Webhook-based publish to an Astro site that commits markdown to a GitHub repo.',
+    platforms: ['Website'],
+    secretLabel: 'Shared bearer secret',
+    secretPlaceholder: 'long-random-string',
+    fields: [
+      { key: 'url', label: 'Publish webhook URL', placeholder: 'https://example.com/api/publish' },
+    ],
+    setupSteps: [
+      'Stand up the Astro publish endpoint and pick a bearer secret.',
+      'Paste the URL + secret below and Save.',
+    ],
+    docsUrl: null,
   },
 ]
 
 const EMAIL_MERGE_TAGS = [
-  { tag: '{{preview_text}}',    desc: 'Inbox snippet shown below the subject line (50–90 chars)' },
-  { tag: '{{headline}}',        desc: 'Large bold heading at the top of the email body' },
-  { tag: '{{pull_quote}}',      desc: 'Styled green callout block — most compelling line from the piece' },
+  { tag: '{{preview_text}}',     desc: 'Inbox snippet shown below the subject line (50–90 chars)' },
+  { tag: '{{headline}}',         desc: 'Large bold heading at the top of the email body' },
+  { tag: '{{pull_quote}}',       desc: 'Styled green callout block — most compelling line from the piece' },
   { tag: '{{body_paragraph_1}}', desc: 'Opening hook paragraph' },
-  { tag: '{{body_paragraph_2}}', desc: `${workspace.name} perspective paragraph` },
+  { tag: '{{body_paragraph_2}}', desc: 'Workspace perspective paragraph' },
   { tag: '{{body_paragraph_3}}', desc: 'Patient story + bridge to action paragraph' },
-  { tag: '{{cta_text}}',        desc: 'Button label only (e.g. "Book a Free Consultation")' },
-  { tag: '{{cta_url}}',         desc: 'Button destination URL' },
-  { tag: '{{ps_text}}',         desc: 'Optional P.S. line after the CTA' },
-  { tag: '{{hero_image_url}}',  desc: 'Full URL of the hero image shown below the header' },
-  { tag: '{{year}}',            desc: 'Auto-filled — current year for the copyright line' },
-  { tag: '{{unsubscribe_url}}', desc: 'Auto-filled by TrustDrivenCare at send time' },
-  { tag: '{{webview_url}}',     desc: 'Auto-filled by TrustDrivenCare at send time' },
+  { tag: '{{cta_text}}',         desc: 'Button label only (e.g. "Book a Free Consultation")' },
+  { tag: '{{cta_url}}',          desc: 'Button destination URL' },
+  { tag: '{{ps_text}}',          desc: 'Optional P.S. line after the CTA' },
+  { tag: '{{hero_image_url}}',   desc: 'Full URL of the hero image shown below the header' },
+  { tag: '{{year}}',             desc: 'Auto-filled — current year for the copyright line' },
+  { tag: '{{unsubscribe_url}}',  desc: 'Auto-filled by TrustDrivenCare at send time' },
+  { tag: '{{webview_url}}',      desc: 'Auto-filled by TrustDrivenCare at send time' },
 ]
 
+function hasCapability(ws, key) {
+  if (!key) return true
+  return Boolean(ws?.capabilities?.[key])
+}
+
 export default function Integrations() {
+  const ws = useWorkspace()
+  const { role, isLoading: roleLoading } = useUserRole()
+  const { getToken } = useAuth()
+  const [services, setServices] = useState(null) // null=loading, [] when none
+  const [loadError, setLoadError] = useState(null)
+
+  const visible = INTEGRATIONS.filter((i) => hasCapability(ws, i.capabilityKey))
+  const showTdc = hasCapability(ws, 'tdcPublish')
+  const isAdmin = role === 'admin'
+
+  async function reload() {
+    try {
+      const r = await fetch('/api/workspace/credentials', {
+        headers: { Authorization: `Bearer ${await getToken()}` },
+      })
+      if (!r.ok) {
+        setServices([])
+        setLoadError(r.status === 403 ? 'Admins only.' : `Couldn't load (${r.status}).`)
+        return
+      }
+      const data = await r.json()
+      setServices(Array.isArray(data?.services) ? data.services : [])
+      setLoadError(null)
+    } catch {
+      setServices([])
+      setLoadError('Network error loading credentials.')
+    }
+  }
+
+  useEffect(() => {
+    if (!isAdmin || roleLoading) return
+    reload()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, roleLoading])
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Integrations</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Connect publishing platforms. All credentials are stored as Vercel environment variables — never in the browser.
+          Connect publishing platforms so NarrateRx can push finished posts straight from the Content Hub.
+          Credentials are stored encrypted (AES-256-GCM) and decrypted only at publish time.
         </p>
       </div>
 
-      <div className="rounded-lg border bg-muted/40 px-4 py-3 flex items-start gap-3">
-        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-        <p className="text-sm text-muted-foreground">
-          After adding any env var to Vercel, go to <strong>Vercel → Deployments → Redeploy</strong> for it to take effect.
-        </p>
-      </div>
+      {!isAdmin && !roleLoading && (
+        <div className="rounded-lg border bg-muted/40 px-4 py-3 flex items-start gap-3">
+          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground">
+            Only workspace admins can connect publishing integrations. Ask your admin to set this up.
+          </p>
+        </div>
+      )}
+
+      {isAdmin && loadError && (
+        <div className="rounded-lg border bg-muted/40 px-4 py-3 flex items-start gap-3">
+          <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+          <p className="text-sm text-muted-foreground">{loadError}</p>
+        </div>
+      )}
 
       <div className="space-y-4">
-        {INTEGRATIONS.map((integration) => (
-          <IntegrationCard key={integration.id} integration={integration} />
-        ))}
+        {visible.map((integration) => {
+          const row = services?.find?.((s) => s.service === integration.id) || null
+          return (
+            <IntegrationCard
+              key={integration.id}
+              integration={integration}
+              row={row}
+              loading={services === null && isAdmin}
+              disabled={!isAdmin}
+              getToken={getToken}
+              onChange={reload}
+            />
+          )
+        })}
       </div>
 
-      {/* TrustDrivenCare email template section */}
-      <TrustDrivenCareCard />
+      {showTdc && <TrustDrivenCareCard />}
     </div>
   )
 }
 
-function IntegrationCard({ integration }) {
-  const [open, setOpen] = useState(false)
+function IntegrationCard({ integration, row, loading, disabled, getToken, onChange }) {
+  const [open, setOpen] = useState(integration.recommended)
+  const configured = Boolean(row)
 
   return (
-    <div className="rounded-xl border bg-card overflow-hidden">
+    <div
+      className={`rounded-xl border bg-card overflow-hidden ${
+        integration.recommended ? 'border-orange-300 ring-1 ring-orange-200' : ''
+      }`}
+    >
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-5 py-4 hover:bg-accent/30 transition-colors text-left"
       >
-        <div className="flex items-start gap-3">
-          <div>
-            <p className="font-medium">{integration.name}</p>
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-medium">{integration.label}</p>
+              {integration.recommended && (
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">
+                  <Sparkles className="h-3 w-3" /> Recommended
+                </span>
+              )}
+              {configured ? (
+                <span className="text-[10px] uppercase tracking-wide bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                  Connected
+                </span>
+              ) : !loading ? (
+                <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                  Not connected
+                </span>
+              ) : null}
+            </div>
             <p className="text-sm text-muted-foreground mt-0.5">{integration.description}</p>
             <div className="flex gap-1 mt-1.5 flex-wrap">
               {integration.platforms.map((p) => (
@@ -135,78 +274,216 @@ function IntegrationCard({ integration }) {
 
       {open && (
         <div className="px-5 pb-5 space-y-5 border-t pt-4">
-          {/* Setup steps */}
-          <div>
-            <p className="text-sm font-medium mb-2">Setup steps</p>
-            <ol className="space-y-1.5">
-              {integration.setupSteps.map((step, i) => (
-                <li key={i} className="flex gap-2 text-sm text-muted-foreground">
-                  <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-            <a
-              href={integration.docsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-primary mt-2 hover:underline"
-            >
-              Full documentation <ExternalLink className="h-3 w-3" />
-            </a>
-          </div>
-
+          <SetupSteps integration={integration} />
           <Separator />
-
-          {/* Env vars */}
-          <div>
-            <p className="text-sm font-medium mb-3">Vercel environment variables to add</p>
-            <div className="space-y-3">
-              {integration.envVars.map(({ key, label, placeholder }) => (
-                <VercelEnvRow key={key} envKey={key} label={label} placeholder={placeholder} />
-              ))}
-            </div>
-          </div>
+          <ConnectForm
+            integration={integration}
+            row={row}
+            disabled={disabled}
+            getToken={getToken}
+            onChange={onChange}
+          />
         </div>
       )}
     </div>
   )
 }
 
-function VercelEnvRow({ envKey, label, placeholder }) {
-  const [copied, setCopied] = useState(false)
+function SetupSteps({ integration }) {
+  return (
+    <div>
+      <p className="text-sm font-medium mb-2">Setup steps</p>
+      <ol className="space-y-1.5">
+        {integration.setupSteps.map((step, i) => (
+          <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+            <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
+            {step}
+          </li>
+        ))}
+      </ol>
+      {integration.docsUrl && (
+        <a
+          href={integration.docsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-primary mt-2 hover:underline"
+        >
+          Full documentation <ExternalLink className="h-3 w-3" />
+        </a>
+      )}
+    </div>
+  )
+}
 
-  function copyKey() {
-    navigator.clipboard.writeText(envKey)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+function emptyConfigFor(integration) {
+  const out = {}
+  for (const f of integration.fields) out[f.key] = ''
+  return out
+}
+
+function configFromRow(integration, row) {
+  const out = emptyConfigFor(integration)
+  if (!row?.config) return out
+  for (const f of integration.fields) {
+    const v = row.config[f.key]
+    if (f.isCsv) out[f.key] = Array.isArray(v) ? v.join(', ') : (v ?? '')
+    else out[f.key] = v ?? ''
+  }
+  return out
+}
+
+function configToPayload(integration, cfg) {
+  const out = {}
+  for (const f of integration.fields) {
+    const v = cfg[f.key] ?? ''
+    if (f.isCsv) out[f.key] = String(v).split(',').map((s) => s.trim()).filter(Boolean)
+    else out[f.key] = String(v).trim()
+  }
+  return out
+}
+
+function ConnectForm({ integration, row, disabled, getToken, onChange }) {
+  const [config, setConfig] = useState(() => configFromRow(integration, row))
+  const [secret, setSecret] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(null)
+  const configured = Boolean(row)
+
+  useEffect(() => {
+    setConfig(configFromRow(integration, row))
+  }, [integration, row])
+
+  async function handleSave() {
+    setError(null)
+    setSaved(false)
+    if (!secret) {
+      setError('Paste your secret to save.')
+      return
+    }
+    setSaving(true)
+    try {
+      const r = await fetch('/api/workspace/credentials', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await getToken()}`,
+        },
+        body: JSON.stringify({
+          service: integration.id,
+          config: configToPayload(integration, config),
+          secret,
+        }),
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        setError(e.error || 'save-failed')
+      } else {
+        setSecret('')
+        setSaved(true)
+        setTimeout(() => setSaved(false), 3000)
+        onChange?.()
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!configured) return
+    if (!confirm(`Disconnect ${integration.label} for this workspace?`)) return
+    setSaving(true)
+    setError(null)
+    try {
+      const r = await fetch(`/api/workspace/credentials?service=${encodeURIComponent(integration.id)}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${await getToken()}` },
+      })
+      if (!r.ok) {
+        const e = await r.json().catch(() => ({}))
+        setError(e.error || 'remove-failed')
+      } else {
+        setSecret('')
+        setConfig(emptyConfigFor(integration))
+        onChange?.()
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="flex items-end gap-2">
-      <div className="flex-1 space-y-1">
-        <Label className="text-xs text-muted-foreground">{label}</Label>
-        <div className="flex gap-1.5">
-          <code
-            className="flex-1 text-xs bg-muted px-3 py-2 rounded-md font-mono border cursor-pointer hover:bg-accent transition-colors"
-            onClick={copyKey}
-            title="Click to copy variable name"
-          >
-            {envKey}
-          </code>
-          <Button variant="outline" size="sm" className="text-xs shrink-0" onClick={copyKey}>
-            {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> : 'Copy name'}
-          </Button>
+    <div className="space-y-3">
+      {integration.fields.map((f) => (
+        <div className="space-y-1" key={f.key}>
+          <Label className="text-xs">{f.label}</Label>
+          <Input
+            value={config[f.key] ?? ''}
+            onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
+            placeholder={f.placeholder}
+            className="text-sm"
+            disabled={disabled}
+          />
         </div>
-        <p className="text-[11px] text-muted-foreground">Value example: <code className="font-mono">{placeholder}</code></p>
+      ))}
+      <div className="space-y-1">
+        <Label className="text-xs">{integration.secretLabel}</Label>
+        {integration.secretIsTextarea ? (
+          <Textarea
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            rows={4}
+            placeholder={configured ? '•••••• (write-only — paste a new value to rotate)' : integration.secretPlaceholder}
+            className="text-sm font-mono resize-y"
+            disabled={disabled}
+          />
+        ) : (
+          <Input
+            type="password"
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            placeholder={configured ? '•••••• (write-only — paste a new value to rotate)' : integration.secretPlaceholder}
+            className="text-sm"
+            disabled={disabled}
+          />
+        )}
+        <p className="text-[11px] text-muted-foreground">
+          Stored encrypted. Secrets never come back on read — to rotate, paste a new value and save.
+        </p>
+      </div>
+      <div className="flex items-center gap-2 justify-end">
+        {saved && (
+          <span className="text-xs text-green-600 flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+          </span>
+        )}
+        {error && (
+          <span className="text-xs text-destructive flex items-center gap-1">
+            <AlertCircle className="h-3.5 w-3.5" /> {error}
+          </span>
+        )}
+        {configured && (
+          <Button variant="ghost" size="sm" onClick={handleDisconnect} disabled={disabled || saving}>
+            Disconnect
+          </Button>
+        )}
+        <Button size="sm" onClick={handleSave} disabled={disabled || saving}>
+          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : configured ? 'Update' : 'Connect'}
+        </Button>
       </div>
     </div>
   )
 }
 
 function TrustDrivenCareCard() {
+  const ws = useWorkspace()
   const [open, setOpen] = useState(false)
   const [copiedTag, setCopiedTag] = useState(null)
+  const templateName = ws?.newsletter_template_name || 'TrustDrivenCare'
 
   function copyTag(tag) {
     navigator.clipboard.writeText(tag)
@@ -225,7 +502,7 @@ function TrustDrivenCareCard() {
           <div>
             <p className="font-medium">TrustDrivenCare — Email Newsletter</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Email previews render the actual {workspace.newsletterTemplateName} template. Here's how to keep it in sync.
+              Email previews render the actual {templateName} template. Here's how to keep it in sync.
             </p>
             <div className="flex gap-1 mt-1.5">
               <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Email</span>
@@ -237,8 +514,6 @@ function TrustDrivenCareCard() {
 
       {open && (
         <div className="px-5 pb-5 border-t pt-4 space-y-5">
-
-          {/* How it works */}
           <div>
             <p className="text-sm font-medium mb-2">How the preview works</p>
             <p className="text-sm text-muted-foreground leading-relaxed">
@@ -253,19 +528,14 @@ function TrustDrivenCareCard() {
 
           <Separator />
 
-          {/* Updating the template */}
           <div>
             <p className="text-sm font-medium mb-2">Updating the template design</p>
-            <p className="text-sm text-muted-foreground mb-3">
-              When you update the <strong>{workspace.newsletterTemplateName.replace(' - ', ' · ')}</strong> template in TrustDrivenCare, do the following to keep the preview in sync:
-            </p>
             <ol className="space-y-1.5">
               {[
                 'In TrustDrivenCare, open the master template and export / copy the full HTML source.',
-                'Open the repo in your code editor and replace the contents of src/email-template.html with the new HTML.',
-                'Make sure all {{merge_tags}} listed below are still present in the new HTML — TDC should preserve them.',
-                'Commit the file and push to main. Vercel will redeploy automatically.',
-                'No other code changes are needed — the preview will immediately reflect the new design.',
+                'Replace the contents of src/email-template.html with the new HTML.',
+                'Make sure all {{merge_tags}} listed below are still present.',
+                'Commit and push to main. Vercel will redeploy automatically.',
               ].map((step, i) => (
                 <li key={i} className="flex gap-2 text-sm text-muted-foreground">
                   <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
@@ -277,12 +547,8 @@ function TrustDrivenCareCard() {
 
           <Separator />
 
-          {/* Merge tags reference */}
           <div>
             <p className="text-sm font-medium mb-2">Merge tag reference</p>
-            <p className="text-xs text-muted-foreground mb-3">
-              These tags are filled automatically by the app when rendering the preview and when you copy content into TDC.
-            </p>
             <div className="space-y-1.5">
               {EMAIL_MERGE_TAGS.map(({ tag, desc }) => (
                 <div key={tag} className="flex items-start gap-2 group">
@@ -298,15 +564,6 @@ function TrustDrivenCareCard() {
               ))}
             </div>
           </div>
-
-          <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 flex items-start gap-3">
-            <AlertCircle className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-            <p className="text-xs text-blue-700">
-              The <code className="font-mono">{'{{unsubscribe_url}}'}</code> and <code className="font-mono">{'{{webview_url}}'}</code> tags
-              are set to <code className="font-mono">#</code> in the preview. TrustDrivenCare replaces them automatically at send time.
-            </p>
-          </div>
-
         </div>
       )}
     </div>

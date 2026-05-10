@@ -288,6 +288,7 @@ function CapacityScreen({ capacity, onContinue }) {
           <li>Tell us about your business</li>
           <li>Optionally let us read your website to draft your voice</li>
           <li>Pick your subdomain and the channels you'll publish to</li>
+          <li>Push finished posts straight to <strong>Buffer</strong> — one connection covers Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more</li>
         </ul>
       </div>
       <Button size="lg" onClick={onContinue} className="w-full sm:w-auto">
@@ -702,7 +703,7 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        Pick at least one. Founding workspaces get clean exports for every channel — direct publishing integrations are reserved for the first-party Move Better workspaces in beta.
+        Pick at least one. Every channel ships with a clean export, and the social channels can be pushed straight to <strong>Buffer</strong> — connect once and NarrateRx queues posts to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. Other direct integrations (Google Business Profile, website, newsletter) are reserved for the first-party Move Better workspaces in beta.
       </p>
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>← Back</Button>
