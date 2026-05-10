@@ -60,13 +60,14 @@ export async function recordAudit({ assetId, action, actor, before, after, req, 
   try {
     // Caller normally passes scope (resolved at request time). When a
     // background or cron-driven path doesn't have one, fall back to resolving
-    // from req if available, or to the legacy brand env var.
+    // from req if available. If neither is provided, skip the audit rather
+    // than risk writing it against the wrong workspace.
     let resolved = scope
     if (!resolved) {
       if (req) resolved = await workspaceScope(req)
       else {
-        const slug = (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-        resolved = { column: 'brand', id: slug, workspace: null }
+        console.warn('[audit] no scope or req provided; skipping audit write')
+        return
       }
     }
     const body = {

@@ -10,7 +10,6 @@
 // per-workspace inside the cron loop.
 
 import { createSign } from 'node:crypto'
-import { workspace as staticWorkspace } from '../../src/lib/workspace.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import { getCredential } from '../_lib/getCredential.js'
 
@@ -71,7 +70,7 @@ export function buildPost(content, mediaUrls = [], bookingUrl) {
     topicType: 'STANDARD',
     callToAction: {
       actionType: 'BOOK',
-      url: process.env.BRAND_URL || bookingUrl || staticWorkspace.prompt.bookingUrl,
+      url: bookingUrl,
     },
   }
   const media = Array.isArray(mediaUrls) ? mediaUrls : []

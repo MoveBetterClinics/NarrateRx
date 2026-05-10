@@ -24,9 +24,11 @@ const THUMB_WIDTH   = 480
 // poster frames stay crisp without ballooning the blob storage cost.
 const JPEG_QUALITY  = '4'
 
-function legacyScope() {
-  const slug = (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-  return { column: 'brand', id: slug, workspace: null }
+function requireScope(scope) {
+  if (!scope?.workspace) {
+    throw new Error('thumbnail: workspace scope is required (caller must pass a resolved scope)')
+  }
+  return scope
 }
 
 function sb(path, init = {}) {
@@ -94,7 +96,7 @@ function thumbPathname(asset) {
 export async function generateAndPersistThumbnail(asset, scope) {
   if (!asset || asset.kind !== 'video') return null
   if (!asset.blob_url) return null
-  const s = scope || legacyScope()
+  const s = requireScope(scope)
 
   const dir     = await mkdtemp(join(tmpdir(), 'thumb-'))
   const inPath  = join(dir, 'in.bin')
@@ -132,7 +134,7 @@ export async function generateAndPersistThumbnail(asset, scope) {
 
 // Look up an asset by id (workspace-scoped) and run generateAndPersistThumbnail.
 export async function thumbnailById(id, scope) {
-  const s = scope || legacyScope()
+  const s = requireScope(scope)
   const where = `id=eq.${id}&${s.column}=eq.${s.id}`
   const lookup = await sb(`media_assets?${where}&select=id,${s.column},kind,blob_url,thumbnail_url`)
   if (!lookup.ok) throw new Error('Database error')

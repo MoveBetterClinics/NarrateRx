@@ -5,42 +5,13 @@ import { join } from 'node:path'
 import { generateObject } from 'ai'
 import ffmpegStaticPath from 'ffmpeg-static'
 import { z } from 'zod'
-import { workspace as staticWorkspace } from '../../src/lib/workspace.js'
 import { recordAudit, snapshot } from './audit.js'
 
-// Map either source (DB row OR static-config) to a unified snake_case shape.
-// Used for AI prompt construction; DB rows already have snake_case fields,
-// while the legacy static config nests audience/voice values under `prompt`.
-function getWorkspaceFields(scope) {
-  if (scope?.workspace) return scope.workspace
-  return {
-    app_name:                  staticWorkspace.appName,
-    display_name:              staticWorkspace.name,
-    location:                  staticWorkspace.location,
-    region:                    staticWorkspace.region,
-    region_short:              staticWorkspace.regionShort,
-    website:                   staticWorkspace.website,
-    website_hostname:          staticWorkspace.websiteHostname,
-    clinic_context:            staticWorkspace.prompt?.clinicContext,
-    audience_description:      staticWorkspace.prompt?.audienceDescription,
-    audience_short:            staticWorkspace.prompt?.audienceShort,
-    brand_voice:               staticWorkspace.prompt?.brandVoice,
-    internal_links_markdown:   staticWorkspace.prompt?.internalLinksMarkdown,
-    booking_url:               staticWorkspace.prompt?.bookingUrl,
-    signature_system_name:     staticWorkspace.prompt?.signatureSystemName,
-    signature_system_url:      staticWorkspace.prompt?.signatureSystemUrl,
-    pinterest_boards:          staticWorkspace.prompt?.pinterestBoards,
-    location_keyword:          staticWorkspace.prompt?.locationKeyword,
-    location_hashtag:          staticWorkspace.prompt?.locationHashtag,
-    brand_hashtag:             staticWorkspace.prompt?.brandHashtag,
-    spoken_url:                staticWorkspace.prompt?.spokenUrl,
-    activity_context:          staticWorkspace.prompt?.sportContext,
+function requireScope(scope) {
+  if (!scope?.workspace) {
+    throw new Error('tagAsset: workspace scope is required (caller must pass a resolved scope)')
   }
-}
-
-function legacyScope() {
-  const slug = (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-  return { column: 'brand', id: slug, workspace: null }
+  return scope
 }
 
 // Shared AI auto-tagging logic. Used by api/media/tag.js (manual button)
@@ -89,13 +60,12 @@ const VOCAB = {
 }
 
 function buildSystemPrompt(kind, scope) {
-  const ws = getWorkspaceFields(scope)
-  // VOCAB key resolution: legacy scope (column='brand') uses scope.id directly
-  // ('people'|'equine'|'animals'). Shared-DB scope (column='workspace_id') has
-  // a UUID id, so map via the workspace slug instead. Both Move Better
-  // workspaces use slugs prefixed `movebetter-<paradigm>` (per memory: animals
-  // slug is `movebetter-animals` with the s).
-  const slug = scope?.workspace?.slug || scope?.id || ''
+  const ws = scope.workspace
+  // VOCAB key resolution: workspace_id scopes use the workspace slug. Move
+  // Better workspaces use slugs prefixed `movebetter-<paradigm>` (per memory:
+  // animals slug is `movebetter-animals` with the s). External tenants fall
+  // back to the people vocabulary.
+  const slug = ws?.slug || ''
   const vocabKey =
     slug === 'movebetter-equine'  ? 'equine'  :
     slug === 'movebetter-animals' ? 'animals' :
@@ -235,7 +205,7 @@ async function callModel(asset, scope) {
 // On success: PATCH ai_tags + (video) transcription, status='tagged', return the row.
 // On failure: stamp the failure into `notes` and rethrow.
 export async function tagAndPersist(asset, scope) {
-  const s = scope || legacyScope()
+  const s = requireScope(scope)
   const where = `id=eq.${asset.id}&${s.column}=eq.${s.id}`
   try {
     const { ai_tags, transcription, visual_narrative } = await callModel(asset, s)
@@ -277,7 +247,7 @@ export async function tagAndPersist(asset, scope) {
 
 // Look up an asset by id (workspace-scoped) and run tagAndPersist on it.
 export async function tagById(id, scope) {
-  const s = scope || legacyScope()
+  const s = requireScope(scope)
   const where = `id=eq.${id}&${s.column}=eq.${s.id}`
   const lookup = await sb(`media_assets?${where}&select=id,${s.column},kind,status,blob_url,mime_type,size_bytes,tags,notes`)
   if (!lookup.ok) throw new Error('Database error')

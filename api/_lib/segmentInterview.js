@@ -1,23 +1,11 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { workspace as staticWorkspace } from '../../src/lib/workspace.js'
 
-function getWorkspaceFields(scope) {
-  if (scope?.workspace) return scope.workspace
-  return {
-    app_name:             staticWorkspace.appName,
-    location:             staticWorkspace.location,
-    clinic_context:       staticWorkspace.prompt?.clinicContext,
-    audience_short:       staticWorkspace.prompt?.audienceShort,
-    brand_voice:          staticWorkspace.prompt?.brandVoice,
-    brand_hashtag:        staticWorkspace.prompt?.brandHashtag,
-    spoken_url:           staticWorkspace.prompt?.spokenUrl,
+function requireScope(scope) {
+  if (!scope?.workspace) {
+    throw new Error('segmentInterview: workspace scope is required (caller must pass a resolved scope)')
   }
-}
-
-function legacyScope() {
-  const slug = (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-  return { column: 'brand', id: slug, workspace: null }
+  return scope
 }
 
 // Phase 3: AI segmenter for clinic-capture footage. Reads the transcription
@@ -113,7 +101,7 @@ const ROLE_FRAMINGS = {
 }
 
 function buildSystemPrompt(speakerRole = 'clinician', scope) {
-  const ws = getWorkspaceFields(scope)
+  const ws = scope.workspace
   const role = ROLE_FRAMINGS[speakerRole] || ROLE_FRAMINGS.clinician
   const lines = [
     `You are a senior social media editor for ${ws.app_name} (${ws.location}).`,
@@ -232,7 +220,7 @@ export async function segmentAndPersist(asset, scope) {
     // No-op for photos in v1. Phase 3c may revisit.
     return []
   }
-  const s = scope || legacyScope()
+  const s = requireScope(scope)
   const where = `id=eq.${asset.id}&${s.column}=eq.${s.id}`
   try {
     const moments = await callModel(asset, s)
@@ -261,7 +249,7 @@ export async function segmentAndPersist(asset, scope) {
 // Look up an asset by id (workspace-scoped) and run segmentAndPersist. Used by
 // the manual /api/media/segment endpoint.
 export async function segmentById(id, scope) {
-  const s = scope || legacyScope()
+  const s = requireScope(scope)
   const where = `id=eq.${id}&${s.column}=eq.${s.id}`
   const lookup = await sb(
     `media_assets?${where}&select=id,${s.column},kind,status,blob_url,mime_type,tags,ai_tags,transcription,visual_narrative,speaker_role,condition,patient_pseudonym,notes`,

@@ -39,6 +39,42 @@ function readHostHeader(req) {
   return headers.host || headers.Host || null
 }
 
+// Look up a workspace by primary key. Used by background paths (e.g. the
+// Vercel Blob upload-completion webhook) that don't have a request host to
+// resolve from but do have a workspace_id round-tripped through some other
+// channel (token payload, cron arg). Returns the full row or null.
+export async function workspaceById(id) {
+  if (!id) return null
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY
+  if (!supabaseUrl || !supabaseKey) {
+    console.error('[workspaceById] Supabase env not configured')
+    return null
+  }
+  const url = `${supabaseUrl}/rest/v1/workspaces?id=eq.${encodeURIComponent(id)}&select=*&limit=1`
+  let r
+  try {
+    r = await fetch(url, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+      },
+    })
+  } catch (e) {
+    console.error('[workspaceById] network error:', e?.message)
+    return null
+  }
+  if (!r.ok) {
+    console.error(`[workspaceById] lookup failed: ${r.status}`)
+    return null
+  }
+  const rows = await r.json().catch(() => null)
+  if (!Array.isArray(rows) || rows.length === 0) return null
+  const row = rows[0]
+  if (row.status !== 'active') return null
+  return row
+}
+
 export async function workspaceContext(req) {
   const host = readHostHeader(req)
   const slug = extractSlug(host)

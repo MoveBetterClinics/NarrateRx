@@ -1,9 +1,21 @@
-// Workspace registry. NarrateRx is one codebase deployed once per workspace
-// — each deployment sets BRAND (server) / VITE_BRAND (client; env var names
-// retained pre-multitenant cutover) and the active workspace object is
-// selected here. Slated for retirement in the multi-tenant cutover PR that
-// flips reads to the DB-backed `workspaces` table; until then this file is
-// the source of truth for the three Move Better workspaces.
+// Static workspace registry — placeholder/fallback only.
+//
+// Runtime workspace data on the shared narraterx.ai deployment comes from the
+// DB via `useWorkspace()` (browser, src/lib/WorkspaceContext.jsx) and
+// `workspaceContext(req)` (server, api/_lib/workspaceContext.js). This file
+// stays alive for two narrow reasons:
+//
+//   1. WorkspaceContext.jsx uses PEOPLE as the loading-state placeholder
+//      before /api/workspace/me resolves, and as a 404 fallback so the SPA
+//      shell doesn't crash on apex/preview hosts.
+//   2. PostPreview.jsx imports a few brand-identity constants (handle,
+//      initials, blurb) at module-load time for its mock previews.
+//
+// The legacy BRAND / VITE_BRAND env-var lookup that picked between PEOPLE /
+// EQUINE / ANIMALS at build time was retired alongside the per-brand Vercel
+// deployments. PEOPLE is the only export; the EQUINE/ANIMALS objects below
+// are kept for reference so PostPreview's identity strings have a paper trail
+// and can be cross-checked against the workspaces DB rows.
 
 const PEOPLE = {
   id: 'people',
@@ -358,22 +370,9 @@ const WORKSPACES = {
   animals: ANIMALS,
 }
 
-function readWorkspaceId() {
-  // Vite replaces import.meta.env.VITE_BRAND at build time. Wrapped in
-  // try/catch so this file is also safe to import from Node ESM (where
-  // import.meta exists but import.meta.env does not). Env var names
-  // (VITE_BRAND, BRAND) retained pre-multitenant cutover.
-  let viteWorkspace
-  try { viteWorkspace = import.meta.env.VITE_BRAND } catch {}
-  if (viteWorkspace) return String(viteWorkspace).toLowerCase()
-
-  if (typeof process !== 'undefined' && process.env && process.env.BRAND) {
-    return String(process.env.BRAND).toLowerCase()
-  }
-  return 'people'
-}
-
-const activeId = readWorkspaceId()
-export const workspace = WORKSPACES[activeId] || PEOPLE
+// PEOPLE is the placeholder identity used by WorkspaceContext while the live
+// row loads and by PostPreview's mock previews. The real workspace is always
+// resolved at runtime via useWorkspace() / workspaceContext(req).
+export const workspace = PEOPLE
 export function getWorkspace() { return workspace }
 export function getWorkspaceById(id) { return WORKSPACES[id] || PEOPLE }

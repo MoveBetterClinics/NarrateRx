@@ -6,6 +6,7 @@ import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
+import { workspaceById } from '../_lib/workspaceContext.js'
 
 // Two-phase upload via @vercel/blob/client:
 //   Phase 1 — body.type='blob.generate-client-token' (browser handshake):
@@ -124,13 +125,27 @@ export default async function handler(req, res) {
         const kind = kindFromMime(blob.contentType)
         if (!kind) return  // unknown type → don't record
 
-        // Scope was resolved at handshake time and round-tripped via tokenPayload.
-        // Fall back to legacy brand env if older tokens (or future cron paths)
-        // arrive without scopeColumn.
-        const scopeColumn = meta.scopeColumn || 'brand'
+        // Scope was resolved at handshake time (workspaceScope) and round-tripped
+        // via tokenPayload. The completion webhook is platform-to-server and
+        // has no req-host to re-resolve from, so a missing scope here means a
+        // malformed token — refuse to write rather than guess a workspace.
+        const scopeColumn = meta.scopeColumn
         const scopeId = meta.scopeId
-          || (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-        const innerScope = { column: scopeColumn, id: scopeId, workspace: null }
+        if (!scopeColumn || !scopeId) {
+          console.error('media upload: tokenPayload missing scopeColumn/scopeId; refusing to insert row')
+          return
+        }
+        // Fetch the full workspace row by id so the auto-pipeline (tagAsset,
+        // segmentInterview) can read prompt fields off scope.workspace. The
+        // completion webhook is platform-to-server, so workspaceContext(req)
+        // can't resolve from the request host — workspaceById picks it up
+        // from the foreign-key id round-tripped through tokenPayload.
+        const workspaceRow = await workspaceById(scopeId)
+        if (!workspaceRow) {
+          console.error(`media upload: workspace ${scopeId} not found or inactive; refusing to insert row`)
+          return
+        }
+        const innerScope = { column: scopeColumn, id: scopeId, workspace: workspaceRow }
 
         // If this is a return-upload of a finished edit (parentId set), it
         // lands in 'approved' status and is linked to the source. Skips Phase
