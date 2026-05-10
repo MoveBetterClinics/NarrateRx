@@ -11,19 +11,12 @@ At the start of EVERY new conversation, before doing anything else, ask:
 
 If the work drifts into a second unrelated area mid-session, name it and suggest: "That's a good next session — want to note it and come back to it?"
 
-## Multi-brand
-NarrateRx is a multi-brand SaaS product. Move Better People, Move Better Equine, and Move Better Animals Chiropractic are separate deployments with their own brand configs, databases, and API keys. Do not mix brand-specific content, credentials, or data between deployments.
+## Multi-tenant SaaS
+NarrateRx runs as a single shared deployment that serves multiple workspaces by subdomain (`<slug>.narraterx.ai`). Move Better People, Equine, and Animals are the three seed workspaces; external tenants self-onboard at `narraterx.ai/onboard`. All tenant-editable config — display name, voice/tone modifiers, interview/patient context, topic suggestions, output channels, publish credentials — lives in the `workspaces` row in the shared narraterx Supabase, edited via `/settings/workspace`.
 
-**Brand-specific working notes live in `brands/$BRAND/CLAUDE.md`.** Set `VITE_BRAND` / `BRAND` locally to match the deployment you're working on, or just `cat brands/<people|equine|animals>/CLAUDE.md` directly. The brand-side file is the source of truth for paradigm-specific guidance (audience, vocabulary, conditions, mobile vs. clinic, etc.).
+The legacy `brands/<id>/` filesystem-overlay pattern and the `VITE_BRAND` / `BRAND` env vars were retired in Phase 1F (2026-05-10). Paradigm content is no longer build-time-pinned. To onboard a new tenant, use the wizard — there is no per-deployment scaffolding.
 
-### Brand config
-Structured brand values (name, domain, location, social handles, prompt context, internal-link library, signature system, etc.) live in [src/lib/brand.js](src/lib/brand.js). Each deployment selects its brand via env vars:
-
-- `VITE_BRAND` — read by browser code (Vite replaces at build time). Set on the Vercel project, e.g. `VITE_BRAND=people`.
-- `BRAND` — read by Vercel serverless functions in `api/`. Set the same value alongside `VITE_BRAND`.
-- `BRAND_URL` — used by `api/publish/gbp.js` for the GBP "Book" call-to-action URL.
-
-To add a new brand deployment, add a sibling entry to `BRANDS` in `brand.js`, scaffold `brands/<newbrand>/`, and set `VITE_BRAND` / `BRAND` on the new Vercel project.
+`src/lib/workspace.js` retains a static config for legacy per-brand deployments only; runtime code reads `useWorkspace()` (browser) or `workspaceContext(req)` (serverless), which resolve from the DB by subdomain.
 
 ## GitHub
 Use the GitHub CLI (`gh`) for GitHub-specific interactions — PRs, issues, releases, repo management. `gh` is configured as the git credential helper, so plain `git push` / `git fetch` are fine for ref operations (they authenticate through `gh` under the hood). Do not set up separate HTTPS basic auth or raw SSH credentials.

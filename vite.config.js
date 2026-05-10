@@ -5,17 +5,11 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// Build-time selector for paradigm overlays under brands/<dir>/.
-// Vercel sets VITE_BRAND/BRAND per project; narraterx-people sets nothing
-// and relies on the 'people' default below.
-const brandDir = (process.env.VITE_BRAND || process.env.BRAND || 'people').toLowerCase()
-
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@brand-overlay': path.resolve(__dirname, `./brands/${brandDir}`),
     },
   },
 })
