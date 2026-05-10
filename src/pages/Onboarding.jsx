@@ -650,7 +650,8 @@ function ReviewScreen({ form, submitting, submitError, onBack, onSubmit }) {
           {submitError === 'founding-spots-full' && 'Founding spots filled while you were filling this out. Email us to join the waitlist.'}
           {submitError === 'no-channels-selected' && 'Pick at least one channel.'}
           {submitError === 'org-create-failed' && 'Could not create your workspace org — please try again.'}
-          {!['slug-taken','founding-spots-full','no-channels-selected','org-create-failed'].includes(submitError) && submitError}
+          {submitError === 'domain-registration-failed' && 'Could not register your subdomain with our hosting provider. Please try again, or email drq@narraterx.ai if it keeps failing.'}
+          {!['slug-taken','founding-spots-full','no-channels-selected','org-create-failed','domain-registration-failed'].includes(submitError) && submitError}
         </div>
       )}
       <div className="flex items-center justify-between pt-2">
@@ -681,24 +682,69 @@ function ReviewRow({ label, value, mono }) {
 
 // ── 7. Launching ─────────────────────────────────────────────────────────────
 
+// Probes the new subdomain via an Image load. Browsers won't resolve the host
+// (or will fail TLS) until both DNS and cert provisioning complete, so a
+// successful image load is a reliable signal that redirect is safe. Image
+// onerror also fires on 404 — fine, since 404 means the cert is good and the
+// host responded.
 function LaunchingScreen({ redirectUrl }) {
+  const [elapsed, setElapsed] = useState(0)
+  const [ready, setReady] = useState(false)
+
   useEffect(() => {
     if (!redirectUrl) return
-    // Brief pause so the user reads the message; Clerk Org propagation is fast
-    // but the new subdomain's middleware needs to cache-resolve the slug too.
-    const t = setTimeout(() => { window.location.href = redirectUrl }, 1800)
+    const host = new URL(redirectUrl).host
+    let cancelled = false
+    let attempts = 0
+    const MAX_ATTEMPTS = 30          // 30 attempts × 1s = ~30s ceiling
+    const INTERVAL_MS = 1000
+
+    const tick = () => {
+      if (cancelled || ready) return
+      attempts += 1
+      setElapsed(attempts)
+      const img = new Image()
+      img.onload = img.onerror = () => {
+        if (cancelled) return
+        // onload = cert + host both good. onerror with attempts > 1 typically
+        // means the cert is good but favicon doesn't exist (404) — still a
+        // successful TLS handshake, so safe to redirect.
+        if (attempts >= 2 || img.complete) {
+          setReady(true)
+        }
+      }
+      img.src = `https://${host}/favicon.ico?probe=${attempts}-${Date.now()}`
+      if (attempts < MAX_ATTEMPTS) setTimeout(tick, INTERVAL_MS)
+    }
+    tick()
+    return () => { cancelled = true }
+  }, [redirectUrl, ready])
+
+  useEffect(() => {
+    if (!ready || !redirectUrl) return
+    const t = setTimeout(() => { window.location.href = redirectUrl }, 400)
     return () => clearTimeout(t)
-  }, [redirectUrl])
+  }, [ready, redirectUrl])
 
   return (
     <Card
       title="Setting up your workspace…"
-      subtitle="Provisioning your subdomain, creating your org, and wiring up your voice context. This takes about two seconds."
+      subtitle="Provisioning your subdomain, creating your org, and wiring up your voice context. New subdomains take about 10–30 seconds for the SSL certificate to issue."
     >
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin text-orange-600" />
-        <span>Redirecting to {redirectUrl ? new URL(redirectUrl).host : '…'}</span>
+        <span>
+          {ready
+            ? `Redirecting to ${redirectUrl ? new URL(redirectUrl).host : ''}…`
+            : `Waiting for SSL certificate (${elapsed}s)…`}
+        </span>
       </div>
+      {!ready && elapsed >= 25 && redirectUrl && (
+        <p className="text-xs text-muted-foreground">
+          Taking longer than usual? You can also{' '}
+          <a className="underline text-orange-600" href={redirectUrl}>continue manually</a>.
+        </p>
+      )}
     </Card>
   )
 }
