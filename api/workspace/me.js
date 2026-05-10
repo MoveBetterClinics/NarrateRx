@@ -22,7 +22,23 @@ const PATCHABLE_FIELDS = new Set([
   'spoken_url',
   'enabled_outputs',
   'logo', 'colors', 'brandbook',
+  'tone_modifiers',
 ])
+
+const TONE_KEYS = ['active', 'clinical', 'warm', 'smart']
+
+function sanitizeToneModifiers(value) {
+  if (value === null || value === undefined) return {}
+  if (typeof value !== 'object' || Array.isArray(value)) return null
+  const out = {}
+  for (const [k, v] of Object.entries(value)) {
+    if (!TONE_KEYS.includes(k)) continue
+    if (v === null || v === undefined || v === '') continue
+    if (typeof v !== 'string') return null
+    out[k] = v
+  }
+  return out
+}
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -60,7 +76,16 @@ export default async function handler(req, res) {
     const body = req.body || {}
     const patch = {}
     for (const [key, value] of Object.entries(body)) {
-      if (PATCHABLE_FIELDS.has(key)) patch[key] = value
+      if (!PATCHABLE_FIELDS.has(key)) continue
+      if (key === 'tone_modifiers') {
+        const cleaned = sanitizeToneModifiers(value)
+        if (cleaned === null) {
+          return res.status(400).json({ error: 'invalid-tone-modifiers' })
+        }
+        patch.tone_modifiers = cleaned
+        continue
+      }
+      patch[key] = value
     }
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'no-patchable-fields' })
