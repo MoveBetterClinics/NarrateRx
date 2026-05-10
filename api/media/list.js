@@ -3,13 +3,10 @@
 // Vercel's Node runtime req is an IncomingMessage, not a Web Request.
 
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -23,7 +20,7 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -60,8 +57,11 @@ export default async function handler(req, res) {
     if (collectionAssetIds.length === 0) return res.status(200).json([])
   }
 
+  const scope = await workspaceScope(req)
+  const SELECT = `${scope.column},${SELECT_COMMON}`
+
   // Always workspace-scoped.
-  let qs = `media_assets?select=${SELECT}&brand=eq.${workspaceId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
+  let qs = `media_assets?select=${SELECT}&${scope.column}=eq.${scope.id}&order=created_at.desc&limit=${limit}&offset=${offset}`
   if (kind)        qs += `&kind=eq.${kind}`
   if (status) {
     qs += `&status=eq.${status}`

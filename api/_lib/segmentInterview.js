@@ -1,6 +1,24 @@
 import { generateObject } from 'ai'
 import { z } from 'zod'
-import { workspace } from '../../src/lib/workspace.js'
+import { workspace as staticWorkspace } from '../../src/lib/workspace.js'
+
+function getWorkspaceFields(scope) {
+  if (scope?.workspace) return scope.workspace
+  return {
+    app_name:             staticWorkspace.appName,
+    location:             staticWorkspace.location,
+    clinic_context:       staticWorkspace.prompt?.clinicContext,
+    audience_short:       staticWorkspace.prompt?.audienceShort,
+    brand_voice:          staticWorkspace.prompt?.brandVoice,
+    brand_hashtag:        staticWorkspace.prompt?.brandHashtag,
+    spoken_url:           staticWorkspace.prompt?.spokenUrl,
+  }
+}
+
+function legacyScope() {
+  const slug = (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
+  return { column: 'brand', id: slug, workspace: null }
+}
 
 // Phase 3: AI segmenter for clinic-capture footage. Reads the transcription
 // Phase 2 already produced (and the visual narrative when available) and
@@ -25,10 +43,6 @@ const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 const MODEL = 'anthropic/claude-sonnet-4-6'
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -98,21 +112,22 @@ const ROLE_FRAMINGS = {
   },
 }
 
-function buildSystemPrompt(speakerRole = 'clinician') {
+function buildSystemPrompt(speakerRole = 'clinician', scope) {
+  const ws = getWorkspaceFields(scope)
   const role = ROLE_FRAMINGS[speakerRole] || ROLE_FRAMINGS.clinician
   const lines = [
-    `You are a senior social media editor for ${workspace.appName} (${workspace.location}).`,
+    `You are a senior social media editor for ${ws.app_name} (${ws.location}).`,
     '',
     role.setting,
     '',
     'You are reading the transcript (and a brief visual narrative when present) of one such captured clip. Your job: identify the 1–5 strongest moments worth editing into finished, reusable social clips. Each moment becomes an "edit brief" the contractor reviews, accepts, and takes to CapCut Pro to produce a finished file. Lengthier sources yield more briefs (rough rule: one brief per 5–7 minutes of source). Pick fewer if the source is short, repetitive, or thin.',
     '',
-    `Clinic context: ${workspace.prompt.clinicContext}`,
+    `Clinic context: ${ws.clinic_context}`,
     '',
-    `Audience: ${workspace.prompt.audienceShort}`,
+    `Audience: ${ws.audience_short}`,
     '',
     'Brand voice:',
-    workspace.prompt.brandVoice,
+    ws.brand_voice,
     '',
     'A "moment worth editing" is:',
     '- A self-contained idea that lands in 15–60 seconds of speech and/or demonstration',
@@ -138,8 +153,8 @@ function buildSystemPrompt(speakerRole = 'clinician') {
     '- source_quote        — verbatim transcript chunk (1–3 sentences) the moment is built around. If the moment is primarily visual demonstration with little dialog, summarize what is shown in 1–2 sentences and prefix with "[demo]".',
     '- ai_suggested_platform — single best fit from the list above (advisory only; contractor may change)',
     '- ai_caption          — draft caption in brand voice, platform-appropriate length',
-    `- ai_hashtags         — 3–8 hashtags. Include ${workspace.prompt.brandHashtag} where it fits.`,
-    `- ai_cta_text         — short CTA (e.g. "Book at ${workspace.prompt.spokenUrl}", "Read more on the blog")`,
+    `- ai_hashtags         — 3–8 hashtags. Include ${ws.brand_hashtag} where it fits.`,
+    `- ai_cta_text         — short CTA (e.g. "Book at ${ws.spoken_url}", "Read more on the blog")`,
     '- ai_reasoning        — 1 sentence: why this moment is worth editing',
   ]
   return lines.join('\n')
@@ -165,7 +180,7 @@ function buildUserMessage(asset) {
   return lines.join('\n')
 }
 
-async function callModel(asset) {
+async function callModel(asset, scope) {
   if (!process.env.AI_GATEWAY_API_KEY) {
     throw new Error('AI_GATEWAY_API_KEY is not set on this deployment')
   }
@@ -179,7 +194,7 @@ async function callModel(asset) {
   const { object } = await generateObject({
     model: MODEL,
     schema: segmenterOutput,
-    system: buildSystemPrompt(speakerRole),
+    system: buildSystemPrompt(speakerRole, scope),
     messages: [{ role: 'user', content: buildUserMessage(asset) }],
     temperature: 0.4,
   })
@@ -187,9 +202,9 @@ async function callModel(asset) {
   return object.moments
 }
 
-function buildRows(asset, moments, generatedAt) {
+function buildRows(asset, moments, generatedAt, scope) {
   return moments.map((m) => ({
-    brand: asset.brand,
+    [scope.column]: scope.id,
     source_asset_id: asset.id,
     source_quote: m.source_quote,
     ai_suggested_platform: m.ai_suggested_platform,
@@ -212,17 +227,18 @@ function buildRows(asset, moments, generatedAt) {
 // Run the segmenter on an existing tagged interview row and persist the
 // content_pieces it produces. On failure: stamp `notes` on the source asset
 // (mirroring tagAsset.js) and rethrow.
-export async function segmentAndPersist(asset) {
+export async function segmentAndPersist(asset, scope) {
   if (asset.kind !== 'video') {
     // No-op for photos in v1. Phase 3c may revisit.
     return []
   }
-  const where = `id=eq.${asset.id}&brand=eq.${workspaceId()}`
+  const s = scope || legacyScope()
+  const where = `id=eq.${asset.id}&${s.column}=eq.${s.id}`
   try {
-    const moments = await callModel(asset)
+    const moments = await callModel(asset, s)
     if (!moments?.length) return []
 
-    const rows = buildRows(asset, moments, new Date().toISOString())
+    const rows = buildRows(asset, moments, new Date().toISOString(), s)
     const ins = await sb('content_pieces', { method: 'POST', body: JSON.stringify(rows) })
     if (!ins.ok) {
       const text = await ins.text()
@@ -244,14 +260,15 @@ export async function segmentAndPersist(asset) {
 
 // Look up an asset by id (workspace-scoped) and run segmentAndPersist. Used by
 // the manual /api/media/segment endpoint.
-export async function segmentById(id) {
-  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
+export async function segmentById(id, scope) {
+  const s = scope || legacyScope()
+  const where = `id=eq.${id}&${s.column}=eq.${s.id}`
   const lookup = await sb(
-    `media_assets?${where}&select=id,brand,kind,status,blob_url,mime_type,tags,ai_tags,transcription,visual_narrative,speaker_role,condition,patient_pseudonym,notes`,
+    `media_assets?${where}&select=id,${s.column},kind,status,blob_url,mime_type,tags,ai_tags,transcription,visual_narrative,speaker_role,condition,patient_pseudonym,notes`,
   )
   if (!lookup.ok) throw new Error('Database error')
   const rows = await lookup.json()
   const asset = rows[0]
   if (!asset) throw new Error('Not found')
-  return segmentAndPersist(asset)
+  return segmentAndPersist(asset, s)
 }

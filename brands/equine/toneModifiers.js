@@ -8,12 +8,12 @@ export function getToneModifier(tone, brand) {
     case 'active':
       return `
 CONTENT TONE — Active & Driven:
-This content targets competitive riders, sport-horse trainers, and performance-focused owners whose horses are working hard — show, eventing, dressage, jumping, reining, ranch and trail. Write with direct, efficient language. Reference ${brand.prompt.sportContext}. Speak to discipline-specific demands, soundness under load, return-to-work timelines, and the biomechanics of performance. These readers don't need hand-holding — they want precision and actionable specifics. Avoid overly gentle or reassuring language.`
+This content targets competitive riders, sport-horse trainers, and performance-focused owners whose horses are working hard — show, eventing, dressage, jumping, reining, ranch and trail. Write with direct, efficient language. Reference ${brand.activity_context}. Speak to discipline-specific demands, soundness under load, return-to-work timelines, and the biomechanics of performance. These readers don't need hand-holding — they want precision and actionable specifics. Avoid overly gentle or reassuring language.`
 
     case 'clinical':
       return `
 CONTENT TONE — Clinical & In-Depth:
-This content targets evidence-minded riders, trainers, and owners who want the full anatomical picture. Use precise equine anatomical and biomechanical vocabulary where it adds clarity — always briefly explain technical terms inline. Include systems-based reasoning (poll, withers, thoracic, lumbar, hips), research-informed framing, and detailed process descriptions. Always position care as complementary to veterinary work — never as a replacement. These readers often work closely with their vet and want to understand exactly how ${brand.name}'s approach fits alongside that care. Do not oversimplify.`
+This content targets evidence-minded riders, trainers, and owners who want the full anatomical picture. Use precise equine anatomical and biomechanical vocabulary where it adds clarity — always briefly explain technical terms inline. Include systems-based reasoning (poll, withers, thoracic, lumbar, hips), research-informed framing, and detailed process descriptions. Always position care as complementary to veterinary work — never as a replacement. These readers often work closely with their vet and want to understand exactly how ${brand.display_name}'s approach fits alongside that care. Do not oversimplify.`
 
     case 'warm':
       return `

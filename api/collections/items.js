@@ -10,13 +10,10 @@
 // from another workspace can't cross-link rows.
 
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -31,10 +28,10 @@ function sb(path, init = {}) {
   })
 }
 
-async function verifyBrand(table, ids) {
+async function verifyScope(scope, table, ids) {
   if (!ids?.length) return { ok: true, missing: [] }
   const idList = ids.map(encodeURIComponent).join(',')
-  const r = await sb(`${table}?id=in.(${idList})&brand=eq.${workspaceId()}&select=id`)
+  const r = await sb(`${table}?id=in.(${idList})&${scope.column}=eq.${scope.id}&select=id`)
   if (!r.ok) return { ok: false, error: 'lookup-failed' }
   const rows = await r.json()
   const found = new Set(rows.map((row) => row.id))
@@ -58,15 +55,17 @@ export default async function handler(req, res) {
   const collectionId = body.collectionId || searchParams.get('collectionId')
   if (!collectionId) return res.status(400).json({ error: 'collectionId required' })
 
+  const scope = await workspaceScope(req)
+
   // Always confirm the collection belongs to this workspace.
-  const colCheck = await verifyBrand('collections', [collectionId])
+  const colCheck = await verifyScope(scope, 'collections', [collectionId])
   if (!colCheck.ok) return res.status(404).json({ error: 'Collection not found' })
 
   if (req.method === 'POST') {
     const assetIds = Array.isArray(body.assetIds) ? body.assetIds.filter(Boolean) : []
     if (!assetIds.length) return res.status(400).json({ error: 'assetIds[] required' })
 
-    const assetCheck = await verifyBrand('media_assets', assetIds)
+    const assetCheck = await verifyScope(scope, 'media_assets', assetIds)
     if (!assetCheck.ok) {
       return res.status(404).json({ error: 'One or more assets not found', missing: assetCheck.missing })
     }

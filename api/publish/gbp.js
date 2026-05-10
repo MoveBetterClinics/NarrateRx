@@ -1,6 +1,7 @@
 export const config = { runtime: 'edge' }
 
-import { workspace } from '../../src/lib/workspace.js'
+import { workspace as staticWorkspace } from '../../src/lib/workspace.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Google Business Profile posting via service account
 // Required env vars:
@@ -70,12 +71,15 @@ export async function postToLocation(token, accountId, locationId, post) {
   return { locationId, name: data.name }
 }
 
-export function buildPost(content, mediaUrls = []) {
+export function buildPost(content, mediaUrls = [], bookingUrl) {
   const post = {
     languageCode: 'en-US',
     summary: content,
     topicType: 'STANDARD',
-    callToAction: { actionType: 'BOOK', url: process.env.BRAND_URL || workspace.prompt.bookingUrl },
+    callToAction: {
+      actionType: 'BOOK',
+      url: process.env.BRAND_URL || bookingUrl || staticWorkspace.prompt.bookingUrl,
+    },
   }
   const media = Array.isArray(mediaUrls) ? mediaUrls : []
   if (media.length > 0) {
@@ -107,7 +111,12 @@ export default async function handler(req) {
   try { token = await getGoogleToken() }
   catch (e) { return err(`Google auth failed: ${e.message}`, 503) }
 
-  const post = buildPost(content, mediaUrls)
+  // Resolve booking URL from workspace row when on a shared deployment, so
+  // each subdomain's GBP CTA points at the correct clinic.
+  const scope = await workspaceScope(req)
+  const bookingUrl = scope?.workspace?.booking_url
+
+  const post = buildPost(content, mediaUrls, bookingUrl)
 
   // Post to all selected locations in parallel
   const results = await Promise.allSettled(

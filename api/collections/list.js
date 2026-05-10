@@ -4,13 +4,10 @@
 // items per collection so the UI can show "12 items" without a second hop.
 
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -24,8 +21,8 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT =
-  'id,brand,name,slug,description,kind,cover_asset_id,status,' +
+const SELECT_COMMON =
+  'name,slug,description,kind,cover_asset_id,status,' +
   'created_at,updated_at,created_by,' +
   'collection_items(count)'
 
@@ -46,6 +43,9 @@ export default async function handler(req, res) {
   const limit   = Math.min(parseInt(searchParams.get('limit') || '100'), 500)
   const offset  = parseInt(searchParams.get('offset') || '0')
 
+  const scope = await workspaceScope(req)
+  const SELECT = `id,${scope.column},${SELECT_COMMON}`
+
   // Resolve an assetId membership filter into a collection-id whitelist
   // before composing the main query.
   let membershipCollectionIds = null
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
     if (membershipCollectionIds.length === 0) return res.status(200).json([])
   }
 
-  let qs = `collections?select=${SELECT}&brand=eq.${workspaceId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
+  let qs = `collections?select=${SELECT}&${scope.column}=eq.${scope.id}&order=created_at.desc&limit=${limit}&offset=${offset}`
   if (kind) qs += `&kind=eq.${kind}`
   if (status === 'archived') {
     qs += `&status=eq.archived`

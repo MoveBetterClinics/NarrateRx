@@ -7,12 +7,10 @@
 //
 // Schema lives in supabase/009_media_audit.sql.
 
+import { workspaceScope } from './workspaceScope.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 // Pick a small subset of fields for `before`/`after` snapshots so the audit
 // table doesn't bloat. We can always look up full row history via Supabase
@@ -54,14 +52,25 @@ export function uaFromRequest(req) {
   return req?.headers?.['user-agent'] || null
 }
 
-export async function recordAudit({ assetId, action, actor, before, after, req, workspace }) {
+export async function recordAudit({ assetId, action, actor, before, after, req, scope }) {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.warn('[audit] Supabase env not configured; skipping')
     return
   }
   try {
+    // Caller normally passes scope (resolved at request time). When a
+    // background or cron-driven path doesn't have one, fall back to resolving
+    // from req if available, or to the legacy brand env var.
+    let resolved = scope
+    if (!resolved) {
+      if (req) resolved = await workspaceScope(req)
+      else {
+        const slug = (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
+        resolved = { column: 'brand', id: slug, workspace: null }
+      }
+    }
     const body = {
-      brand:      workspace || workspaceId(),
+      [resolved.column]: resolved.id,
       asset_id:   assetId || null,
       action,
       actor:      actor || (req ? actorFromRequest(req) : 'system'),

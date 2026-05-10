@@ -2,6 +2,7 @@
 // Runs on Node (Fluid Compute). All workspace-scoped.
 
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Per-method role requirements — mirrors /api/media/[id]:
 //   GET    → any authenticated user
@@ -16,10 +17,6 @@ const ROLE_REQUIREMENTS = {
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
-
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
@@ -33,8 +30,8 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT =
-  'id,brand,source_asset_id,source_trim_start,source_trim_end,source_quote,' +
+const SELECT_COMMON =
+  'id,source_asset_id,source_trim_start,source_trim_end,source_quote,' +
   'ai_suggested_platform,ai_caption,ai_hashtags,ai_cta_text,ai_reasoning,' +
   'ai_model,ai_generated_at,final_caption,final_hashtags,final_cta_text,' +
   'final_cta_url,target_platform,final_asset_id,status,assigned_to,notes,' +
@@ -54,7 +51,9 @@ export default async function handler(req, res) {
   const id  = url.pathname.split('/').pop()
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
-  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
+  const scope = await workspaceScope(req)
+  const SELECT = `${scope.column},${SELECT_COMMON}`
+  const where = `id=eq.${id}&${scope.column}=eq.${scope.id}`
 
   if (req.method === 'GET') {
     const r = await sb(`content_pieces?${where}&select=${SELECT}`)

@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack, fetchGBPLocations } from '@/lib/publish'
 import { fetchInterview } from '@/lib/api'
 import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt } from '@/lib/prompts'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
@@ -61,6 +62,7 @@ export default function ReviewPost() {
   const { itemId }   = useParams()
   const navigate     = useNavigate()
   const { user }     = useUser()
+  const workspace    = useWorkspace()
 
   const [item, setItem]               = useState(null)
   const [content, setContent]         = useState('')
@@ -236,17 +238,17 @@ export default function ReviewPost() {
       const blogPost = outputs?.blogPost || ''
 
       if (platform === 'blog') {
-        systemPrompt  = getBlogPostSystemPrompt(clinicianName, condition, tone, voiceMode, prototypeId)
+        systemPrompt  = getBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, prototypeId)
         inputMessages = messages?.length ? messages : [{ role: 'user', content: 'Please write the blog post.' }]
       } else {
         if (!blogPost) throw new Error('The blog post for this interview must be generated first before regenerating other content.')
         inputMessages = [{ role: 'user', content: blogPost }]
         if (['instagram', 'facebook', 'gbp', 'linkedin'].includes(platform)) {
-          systemPrompt = getSocialBatchSystemPrompt(clinicianName, condition, '', tone, voiceMode, prototypeId)
+          systemPrompt = getSocialBatchSystemPrompt(workspace, clinicianName, condition, '', tone, voiceMode, prototypeId)
         } else if (['youtube', 'tiktok'].includes(platform)) {
-          systemPrompt = getVideoScriptBatchSystemPrompt(clinicianName, condition, '', tone, voiceMode, prototypeId)
+          systemPrompt = getVideoScriptBatchSystemPrompt(workspace, clinicianName, condition, '', tone, voiceMode, prototypeId)
         } else {
-          systemPrompt = getMarketingBatchSystemPrompt(clinicianName, condition, '', tone, prototypeId)
+          systemPrompt = getMarketingBatchSystemPrompt(workspace, clinicianName, condition, '', tone, prototypeId)
         }
       }
 

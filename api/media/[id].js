@@ -1,5 +1,6 @@
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Per-method role requirements (HANDOFF.md → Locked decisions):
 //   GET    → any authenticated user
@@ -23,10 +24,6 @@ const ROLE_REQUIREMENTS = {
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
-
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
@@ -40,10 +37,10 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
 
-async function fetchRow(where) {
-  const r = await sb(`media_assets?${where}&select=${SELECT}`)
+async function fetchRow(where, select) {
+  const r = await sb(`media_assets?${where}&select=${select}`)
   if (!r.ok) return null
   const rows = await r.json()
   return rows[0] || null
@@ -63,8 +60,9 @@ export default async function handler(req, res) {
   const id  = url.pathname.split('/').pop()
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
-  // Brand-scope every read & write.
-  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
+  const scope = await workspaceScope(req)
+  const SELECT = `${scope.column},${SELECT_COMMON}`
+  const where  = `id=eq.${id}&${scope.column}=eq.${scope.id}`
 
   if (req.method === 'GET') {
     const r = await sb(`media_assets?${where}&select=${SELECT}`)
@@ -97,7 +95,7 @@ export default async function handler(req, res) {
     const body = Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined))
 
     // Snapshot before so the audit trail captures what changed.
-    const before = await fetchRow(where)
+    const before = await fetchRow(where, SELECT)
     if (!before) return res.status(404).json({ error: 'Not found' })
 
     // Detect restore: archived row whose status is being moved out of 'archived'.
@@ -119,6 +117,7 @@ export default async function handler(req, res) {
       before:  snapshot(before),
       after:   snapshot(after),
       req,
+      scope,
     })
 
     return res.status(200).json(after)
@@ -129,7 +128,7 @@ export default async function handler(req, res) {
     // the asset is restorable forever via PATCH { status: 'raw'|'tagged' }.
     // Hard purge is gated behind /api/media/[id]/purge — admin-only, ≥30 days
     // after archived_at.
-    const before = await fetchRow(where)
+    const before = await fetchRow(where, SELECT)
     if (!before) return res.status(404).json({ error: 'Not found' })
 
     if (before.status === 'archived') {
@@ -150,6 +149,7 @@ export default async function handler(req, res) {
       before:  snapshot(before),
       after:   snapshot(after),
       req,
+      scope,
     })
 
     return res.status(200).json({ archived: true, asset: after })

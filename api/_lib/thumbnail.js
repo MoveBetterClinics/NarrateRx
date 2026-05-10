@@ -24,8 +24,9 @@ const THUMB_WIDTH   = 480
 // poster frames stay crisp without ballooning the blob storage cost.
 const JPEG_QUALITY  = '4'
 
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
+function legacyScope() {
+  const slug = (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
+  return { column: 'brand', id: slug, workspace: null }
 }
 
 function sb(path, init = {}) {
@@ -90,9 +91,10 @@ function thumbPathname(asset) {
 
 // Extract + upload + PATCH. Returns the new thumbnail_url, or null if the
 // asset is not a video / has no source blob to read from.
-export async function generateAndPersistThumbnail(asset) {
+export async function generateAndPersistThumbnail(asset, scope) {
   if (!asset || asset.kind !== 'video') return null
   if (!asset.blob_url) return null
+  const s = scope || legacyScope()
 
   const dir     = await mkdtemp(join(tmpdir(), 'thumb-'))
   const inPath  = join(dir, 'in.bin')
@@ -114,7 +116,7 @@ export async function generateAndPersistThumbnail(asset) {
       allowOverwrite: true,
     })
 
-    const where = `id=eq.${asset.id}&brand=eq.${workspaceId()}`
+    const where = `id=eq.${asset.id}&${s.column}=eq.${s.id}`
     const upd = await sb(`media_assets?${where}`, {
       method: 'PATCH',
       body: JSON.stringify({ thumbnail_url: uploaded.url }),
@@ -129,13 +131,14 @@ export async function generateAndPersistThumbnail(asset) {
 }
 
 // Look up an asset by id (workspace-scoped) and run generateAndPersistThumbnail.
-export async function thumbnailById(id) {
-  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
-  const lookup = await sb(`media_assets?${where}&select=id,brand,kind,blob_url,thumbnail_url`)
+export async function thumbnailById(id, scope) {
+  const s = scope || legacyScope()
+  const where = `id=eq.${id}&${s.column}=eq.${s.id}`
+  const lookup = await sb(`media_assets?${where}&select=id,${s.column},kind,blob_url,thumbnail_url`)
   if (!lookup.ok) throw new Error('Database error')
   const rows = await lookup.json()
   const asset = rows[0]
   if (!asset) throw new Error('Not found')
   if (asset.kind !== 'video') throw new Error('Not a video')
-  return generateAndPersistThumbnail(asset)
+  return generateAndPersistThumbnail(asset, s)
 }

@@ -5,13 +5,10 @@
 // Runs on Node (Fluid Compute). Brand-scoped reads only.
 
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -25,8 +22,8 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT =
-  'id,brand,source_asset_id,source_trim_start,source_trim_end,source_quote,' +
+const SELECT_COMMON =
+  'id,source_asset_id,source_trim_start,source_trim_end,source_quote,' +
   'ai_suggested_platform,ai_caption,ai_hashtags,ai_cta_text,ai_reasoning,' +
   'ai_model,ai_generated_at,final_caption,final_hashtags,final_cta_text,' +
   'final_cta_url,target_platform,final_asset_id,status,assigned_to,notes,' +
@@ -51,7 +48,9 @@ export default async function handler(req, res) {
   const limit       = Math.min(parseInt(searchParams.get('limit') || '60'), 200)
   const offset      = parseInt(searchParams.get('offset') || '0')
 
-  let qs = `content_pieces?select=${SELECT}&brand=eq.${workspaceId()}&order=created_at.desc&limit=${limit}&offset=${offset}`
+  const scope = await workspaceScope(req)
+  const SELECT = `${scope.column},${SELECT_COMMON}`
+  let qs = `content_pieces?select=${SELECT}&${scope.column}=eq.${scope.id}&order=created_at.desc&limit=${limit}&offset=${offset}`
   if (status)     qs += `&status=eq.${status}`
   if (platform)   qs += `&target_platform=eq.${platform}`
   if (sourceId)   qs += `&source_asset_id=eq.${sourceId}`

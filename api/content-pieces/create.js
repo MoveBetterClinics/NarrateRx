@@ -3,13 +3,10 @@
 // "always-have-a-backdoor" override path. Brand-scoped.
 
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -39,14 +36,16 @@ export default async function handler(req, res) {
   const sourceAssetId = body.sourceAssetId
   if (!sourceAssetId) return res.status(400).json({ error: 'sourceAssetId required' })
 
+  const scope = await workspaceScope(req)
+
   // Verify the source belongs to this workspace before linking a brief to it.
-  const lookup = await sb(`media_assets?id=eq.${sourceAssetId}&brand=eq.${workspaceId()}&select=id`)
+  const lookup = await sb(`media_assets?id=eq.${sourceAssetId}&${scope.column}=eq.${scope.id}&select=id`)
   if (!lookup.ok) return res.status(500).json({ error: 'Database error' })
   const rows = await lookup.json()
   if (!rows[0]) return res.status(404).json({ error: 'Source asset not found' })
 
   const row = {
-    brand: workspaceId(),
+    [scope.column]: scope.id,
     source_asset_id: sourceAssetId,
     source_quote: body.sourceQuote || null,
     source_trim_start: body.sourceTrimStart ?? null,

@@ -6,6 +6,7 @@
 //   DELETE → admin or editor; cascades collection_items but leaves assets.
 
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -18,10 +19,6 @@ const ROLE_REQUIREMENTS = {
 
 const ALLOWED_KINDS    = new Set(['campaign', 'series', 'session', 'adhoc'])
 const ALLOWED_STATUSES = new Set(['active', 'archived'])
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -36,8 +33,8 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT =
-  'id,brand,name,slug,description,kind,cover_asset_id,status,' +
+const SELECT_COMMON =
+  'name,slug,description,kind,cover_asset_id,status,' +
   'created_at,updated_at,created_by,' +
   'collection_items(asset_id,position,added_at,added_by,' +
   'media_assets(id,kind,status,filename,blob_url,thumbnail_url,duration_s,aspect_ratio))'
@@ -55,7 +52,9 @@ export default async function handler(req, res) {
   const id  = url.pathname.split('/').pop()
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
-  const where = `id=eq.${id}&brand=eq.${workspaceId()}`
+  const scope = await workspaceScope(req)
+  const SELECT = `id,${scope.column},${SELECT_COMMON}`
+  const where = `id=eq.${id}&${scope.column}=eq.${scope.id}`
 
   if (req.method === 'GET') {
     const r = await sb(`collections?${where}&select=${SELECT}`)

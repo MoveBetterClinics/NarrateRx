@@ -1,6 +1,7 @@
 import { del as blobDel } from '@vercel/blob'
 import { recordAudit, snapshot } from '../../_lib/audit.js'
 import { requireRole } from '../../_lib/auth.js'
+import { workspaceScope } from '../../_lib/workspaceScope.js'
 
 // Hard delete (purge) for an archived media asset.
 //
@@ -23,10 +24,6 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 const COOLDOWN_DAYS = 30
 
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
-
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
@@ -40,10 +37,10 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT = 'id,brand,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
 
-async function fetchRow(where) {
-  const r = await sb(`media_assets?${where}&select=${SELECT}`)
+async function fetchRow(where, select) {
+  const r = await sb(`media_assets?${where}&select=${select}`)
   if (!r.ok) return null
   const rows = await r.json()
   return rows[0] || null
@@ -66,8 +63,10 @@ export default async function handler(req, res) {
   const id = parts[parts.length - 2]
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
-  const where  = `id=eq.${id}&brand=eq.${workspaceId()}`
-  const before = await fetchRow(where)
+  const scope  = await workspaceScope(req)
+  const SELECT = `${scope.column},${SELECT_COMMON}`
+  const where  = `id=eq.${id}&${scope.column}=eq.${scope.id}`
+  const before = await fetchRow(where, SELECT)
   if (!before) return res.status(404).json({ error: 'Not found' })
 
   if (before.status !== 'archived' || !before.archived_at) {
@@ -110,6 +109,7 @@ export default async function handler(req, res) {
     before:  snapshot(before),
     after:   null,
     req,
+    scope,
   })
 
   return res.status(200).json({ purged: true })

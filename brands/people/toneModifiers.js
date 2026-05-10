@@ -7,12 +7,12 @@ export function getToneModifier(tone, brand) {
     case 'active':
       return `
 CONTENT TONE — Active & Driven:
-This content targets athletes, fitness-minded patients, and high performers. Write with direct, efficient language. Reference ${brand.prompt.sportContext}. Speak to performance, return-to-sport timelines, and understanding the mechanics. These readers don't need hand-holding — they want precision and actionable specifics. Avoid overly gentle or reassuring language.`
+This content targets athletes, fitness-minded patients, and high performers. Write with direct, efficient language. Reference ${brand.activity_context}. Speak to performance, return-to-sport timelines, and understanding the mechanics. These readers don't need hand-holding — they want precision and actionable specifics. Avoid overly gentle or reassuring language.`
 
     case 'clinical':
       return `
 CONTENT TONE — Clinical & In-Depth:
-This content targets educated patients who want the full clinical picture. Use precise anatomical and medical vocabulary where it adds clarity — always briefly explain technical terms inline. Include biomechanical reasoning, research-backed framing, and detailed process descriptions. These readers have often already tried standard treatments and want to understand exactly why ${brand.name}'s approach is different. Do not oversimplify.`
+This content targets educated patients who want the full clinical picture. Use precise anatomical and medical vocabulary where it adds clarity — always briefly explain technical terms inline. Include biomechanical reasoning, research-backed framing, and detailed process descriptions. These readers have often already tried standard treatments and want to understand exactly why ${brand.display_name}'s approach is different. Do not oversimplify.`
 
     case 'warm':
       return `

@@ -9,13 +9,18 @@ import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 
 // Hard allowlist — only these columns may be patched via this endpoint.
-// slug, clerk_org_id, capabilities, enabled_outputs, status are developer-owned.
+// slug, clerk_org_id, capabilities, status are developer-owned.
 const PATCHABLE_FIELDS = new Set([
   'display_name', 'tagline', 'sign_in_blurb',
   'website', 'location', 'region',
   'clinic_context', 'audience_short', 'brand_voice', 'booking_url',
   'internal_links_markdown', 'signature_system_name', 'signature_system_url',
   'social',
+  'app_name', 'region_short', 'website_hostname', 'link_preview_blurb',
+  'audience_description', 'activity_context',
+  'pinterest_boards', 'location_keyword', 'location_hashtag', 'brand_hashtag',
+  'spoken_url',
+  'enabled_outputs',
 ])
 
 const SUPABASE_URL = process.env.SUPABASE_URL

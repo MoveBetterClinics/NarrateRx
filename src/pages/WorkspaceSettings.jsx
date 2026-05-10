@@ -8,24 +8,37 @@ import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
+import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 
 function formFromWorkspace(ws) {
   return {
     display_name:            ws.display_name            ?? '',
     tagline:                 ws.tagline                 ?? '',
     sign_in_blurb:           ws.sign_in_blurb           ?? '',
+    app_name:                ws.app_name                ?? '',
     website:                 ws.website                 ?? '',
     location:                ws.location                ?? '',
     region:                  ws.region                  ?? '',
+    region_short:            ws.region_short            ?? '',
+    website_hostname:        ws.website_hostname        ?? '',
+    link_preview_blurb:      ws.link_preview_blurb      ?? '',
     social_instagram:        ws.social?.instagram       ?? '',
     social_facebook:         ws.social?.facebook        ?? '',
     clinic_context:          ws.clinic_context          ?? '',
     audience_short:          ws.audience_short          ?? '',
+    audience_description:    ws.audience_description    ?? '',
+    activity_context:        ws.activity_context        ?? '',
     brand_voice:             ws.brand_voice             ?? '',
     booking_url:             ws.booking_url             ?? '',
     internal_links_markdown: ws.internal_links_markdown ?? '',
     signature_system_name:   ws.signature_system_name   ?? '',
     signature_system_url:    ws.signature_system_url    ?? '',
+    pinterest_boards:        ws.pinterest_boards        ?? '',
+    location_keyword:        ws.location_keyword        ?? '',
+    location_hashtag:        ws.location_hashtag        ?? '',
+    brand_hashtag:           ws.brand_hashtag           ?? '',
+    spoken_url:              ws.spoken_url              ?? '',
+    enabled_outputs:         Array.isArray(ws.enabled_outputs) ? ws.enabled_outputs : [],
   }
 }
 
@@ -34,20 +47,32 @@ function formToPatch(form) {
     display_name:            form.display_name,
     tagline:                 form.tagline,
     sign_in_blurb:           form.sign_in_blurb,
+    app_name:                form.app_name,
     website:                 form.website,
     location:                form.location,
     region:                  form.region,
+    region_short:            form.region_short,
+    website_hostname:        form.website_hostname,
+    link_preview_blurb:      form.link_preview_blurb,
     social: {
       instagram: form.social_instagram,
       facebook:  form.social_facebook,
     },
     clinic_context:          form.clinic_context,
     audience_short:          form.audience_short,
+    audience_description:    form.audience_description,
+    activity_context:        form.activity_context,
     brand_voice:             form.brand_voice,
     booking_url:             form.booking_url,
     internal_links_markdown: form.internal_links_markdown,
     signature_system_name:   form.signature_system_name || null,
     signature_system_url:    form.signature_system_url  || null,
+    pinterest_boards:        form.pinterest_boards,
+    location_keyword:        form.location_keyword,
+    location_hashtag:        form.location_hashtag,
+    brand_hashtag:           form.brand_hashtag,
+    spoken_url:              form.spoken_url,
+    enabled_outputs:         form.enabled_outputs ?? [],
   }
 }
 
@@ -163,6 +188,9 @@ export default function WorkspaceSettings() {
         <Field label="Sign-in blurb"
           value={form.sign_in_blurb} onChange={set('sign_in_blurb')}
           hint="Shown below the workspace name on the sign-in screen." />
+        <Field label="App name"
+          value={form.app_name} onChange={set('app_name')}
+          hint="App name in browser tab — e.g. 'Move Better — NarrateRx'" />
       </Section>
 
       <Separator />
@@ -170,10 +198,22 @@ export default function WorkspaceSettings() {
       <Section title="Web presence">
         <Field label="Website"
           value={form.website} onChange={set('website')} placeholder="https://..." />
+        <Field label="Website hostname"
+          value={form.website_hostname} onChange={set('website_hostname')}
+          placeholder="movebetter.co"
+          hint="Hostname only — e.g. movebetter.co" />
         <Field label="Location"
           value={form.location} onChange={set('location')} placeholder="City, State" />
         <Field label="Region"
           value={form.region} onChange={set('region')} placeholder="Pacific Northwest" />
+        <Field label="Region (short)"
+          value={form.region_short} onChange={set('region_short')}
+          placeholder="PNW"
+          hint="Short region code — e.g. PNW" />
+        <Textarea2 label="Link preview blurb"
+          value={form.link_preview_blurb} onChange={set('link_preview_blurb')}
+          rows={2}
+          hint="OG / link-preview blurb — one sentence under 130 chars" />
       </Section>
 
       <Separator />
@@ -195,10 +235,57 @@ export default function WorkspaceSettings() {
           value={form.clinic_context} onChange={set('clinic_context')} rows={3} />
         <Field label="Audience (short)"
           value={form.audience_short} onChange={set('audience_short')} />
+        <Textarea2 label="Audience (long form)"
+          value={form.audience_description} onChange={set('audience_description')}
+          rows={4}
+          hint="Full description of who you're writing for" />
+        <Field label="Activity context"
+          value={form.activity_context} onChange={set('activity_context')}
+          hint="Sport / discipline / lifestyle vocabulary used in 'active' tone" />
         <Textarea2 label="Brand voice"
           value={form.brand_voice} onChange={set('brand_voice')} rows={6} />
         <Field label="Booking URL"
           value={form.booking_url} onChange={set('booking_url')} placeholder="https://..." />
+      </Section>
+
+      <Separator />
+
+      <Section
+        title="Output channels"
+        description="Choose which output channels this workspace generates. Each interview lets you pick a subset of these for that piece."
+      >
+        <div className="space-y-2">
+          {Object.values(OUTPUT_CHANNELS).map((channel) => {
+            const checked = form.enabled_outputs.includes(channel.id)
+            return (
+              <label
+                key={channel.id}
+                className="flex items-start gap-2.5 rounded-md border border-input p-2.5 cursor-pointer hover:bg-accent/30"
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(e) => {
+                    setForm((f) => {
+                      const cur = Array.isArray(f.enabled_outputs) ? f.enabled_outputs : []
+                      const next = e.target.checked
+                        ? (cur.includes(channel.id) ? cur : [...cur, channel.id])
+                        : cur.filter((id) => id !== channel.id)
+                      return { ...f, enabled_outputs: next }
+                    })
+                  }}
+                  className="mt-0.5"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium leading-tight">{channel.label}</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                    {channel.exportShape}
+                  </div>
+                </div>
+              </label>
+            )
+          })}
+        </div>
       </Section>
 
       <Separator />
@@ -217,6 +304,25 @@ export default function WorkspaceSettings() {
         <Field label="Signature system URL"
           value={form.signature_system_url} onChange={set('signature_system_url')}
           placeholder="https://..." />
+        <Field label="Pinterest board names"
+          value={form.pinterest_boards} onChange={set('pinterest_boards')}
+          hint="Pinterest board names — slash-separated" />
+        <Field label="Location keyword"
+          value={form.location_keyword} onChange={set('location_keyword')}
+          placeholder="Portland"
+          hint="Location keyword — e.g. 'Portland'" />
+        <Field label="Location hashtag"
+          value={form.location_hashtag} onChange={set('location_hashtag')}
+          placeholder="#PortlandChiropractor"
+          hint="Location hashtag — e.g. #PortlandChiropractor" />
+        <Field label="Brand hashtag"
+          value={form.brand_hashtag} onChange={set('brand_hashtag')}
+          placeholder="#MoveBetter"
+          hint="Brand hashtag — e.g. #MoveBetter" />
+        <Field label="Spoken URL"
+          value={form.spoken_url} onChange={set('spoken_url')}
+          placeholder="MoveBetter.co"
+          hint="Spoken URL — said aloud in video scripts, e.g. MoveBetter.co" />
       </Section>
     </div>
   )

@@ -22,24 +22,9 @@ import MediaHub from '@/pages/MediaHub'
 import Integrations from '@/pages/Integrations'
 import WorkspaceSettings from '@/pages/WorkspaceSettings'
 import { workspace } from '@/lib/workspace'
+import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
-
-// Fetch the active workspace row from the API. Returns:
-//   undefined  — fetch in flight
-//   null       — no workspace (apex, preview URL, legacy deployment, local dev)
-//   object     — workspace row including clerk_org_id
-// Calling /api/workspace/me with no auth; endpoint resolves workspace from Host header.
-function useWorkspaceContext() {
-  const [ws, setWs] = useState(undefined)
-  useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
-      .then(setWs)
-  }, [])
-  return ws
-}
 
 // Multitenant gate: verifies signed-in user is a member of the workspace's
 // Clerk Org and activates it so subsequent JWTs carry org_id.
@@ -143,10 +128,10 @@ function AppRoutes() {
 }
 
 function ProtectedApp() {
-  const ws = useWorkspaceContext()
+  const { workspace: ws, isLoading } = useWorkspaceState()
 
-  // Prefer workspace row from API; fall back to static config for sign-in branding.
-  const signInName  = ws?.app_name    ?? workspace.appName
+  // workspace row from context (DB on shared deployment; static-shaped fallback otherwise).
+  const signInName  = ws?.app_name      ?? workspace.appName
   const signInBlurb = ws?.sign_in_blurb ?? workspace.signInBlurb
 
   return (
@@ -154,7 +139,7 @@ function ProtectedApp() {
       <SignedIn>
         {/* Hold SignedIn content until workspace fetch resolves to avoid a
             flash of the wrong guard. SignedOut renders immediately below. */}
-        {ws === undefined ? null : ws?.clerk_org_id
+        {isLoading ? null : ws?.clerk_org_id
           ? <OrgGate clerkOrgId={ws.clerk_org_id}><AppRoutes /></OrgGate>
           : <DomainGuard><AppRoutes /></DomainGuard>
         }
@@ -199,9 +184,11 @@ export default function App() {
 
   return (
     <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-      <BrowserRouter>
-        <ProtectedApp />
-      </BrowserRouter>
+      <WorkspaceProvider>
+        <BrowserRouter>
+          <ProtectedApp />
+        </BrowserRouter>
+      </WorkspaceProvider>
     </ClerkProvider>
   )
 }

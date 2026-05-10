@@ -1,5 +1,6 @@
 import { tagById } from '../_lib/tagAsset.js'
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Manual AI auto-tagging endpoint. POST { id } → vision + transcription via
 // the Vercel AI Gateway. The shared logic lives in _lib/tagAsset.js so
@@ -25,7 +26,8 @@ export default async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
   try {
-    const row = await tagById(id)
+    const scope = await workspaceScope(req)
+    const row = await tagById(id, scope)
     return res.status(200).json(row)
   } catch (e) {
     const msg = e?.message || 'Tagging failed'

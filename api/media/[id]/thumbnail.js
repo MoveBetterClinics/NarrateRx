@@ -1,5 +1,6 @@
 import { thumbnailById } from '../../_lib/thumbnail.js'
 import { requireRole } from '../../_lib/auth.js'
+import { workspaceScope } from '../../_lib/workspaceScope.js'
 
 // Manual / on-demand video thumbnail extraction.
 //
@@ -29,7 +30,8 @@ export default async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
   try {
-    const thumbnailUrl = await thumbnailById(id)
+    const scope = await workspaceScope(req)
+    const thumbnailUrl = await thumbnailById(id, scope)
     return res.status(200).json({ thumbnail_url: thumbnailUrl })
   } catch (e) {
     const msg = e?.message || 'Thumbnail generation failed'

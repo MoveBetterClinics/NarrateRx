@@ -21,6 +21,7 @@ import {
   getVideoScriptBatchSystemPrompt,
   getMarketingBatchSystemPrompt,
 } from '@/lib/prompts'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getCampaignPromptContext } from '@/lib/campaigns'
 import { formatDate } from '@/lib/utils'
 
@@ -36,6 +37,7 @@ export default function InterviewOutput() {
   const { clinicianId, interviewId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
+  const runtimeWorkspace = useWorkspace()
   const [clinician, setClinician] = useState(null)
   const [interview, setInterview] = useState(null)
   const [outputs, setOutputs] = useState(null)
@@ -77,7 +79,7 @@ export default function InterviewOutput() {
       let updates = {}
 
       if (group === 'social') {
-        const result = await generateContent(blogInput, getSocialBatchSystemPrompt(clinician.name, interview.topic, campaignContext, tone, voiceMode))
+        const result = await generateContent(blogInput, getSocialBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone, voiceMode))
         updates = {
           instagram: parseSection(result, '---INSTAGRAM---', '---FACEBOOK---'),
           facebook: parseSection(result, '---FACEBOOK---', '---GBP POST---'),
@@ -86,13 +88,13 @@ export default function InterviewOutput() {
           pinterest: parseSection(result, '---PINTEREST---', null),
         }
       } else if (group === 'video') {
-        const result = await generateContent(blogInput, getVideoScriptBatchSystemPrompt(clinician.name, interview.topic, campaignContext, tone, voiceMode))
+        const result = await generateContent(blogInput, getVideoScriptBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone, voiceMode))
         updates = {
           youtubeScript: parseSection(result, '---YOUTUBE SCRIPT---', '---TIKTOK SCRIPT---'),
           tiktokScript: parseSection(result, '---TIKTOK SCRIPT---', null),
         }
       } else if (group === 'marketing') {
-        const result = await generateContent(blogInput, getMarketingBatchSystemPrompt(clinician.name, interview.topic, campaignContext, tone))
+        const result = await generateContent(blogInput, getMarketingBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone))
         updates = {
           emailNewsletter: parseSection(result, '---EMAIL NEWSLETTER---', '---LANDING PAGE---'),
           landingPage: parseSection(result, '---LANDING PAGE---', '---GOOGLE ADS---'),

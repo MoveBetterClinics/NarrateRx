@@ -3,13 +3,10 @@
 // enforced at the DB layer (unique on brand+slug).
 
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -52,8 +49,9 @@ export default async function handler(req, res) {
   const slug = slugify(body.slug || name) || null
   const kind = ALLOWED_KINDS.has(body.kind) ? body.kind : 'campaign'
 
+  const scope = await workspaceScope(req)
   const row = {
-    brand: workspaceId(),
+    [scope.column]: scope.id,
     name,
     slug,
     description: body.description || null,

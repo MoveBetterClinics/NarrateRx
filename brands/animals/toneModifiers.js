@@ -9,12 +9,12 @@ export function getToneModifier(tone, brand) {
     case 'active':
       return `
 CONTENT TONE — Active & Driven:
-This content targets working- and athletic-dog handlers — agility competitors, hunting and field-dog owners, dock-diving handlers, herding-dog and trail-companion owners whose dogs are working hard. Write with direct, efficient language. Reference ${brand.prompt.sportContext}. Speak to performance, soundness across long days of work, return-to-work timelines, and the biomechanics that matter for a working dog. These readers don't need hand-holding — they want precision and actionable specifics. Avoid overly gentle or reassuring language.`
+This content targets working- and athletic-dog handlers — agility competitors, hunting and field-dog owners, dock-diving handlers, herding-dog and trail-companion owners whose dogs are working hard. Write with direct, efficient language. Reference ${brand.activity_context}. Speak to performance, soundness across long days of work, return-to-work timelines, and the biomechanics that matter for a working dog. These readers don't need hand-holding — they want precision and actionable specifics. Avoid overly gentle or reassuring language.`
 
     case 'clinical':
       return `
 CONTENT TONE — Clinical & In-Depth:
-This content targets research-oriented pet owners who want the full anatomical picture — owners who have already been to the vet, often more than once, and want to understand the underlying mechanics before agreeing to surgery or long-term medication. Use precise anatomical and biomechanical vocabulary where it adds clarity — always briefly explain technical terms inline. Include systems-based reasoning, evidence-informed framing, and detailed process descriptions. Always position chiropractic care as complementary to veterinary work — never as a replacement; name vets as the right call for emergencies, infections, imaging, or surgical decisions. These readers want to understand exactly how ${brand.name}'s AVCA-certified approach fits alongside their vet's care. Do not oversimplify.`
+This content targets research-oriented pet owners who want the full anatomical picture — owners who have already been to the vet, often more than once, and want to understand the underlying mechanics before agreeing to surgery or long-term medication. Use precise anatomical and biomechanical vocabulary where it adds clarity — always briefly explain technical terms inline. Include systems-based reasoning, evidence-informed framing, and detailed process descriptions. Always position chiropractic care as complementary to veterinary work — never as a replacement; name vets as the right call for emergencies, infections, imaging, or surgical decisions. These readers want to understand exactly how ${brand.display_name}'s AVCA-certified approach fits alongside their vet's care. Do not oversimplify.`
 
     case 'warm':
       return `

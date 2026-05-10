@@ -1,5 +1,6 @@
 import { segmentById } from '../_lib/segmentInterview.js'
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Manual AI segmenter endpoint. POST { id } → reads the source interview's
 // existing transcription (from Phase 2) and inserts 1–5 content_pieces rows
@@ -27,7 +28,8 @@ export default async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
   try {
-    const pieces = await segmentById(id)
+    const scope = await workspaceScope(req)
+    const pieces = await segmentById(id, scope)
     return res.status(200).json({ count: pieces.length, pieces })
   } catch (e) {
     const msg = e?.message || 'Segmentation failed'

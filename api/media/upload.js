@@ -5,6 +5,7 @@ import { segmentAndPersist } from '../_lib/segmentInterview.js'
 import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Two-phase upload via @vercel/blob/client:
 //   Phase 1 — body.type='blob.generate-client-token' (browser handshake):
@@ -33,10 +34,6 @@ const HANDSHAKE_ALLOWED_ROLES = ['admin', 'editor', 'clinician']
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-function workspaceId() {
-  return (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
-}
 
 async function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -78,11 +75,15 @@ export default async function handler(req, res) {
 
   // Only the browser handshake carries a user Bearer token. The completion
   // webhook is platform-to-server; handleUpload verifies it via signature.
+  // Resolve the workspace scope at handshake time (req-bound) so it can be
+  // baked into tokenPayload — onUploadCompleted runs without req access.
+  let scope = null
   if (body?.type === 'blob.generate-client-token') {
     const auth = await requireRole(req, HANDSHAKE_ALLOWED_ROLES)
     if (!auth.ok) {
       return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
     }
+    scope = await workspaceScope(req)
   }
 
   try {
@@ -101,7 +102,8 @@ export default async function handler(req, res) {
           maximumSizeInBytes: 500 * 1024 * 1024,
           // tokenPayload is echoed back to onUploadCompleted as a string.
           tokenPayload: JSON.stringify({
-            brand: workspaceId(),
+            scopeColumn: scope.column,
+            scopeId: scope.id,
             filename: meta.filename || pathname.split('/').pop(),
             createdBy: meta.createdBy || null,
             patientPseudonym: meta.patientPseudonym || null,
@@ -122,12 +124,20 @@ export default async function handler(req, res) {
         const kind = kindFromMime(blob.contentType)
         if (!kind) return  // unknown type → don't record
 
+        // Scope was resolved at handshake time and round-tripped via tokenPayload.
+        // Fall back to legacy brand env if older tokens (or future cron paths)
+        // arrive without scopeColumn.
+        const scopeColumn = meta.scopeColumn || 'brand'
+        const scopeId = meta.scopeId
+          || (process.env.BRAND || process.env.VITE_BRAND || 'people').toLowerCase()
+        const innerScope = { column: scopeColumn, id: scopeId, workspace: null }
+
         // If this is a return-upload of a finished edit (parentId set), it
         // lands in 'approved' status and is linked to the source. Skips Phase
         // 2/3 auto-pipeline because the contractor has already done the work.
         const isReturnUpload = !!meta.parentId
         const row = {
-          brand: meta.brand || workspaceId(),
+          [scopeColumn]: scopeId,
           kind,
           status: isReturnUpload ? 'approved' : 'raw',
           source: 'upload',
@@ -164,7 +174,7 @@ export default async function handler(req, res) {
 
         if (isReturnUpload && insertedRow?.id && meta.contentPieceId) {
           try {
-            await sb(`content_pieces?id=eq.${meta.contentPieceId}&brand=eq.${workspaceId()}`, {
+            await sb(`content_pieces?id=eq.${meta.contentPieceId}&${scopeColumn}=eq.${scopeId}`, {
               method: 'PATCH',
               body: JSON.stringify({
                 final_asset_id: insertedRow.id,
@@ -189,24 +199,24 @@ export default async function handler(req, res) {
             // payload (created_by), since the Blob completion webhook doesn't
             // carry the original user's session.
             waitUntil(recordAudit({
-              assetId:   insertedRow.id,
-              action:    'upload',
-              actor:     meta.createdBy || 'unknown',
-              before:    null,
-              after:     snapshot(insertedRow),
-              workspace: meta.brand || workspaceId(),
+              assetId: insertedRow.id,
+              action:  'upload',
+              actor:   meta.createdBy || 'unknown',
+              before:  null,
+              after:   snapshot(insertedRow),
+              scope:   innerScope,
             }).catch((e) => console.error('Audit record failed:', e?.message)))
 
             // Auto-pipeline: tag (Phase 2) → segment into content_pieces
             // (Phase 3, video only). tagAndPersist's own audit row writes
             // inside _lib/tagAsset.js.
             waitUntil(
-              tagAndPersist(insertedRow)
+              tagAndPersist(insertedRow, innerScope)
                 .then((tagged) => {
                   if (tagged?.kind !== 'video') return
                   const hasSpeech = tagged?.transcription?.trim()
                   const hasVisual = tagged?.visual_narrative?.trim()
-                  if (hasSpeech || hasVisual) return segmentAndPersist(tagged)
+                  if (hasSpeech || hasVisual) return segmentAndPersist(tagged, innerScope)
                 })
                 .catch((e) => console.error('Auto-pipeline failed:', e?.message)),
             )
@@ -216,7 +226,7 @@ export default async function handler(req, res) {
             // in the Media Hub grid even when AI tagging fails.
             if (insertedRow.kind === 'video') {
               waitUntil(
-                generateAndPersistThumbnail(insertedRow)
+                generateAndPersistThumbnail(insertedRow, innerScope)
                   .catch((e) => console.error('Thumbnail generation failed:', e?.message)),
               )
             }

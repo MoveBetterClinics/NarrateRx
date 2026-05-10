@@ -9,12 +9,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { getOrCreateClinician, createInterview, fetchClinicians } from '@/lib/api'
 import { getSuggestedTopics } from '@brand-overlay/topicSuggestions'
-import { TONES, VOICE_MODES, PATIENT_PROTOTYPES_UI } from '@/lib/prompts'
+import { TONES, getVoiceModes, PATIENT_PROTOTYPES_UI } from '@/lib/prompts'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 
 export default function NewInterview() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { user } = useUser()
+  const workspace = useWorkspace()
+  const VOICE_MODES = getVoiceModes(workspace)
 
   const [clinicianName, setClinicianName] = useState('')
   const [condition, setCondition] = useState(searchParams.get('topic') || '')
