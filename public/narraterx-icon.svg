@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="NarrateRx">
+  <title>NarrateRx</title>
+  <!-- Orange rounded-square background -->
+  <rect width="64" height="64" rx="12" fill="#E36525"/>
+  <!-- Waveform bars, centered in the square -->
+  <!-- 5 bars: w=6, gap=4, total=46px; start x=9 to center in 64px -->
+  <!-- Heights proportional to logo mark; center each bar at y=32 -->
+  <rect x="9"  y="23" width="6" height="18" rx="3" fill="white" opacity="0.80"/>
+  <rect x="19" y="15" width="6" height="34" rx="3" fill="white" opacity="0.80"/>
+  <rect x="29" y="8"  width="6" height="48" rx="3" fill="#1A1B1D"/>
+  <rect x="39" y="19" width="6" height="26" rx="3" fill="white" opacity="0.80"/>
+  <rect x="49" y="25" width="6" height="14" rx="3" fill="white" opacity="0.50"/>
+</svg>

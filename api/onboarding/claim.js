@@ -16,7 +16,6 @@
 
 import { createClerkClient, verifyToken } from '@clerk/backend'
 import { validateSlug, FOUNDING_CAP, SEED_SLUGS } from '../_lib/onboardingValidation.js'
-import { addProjectDomain, removeProjectDomain, vercelDomainConfigured, VercelDomainError } from '../_lib/vercelDomains.js'
 import { OUTPUT_CHANNELS } from '../../src/lib/outputChannels.js'
 
 const SUPABASE_URL  = process.env.SUPABASE_URL
@@ -216,39 +215,6 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'db-error' })
   }
 
-  // 3.5. Register <slug>.narraterx.ai as a domain on the shared narraterx Vercel
-  // project so per-domain cert issuance kicks off. Hard-fail with full rollback
-  // if Vercel rejects: a workspace whose subdomain doesn't resolve is worse than
-  // no workspace.
-  //
-  // Skipped (with a warning) when Vercel env vars aren't configured — keeps the
-  // dev/local path working for engineers running this against a non-prod Vercel
-  // project.
-  const domainName = `${slug}.narraterx.ai`
-  let domainRegistered = false
-  if (vercelDomainConfigured()) {
-    try {
-      await addProjectDomain(domainName)
-      domainRegistered = true
-    } catch (e) {
-      const detail = e instanceof VercelDomainError
-        ? { status: e.status, code: e.code, message: e.message }
-        : { message: e?.message }
-      console.error('[claim] vercel domain add failed:', detail)
-      // Roll back: workspace row + Clerk org. Order matters — DB first so any
-      // racing /api/workspace/me lookups stop returning a half-provisioned row.
-      try {
-        await sb(`workspaces?id=eq.${encodeURIComponent(row.id)}`, { method: 'DELETE' })
-      } catch (rollbackErr) {
-        console.error('[claim] rollback delete workspace failed:', rollbackErr?.message)
-      }
-      try { await clerk().organizations.deleteOrganization(org.id) } catch { /* swallow */ }
-      return res.status(502).json({ error: 'domain-registration-failed', code: detail.code })
-    }
-  } else {
-    console.warn('[claim] VERCEL_TOKEN/VERCEL_PROJECT_ID not configured; skipping domain auto-register for', domainName)
-  }
-
   // 4. Promote the user to admin in Clerk publicMetadata. Best-effort.
   // Existing per-Clerk-app metadata is preserved; only `role` is overwritten.
   try {
@@ -271,7 +237,6 @@ export default async function handler(req, res) {
       display_name: row.display_name,
       clerk_org_id: row.clerk_org_id,
     },
-    domain_registered: domainRegistered,
     redirect_url: `https://${slug}.narraterx.ai/settings/workspace`,
   })
 }
