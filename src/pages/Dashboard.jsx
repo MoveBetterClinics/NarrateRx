@@ -89,8 +89,8 @@ export default function Dashboard() {
       )}
 
       {/* Plan next interview — high-search topic gaps + New Interview CTA */}
-      {topicGaps.length > 0 && allInterviews.length > 0 && (
-        <PlanNextInterview gaps={topicGaps} />
+      {topicGaps.length > 0 && (
+        <PlanNextInterview gaps={topicGaps} isEmpty={allInterviews.length === 0} />
       )}
 
       {clinicians.length === 0 ? (
@@ -292,17 +292,21 @@ function ResumeCard({ interview, currentUserId }) {
 
 // ── Plan next interview ──────────────────────────────────────────────────────
 
-function PlanNextInterview({ gaps }) {
+function PlanNextInterview({ gaps, isEmpty = false }) {
   return (
     <div className="rounded-xl border-2 border-amber-200 bg-amber-50/60 p-5">
       <div className="flex flex-col sm:flex-row items-start gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <TrendingUp className="h-4 w-4 text-amber-700" />
-            <p className="text-sm font-semibold text-amber-900">Plan your next interview</p>
+            <p className="text-sm font-semibold text-amber-900">
+              {isEmpty ? 'Start with a high-impact topic' : 'Plan your next interview'}
+            </p>
           </div>
           <p className="text-xs text-amber-800/80 mb-3">
-            High-search topics with no content yet — pick one to start an interview.
+            {isEmpty
+              ? 'These are high-search topics in your area — pick one to kick off your first interview.'
+              : 'High-search topics with no content yet — pick one to start an interview.'}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {gaps.map((t) => (
@@ -626,21 +630,61 @@ function NewClinicianTile() {
 }
 
 function EmptyState() {
+  const steps = [
+    {
+      icon: <Mic className="h-4 w-4" />,
+      title: 'Record a 15–30 min interview',
+      detail: 'Pick a clinician and a topic. The AI guides the conversation — you just talk.',
+    },
+    {
+      icon: <FileText className="h-4 w-4" />,
+      title: 'Review the generated content',
+      detail: 'Blog post, newsletter, and social posts drafted in your voice. Edit in the Content Hub.',
+    },
+    {
+      icon: <Compass className="h-4 w-4" />,
+      title: 'Schedule and publish',
+      detail: 'Distribute to your website, email list, and social channels from one place.',
+    },
+  ]
+
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-center">
-      <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mb-4">
-        <Mic className="h-7 w-7 text-primary" />
+    <div className="rounded-xl border bg-card p-6 sm:p-8">
+      <div className="max-w-2xl">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+            <Mic className="h-5 w-5" />
+          </div>
+          <h2 className="text-lg font-semibold">Ready when you are</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-6">
+          Turn one short conversation into a week of patient-facing content. Here's how {workspace.name} uses NarrateRx:
+        </p>
+
+        <ol className="space-y-3 mb-6">
+          {steps.map((s, i) => (
+            <li key={i} className="flex gap-3">
+              <div className="shrink-0 h-7 w-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
+                {i + 1}
+              </div>
+              <div className="flex-1 pt-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">{s.icon}</span>
+                  <p className="text-sm font-medium">{s.title}</p>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{s.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <Button asChild>
+          <Link to="/new">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Start your first interview
+          </Link>
+        </Button>
       </div>
-      <h2 className="text-lg font-semibold mb-1">Ready when you are</h2>
-      <p className="text-muted-foreground text-sm max-w-xs mb-6">
-        Choose a clinician and a condition to cover. The interview takes 15–30 minutes and the AI handles all the writing.
-      </p>
-      <Button asChild>
-        <Link to="/new">
-          <Plus className="h-4 w-4 mr-1.5" />
-          Start First Interview
-        </Link>
-      </Button>
     </div>
   )
 }
