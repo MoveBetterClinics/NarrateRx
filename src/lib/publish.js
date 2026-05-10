@@ -48,8 +48,8 @@ export function createContentItems(items) {
 
 // ── Publishing ────────────────────────────────────────────────────────────────
 
-const BUFFER_PLATFORMS = ['instagram', 'linkedin', 'pinterest']
-const DIRECT_PLATFORMS = { facebook: '/api/publish/facebook', gbp: '/api/publish/gbp' }
+const BUFFER_PLATFORMS = ['instagram', 'linkedin', 'pinterest', 'facebook']
+const DIRECT_PLATFORMS = { gbp: '/api/publish/gbp' }
 
 export async function publishItem(item, { scheduledAt } = {}) {
   const { platform, content, mediaUrls = [], locationIds } = item

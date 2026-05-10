@@ -19,8 +19,8 @@ import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 
-const DIRECT_PLATFORMS  = ['facebook', 'gbp']
-const BUFFER_PLATFORMS  = ['instagram', 'linkedin', 'pinterest']
+const DIRECT_PLATFORMS  = ['gbp']
+const BUFFER_PLATFORMS  = ['instagram', 'linkedin', 'pinterest', 'facebook']
 const NEEDS_MEDIA       = ['instagram', 'facebook', 'gbp']
 
 // Platform-specific preferred posting days (0=Sun…6=Sat) and hours (local time)

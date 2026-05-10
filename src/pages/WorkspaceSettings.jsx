@@ -521,19 +521,13 @@ const CREDENTIAL_SERVICES = [
   {
     id: 'buffer',
     label: 'Buffer',
-    description: 'Buffer access token (used for Instagram + LinkedIn queues).',
+    description: 'Buffer access token (used for Instagram, LinkedIn, and Facebook queues).',
     secretLabel: 'Access token',
     fields: [],
   },
-  {
-    id: 'facebook',
-    label: 'Facebook Page',
-    description: 'Page access token + page ID for direct Facebook publishing.',
-    secretLabel: 'Page access token',
-    fields: [
-      { key: 'page_id', label: 'Page ID', placeholder: '1234567890' },
-    ],
-  },
+  // Facebook moved to Buffer 2026-05-10 — no separate credential needed.
+  // Connect each FB Page as a Channel in your Buffer organization; the existing
+  // Buffer token gains posting permission automatically.
   {
     id: 'gbp',
     label: 'Google Business Profile',

@@ -9,10 +9,13 @@ import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const BUFFER_API = 'https://api.bufferapp.com/1'
 
-// Map our platform names → Buffer service names
+// Map our platform names → Buffer service names. Facebook moved to Buffer
+// 2026-05-10 to retire direct Meta Graph publishing (avoids Meta App Review
+// hassle and Page token rotation; lives in the same Buffer org as IG/LinkedIn).
 const PLATFORM_TO_SERVICE = {
   instagram: 'instagram',
   linkedin:  'linkedin',
+  facebook:  'facebook',
 }
 
 export default async function handler(req, res) {
