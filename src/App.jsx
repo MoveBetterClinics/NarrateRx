@@ -21,6 +21,7 @@ import ContentCalendar from '@/pages/ContentCalendar'
 import MediaHub from '@/pages/MediaHub'
 import Integrations from '@/pages/Integrations'
 import WorkspaceSettings from '@/pages/WorkspaceSettings'
+import Onboarding from '@/pages/Onboarding'
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 
@@ -167,6 +168,24 @@ function ProtectedApp() {
   )
 }
 
+// Apex-only: renders the onboarding wizard. No WorkspaceProvider (no workspace
+// exists yet) and no OrgGate/DomainGuard (Clerk Org is created server-side at
+// the claim step).
+function OnboardingShell() {
+  return <Onboarding />
+}
+
+// The protected app needs WorkspaceProvider so the Settings/etc. pages can
+// resolve the active workspace. /onboard wraps with neither — it lives outside
+// the workspace context entirely.
+function ProtectedAppWithProvider() {
+  return (
+    <WorkspaceProvider>
+      <ProtectedApp />
+    </WorkspaceProvider>
+  )
+}
+
 export default function App() {
   useEffect(() => {
     document.title = workspace.appName
@@ -184,11 +203,12 @@ export default function App() {
 
   return (
     <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-      <WorkspaceProvider>
-        <BrowserRouter>
-          <ProtectedApp />
-        </BrowserRouter>
-      </WorkspaceProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/onboard/*" element={<OnboardingShell />} />
+          <Route path="*" element={<ProtectedAppWithProvider />} />
+        </Routes>
+      </BrowserRouter>
     </ClerkProvider>
   )
 }

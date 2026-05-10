@@ -21,6 +21,7 @@ const PATCHABLE_FIELDS = new Set([
   'pinterest_boards', 'location_keyword', 'location_hashtag', 'brand_hashtag',
   'spoken_url',
   'enabled_outputs',
+  'logo', 'colors', 'brandbook',
 ])
 
 const SUPABASE_URL = process.env.SUPABASE_URL
