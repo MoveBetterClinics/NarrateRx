@@ -120,8 +120,16 @@ a:hover { color: var(--orange-dark); }
   font-weight: 600;
 }
 .site-nav a.nav-cta:hover { background: var(--orange); }
+.site-nav a.nav-signin {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
 @media (max-width: 720px) {
-  .site-nav a:not(.nav-cta) { display: none; }
+  /* Mobile keeps the primary CTA AND the sign-in entry point so returning
+     users have a path that isn't "sign up again". Section anchors collapse. */
+  .site-nav { gap: 14px; }
+  .site-nav a:not(.nav-cta):not(.nav-signin) { display: none; }
+  .site-nav a.nav-signin { font-size: 14px; }
 }
 
 /* ============================================================

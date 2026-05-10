@@ -1,7 +1,11 @@
 // Phase 1E onboarding wizard. Lives at narraterx.ai/onboard (apex).
 //
 // Flow:
-//   0. Capacity gate — show "X founding spots left" or "spots full"
+//   0. Capacity check — silent unless full (then we show a waitlist gate).
+//      When spots are open we drop straight into the sign-in/sign-up step
+//      with a small "X founding spots left" badge instead of a separate
+//      "Get started" interstitial — direct visitors to /onboard found that
+//      extra click confusing.
 //   1. Sign in / sign up (Clerk hosted UI)
 //   2. Business basics — display_name, website, location, optional website scan
 //   3. Voice context — clinic_context, audience_short, brand_voice (pre-filled by scan)
@@ -23,10 +27,10 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 
-const STEPS = ['capacity', 'auth', 'business', 'voice', 'subdomain', 'channels', 'review', 'launching']
+const STEPS = ['loading', 'capacity-full', 'auth', 'business', 'voice', 'subdomain', 'channels', 'review', 'launching']
 
 export default function Onboarding() {
-  const [step, setStep] = useState('capacity')
+  const [step, setStep] = useState('loading')
   const [capacity, setCapacity] = useState(null)        // {cap, used, remaining, full}
   const [form, setForm] = useState({
     display_name: '',
@@ -44,17 +48,19 @@ export default function Onboarding() {
   const [submitError, setSubmitError] = useState(null)
   const [redirectUrl, setRedirectUrl] = useState(null)
 
-  // 0. Capacity check
+  // 0. Capacity check — runs once on mount. We only block on the response
+  //    when spots are full; otherwise we drop straight to the auth step.
   useEffect(() => {
     fetch('/api/onboarding/capacity')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        setCapacity(data || { cap: 10, used: 0, remaining: 10, full: false })
-        setStep(prev => prev === 'capacity' ? (data?.full ? 'capacity' : 'auth') : prev)
+        const cap = data || { cap: 10, used: 0, remaining: 10, full: false }
+        setCapacity(cap)
+        setStep(prev => (prev === 'loading' ? (cap.full ? 'capacity-full' : 'auth') : prev))
       })
       .catch(() => {
         setCapacity({ cap: 10, used: 0, remaining: 10, full: false })
-        setStep('auth')
+        setStep(prev => (prev === 'loading' ? 'auth' : prev))
       })
   }, [])
 
@@ -66,15 +72,17 @@ export default function Onboarding() {
       <main className="max-w-2xl mx-auto px-6 py-10 space-y-6">
         <ProgressBar step={step} />
 
-        {step === 'capacity' && (
-          <CapacityScreen
-            capacity={capacity}
-            onContinue={() => setStep('auth')}
-          />
+        {step === 'loading' && <LoadingScreen />}
+
+        {step === 'capacity-full' && (
+          <CapacityFullScreen capacity={capacity} />
         )}
 
         {step === 'auth' && (
-          <AuthScreen onSignedIn={() => setStep('business')} />
+          <AuthScreen
+            capacity={capacity}
+            onSignedIn={() => setStep('business')}
+          />
         )}
 
         {step === 'business' && (
@@ -194,7 +202,8 @@ function Header() {
 }
 
 const STEP_LABELS = {
-  capacity: 'Founding spots',
+  loading: 'Loading',
+  'capacity-full': 'Waitlist',
   auth: 'Sign in',
   business: 'Your business',
   voice: 'Brand voice',
@@ -237,71 +246,68 @@ function Card({ title, subtitle, children, footer }) {
   )
 }
 
-// ── 0. Capacity ───────────────────────────────────────────────────────────────
+// ── 0. Loading + capacity-full ───────────────────────────────────────────────
 
-function CapacityScreen({ capacity, onContinue }) {
-  if (!capacity) {
-    return (
-      <Card title="Loading…">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Checking founding-owner availability
-        </div>
-      </Card>
-    )
-  }
+function LoadingScreen() {
+  return (
+    <Card title="Loading…">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Checking founding-owner availability
+      </div>
+    </Card>
+  )
+}
 
-  if (capacity.full) {
-    return (
-      <Card
-        title="Founding owner spots are full"
-        subtitle={`The first ${capacity.cap} founding spots are taken. NarrateRx is invite-only beyond founding — drop a note and you'll be first in line when the next cohort opens.`}
-      >
-        <a
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:underline"
-          href="mailto:drq@narraterx.ai?subject=Waitlist%20%E2%80%94%20NarrateRx"
-        >
-          Email Dr. Q to join the waitlist <ArrowRight className="h-4 w-4" />
-        </a>
-      </Card>
-    )
-  }
-
+function CapacityFullScreen({ capacity }) {
+  const cap = capacity?.cap ?? 10
   return (
     <Card
-      title={`${capacity.remaining} founding owner ${capacity.remaining === 1 ? 'spot' : 'spots'} left`}
-      subtitle="Founding owners get a permanent founding price (locked in when pricing launches), personal onboarding from Dr. Q, and a direct line — not a support queue."
+      title="Founding owner spots are full"
+      subtitle={`The first ${cap} founding spots are taken. NarrateRx is invite-only beyond founding — drop a note and you'll be first in line when the next cohort opens.`}
     >
-      <div className="text-sm space-y-2">
-        <p>You're about to set up your NarrateRx workspace. It takes about 5 minutes.</p>
-        <ul className="list-disc list-inside text-muted-foreground space-y-1">
-          <li>Tell us about your business</li>
-          <li>Optionally let us read your website to draft your voice</li>
-          <li>Pick your subdomain and the channels you'll publish to</li>
-        </ul>
-      </div>
-      <Button size="lg" onClick={onContinue} className="w-full sm:w-auto">
-        Get started <ArrowRight className="h-4 w-4 ml-1" />
-      </Button>
+      <a
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-orange-600 hover:underline"
+        href="mailto:drq@narraterx.ai?subject=Waitlist%20%E2%80%94%20NarrateRx"
+      >
+        Email Dr. Q to join the waitlist <ArrowRight className="h-4 w-4" />
+      </a>
     </Card>
   )
 }
 
 // ── 1. Auth ───────────────────────────────────────────────────────────────────
 
-function AuthScreen({ onSignedIn }) {
+// Default mode is 'signup' (most /onboard visitors are new). If the URL hash
+// is `#signin` (e.g., from the landing page's "Sign in" link), start on the
+// sign-in tab instead.
+function initialAuthMode() {
+  if (typeof window === 'undefined') return 'signup'
+  return window.location.hash.toLowerCase().includes('signin') ? 'signin' : 'signup'
+}
+
+function AuthScreen({ capacity, onSignedIn }) {
   const { isSignedIn } = useUser()
-  const [mode, setMode] = useState('signup')
+  const [mode, setMode] = useState(initialAuthMode)
 
   useEffect(() => {
     if (isSignedIn) onSignedIn()
   }, [isSignedIn, onSignedIn])
+
+  const remaining = capacity?.remaining
+  const showBadge = typeof remaining === 'number' && remaining > 0
 
   return (
     <Card
       title="Create your account"
       subtitle="One account. Sign back in any time at your workspace's subdomain."
     >
+      {showBadge && (
+        <div className="inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700">
+          <Sparkles className="h-3.5 w-3.5" />
+          {remaining} founding {remaining === 1 ? 'spot' : 'spots'} left · founding price locked in for life
+        </div>
+      )}
       <SignedOut>
         <div className="flex items-center gap-2 text-xs">
           <button
@@ -334,10 +340,75 @@ function AuthScreen({ onSignedIn }) {
 
 function SignedInPrompt({ onContinue }) {
   const { user } = useUser()
+  const { getToken } = useAuth()
+  const [state, setState] = useState({ status: 'loading', workspaces: [] })
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const token = await getToken()
+        const r = await fetch('/api/onboarding/my-workspaces', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!r.ok) throw new Error(`status ${r.status}`)
+        const data = await r.json()
+        if (cancelled) return
+        setState({ status: 'done', workspaces: data.workspaces || [] })
+      } catch (e) {
+        if (cancelled) return
+        // On error, fall through to the wizard — better to let them create a
+        // new workspace than to strand them.
+        setState({ status: 'done', workspaces: [] })
+      }
+    })()
+    return () => { cancelled = true }
+  }, [getToken])
+
+  if (state.status === 'loading') {
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Checking your workspaces…
+      </div>
+    )
+  }
+
+  const hasWorkspaces = state.workspaces.length > 0
+
   return (
-    <div className="space-y-3 text-sm">
+    <div className="space-y-4 text-sm">
       <p>Signed in as <span className="font-mono text-xs">{user?.primaryEmailAddress?.emailAddress}</span>.</p>
-      <Button onClick={onContinue}>Continue <ArrowRight className="h-4 w-4 ml-1" /></Button>
+
+      {hasWorkspaces && (
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Your workspace{state.workspaces.length === 1 ? '' : 's'}
+          </p>
+          <div className="space-y-1.5">
+            {state.workspaces.map(ws => (
+              <a
+                key={ws.slug}
+                href={ws.url}
+                className="flex items-center justify-between gap-3 rounded-md border border-input px-3 py-2 hover:bg-accent/30"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{ws.display_name || ws.slug}</div>
+                  <div className="text-xs text-muted-foreground font-mono truncate">{ws.slug}.narraterx.ai</div>
+                </div>
+                <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <Button onClick={onContinue} variant={hasWorkspaces ? 'secondary' : 'default'}>
+          {hasWorkspaces ? 'Create another workspace' : 'Continue'}
+          <ArrowRight className="h-4 w-4 ml-1" />
+        </Button>
+      </div>
     </div>
   )
 }
