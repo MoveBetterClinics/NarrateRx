@@ -8,7 +8,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { fetchClinician, fetchInterview, fetchSimilarInterviews, updateInterview } from '@/lib/api'
 import { streamMessage, generateContent } from '@/lib/claude'
-import { getInterviewSystemPrompt, getBlogPostSystemPrompt, TONES, getVoiceModes, PATIENT_PROTOTYPES_UI } from '@/lib/prompts'
+import { getInterviewSystemPrompt, getBlogPostSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { getInitials } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -46,6 +46,7 @@ export default function InterviewSession() {
   const { user } = useUser()
   const runtimeWorkspace = useWorkspace()
   const VOICE_MODES = getVoiceModes(runtimeWorkspace)
+  const PATIENT_PROTOTYPES_UI = getPatientPrototypesUi(runtimeWorkspace)
 
   const [clinician, setClinician] = useState(null)
   const [interview, setInterview] = useState(null)

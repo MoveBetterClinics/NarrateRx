@@ -8,8 +8,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getOrCreateClinician, createInterview, fetchClinicians } from '@/lib/api'
-import { getSuggestedTopics } from '@brand-overlay/topicSuggestions'
-import { TONES, getVoiceModes, PATIENT_PROTOTYPES_UI } from '@/lib/prompts'
+import { getSuggestedTopics } from '@/lib/topicSuggestions'
+import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 
 export default function NewInterview() {
@@ -18,6 +18,7 @@ export default function NewInterview() {
   const { user } = useUser()
   const workspace = useWorkspace()
   const VOICE_MODES = getVoiceModes(workspace)
+  const PATIENT_PROTOTYPES_UI = getPatientPrototypesUi(workspace)
 
   const [clinicianName, setClinicianName] = useState('')
   const [condition, setCondition] = useState(searchParams.get('topic') || '')
@@ -36,9 +37,9 @@ export default function NewInterview() {
         const existingTopics = clinicians.flatMap((c) =>
           (c.interviews || []).map((i) => i.topic)
         )
-        setSuggestions(getSuggestedTopics(existingTopics))
+        setSuggestions(getSuggestedTopics(workspace, existingTopics))
       })
-      .catch(() => setSuggestions(getSuggestedTopics([])))
+      .catch(() => setSuggestions(getSuggestedTopics(workspace, [])))
       .finally(() => setSuggestionsLoading(false))
   }, [])
 
