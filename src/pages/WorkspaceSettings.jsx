@@ -50,6 +50,18 @@ function formFromWorkspace(ws) {
     tone_clinical:           ws.tone_modifiers?.clinical ?? '',
     tone_warm:               ws.tone_modifiers?.warm     ?? '',
     tone_smart:              ws.tone_modifiers?.smart    ?? '',
+    patient_context_json:    JSON.stringify(ws.patient_context   ?? {}, null, 2),
+    interview_context_json:  JSON.stringify(ws.interview_context ?? {}, null, 2),
+    topic_suggestions_json:  JSON.stringify(ws.topic_suggestions ?? [], null, 2),
+  }
+}
+
+function tryParseJson(text, fallback) {
+  if (!text || !text.trim()) return { ok: true, value: fallback }
+  try {
+    return { ok: true, value: JSON.parse(text) }
+  } catch (e) {
+    return { ok: false, error: e.message }
   }
 }
 
@@ -103,6 +115,9 @@ function formToPatch(form) {
       warm:     form.tone_warm     ?? '',
       smart:    form.tone_smart    ?? '',
     },
+    patient_context:   form._parsed_patient_context,
+    interview_context: form._parsed_interview_context,
+    topic_suggestions: form._parsed_topic_suggestions,
   }
 }
 
@@ -139,6 +154,18 @@ export default function WorkspaceSettings() {
     setError(null)
     setSaved(false)
     try {
+      const pc = tryParseJson(form.patient_context_json, {})
+      const ic = tryParseJson(form.interview_context_json, {})
+      const ts = tryParseJson(form.topic_suggestions_json, [])
+      if (!pc.ok)  { setError(`Patient context JSON: ${pc.error}`);   setSaving(false); return }
+      if (!ic.ok)  { setError(`Interview context JSON: ${ic.error}`); setSaving(false); return }
+      if (!ts.ok)  { setError(`Topic suggestions JSON: ${ts.error}`); setSaving(false); return }
+      const formWithParsed = {
+        ...form,
+        _parsed_patient_context:   pc.value,
+        _parsed_interview_context: ic.value,
+        _parsed_topic_suggestions: ts.value,
+      }
       const token = await getToken()
       const r = await fetch('/api/workspace/me', {
         method: 'PATCH',
@@ -146,7 +173,7 @@ export default function WorkspaceSettings() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formToPatch(form)),
+        body: JSON.stringify(formToPatch(formWithParsed)),
       })
       if (!r.ok) {
         const err = await r.json().catch(() => ({}))
@@ -412,6 +439,26 @@ export default function WorkspaceSettings() {
           value={form.spoken_url} onChange={set('spoken_url')}
           placeholder="MoveBetter.co"
           hint="Spoken URL — said aloud in video scripts, e.g. MoveBetter.co" />
+      </Section>
+
+      <Separator />
+
+      <Section
+        title="AI paradigm content (advanced)"
+        description="Structured prompt context — patient/audience archetypes, the per-condition interview-context bank, and the topic-suggestions list shown on the Dashboard. Edit as JSON. Invalid JSON blocks save and shows the parse error inline. Leave empty to skip injection."
+      >
+        <Textarea2 label="Patient / audience context"
+          value={form.patient_context_json} onChange={set('patient_context_json')}
+          rows={14}
+          hint="Shape: { summaryBlurb, primaryAvatar, prototypes[], priorProviderPainPoints[], staffProfiles[] }" />
+        <Textarea2 label="Interview context (PNW condition bank)"
+          value={form.interview_context_json} onChange={set('interview_context_json')}
+          rows={18}
+          hint="Shape: { conditions: { [key]: { audienceProfile, audienceStakes, regionalAngles[], interviewTopics[], chronicRelevant } }, keywordAliases, fallback }" />
+        <Textarea2 label="Topic suggestions"
+          value={form.topic_suggestions_json} onChange={set('topic_suggestions_json')}
+          rows={14}
+          hint="Shape: array of { topic, category, priority: 'high'|'medium'|'low', keywords[], pnwNote }" />
       </Section>
 
       {hasPublishCapability(ws) && (

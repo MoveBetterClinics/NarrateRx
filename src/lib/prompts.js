@@ -1,14 +1,11 @@
-import { formatPNWContextForPrompt } from '@brand-overlay/interviewContext'
-import { PATIENT_PROTOTYPES, getPatientContextForPrompt } from '@brand-overlay/patientContext'
-
-// Tone modifiers are now stored per-workspace in workspaces.tone_modifiers
-// (jsonb keyed by tone id). Templates may include {display_name} and
-// {activity_context}; substitution happens in renderToneTemplate below.
-// Empty / missing → empty string injected (safe default for self-onboarded
-// tenants until they fill the section in via Settings → AI tone modifiers).
+// All paradigm content (tone modifiers, interview/PNW context, patient
+// prototypes, topic suggestions) is now stored per-workspace in JSONB
+// columns and read at render time. Empty / missing → empty string
+// injected (safe default for self-onboarded tenants until they fill the
+// sections in via Settings).
 //
-// Interview context and patient context still live under brands/<id>/ and
-// will move to per-workspace columns in Phase 1F PR 2.
+// Tone modifier templates may include {display_name} and {activity_context};
+// substitution happens in renderToneTemplate below.
 
 export const TONES = [
   {
@@ -56,24 +53,118 @@ export function getVoiceModes(workspace) {
   ]
 }
 
-// Patient prototype selector — driven by workspace overlay data.
-// First entry (id: null) is the "all patients" default.
-// Equine/animals workspaces return an empty PATIENT_PROTOTYPES array, so the
-// selector will only show the first entry and is effectively hidden.
-export const PATIENT_PROTOTYPES_UI = [
-  {
-    id: null,
-    label: 'All patients',
-    emoji: '✨',
-    description: 'No specific archetype — AI draws on the full patient base',
-  },
-  ...PATIENT_PROTOTYPES.map((p) => ({
-    id: p.id,
-    label: p.shortLabel || p.label,
-    emoji: p.emoji || '',
-    description: p.coreDesire,
-  })),
-]
+// Patient prototype selector — driven by workspace.patient_context.prototypes.
+// First entry (id: null) is the "all patients" default. Workspaces with no
+// prototypes (equine, animals, fresh self-onboarded tenants) return only
+// that first entry, and the selector is effectively hidden in the UI.
+export function getPatientPrototypesUi(workspace) {
+  const prototypes = workspace?.patient_context?.prototypes
+  const list = Array.isArray(prototypes) ? prototypes : []
+  return [
+    {
+      id: null,
+      label: 'All patients',
+      emoji: '✨',
+      description: 'No specific archetype — AI draws on the full patient base',
+    },
+    ...list.map((p) => ({
+      id: p.id,
+      label: p.shortLabel || p.label,
+      emoji: p.emoji || '',
+      description: p.coreDesire,
+    })),
+  ]
+}
+
+// Resolve a condition string to one of the workspace's interview-context
+// entries. Exact match on the bank key first, then a fuzzy keyword-alias
+// pass, then the workspace's fallback entry, then null.
+function resolveInterviewContext(workspace, condition) {
+  const ctx = workspace?.interview_context
+  if (!ctx || typeof ctx !== 'object') return null
+  const conditions = ctx.conditions || {}
+  if (!condition) return ctx.fallback || null
+  const lower = String(condition).toLowerCase()
+  if (conditions[lower]) return conditions[lower]
+  const aliases = ctx.keywordAliases || {}
+  for (const [keyword, key] of Object.entries(aliases)) {
+    if (lower.includes(keyword) && conditions[key]) return conditions[key]
+  }
+  return ctx.fallback || null
+}
+
+// Paradigm-neutral formatter. Reads normalized fields:
+// audienceProfile, audienceStakes, regionalAngles[], interviewTopics[],
+// chronicRelevant. Returns '' if the workspace has no interview_context yet.
+function formatInterviewContextForPrompt(workspace, condition) {
+  const ctx = resolveInterviewContext(workspace, condition)
+  if (!ctx) return ''
+  const angles = (ctx.regionalAngles || []).map(a => `  • ${a}`).join('\n')
+  const topics = (ctx.interviewTopics || []).map(q => `  • ${q}`).join('\n')
+  const chronic = ctx.chronicRelevant ? `
+LONG-STANDING / CHRONIC ANGLE — explore this when it fits naturally:
+${condition} often presents as a long-standing pattern rather than a fresh issue. Where relevant, draw out:
+  • How does treating chronic ${condition} (months or years) differ from an acute case?
+  • What chain of compensation through the rest of the body do you almost always find?
+  • What does a realistic resolution timeline look like — and how do you set expectations for someone who has been living with this for a long time?
+  • How does ${workspace?.display_name || 'this practice'}'s approach complement other care this person may have already had?
+` : ''
+  return `
+AUDIENCE CONTEXT — use this to shape your questions:
+- Who shows up for this: ${ctx.audienceProfile || ''}
+- What is at stake for them: ${ctx.audienceStakes || ''}
+- Regional angles that make content resonate locally:
+${angles}
+- Key interview areas specific to this condition and audience:
+${topics}
+${chronic}`
+}
+
+// Paradigm-neutral patient-context formatter. Returns '' when the
+// workspace has no patient_context (equine/animals stubs today, or any
+// fresh self-onboarded tenant). When a prototypeId matches one of the
+// workspace's prototypes, sharpen the context toward that archetype.
+function formatPatientContextForPrompt(workspace, selectedPrototypeId) {
+  const ctx = workspace?.patient_context
+  if (!ctx || typeof ctx !== 'object') return ''
+  const prototypes = Array.isArray(ctx.prototypes) ? ctx.prototypes : []
+  const painPoints = Array.isArray(ctx.priorProviderPainPoints) ? ctx.priorProviderPainPoints : []
+  const summary = ctx.summaryBlurb || ''
+  if (!summary && prototypes.length === 0 && painPoints.length === 0) return ''
+
+  const painPointLines = painPoints.slice(0, 6).map((pp) => `  • ${pp}`).join('\n')
+  const selected = selectedPrototypeId ? prototypes.find((p) => p.id === selectedPrototypeId) : null
+
+  if (selected) {
+    const angleLines = (selected.contentAngles || []).map((a) => `  • ${a}`).join('\n')
+    const triggerList = (selected.triggers || []).join(', ')
+    return `AUDIENCE CONTEXT — WHO THIS CONTENT SERVES:
+${summary}
+
+FOCUS FOR THIS INTERVIEW: ${selected.shortLabel || selected.label || selected.id} ${selected.emoji || ''}
+This interview is targeting the "${selected.shortLabel || selected.label || selected.id}" archetype — ${selected.summary || ''}
+
+Core desire: ${selected.coreDesire || ''}
+What they need: ${selected.whatTheyNeed || ''}
+
+Sharpen your questions and content toward these angles:
+${angleLines}
+
+Common triggers for this archetype: ${triggerList}
+
+Common frustrations with prior providers (address indirectly):
+${painPointLines}`
+  }
+
+  const prototypeLines = prototypes
+    .map((p) => `  • ${p.emoji || ''} ${p.label || p.shortLabel || p.id}: ${p.coreDesire || ''}. ${p.whatTheyNeed || ''}`)
+    .join('\n')
+
+  return `AUDIENCE CONTEXT — WHO THIS CONTENT SERVES:
+${summary}
+${prototypeLines ? `\nArchetypes that define this audience:\n${prototypeLines}` : ''}
+${painPointLines ? `\nCommon frustrations with prior providers (address these indirectly in content):\n${painPointLines}` : ''}`
+}
 
 function renderToneTemplate(tpl, workspace) {
   if (!tpl) return ''
@@ -129,10 +220,10 @@ Skip anything already covered in depth above unless ${clinicianName}'s answer cl
   }
 
   return `You are a content facilitator helping ${clinicianName} at ${workspace.display_name} think out loud about how they treat ${condition}. Your job is to pull out their clinical perspective efficiently so it can be turned into patient-facing content branded for ${workspace.display_name} as a whole.
-${formatPNWContextForPrompt(condition)}${pastContext}
+${formatInterviewContextForPrompt(workspace, condition)}${pastContext}
 ${workspace.display_name} context: ${workspace.clinic_context}
 
-${getPatientContextForPrompt(prototypeId)}
+${formatPatientContextForPrompt(workspace, prototypeId)}
 
 CONTENT YOU NEED TO COLLECT — ask about these in any order that flows naturally:
 1. Their actual assessment and treatment process for ${condition}
@@ -167,7 +258,7 @@ ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}
 
-${getPatientContextForPrompt(prototypeId)}
+${formatPatientContextForPrompt(workspace, prototypeId)}
 
 LINK BUILDING — this is required, not optional:
 
@@ -225,7 +316,7 @@ ${getToneModifier(tone, workspace)}`
 
 export function getSocialBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null) {
   const isPersonal = voiceMode === 'personal'
-  const patientContext = getPatientContextForPrompt(prototypeId)
+  const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
   return `Based on the blog post provided, generate social media content for ${workspace.display_name}. The post is about ${condition}.
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'social' })}
@@ -286,7 +377,7 @@ ${getToneModifier(tone, workspace)}`
 export function getVideoScriptBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null) {
   const firstName = clinicianName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
-  const patientContext = getPatientContextForPrompt(prototypeId)
+  const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
   return `Based on the blog post provided, write two video scripts for ${workspace.display_name} about ${condition}.
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'video' })}
@@ -348,7 +439,7 @@ ${getToneModifier(tone, workspace)}`
 export function getMarketingBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', prototypeId = null) {
   const firstName = clinicianName.split(' ')[0]
   const conditionSlug = condition.toLowerCase().replace(/\s+/g, '-').slice(0, 20)
-  const patientContext = getPatientContextForPrompt(prototypeId)
+  const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
   return `Based on the blog post provided, generate three marketing assets for ${workspace.display_name} about ${condition}. Use the blog post as your source of truth.
 ${patientContext ? `\n${patientContext}\n` : ''}
 CRITICAL FRAMING RULE:

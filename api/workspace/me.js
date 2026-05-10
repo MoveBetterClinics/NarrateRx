@@ -23,9 +23,37 @@ const PATCHABLE_FIELDS = new Set([
   'enabled_outputs',
   'logo', 'colors', 'brandbook',
   'tone_modifiers',
+  'patient_context',
+  'interview_context',
+  'topic_suggestions',
 ])
 
 const TONE_KEYS = ['active', 'clinical', 'warm', 'smart']
+
+// Shape gates for the JSONB paradigm-content columns. We require the
+// client to PATCH parsed objects/arrays, not raw strings — Settings UI
+// parses its JSON textarea before saving and surfaces parse errors there.
+function isPlainObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v)
+}
+
+function sanitizePatientContext(value) {
+  if (value === null || value === undefined) return {}
+  if (!isPlainObject(value)) return null
+  return value
+}
+
+function sanitizeInterviewContext(value) {
+  if (value === null || value === undefined) return {}
+  if (!isPlainObject(value)) return null
+  return value
+}
+
+function sanitizeTopicSuggestions(value) {
+  if (value === null || value === undefined) return []
+  if (!Array.isArray(value)) return null
+  return value
+}
 
 function sanitizeToneModifiers(value) {
   if (value === null || value === undefined) return {}
@@ -83,6 +111,24 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'invalid-tone-modifiers' })
         }
         patch.tone_modifiers = cleaned
+        continue
+      }
+      if (key === 'patient_context') {
+        const cleaned = sanitizePatientContext(value)
+        if (cleaned === null) return res.status(400).json({ error: 'invalid-patient-context' })
+        patch.patient_context = cleaned
+        continue
+      }
+      if (key === 'interview_context') {
+        const cleaned = sanitizeInterviewContext(value)
+        if (cleaned === null) return res.status(400).json({ error: 'invalid-interview-context' })
+        patch.interview_context = cleaned
+        continue
+      }
+      if (key === 'topic_suggestions') {
+        const cleaned = sanitizeTopicSuggestions(value)
+        if (cleaned === null) return res.status(400).json({ error: 'invalid-topic-suggestions' })
+        patch.topic_suggestions = cleaned
         continue
       }
       patch[key] = value

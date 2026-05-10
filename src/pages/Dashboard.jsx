@@ -11,15 +11,17 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { fetchClinicians } from '@/lib/api'
-import { getSuggestedTopics } from '@brand-overlay/topicSuggestions'
+import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { getInitials, formatRelativeDate } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 
 const RESUME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 const RESUME_INITIAL_CAP = 6
 
 export default function Dashboard() {
   const { user } = useUser()
+  const runtimeWorkspace = useWorkspace()
   const [clinicians, setClinicians] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -40,7 +42,7 @@ export default function Dashboard() {
   const byTopic = groupBy(allInterviews, (i) => i.topic)
 
   const existingTopics = allInterviews.map((i) => i.topic)
-  const topicGaps = getSuggestedTopics(existingTopics)
+  const topicGaps = getSuggestedTopics(runtimeWorkspace, existingTopics)
     .filter((t) => t.interviewCount === 0 && t.priority !== 'low')
     .slice(0, 8)
 
@@ -137,7 +139,7 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="topic">
-            <TopicView byTopic={byTopic} existingTopics={existingTopics} currentUserId={user?.id} />
+            <TopicView byTopic={byTopic} existingTopics={existingTopics} currentUserId={user?.id} workspace={runtimeWorkspace} />
           </TabsContent>
         </Tabs>
       )}
@@ -333,10 +335,10 @@ function PlanNextInterview({ gaps, isEmpty = false }) {
 
 // ── By Topic view ────────────────────────────────────────────────────────────
 
-function TopicView({ byTopic, existingTopics, currentUserId }) {
+function TopicView({ byTopic, existingTopics, currentUserId, workspace }) {
   const [selected, setSelected] = useState(null)
 
-  const allSuggestions = getSuggestedTopics(existingTopics)
+  const allSuggestions = getSuggestedTopics(workspace, existingTopics)
   const gaps = allSuggestions.filter((t) => t.interviewCount === 0 && t.priority !== 'low')
 
   const topicRows = Object.entries(byTopic)
