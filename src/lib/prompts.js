@@ -173,6 +173,13 @@ function renderToneTemplate(tpl, workspace) {
     .replace(/\{activity_context\}/g, workspace?.activity_context ?? '')
 }
 
+function renderToneTemplate(tpl, workspace) {
+  if (!tpl) return ''
+  return String(tpl)
+    .replace(/\{display_name\}/g, workspace?.display_name ?? '')
+    .replace(/\{activity_context\}/g, workspace?.activity_context ?? '')
+}
+
 function getToneModifier(tone, workspace) {
   const tones = workspace?.tone_modifiers
   if (!tones || typeof tones !== 'object') return ''
