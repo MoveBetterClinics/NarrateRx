@@ -72,7 +72,12 @@ export async function requireRole(req, allowedRoles = null, { orgId = null } = {
   }
   if (!user) return { ok: false, reason: 'no-user' }
 
-  const role = (user.publicMetadata?.role || 'clinician').toLowerCase()
+  // Clerk Organization admins are treated as NarrateRx admins for the active
+  // workspace, regardless of their publicMetadata.role. This lets workspace
+  // owners modify settings without a separate user-level role grant.
+  const metadataRole = (user.publicMetadata?.role || 'clinician').toLowerCase()
+  const isOrgAdmin   = payload.org_role === 'org:admin'
+  const role = isOrgAdmin ? 'admin' : metadataRole
   if (allowedRoles && allowedRoles.length && !allowedRoles.includes(role)) {
     return { ok: false, reason: 'forbidden', role, userId }
   }

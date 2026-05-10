@@ -1,4 +1,4 @@
-import { useUser } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/clerk-react'
 
 // Hook for reading the current user's NarrateRx role. The role is stored in
 // Clerk's publicMetadata.role and synced when an admin sets it on the user.
@@ -18,8 +18,14 @@ import { useUser } from '@clerk/clerk-react'
 //               refinement; v1 just blocks edit/archive at the role layer)
 export function useUserRole() {
   const { user, isLoaded } = useUser()
-  const role     = (user?.publicMetadata?.role || 'clinician').toLowerCase()
-  const isLoading = !isLoaded
+  const { orgRole } = useAuth()
+  // Clerk Organization admins are treated as NarrateRx admins for the active
+  // workspace, regardless of their publicMetadata.role. Mirrors the server-side
+  // gate in api/_lib/auth.js.
+  const metadataRole = (user?.publicMetadata?.role || 'clinician').toLowerCase()
+  const isOrgAdmin   = orgRole === 'org:admin'
+  const role         = isOrgAdmin ? 'admin' : metadataRole
+  const isLoading    = !isLoaded
 
   return {
     role,
