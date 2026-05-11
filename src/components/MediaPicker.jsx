@@ -10,9 +10,9 @@ import { listMedia, uploadMedia } from '@/lib/mediaLib'
 //   2. Upload  — fresh upload that lands in the same library.
 //
 // The previous "Google Drive" tab and its proxy paths were removed when the
-// Drive integration was retired (2026-05-08) — every relevant file was
-// imported into the Media Hub via scripts/import-from-local.mjs and is now
-// reachable through the Library tab.
+// Drive integration was retired (2026-05-08). The one-shot importer that
+// moved local Drive-mirror files into the Media Hub has also been removed;
+// all migrated files are reachable through the Library tab.
 
 export default function MediaPicker({ onSelect, onClose }) {
   const { user } = useUser()
