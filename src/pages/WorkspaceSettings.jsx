@@ -257,7 +257,7 @@ export default function WorkspaceSettings() {
   // Active tab is driven by ?tab= so deep links open the right section and
   // the browser back button restores it. Allowlist keeps unknown values
   // from rendering blank when someone hand-edits the URL.
-  const ALLOWED_TABS = ['general', 'brand', 'voice', 'locations', 'channels']
+  const ALLOWED_TABS = ['general', 'brand', 'voice', 'locations', 'channels', 'danger']
   const [searchParams, setSearchParams] = useSearchParams()
   const tabFromUrl = searchParams.get('tab')
   const activeTab = ALLOWED_TABS.includes(tabFromUrl) ? tabFromUrl : 'general'
@@ -409,12 +409,13 @@ export default function WorkspaceSettings() {
           fallback that PATCHes every dirty field across every tab.
           Locations + Channels manage their own per-row/per-card saves. */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-5 w-full max-w-xl">
+        <TabsList className="grid grid-cols-6 w-full max-w-2xl">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="brand">Brand</TabsTrigger>
           <TabsTrigger value="voice">Voice</TabsTrigger>
           <TabsTrigger value="locations">Locations</TabsTrigger>
           <TabsTrigger value="channels">Channels</TabsTrigger>
+          <TabsTrigger value="danger" className="text-destructive data-[state=active]:text-destructive">Danger</TabsTrigger>
         </TabsList>
 
       <TabsContent value="general" className="space-y-6 mt-6">
@@ -672,7 +673,135 @@ export default function WorkspaceSettings() {
           </>
         )}
       </TabsContent>
+
+      <TabsContent value="danger" className="space-y-6 mt-6">
+        <DangerZone workspace={ws} getToken={getToken} />
+      </TabsContent>
       </Tabs>
+    </div>
+  )
+}
+
+// Destructive actions live behind their own tab so they can't be hit
+// accidentally while scrolling through the form. Each action is gated by a
+// typed-confirm pattern (paste the workspace's slug) — the same check runs
+// server-side in api/workspace/danger.js. The slug is the gate not the
+// display name because it's the irreversible primary key in the routing
+// system, and what's bound to the subdomain.
+function DangerZone({ workspace, getToken }) {
+  const [confirmText, setConfirmText]   = useState('')
+  const [confirmOpen, setConfirmOpen]   = useState(false)
+  const [archiving, setArchiving]       = useState(false)
+  const [error, setError]               = useState(null)
+
+  const slug = workspace?.slug || ''
+  const matches = confirmText.trim().toLowerCase() === slug.toLowerCase() && slug.length > 0
+
+  async function handleArchive() {
+    setArchiving(true)
+    setError(null)
+    try {
+      const token = await getToken({ skipCache: true })
+      const r = await fetch('/api/workspace/danger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'archive', confirm_slug: confirmText.trim() }),
+      })
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        setError(body?.error || `archive-failed (${r.status})`)
+        setArchiving(false)
+        return
+      }
+      // Workspace is now archived. The current subdomain is no longer active
+      // — workspaceContext rejects status !== 'active', so any further API
+      // call will 404. Sign the user out + bounce to the apex so they don't
+      // sit on a half-broken session.
+      try { await window.Clerk?.signOut?.() } catch {}
+      window.location.href = 'https://narraterx.ai'
+    } catch (e) {
+      setError(e?.message || 'network-error')
+      setArchiving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-lg border-2 border-destructive/30 bg-destructive/5 p-5 space-y-4">
+        <div className="flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="space-y-1">
+            <h2 className="text-base font-semibold text-destructive">Archive workspace</h2>
+            <p className="text-sm text-muted-foreground">
+              Archiving suspends this workspace immediately. All members lose access — the
+              subdomain stops resolving and every API call returns 404. Content, media, and
+              credentials stay in storage so the workspace can be restored manually via the
+              database (no in-app restore yet).
+            </p>
+            <ul className="text-xs text-muted-foreground list-disc pl-5 mt-2 space-y-0.5">
+              <li>Published posts on external channels (WordPress, Astro, Buffer) are <strong>not</strong> taken down.</li>
+              <li>Scheduled cron jobs that reference this workspace will start no-op'ing.</li>
+              <li>Your Clerk Organization is not deleted; members can still sign in elsewhere.</li>
+            </ul>
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <Label htmlFor="archive-confirm" className="text-xs font-medium">
+            To confirm, type the workspace slug: <code className="text-foreground bg-muted px-1 py-0.5 rounded">{slug}</code>
+          </Label>
+          <Input
+            id="archive-confirm"
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={slug}
+            disabled={archiving}
+            autoComplete="off"
+          />
+          {error && (
+            <p className="text-xs text-destructive flex items-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {error === 'confirm-slug-mismatch'
+                ? "The slug you typed doesn't match. Copy the value above exactly."
+                : error}
+            </p>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setConfirmOpen(true)}
+            disabled={!matches || archiving}
+          >
+            {archiving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+            Archive this workspace
+          </Button>
+        </div>
+      </div>
+
+      <div className="rounded-lg border bg-muted/30 p-5 space-y-1">
+        <p className="text-sm font-medium">Rename, transfer, hard delete</p>
+        <p className="text-xs text-muted-foreground">
+          Not available in-app yet. Rename requires re-registering the subdomain in
+          Vercel + a redirect plan; transfer needs a Clerk org-ownership swap; hard
+          delete cascades across blob storage and audit logs. Contact the platform team
+          (drq@narraterx.ai) for any of these.
+        </p>
+      </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`Archive "${workspace?.display_name || slug}"?`}
+        description="This suspends the workspace immediately. Members lose access on their next request. Restoring requires database access — there's no in-app un-archive yet."
+        confirmLabel="Archive workspace"
+        onConfirm={handleArchive}
+        loading={archiving}
+      />
     </div>
   )
 }
