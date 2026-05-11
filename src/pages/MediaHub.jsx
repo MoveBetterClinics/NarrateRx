@@ -13,6 +13,7 @@ import BulkActionBar from '@/components/BulkActionBar'
 import MediaHubHelp from '@/components/MediaHubHelp'
 import { listMedia, getMediaAsset } from '@/lib/mediaLib'
 import { useUserRole } from '@/lib/useUserRole'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 const PAGE_SIZE = 120
 
@@ -29,6 +30,7 @@ const STATUS_FILTERS = [
 ]
 
 export default function MediaHub() {
+  useDocumentTitle('Media')
   const { user } = useUser()
   const { canUpload, canEdit } = useUserRole()
   const [assets, setAssets]     = useState([])

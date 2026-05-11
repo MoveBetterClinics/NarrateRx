@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Loader2, AlertCircle, CalendarDays } from 'l
 import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/EmptyState'
 import { fetchContentItems } from '@/lib/publish'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { PLATFORM_META } from './ContentHub'
 
 function startOfMonth(date) {
@@ -20,6 +21,7 @@ const MONTH_NAMES = ['January','February','March','April','May','June','July','A
 const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 export default function ContentCalendar() {
+  useDocumentTitle('Calendar')
   const [today]                = useState(new Date())
   const [current, setCurrent]  = useState(new Date(today.getFullYear(), today.getMonth(), 1))
   const [items, setItems]      = useState([])

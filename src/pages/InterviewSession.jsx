@@ -14,6 +14,7 @@ import { getInitials } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
@@ -43,6 +44,7 @@ function detectAndStripStopPhrase(transcript) {
 }
 
 export default function InterviewSession() {
+  useDocumentTitle('Interview')
   const { clinicianId, interviewId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()

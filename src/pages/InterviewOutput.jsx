@@ -16,6 +16,7 @@ import { fetchClinician, fetchInterview, fetchCampaign, updateInterview } from '
 import { fetchContentItemsByInterview, createContentItems, publishBlogToWebsite } from '@/lib/publish'
 import { generateContent } from '@/lib/claude'
 import { workspace } from '@/lib/workspace'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import {
   getSocialBatchSystemPrompt,
   getVideoScriptBatchSystemPrompt,
@@ -34,6 +35,7 @@ function parseSection(text, startMarker, endMarker) {
 }
 
 export default function InterviewOutput() {
+  useDocumentTitle('Output')
   const { clinicianId, interviewId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()

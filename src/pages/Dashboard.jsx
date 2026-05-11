@@ -16,11 +16,13 @@ import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { getInitials, formatRelativeDate } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 const RESUME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 const RESUME_INITIAL_CAP = 6
 
 export default function Dashboard() {
+  useDocumentTitle('Interviews')
   const { user } = useUser()
   const runtimeWorkspace = useWorkspace()
   const [clinicians, setClinicians] = useState([])

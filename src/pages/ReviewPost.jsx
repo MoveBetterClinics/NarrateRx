@@ -15,6 +15,7 @@ import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack
 import { fetchInterview } from '@/lib/api'
 import { generateContent } from '@/lib/claude'
 import { toast } from '@/lib/toast'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
@@ -69,6 +70,7 @@ function suggestScheduleTime(platform, scheduledItems) {
 }
 
 export default function ReviewPost() {
+  useDocumentTitle('Review post')
   const { itemId }   = useParams()
   const navigate     = useNavigate()
   const { user }     = useUser()

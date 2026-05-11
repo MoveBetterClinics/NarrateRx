@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator'
 import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Trash2, Plus, Star } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 function formFromWorkspace(ws) {
   return {
@@ -131,6 +132,7 @@ function hasPublishCapability(ws) {
 }
 
 export default function WorkspaceSettings() {
+  useDocumentTitle('Workspace settings')
   const { getToken } = useAuth()
   const { role, isLoading: roleLoading } = useUserRole()
   const [ws, setWs]       = useState(undefined) // undefined=loading, null=no-context, object=loaded

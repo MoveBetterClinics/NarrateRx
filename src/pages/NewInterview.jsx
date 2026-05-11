@@ -11,8 +11,10 @@ import { getOrCreateClinician, createInterview, fetchClinicians } from '@/lib/ap
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 export default function NewInterview() {
+  useDocumentTitle('New interview')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { user } = useUser()

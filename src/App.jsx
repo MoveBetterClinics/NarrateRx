@@ -240,9 +240,9 @@ function ProtectedAppWithProvider() {
 }
 
 export default function App() {
-  useEffect(() => {
-    document.title = workspace.appName
-  }, [])
+  // Per-route titles are set by individual pages via useDocumentTitle.
+  // The static index.html title ("NarrateRx") is the fallback before any
+  // route mounts.
 
   if (!PUBLISHABLE_KEY) {
     return (

@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import SharedEmptyState from '@/components/EmptyState'
 import { fetchContentItems } from '@/lib/publish'
 import { formatRelativeDate } from '@/lib/utils'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 const PLATFORM_META = {
   blog:         { label: 'Blog Post',       icon: FileText,   color: 'text-slate-600',  bg: 'bg-slate-100' },
@@ -48,6 +49,7 @@ const PLATFORM_GROUPS = [
 ]
 
 export default function ContentHub() {
+  useDocumentTitle('Content Hub')
   const [items, setItems]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [activeStatus, setStatus] = useState('all')
