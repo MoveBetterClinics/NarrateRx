@@ -264,7 +264,7 @@ const ANIMALS = {
   authDomain: 'movebetter.co',
 
   // Web presence
-  website: 'https://movebetteranimalchiro.com/',
+  website: 'https://www.movebetteranimalchiro.com/',
   websiteHostname: 'movebetteranimalchiro.com',
 
   // Location — two operational clinics; primary listed first.
@@ -315,19 +315,19 @@ const ANIMALS = {
     // NOTE: Blog post URLs below assume the slugs published on movebetteranimalchiro.com
     // (renamed from movebetteranimal.co on 2026-05-10; the old domain 301-redirects).
     internalLinksMarkdown: `CORE PAGES:
-- Move Better Animals (homepage): https://movebetteranimalchiro.com/
-- About Dr. Whitney Phillips: https://movebetteranimalchiro.com/about
-- Services & pricing: https://movebetteranimalchiro.com/services
-- Is my pet a candidate?: https://movebetteranimalchiro.com/candidate
-- Visit Portland: https://movebetteranimalchiro.com/visit/portland
-- Visit Vancouver: https://movebetteranimalchiro.com/visit/vancouver
-- Blog index: https://movebetteranimalchiro.com/blog
+- Move Better Animals (homepage): https://www.movebetteranimalchiro.com/
+- About Dr. Whitney Phillips: https://www.movebetteranimalchiro.com/about
+- Services & pricing: https://www.movebetteranimalchiro.com/services
+- Is my pet a candidate?: https://www.movebetteranimalchiro.com/candidate
+- Visit Portland: https://www.movebetteranimalchiro.com/visit/portland
+- Visit Vancouver: https://www.movebetteranimalchiro.com/visit/vancouver
+- Blog index: https://www.movebetteranimalchiro.com/blog
 
 BLOG POSTS:
-- "Everything You Need to Know About Chiropractic Care for Pets and Animals": https://movebetteranimalchiro.com/blog/everything-you-need-to-know-about-chiropractic-care-for-pets-and-animals
-- "Animal Chiropractor vs. Veterinarian: What's the Difference?": https://movebetteranimalchiro.com/blog/animal-chiropractor-vs-veterinarian
-- "An Outsider's View of Animal Chiropractic": https://movebetteranimalchiro.com/blog/an-outsiders-view-of-animal-chiropractic
-- "A Dog's Toenail Length Matters": https://movebetteranimalchiro.com/blog/a-dogs-toenail-length-matters`,
+- "Everything You Need to Know About Chiropractic Care for Pets and Animals": https://www.movebetteranimalchiro.com/blog/everything-you-need-to-know-about-chiropractic-care-for-pets-and-animals
+- "Animal Chiropractor vs. Veterinarian: What's the Difference?": https://www.movebetteranimalchiro.com/blog/animal-chiropractor-vs-veterinarian
+- "An Outsider's View of Animal Chiropractic": https://www.movebetteranimalchiro.com/blog/an-outsiders-view-of-animal-chiropractic
+- "A Dog's Toenail Length Matters": https://www.movebetteranimalchiro.com/blog/a-dogs-toenail-length-matters`,
 
     // The single anchor link the blog CTA must always land on. The animals
     // brand uses the same Jane booking instance as the human workspace.
