@@ -14,6 +14,7 @@ import {
 } from '@/lib/mediaLib'
 import { listContentPieces, createContentPiece, segmentMediaAsset } from '@/lib/contentLib'
 import { useUserRole } from '@/lib/useUserRole'
+import { toast } from '@/lib/toast'
 import ContentBriefDetail from './ContentBriefDetail'
 import CollectionPicker from './CollectionPicker'
 
@@ -115,10 +116,12 @@ export default function MediaDetail({ asset, onClose, onChange }) {
       await updateMediaAsset(asset.id, {
         tags, aiTags, notes, patientPseudonym: patient, condition, status, speakerRole,
       })
+      toast.success('Media details saved')
       onChange?.()
       onClose?.()
     } catch (e) {
       setError(e.message)
+      toast.error('Save failed', { description: e.message })
     } finally {
       setSaving(false)
     }

@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator'
 import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack } from '@/lib/publish'
 import { fetchInterview } from '@/lib/api'
 import { generateContent } from '@/lib/claude'
+import { toast } from '@/lib/toast'
 import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
@@ -77,7 +78,7 @@ export default function ReviewPost() {
   const [content, setContent]         = useState('')
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState(false)
-  const [saveStatus, setSaveStatus]   = useState('') // '' | 'saving' | 'saved'
+  const [saveStatus, setSaveStatus]   = useState('') // '' | 'saving' | 'saved' | 'error'
   const autoSaveTimer                 = useRef(null)
   const isFirstLoad                   = useRef(true)
   const [publishing, setPublishing]     = useState(false)
@@ -106,8 +107,13 @@ export default function ReviewPost() {
         await updateContentItem(itemId, { content })
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus(''), 2000)
-      } catch {
-        setSaveStatus('')
+      } catch (e) {
+        // Autosave failure used to be a silent catch — user could lose
+        // minutes of edits with no idea anything was wrong. Surface it.
+        setSaveStatus('error')
+        toast.error('Autosave failed', {
+          description: e?.message || 'Your latest edits were not saved. Check your connection and try again.',
+        })
       }
     }, 2000)
 
@@ -374,6 +380,7 @@ export default function ReviewPost() {
                 <label className="text-sm font-medium">Content</label>
                 {saveStatus === 'saving' && <span className="text-xs text-muted-foreground">↑ Saving…</span>}
                 {saveStatus === 'saved'  && <span className="text-xs text-green-600">✓ Saved</span>}
+                {saveStatus === 'error'  && <span className="text-xs text-destructive">⚠ Not saved — check your connection</span>}
               </div>
               <div className="flex items-center gap-1">
                 <Button

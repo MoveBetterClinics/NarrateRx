@@ -6,6 +6,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { updateContentPiece, deleteContentPiece } from '@/lib/contentLib'
 import { uploadMedia, getMediaAsset } from '@/lib/mediaLib'
+import { toast } from '@/lib/toast'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog'
 
 const PLATFORMS = ['reels', 'feed', 'story', 'shorts', 'tiktok', 'gbp', 'newsletter']
 
@@ -28,6 +33,9 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
   const [saved, setSaved]         = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError]         = useState('')
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [rejectOpen, setRejectOpen]               = useState(false)
+  const [rejectReason, setRejectReason]           = useState('')
   const fileRef                   = useRef(null)
 
   useEffect(() => {
@@ -58,15 +66,17 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
     return () => { alive = false }
   }, [brief.id])
 
-  async function patch(body) {
+  async function patch(body, { successMessage } = {}) {
     setSaving(true); setError(''); setSaved(false)
     try {
       await updateContentPiece(brief.id, body)
       onChange?.()
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
+      if (successMessage) toast.success(successMessage)
     } catch (e) {
       setError(e.message)
+      toast.error('Update failed', { description: e.message })
     } finally {
       setSaving(false)
     }
@@ -83,19 +93,36 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
     })
   }
 
-  async function accept()       { await saveDraft(); await patch({ status: 'accepted' }) }
-  async function reject()       { const r = prompt('Why reject? (optional)'); await patch({ status: 'rejected', rejectedReason: r || null }) }
-  async function inProgress()   { await saveDraft(); await patch({ status: 'in_progress' }) }
-  async function archive()      { await patch({ status: 'archived' }) }
-  async function remove() {
-    if (!confirm('Delete this brief? This cannot be undone.')) return
+  async function accept() {
+    await saveDraft()
+    await patch({ status: 'accepted' }, { successMessage: 'Brief accepted' })
+  }
+  async function confirmReject() {
+    setRejectOpen(false)
+    await patch(
+      { status: 'rejected', rejectedReason: rejectReason.trim() || null },
+      { successMessage: 'Brief rejected' },
+    )
+    setRejectReason('')
+  }
+  async function inProgress() {
+    await saveDraft()
+    await patch({ status: 'in_progress' }, { successMessage: 'Marked in progress' })
+  }
+  async function archive() {
+    await patch({ status: 'archived' }, { successMessage: 'Brief archived' })
+  }
+  async function confirmRemove() {
+    setConfirmDeleteOpen(false)
     setSaving(true); setError('')
     try {
       await deleteContentPiece(brief.id)
+      toast.success('Brief deleted')
       onChange?.()
       onClose?.()
     } catch (e) {
       setError(e.message)
+      toast.error('Could not delete brief', { description: e.message })
       setSaving(false)
     }
   }
@@ -243,12 +270,12 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
         </div>
 
         <div className="flex items-center justify-between px-5 py-3 border-t shrink-0">
-          <Button variant="ghost" size="sm" onClick={remove} disabled={saving} className="text-destructive hover:text-destructive">
+          <Button variant="ghost" size="sm" onClick={() => setConfirmDeleteOpen(true)} disabled={saving} className="text-destructive hover:text-destructive">
             <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
           </Button>
           <div className="flex flex-wrap gap-2 justify-end">
             {brief.status !== 'rejected' && brief.status !== 'archived' && (
-              <Button size="sm" variant="ghost" onClick={reject} disabled={saving}>Reject</Button>
+              <Button size="sm" variant="ghost" onClick={() => setRejectOpen(true)} disabled={saving}>Reject</Button>
             )}
             {brief.status === 'suggested' && (
               <Button size="sm" variant="outline" onClick={accept} disabled={saving}>
@@ -271,6 +298,41 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="Delete this brief?"
+        description="This permanently removes the brief and any draft caption work. The source media isn't affected. This cannot be undone."
+        confirmLabel="Delete brief"
+        onConfirm={confirmRemove}
+        loading={saving}
+      />
+
+      <Dialog
+        open={rejectOpen}
+        onOpenChange={(o) => { setRejectOpen(o); if (!o) setRejectReason('') }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject this brief?</DialogTitle>
+            <DialogDescription>
+              Optional — leave a short note so the next editor knows why. The brief moves to Rejected; you can revisit it from the Rejected filter.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            placeholder="Reason (optional)"
+            rows={3}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejectOpen(false)} disabled={saving}>Cancel</Button>
+            <Button onClick={confirmReject} disabled={saving}>Reject brief</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

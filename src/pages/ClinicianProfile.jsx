@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog'
 import { fetchClinician, deleteClinician, deleteInterview } from '@/lib/api'
 import { getInitials, formatDate, formatRelativeDate } from '@/lib/utils'
+import { toast } from '@/lib/toast'
 
 export default function ClinicianProfile() {
   const { clinicianId } = useParams()
@@ -55,9 +56,10 @@ export default function ClinicianProfile() {
     setDeleting(true)
     try {
       await deleteClinician(clinicianId, user.id)
+      toast.success(`Deleted ${clinician?.name || 'clinician'}`)
       navigate('/')
     } catch (e) {
-      alert(e.message)
+      toast.error('Could not delete clinician', { description: e.message })
       setDeleting(false)
     }
   }

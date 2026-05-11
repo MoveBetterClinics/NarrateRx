@@ -29,6 +29,8 @@ import WorkspaceSettings from '@/pages/WorkspaceSettings'
 import Onboarding from '@/pages/Onboarding'
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
+import ErrorBoundary from '@/components/ErrorBoundary'
+import { Toaster } from '@/lib/toast'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
@@ -248,13 +250,16 @@ export default function App() {
   }
 
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/onboard/*" element={<OnboardingShell />} />
-          <Route path="*" element={<ProtectedAppWithProvider />} />
-        </Routes>
-      </BrowserRouter>
-    </ClerkProvider>
+    <ErrorBoundary>
+      <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/onboard/*" element={<OnboardingShell />} />
+            <Route path="*" element={<ProtectedAppWithProvider />} />
+          </Routes>
+        </BrowserRouter>
+        <Toaster richColors position="top-right" closeButton />
+      </ClerkProvider>
+    </ErrorBoundary>
   )
 }
