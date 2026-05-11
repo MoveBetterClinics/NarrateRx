@@ -37,6 +37,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [tags, setTags]         = useState(asset.tags || [])
   const [tagInput, setTagInput] = useState('')
   const [notes, setNotes]       = useState(asset.notes || '')
+  const [altText, setAltText]   = useState(asset.alt_text || '')
   const [patient, setPatient]   = useState(asset.patient_pseudonym || '')
   const [condition, setCondition] = useState(asset.condition || '')
   const [status, setStatus]     = useState(asset.status || 'raw')
@@ -73,6 +74,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   useEffect(() => {
     setTags(asset.tags || [])
     setNotes(asset.notes || '')
+    setAltText(asset.alt_text || '')
     setPatient(asset.patient_pseudonym || '')
     setCondition(asset.condition || '')
     setStatus(asset.status || 'raw')
@@ -114,7 +116,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setSaving(true); setError('')
     try {
       await updateMediaAsset(asset.id, {
-        tags, aiTags, notes, patientPseudonym: patient, condition, status, speakerRole,
+        tags, aiTags, notes, altText, patientPseudonym: patient, condition, status, speakerRole,
       })
       toast.success('Media details saved')
       onChange?.()
@@ -537,6 +539,25 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 <label className="text-xs font-medium text-muted-foreground block mb-1.5">Condition</label>
                 <Input value={condition} onChange={(e) => setCondition(e.target.value)} placeholder="e.g. low back, stifle" className="h-8 text-sm" />
               </div>
+            </div>
+
+            {/* Alt text — first-class metadata for accessibility + publish
+                quality. Screen readers and post composers can use this to
+                describe the image; falls back to filename when empty. */}
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                Alt text
+                <span className="text-muted-foreground/70 font-normal ml-1">
+                  · describes what's in the image for screen readers + captions
+                </span>
+              </label>
+              <Input
+                value={altText}
+                onChange={(e) => setAltText(e.target.value)}
+                placeholder="e.g. Clinician demonstrating a hip hinge with a patient"
+                className="h-8 text-sm"
+                maxLength={250}
+              />
             </div>
 
             {/* Notes */}

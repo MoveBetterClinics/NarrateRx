@@ -37,7 +37,7 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
 
 async function fetchRow(where, select) {
   const r = await sb(`media_assets?${where}&select=${select}`)
@@ -78,6 +78,7 @@ export default async function handler(req, res) {
       tags:              patch.tags,
       ai_tags:           patch.aiTags,
       notes:             patch.notes,
+      alt_text:          patch.altText,
       patient_pseudonym: patch.patientPseudonym,
       condition:         patch.condition,
       captured_at:       patch.capturedAt,

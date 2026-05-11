@@ -155,7 +155,31 @@ export default function MediaHub() {
     }
   }
 
-  function toggleSelected(asset) {
+  // Track the last clicked index so shift-click can extend a range.
+  const lastClickedIndexRef = useRef(null)
+
+  function toggleSelected(asset, meta = {}) {
+    const { shiftKey, index } = meta
+    const lastIndex = lastClickedIndexRef.current
+
+    // Shift-click range select: every asset between the anchor and the new
+    // click gets added (never removed) to the selection. Matches the standard
+    // gallery behavior in Dropbox / Photos / Finder.
+    if (shiftKey && typeof lastIndex === 'number' && typeof index === 'number' && lastIndex !== index) {
+      const [lo, hi] = lastIndex < index ? [lastIndex, index] : [index, lastIndex]
+      const rangeIds = assets.slice(lo, hi + 1).map((a) => a.id)
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        rangeIds.forEach((id) => next.add(id))
+        return [...next]
+      })
+      // Update anchor to the new endpoint so chained shift-clicks behave like
+      // every other gallery (anchor follows the latest click).
+      lastClickedIndexRef.current = index
+      return
+    }
+
+    if (typeof index === 'number') lastClickedIndexRef.current = index
     setSelectedIds((prev) =>
       prev.includes(asset.id) ? prev.filter((id) => id !== asset.id) : [...prev, asset.id]
     )
@@ -164,6 +188,7 @@ export default function MediaHub() {
   function exitMultiSelect() {
     setMultiSelectMode(false)
     setSelectedIds([])
+    lastClickedIndexRef.current = null
   }
 
   // Drop ids that vanish from the visible list (e.g. filter narrows the
