@@ -542,19 +542,15 @@ const CREDENTIAL_SERVICES = [
   {
     id: 'buffer',
     label: 'Buffer',
-    description: 'Buffer access token (used for Instagram + LinkedIn queues).',
+    description: 'Buffer access token — the universal social path. Routes posts to every connected channel in your Buffer org (Instagram, Facebook, LinkedIn, X/Twitter, Pinterest, TikTok, YouTube Shorts, Threads, Bluesky, Mastodon).',
     secretLabel: 'Access token',
     fields: [],
   },
-  {
-    id: 'facebook',
-    label: 'Facebook Page',
-    description: 'Page access token + page ID for direct Facebook publishing.',
-    secretLabel: 'Page access token',
-    fields: [
-      { key: 'page_id', label: 'Page ID', placeholder: '1234567890' },
-    ],
-  },
+  // Facebook moved to Buffer 2026-05-10 — no separate credential needed.
+  // Connect each FB Page as a Channel in your Buffer organization; the existing
+  // Buffer token gains posting permission automatically. Same for every other
+  // social platform Buffer supports. GBP keeps its own card below because the
+  // multi-location service-account architecture has no Buffer equivalent.
   {
     id: 'gbp',
     label: 'Google Business Profile',

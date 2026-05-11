@@ -48,8 +48,16 @@ export function createContentItems(items) {
 
 // ── Publishing ────────────────────────────────────────────────────────────────
 
-const BUFFER_PLATFORMS = ['instagram', 'linkedin', 'pinterest']
-const DIRECT_PLATFORMS = { facebook: '/api/publish/facebook', gbp: '/api/publish/gbp' }
+// Buffer is the universal social path. To add a new Buffer-supported platform:
+// (1) add an entry to OUTPUT_CHANNELS with publishMode: BUFFER, (2) add the
+// matching service string to PLATFORM_TO_SERVICE in api/publish/buffer.js,
+// (3) add a prompt generator in src/lib/prompts.js. GBP is the only direct
+// path (the multi-location architecture has no clean Buffer equivalent).
+const BUFFER_PLATFORMS = [
+  'instagram', 'facebook', 'linkedin', 'pinterest',
+  'tiktok', 'youtube_short', 'twitter', 'threads', 'bluesky', 'mastodon',
+]
+const DIRECT_PLATFORMS = { gbp: '/api/publish/gbp' }
 
 export async function publishItem(item, { scheduledAt } = {}) {
   const { platform, content, mediaUrls = [], locationIds } = item

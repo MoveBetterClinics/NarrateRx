@@ -29,39 +29,22 @@ const INTEGRATIONS = [
     label: 'Buffer',
     recommended: true,
     description:
-      'One connection that fans NarrateRx posts out to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. The fastest way to get NarrateRx publishing for your workspace.',
-    platforms: ['Instagram', 'Facebook', 'LinkedIn', 'Twitter/X', 'Threads', 'Pinterest', 'Mastodon', 'Bluesky'],
+      'One connection that fans NarrateRx posts out to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, TikTok, YouTube Shorts, Bluesky, Mastodon, and more. The fastest way to get NarrateRx publishing for your workspace.',
+    platforms: ['Instagram', 'Facebook', 'LinkedIn', 'Twitter/X', 'Threads', 'Pinterest', 'TikTok', 'YouTube Shorts', 'Mastodon', 'Bluesky'],
     secretLabel: 'Buffer access token',
     secretPlaceholder: 'access_token_…',
     fields: [],
     setupSteps: [
       'Sign in (or sign up) at buffer.com.',
-      'In Buffer, connect every channel you want NarrateRx to publish to (Instagram, Facebook, LinkedIn, etc.).',
+      'In Buffer, connect every channel you want NarrateRx to publish to (Instagram, Facebook Page, LinkedIn, X, TikTok, etc.).',
       'Open buffer.com/developers/apps and Create an app.',
       'Copy the Access Token from your app settings.',
       'Paste it below and Save — your token is stored encrypted and used only at publish time.',
     ],
     docsUrl: 'https://buffer.com/developers/api',
   },
-  {
-    id: 'facebook',
-    label: 'Facebook Page (direct)',
-    capabilityKey: 'facebookPublish',
-    description:
-      'Direct Graph API push to a Facebook Page. Most workspaces should use Buffer instead — this path requires Meta App Review and is reserved for first-party Move Better workspaces.',
-    platforms: ['Facebook'],
-    secretLabel: 'Page access token',
-    secretPlaceholder: 'EAABsbCS…',
-    fields: [
-      { key: 'page_id', label: 'Facebook Page ID', placeholder: '1234567890' },
-    ],
-    setupSteps: [
-      'In Meta App Dashboard, add the Pages product and request pages_manage_posts.',
-      'Generate a long-lived Page Access Token via the Graph API Explorer.',
-      'Paste the token + Page ID below and Save.',
-    ],
-    docsUrl: 'https://developers.facebook.com/docs/pages/getting-started',
-  },
+  // Facebook direct (Graph API) was retired 2026-05-10 — Facebook Pages now
+  // publish through the Buffer channel above. No separate card on this page.
   {
     id: 'gbp',
     label: 'Google Business Profile',

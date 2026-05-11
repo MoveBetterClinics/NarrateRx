@@ -43,8 +43,15 @@ export const EXPORT_SHAPES = Object.freeze({
 })
 
 export const PUBLISH_MODES = Object.freeze({
-  BUFFER:    'buffer',     // Buffer queue → IG / FB / LinkedIn (Buffer in maintenance — kept for Move Better)
-  FACEBOOK:  'facebook',   // Facebook Page direct via Graph API
+  // Buffer is the universal social path: IG, FB, LinkedIn, X/Twitter, Pinterest,
+  // TikTok, YouTube Shorts, Threads, Bluesky, Mastodon, etc. Adding a new
+  // Buffer-supported platform = (1) entry here in the registry with this mode,
+  // (2) entry in PLATFORM_TO_SERVICE in api/publish/buffer.js, (3) prompt
+  // generator in src/lib/prompts.js. No new credential card, no OAuth flow.
+  BUFFER:    'buffer',
+  // GBP stays direct (NOT Buffer) — the multi-location architecture in
+  // PRs #185/#188 resolves workspace_locations.gbp_location_id at publish
+  // time; Buffer's per-channel GBP model has no equivalent. See api/publish/gbp.js.
   GBP_QUEUE: 'gbp_queue',  // Google Business Profile via service account, scheduled by api/cron/publish-due.js
   WEBSITE:   'website',    // Astro+GitHub (animals) or WordPress REST (equine), dispatched in api/publish/website.js
   TDC:       'tdc',        // TrustDrivenCare newsletter — currently a paste-into-template flow, not a true API publish
@@ -87,7 +94,7 @@ export const OUTPUT_CHANNELS = Object.freeze({
     id: 'facebook',
     label: 'Facebook post',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    publishMode: PUBLISH_MODES.FACEBOOK,
+    publishMode: PUBLISH_MODES.BUFFER,
   },
   linkedin: {
     id: 'linkedin',
@@ -99,19 +106,49 @@ export const OUTPUT_CHANNELS = Object.freeze({
     id: 'tiktok',
     label: 'TikTok',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    publishMode: null, // export-only across all workspaces — no first-party TikTok publish path
+    publishMode: PUBLISH_MODES.BUFFER,
   },
   youtube_short: {
     id: 'youtube_short',
     label: 'YouTube Short',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    publishMode: null, // export-only across all workspaces
+    publishMode: PUBLISH_MODES.BUFFER,
   },
   pinterest: {
     id: 'pinterest',
     label: 'Pinterest pin',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    publishMode: null, // export-only across all workspaces
+    publishMode: PUBLISH_MODES.BUFFER,
+  },
+  twitter: {
+    id: 'twitter',
+    label: 'X / Twitter post',
+    exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
+    // TODO(prompts): no dedicated prompt generator in src/lib/prompts.js yet.
+    // Publish path is wired (Buffer) but content currently must be authored
+    // by hand or adapted from another social platform.
+    publishMode: PUBLISH_MODES.BUFFER,
+  },
+  threads: {
+    id: 'threads',
+    label: 'Threads post',
+    exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
+    // TODO(prompts): no dedicated prompt generator yet.
+    publishMode: PUBLISH_MODES.BUFFER,
+  },
+  bluesky: {
+    id: 'bluesky',
+    label: 'Bluesky post',
+    exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
+    // TODO(prompts): no dedicated prompt generator yet.
+    publishMode: PUBLISH_MODES.BUFFER,
+  },
+  mastodon: {
+    id: 'mastodon',
+    label: 'Mastodon post',
+    exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
+    // TODO(prompts): no dedicated prompt generator yet.
+    publishMode: PUBLISH_MODES.BUFFER,
   },
   google_ads: {
     id: 'google_ads',

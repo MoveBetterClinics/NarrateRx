@@ -9,10 +9,27 @@ import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const BUFFER_API = 'https://api.bufferapp.com/1'
 
-// Map our platform names → Buffer service names
+// Map our runtime platform IDs → Buffer service strings. Buffer routes the
+// post to whichever profile in the workspace's Buffer org matches the service.
+// Adding a new platform: append here, mirror in src/lib/publish.js
+// BUFFER_PLATFORMS, and add a registry entry in src/lib/outputChannels.js.
+//
+// Service strings reflect Buffer's API (https://buffer.com/developers/api).
+// Facebook moved here 2026-05-10 — retired direct Meta Graph publishing to
+// skip Meta App Review + Page-token rotation. GBP is intentionally NOT in
+// this map: it stays on /api/publish/gbp because the workspace_locations /
+// gbp_location_id multi-location architecture has no Buffer equivalent.
 const PLATFORM_TO_SERVICE = {
-  instagram: 'instagram',
-  linkedin:  'linkedin',
+  instagram:     'instagram',
+  facebook:      'facebook',
+  linkedin:      'linkedin',
+  pinterest:     'pinterest',
+  twitter:       'twitter',
+  tiktok:        'tiktok',
+  threads:       'threads',
+  youtube_short: 'youtube',
+  bluesky:       'bluesky',
+  mastodon:      'mastodon',
 }
 
 export default async function handler(req, res) {

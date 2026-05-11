@@ -1,15 +1,17 @@
 // Per-workspace publish credential lookup.
 //
-// Replaces process.env.{BUFFER_ACCESS_TOKEN, FACEBOOK_PAGE_TOKEN, ...} reads
+// Replaces process.env.{BUFFER_ACCESS_TOKEN, GOOGLE_SERVICE_ACCOUNT_KEY, ...} reads
 // in api/publish/* with a workspace_id-scoped read from the shared
 // workspace_credentials table. Each publish endpoint calls
 // getCredential(workspaceId, service) and gets back { config, secret } or
 // null when the workspace hasn't configured that service.
 //
 // Service names are stable strings the publish endpoints know about:
-//   'buffer'        — Buffer queue          { secret: access_token }
-//   'facebook'      — Facebook Page         { config: { page_id }, secret: page_token }
-//   'gbp'           — Google Business Profile
+//   'buffer'        — Buffer queue (universal social path: IG / FB / LinkedIn /
+//                     X / Pinterest / TikTok / YouTube Shorts / Threads /
+//                     Bluesky / Mastodon) { secret: access_token }
+//   'gbp'           — Google Business Profile (kept direct — Buffer can't
+//                     model our workspace_locations multi-location publish)
 //                     { config: { account_id, location_ids[], location_names[],
 //                                  service_account_email },
 //                       secret: service_account_private_key (JSON-stringified) }
@@ -62,10 +64,6 @@ function envFallback(service) {
     case 'buffer':
       return process.env.BUFFER_ACCESS_TOKEN
         ? { config: {}, secret: process.env.BUFFER_ACCESS_TOKEN }
-        : null
-    case 'facebook':
-      return process.env.FACEBOOK_PAGE_TOKEN && process.env.FACEBOOK_PAGE_ID
-        ? { config: { page_id: process.env.FACEBOOK_PAGE_ID }, secret: process.env.FACEBOOK_PAGE_TOKEN }
         : null
     case 'gbp':
       return process.env.GOOGLE_SERVICE_ACCOUNT_KEY && process.env.GBP_ACCOUNT_ID

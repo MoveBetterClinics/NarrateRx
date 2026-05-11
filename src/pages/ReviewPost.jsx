@@ -20,9 +20,14 @@ import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 
-const DIRECT_PLATFORMS  = ['facebook', 'gbp']
-const BUFFER_PLATFORMS  = ['instagram', 'linkedin', 'pinterest']
-const NEEDS_MEDIA       = ['instagram', 'facebook', 'gbp']
+const DIRECT_PLATFORMS  = ['gbp']
+const BUFFER_PLATFORMS  = [
+  'instagram', 'facebook', 'linkedin', 'pinterest',
+  'tiktok', 'youtube_short', 'twitter', 'threads', 'bluesky', 'mastodon',
+]
+// Media-required platforms — visual-first networks where a post without an
+// image/video can't be published (or will look broken in feed).
+const NEEDS_MEDIA       = ['instagram', 'facebook', 'gbp', 'pinterest', 'tiktok', 'youtube_short']
 
 // Platform-specific preferred posting days (0=Sun…6=Sat) and hours (local time)
 const PLATFORM_SCHEDULE_PREFS = {
