@@ -1,5 +1,7 @@
 export const config = { runtime: 'edge' }
 
+import { workspaceContext } from '../_lib/workspaceContext.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
@@ -26,10 +28,14 @@ export default async function handler(req) {
   const id = searchParams.get('id')
   const userId = req.headers.get('x-user-id')
 
+  const ws = await workspaceContext(req)
+  if (!ws) return err('Workspace not resolved', 400)
+  const wsFilter = `workspace_id=eq.${ws.id}`
+
   if (req.method === 'GET') {
     if (id) {
       const res = await sb(
-        `interviews?id=eq.${id}&select=id,clinician_id,topic,status,messages,outputs,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,created_at,updated_at`
+        `interviews?id=eq.${id}&${wsFilter}&select=id,clinician_id,topic,status,messages,outputs,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,created_at,updated_at`
       )
       if (!res.ok) return err('Database error', 500)
       const data = await res.json()
@@ -41,7 +47,7 @@ export default async function handler(req) {
     const excludeId = searchParams.get('excludeId')
     if (!topic) return err('Missing id or topic')
 
-    let qs = `interviews?topic=ilike.${encodeURIComponent(topic)}&status=eq.completed`
+    let qs = `interviews?${wsFilter}&topic=ilike.${encodeURIComponent(topic)}&status=eq.completed`
     qs += `&select=id,topic,messages,created_at,clinicians(name)`
     if (excludeId) qs += `&id=neq.${excludeId}`
     qs += `&order=created_at.desc&limit=3`
@@ -60,6 +66,7 @@ export default async function handler(req) {
     const res = await sb('interviews', {
       method: 'POST',
       body: JSON.stringify({
+        workspace_id: ws.id,
         clinician_id: clinicianId,
         topic: topic.trim(),
         owner_id: ownerId,
@@ -81,7 +88,7 @@ export default async function handler(req) {
     if (!id) return err('Missing id')
     if (!userId) return err('Unauthorized', 401)
 
-    const chk = await sb(`interviews?id=eq.${id}&select=owner_id,clinician_id,topic,location_id`)
+    const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,clinician_id,topic,location_id`)
     if (!chk.ok) return err('Database error', 500)
     const rows = await chk.json()
     if (!rows.length) return err('Not found', 404)
@@ -94,7 +101,7 @@ export default async function handler(req) {
     if (body.status !== undefined) patch.status = body.status
     if (body.locationId !== undefined) patch.location_id = body.locationId || null
 
-    const res = await sb(`interviews?id=eq.${id}`, {
+    const res = await sb(`interviews?id=eq.${id}&${wsFilter}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     })
@@ -137,6 +144,7 @@ export default async function handler(req) {
           const items = platformMap
             .filter(({ key }) => o[key]?.trim())
             .map(({ key, platform }) => ({
+              workspace_id:   ws.id,
               interview_id:   id,
               clinician_id,
               clinician_name: clinicianName,
@@ -168,14 +176,14 @@ export default async function handler(req) {
     if (!id) return err('Missing id')
     if (!userId) return err('Unauthorized', 401)
 
-    const chk = await sb(`interviews?id=eq.${id}&select=owner_id`)
+    const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id`)
     if (!chk.ok) return err('Database error', 500)
     const rows = await chk.json()
     if (!rows.length) return err('Not found', 404)
     if (rows[0].owner_id !== userId) return err('Forbidden', 403)
 
     // Block deletion if any content items from this interview have been published
-    const pubChk = await sb(`content_items?interview_id=eq.${id}&status=eq.published&select=id&limit=1`)
+    const pubChk = await sb(`content_items?interview_id=eq.${id}&${wsFilter}&status=eq.published&select=id&limit=1`)
     if (pubChk.ok) {
       const published = await pubChk.json()
       if (published.length > 0) {
@@ -183,7 +191,7 @@ export default async function handler(req) {
       }
     }
 
-    const res = await sb(`interviews?id=eq.${id}`, { method: 'DELETE' })
+    const res = await sb(`interviews?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
     if (!res.ok) return err('Delete failed', 500)
     return ok({ ok: true })
   }

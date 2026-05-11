@@ -1,5 +1,7 @@
 export const config = { runtime: 'edge' }
 
+import { workspaceContext } from '../_lib/workspaceContext.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
@@ -28,16 +30,20 @@ export default async function handler(req) {
   const id = searchParams.get('id')
   const userId = req.headers.get('x-user-id')
 
+  const ws = await workspaceContext(req)
+  if (!ws) return err('Workspace not resolved', 400)
+  const wsFilter = `workspace_id=eq.${ws.id}`
+
   if (req.method === 'GET') {
     if (id) {
       // Single clinician with full interview list
-      const res = await sb(`clinicians?id=eq.${id}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
+      const res = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
       if (!res.ok) return err('Database error', 500)
       const data = await res.json()
       return ok(data[0] ?? null)
     }
     // All clinicians with interview summaries
-    const res = await sb(`clinicians?select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
+    const res = await sb(`clinicians?${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
     if (!res.ok) return err('Database error', 500)
     return ok(await res.json())
   }
@@ -47,8 +53,8 @@ export default async function handler(req) {
     if (!name?.trim()) return err('Name required')
     if (!createdById) return err('Unauthorized', 401)
 
-    // Find existing by name (case-insensitive)
-    const findRes = await sb(`clinicians?name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
+    // Find existing by name (case-insensitive) within this workspace
+    const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
     if (!findRes.ok) return err('Database error', 500)
     const found = await findRes.json()
     if (found.length > 0) return ok(found[0])
@@ -56,7 +62,12 @@ export default async function handler(req) {
     // Create new
     const createRes = await sb('clinicians', {
       method: 'POST',
-      body: JSON.stringify({ name: name.trim(), created_by_id: createdById, created_by_email: createdByEmail }),
+      body: JSON.stringify({
+        workspace_id: ws.id,
+        name: name.trim(),
+        created_by_id: createdById,
+        created_by_email: createdByEmail,
+      }),
     })
     if (!createRes.ok) return err('Create failed', 500)
     const data = await createRes.json()
@@ -67,13 +78,13 @@ export default async function handler(req) {
     if (!id) return err('Missing id')
     if (!userId) return err('Unauthorized', 401)
 
-    const chk = await sb(`clinicians?id=eq.${id}&select=created_by_id`)
+    const chk = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=created_by_id`)
     if (!chk.ok) return err('Database error', 500)
     const rows = await chk.json()
     if (!rows.length) return err('Not found', 404)
     if (rows[0].created_by_id !== userId) return err('Forbidden', 403)
 
-    const res = await sb(`clinicians?id=eq.${id}`, { method: 'DELETE' })
+    const res = await sb(`clinicians?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
     if (!res.ok) return err('Delete failed', 500)
     return ok({ ok: true })
   }
