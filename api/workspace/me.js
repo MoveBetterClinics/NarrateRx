@@ -26,7 +26,28 @@ const PATCHABLE_FIELDS = new Set([
   'patient_context',
   'interview_context',
   'topic_suggestions',
+  'publish_topics',
 ])
+
+const TOPIC_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+
+function sanitizePublishTopics(value) {
+  if (value === null || value === undefined) return []
+  if (!Array.isArray(value)) return null
+  const seen = new Set()
+  const out = []
+  for (const raw of value) {
+    if (typeof raw !== 'string') return null
+    const t = raw.trim().toLowerCase()
+    if (!t) continue
+    if (t.length > 60) return null
+    if (!TOPIC_SLUG_RE.test(t)) return null
+    if (seen.has(t)) continue
+    seen.add(t)
+    out.push(t)
+  }
+  return out
+}
 
 const TONE_KEYS = ['active', 'clinical', 'warm', 'smart']
 
@@ -149,6 +170,12 @@ export default async function handler(req, res) {
         const cleaned = sanitizeTopicSuggestions(value)
         if (cleaned === null) return res.status(400).json({ error: 'invalid-topic-suggestions' })
         patch.topic_suggestions = cleaned
+        continue
+      }
+      if (key === 'publish_topics') {
+        const cleaned = sanitizePublishTopics(value)
+        if (cleaned === null) return res.status(400).json({ error: 'invalid-publish-topics' })
+        patch.publish_topics = cleaned
         continue
       }
       patch[key] = value

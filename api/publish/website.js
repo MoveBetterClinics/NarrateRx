@@ -79,6 +79,10 @@ async function publishToAstro(res, payload, cred) {
   if (payload.heroImageAlt) body.heroImageAlt = payload.heroImageAlt
   if (Array.isArray(payload.tags) && payload.tags.length) body.tags = payload.tags
   if (typeof payload.draft === 'boolean') body.draft = payload.draft
+  // Kebab-case topic slug — used by movebetter.co's blog schema (mapped
+  // into `topic` frontmatter on receive). Animal's receiver ignores
+  // unknown fields, so this is safe for both tenants.
+  if (typeof payload.topic === 'string' && payload.topic.trim()) body.topic = payload.topic.trim()
 
   let upstream
   try {
