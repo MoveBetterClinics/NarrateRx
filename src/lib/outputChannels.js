@@ -43,16 +43,14 @@ export const EXPORT_SHAPES = Object.freeze({
 })
 
 export const PUBLISH_MODES = Object.freeze({
-  // Buffer is the universal social path: IG, FB, LinkedIn, X/Twitter, Pinterest,
-  // TikTok, YouTube Shorts, Threads, Bluesky, Mastodon, etc. Adding a new
-  // Buffer-supported platform = (1) entry here in the registry with this mode,
-  // (2) entry in PLATFORM_TO_SERVICE in api/publish/buffer.js, (3) prompt
+  // Buffer is the universal social + local path: IG, FB, LinkedIn, X/Twitter,
+  // Pinterest, TikTok, YouTube Shorts, Threads, Bluesky, Mastodon, GBP. Adding
+  // a new Buffer-supported platform = (1) entry here in the registry with this
+  // mode, (2) entry in PLATFORM_TO_SERVICE in api/publish/buffer.js, (3) prompt
   // generator in src/lib/prompts.js. No new credential card, no OAuth flow.
+  // GBP additionally needs a Buffer GBP channel ID pasted into each
+  // workspace_locations row at /settings/workspace.
   BUFFER:    'buffer',
-  // GBP stays direct (NOT Buffer) — the multi-location architecture in
-  // PRs #185/#188 resolves workspace_locations.gbp_location_id at publish
-  // time; Buffer's per-channel GBP model has no equivalent. See api/publish/gbp.js.
-  GBP_QUEUE: 'gbp_queue',  // Google Business Profile via service account, scheduled by api/cron/publish-due.js
   WEBSITE:   'website',    // Astro+GitHub (animals) or WordPress REST (equine), dispatched in api/publish/website.js
   TDC:       'tdc',        // TrustDrivenCare newsletter — currently a paste-into-template flow, not a true API publish
 })
@@ -76,7 +74,7 @@ export const OUTPUT_CHANNELS = Object.freeze({
     id: 'gbp',
     label: 'Google Business Profile post',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    publishMode: PUBLISH_MODES.GBP_QUEUE,
+    publishMode: PUBLISH_MODES.BUFFER,
   },
   instagram_post: {
     id: 'instagram_post',
@@ -183,7 +181,7 @@ export function publishCapabilityKey(channelId) {
   const channel = OUTPUT_CHANNELS[channelId]
   if (!channel || !channel.publishMode) return null
   const mode = channel.publishMode
-  // gbp_queue → gbpQueuePublish
+  // website → websitePublish, tdc → tdcPublish, buffer → bufferPublish.
   const camel = mode.replace(/_([a-z])/g, (_, c) => c.toUpperCase())
   return `${camel}Publish`
 }

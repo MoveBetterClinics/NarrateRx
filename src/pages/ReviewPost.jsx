@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack, fetchGBPLocations } from '@/lib/publish'
+import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack } from '@/lib/publish'
 import { fetchInterview } from '@/lib/api'
 import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -20,10 +20,12 @@ import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 
-const DIRECT_PLATFORMS  = ['gbp']
+// All distribution surfaces route through Buffer as of 2026-05-11. GBP is
+// special only in that it carries a per-location selection (`locationIds`).
 const BUFFER_PLATFORMS  = [
   'instagram', 'facebook', 'linkedin', 'pinterest',
   'tiktok', 'youtube_short', 'twitter', 'threads', 'bluesky', 'mastodon',
+  'gbp',
 ]
 // Media-required platforms — visual-first networks where a post without an
 // image/video can't be published (or will look broken in feed).
@@ -126,36 +128,39 @@ export default function ReviewPost() {
             .then((updated) => setItem(updated))
             .catch(() => {})
         }
-        if (i?.platform === 'gbp') {
-          fetchGBPLocations()
-            .then(({ locations }) => {
-              setGbpLocations(locations)
-              const allIds = locations.map((l) => l.id)
-              // If the row already has a saved selection, restore it (filtered
-              // against currently-configured locations). NULL = "all locations".
-              const saved = Array.isArray(i.target_locations) ? i.target_locations.filter((id) => allIds.includes(id)) : null
-              // If this content item is bound to a single workspace_location
-              // and that location has a gbp_location_id, default the picker to
-              // just that one — the multi-location workflow.
-              const wsLoc = i.location_id
-                ? (workspace?.locations || []).find((l) => l.id === i.location_id)
-                : null
-              const wsGbpId = wsLoc?.gbp_location_id
-              const defaultFromWsLoc = wsGbpId && allIds.includes(wsGbpId) ? [wsGbpId] : null
-              setSelectedLocs(
-                saved && saved.length
-                  ? saved
-                  : (defaultFromWsLoc || allIds)
-              )
-            })
-            .catch(() => {})
-        }
+        // GBP location picker is hydrated from workspace.locations in a
+        // separate effect that waits for workspace to load — the picker now
+        // shows workspace_locations rows (UUIDs), not Google location IDs.
       })
       .catch(() => navigate('/hub'))
       .finally(() => setLoading(false))
   }, [itemId])
 
   // Auto-suggest a schedule time based on what's already queued
+  // Hydrate the GBP location picker from workspace.locations once both the
+  // content item and the workspace are loaded. Selection holds workspace_locations
+  // row UUIDs; the buffer publish endpoint resolves those to Buffer GBP profile
+  // IDs via gbp_location_id. Only locations with a Buffer channel ID are
+  // selectable — without one there's nowhere to send the post.
+  useEffect(() => {
+    if (!item || item.platform !== 'gbp') return
+    const eligible = (workspace?.locations || []).filter(
+      (l) => l.status !== 'archived' && l.gbp_location_id,
+    )
+    setGbpLocations(eligible)
+    const eligibleIds = eligible.map((l) => l.id)
+    const saved = Array.isArray(item.target_locations)
+      ? item.target_locations.filter((id) => eligibleIds.includes(id))
+      : null
+    // If the item is bound to a single workspace_location with a Buffer
+    // channel ID, default the picker to just that one. Otherwise default to
+    // every eligible location ("post everywhere").
+    const itemBound = item.location_id && eligibleIds.includes(item.location_id)
+      ? [item.location_id]
+      : null
+    setSelectedLocs(saved && saved.length ? saved : (itemBound || eligibleIds))
+  }, [item?.id, item?.platform, workspace?.locations])
+
   useEffect(() => {
     if (!item || item.scheduled_at) return
     fetchContentItems({ status: 'scheduled', limit: 100 })
@@ -346,7 +351,6 @@ export default function ReviewPost() {
   const Icon = pm.icon
   const needsMedia      = NEEDS_MEDIA.includes(item.platform)
   const hasMedia        = (item.media_urls || []).length > 0
-  const canPublishDirect = DIRECT_PLATFORMS.includes(item.platform)
   const usesBuffer      = BUFFER_PLATFORMS.includes(item.platform)
   const isPublished     = item.status === 'published'
 
@@ -633,7 +637,14 @@ export default function ReviewPost() {
                 </Button>
               ) : null}
 
-              {/* GBP location picker */}
+              {/* GBP location picker — only locations with a Buffer GBP channel ID are listed. */}
+              {item.platform === 'gbp' && gbpLocations.length === 0 && (
+                <p className="text-xs text-amber-600">
+                  No location has a Buffer GBP channel ID yet. Open
+                  <Link to="/settings/workspace" className="underline ml-1">Workspace Settings → Locations</Link>
+                  and paste the Buffer profile ID for each Google Business listing.
+                </p>
+              )}
               {item.platform === 'gbp' && gbpLocations.length > 0 && (
                 <div className="space-y-1.5">
                   <label className="text-xs text-muted-foreground">Post to locations</label>
@@ -648,7 +659,8 @@ export default function ReviewPost() {
                           )}
                           className="rounded"
                         />
-                        {loc.name}
+                        {loc.label || loc.city || loc.id}
+                        {loc.city && loc.region ? <span className="text-muted-foreground"> · {loc.city}, {loc.region}</span> : null}
                       </label>
                     ))}
                   </div>
@@ -681,11 +693,9 @@ export default function ReviewPost() {
 
               {/* Platform note */}
               <p className="text-xs text-muted-foreground text-center">
-                {canPublishDirect
-                  ? `Posts directly to your ${pm.label} page`
-                  : usesBuffer
-                    ? `Published via Buffer → ${pm.label}`
-                    : 'Copy and paste into your CMS'}
+                {usesBuffer
+                  ? `Published via Buffer → ${pm.label}`
+                  : 'Copy and paste into your CMS'}
               </p>
             </div>
           )}

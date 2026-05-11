@@ -7,14 +7,9 @@
 // null when the workspace hasn't configured that service.
 //
 // Service names are stable strings the publish endpoints know about:
-//   'buffer'        — Buffer queue (universal social path: IG / FB / LinkedIn /
-//                     X / Pinterest / TikTok / YouTube Shorts / Threads /
-//                     Bluesky / Mastodon) { secret: access_token }
-//   'gbp'           — Google Business Profile (kept direct — Buffer can't
-//                     model our workspace_locations multi-location publish)
-//                     { config: { account_id, location_ids[], location_names[],
-//                                  service_account_email },
-//                       secret: service_account_private_key (JSON-stringified) }
+//   'buffer'        — Buffer queue (universal social + local path: IG / FB /
+//                     LinkedIn / X / Pinterest / TikTok / YouTube Shorts /
+//                     Threads / Bluesky / Mastodon / GBP) { secret: access_token }
 //   'wordpress'     — WordPress REST publish (equine)
 //                     { config: { site_url, user }, secret: app_password }
 //   'astro_github'  — Astro+GitHub website publish (animals)
@@ -64,18 +59,6 @@ function envFallback(service) {
     case 'buffer':
       return process.env.BUFFER_ACCESS_TOKEN
         ? { config: {}, secret: process.env.BUFFER_ACCESS_TOKEN }
-        : null
-    case 'gbp':
-      return process.env.GOOGLE_SERVICE_ACCOUNT_KEY && process.env.GBP_ACCOUNT_ID
-        ? {
-            config: {
-              account_id: process.env.GBP_ACCOUNT_ID,
-              location_ids: (process.env.GBP_LOCATION_IDS || '').split(',').map((s) => s.trim()).filter(Boolean),
-              location_names: (process.env.GBP_LOCATION_NAMES || '').split(',').map((s) => s.trim()).filter(Boolean),
-              service_account_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-            },
-            secret: process.env.GOOGLE_SERVICE_ACCOUNT_KEY,
-          }
         : null
     case 'wordpress':
       return process.env.WORDPRESS_USER && process.env.WORDPRESS_APP_PASSWORD

@@ -546,24 +546,11 @@ const CREDENTIAL_SERVICES = [
     secretLabel: 'Access token',
     fields: [],
   },
-  // Facebook moved to Buffer 2026-05-10 — no separate credential needed.
-  // Connect each FB Page as a Channel in your Buffer organization; the existing
-  // Buffer token gains posting permission automatically. Same for every other
-  // social platform Buffer supports. GBP keeps its own card below because the
-  // multi-location service-account architecture has no Buffer equivalent.
-  {
-    id: 'gbp',
-    label: 'Google Business Profile',
-    description: 'Service account key + GBP account/location IDs for direct + scheduled posts.',
-    secretLabel: 'Service account private key (PEM)',
-    secretIsTextarea: true,
-    fields: [
-      { key: 'service_account_email', label: 'Service account email', placeholder: 'name@project.iam.gserviceaccount.com' },
-      { key: 'account_id', label: 'GBP account ID', placeholder: 'accounts/123456789' },
-      { key: 'location_ids', label: 'Location IDs (comma-separated)', placeholder: 'locations/111,locations/222', isCsv: true },
-      { key: 'location_names', label: 'Location friendly names (comma-separated)', placeholder: 'Seattle,Bellevue', isCsv: true },
-    ],
-  },
+  // Facebook moved to Buffer 2026-05-10 and GBP followed 2026-05-11 — no
+  // separate credential cards. Connect each FB Page / GBP listing as a Channel
+  // in your Buffer organization; the existing Buffer token gains posting
+  // permission automatically. Per-location Buffer GBP channel IDs live on
+  // workspace_locations rows (Locations panel above).
   {
     id: 'wordpress',
     label: 'WordPress',
@@ -951,7 +938,7 @@ function emptyLocationDraft() {
   return {
     label: '', city: '', region: '',
     location_keyword: '', location_hashtag: '',
-    visit_url: '',
+    visit_url: '', gbp_location_id: '',
   }
 }
 
@@ -976,6 +963,7 @@ function LocationRow({ location, getToken, onChange, isOnlyLocation }) {
       location_keyword: location.location_keyword || '',
       location_hashtag: location.location_hashtag || '',
       visit_url: location.visit_url || '',
+      gbp_location_id: location.gbp_location_id || '',
     })
   }, [location])
 
@@ -1152,6 +1140,24 @@ function LocationFields({ draft, setDraft }) {
           placeholder="https://yourpractice.com/visit/portland"
           className="text-sm"
         />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Buffer GBP channel ID</Label>
+        <Input
+          value={draft.gbp_location_id}
+          onChange={e => set('gbp_location_id')(e.target.value)}
+          placeholder="e.g. 6612a8c7d4e3f2b1a09f8765"
+          className="text-sm font-mono"
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Buffer profile ID for this location's Google Business listing. Find it
+          at <a className="underline" href="https://publish.buffer.com/" target="_blank" rel="noreferrer">publish.buffer.com</a> →
+          select the GBP channel → copy the ID from the URL
+          (<code>publish.buffer.com/profile/&lt;id&gt;/...</code>), or call
+          <code> GET https://api.bufferapp.com/1/profiles.json?access_token=&lt;token&gt;</code> and
+          pick the entry whose <code>service</code> is googlebusiness.
+          Leave blank if this location has no GBP listing.
+        </p>
       </div>
     </>
   )

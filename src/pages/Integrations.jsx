@@ -20,8 +20,9 @@ import { useUserRole } from '@/lib/useUserRole'
 
 // Customer-facing publishing connect page. Per-workspace credentials are
 // stored encrypted via /api/workspace/credentials. Buffer is the recommended
-// integration for every workspace; Facebook / GBP / TDC stay first-party only
-// and only render when the workspace has the matching capability flag.
+// integration for every workspace and now covers Google Business Profile too
+// (per-location channel IDs live on workspace_locations rows). TDC stays
+// first-party only and renders behind a capability flag.
 
 const INTEGRATIONS = [
   {
@@ -29,8 +30,8 @@ const INTEGRATIONS = [
     label: 'Buffer',
     recommended: true,
     description:
-      'One connection that fans NarrateRx posts out to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, TikTok, YouTube Shorts, Bluesky, Mastodon, and more. The fastest way to get NarrateRx publishing for your workspace.',
-    platforms: ['Instagram', 'Facebook', 'LinkedIn', 'Twitter/X', 'Threads', 'Pinterest', 'TikTok', 'YouTube Shorts', 'Mastodon', 'Bluesky'],
+      'One connection that fans NarrateRx posts out to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, TikTok, YouTube Shorts, Bluesky, Mastodon, Google Business Profile, and more. The fastest way to get NarrateRx publishing for your workspace.',
+    platforms: ['Instagram', 'Facebook', 'LinkedIn', 'Twitter/X', 'Threads', 'Pinterest', 'TikTok', 'YouTube Shorts', 'Mastodon', 'Bluesky', 'Google Business Profile'],
     secretLabel: 'Buffer access token',
     secretPlaceholder: 'access_token_…',
     fields: [],
@@ -43,32 +44,10 @@ const INTEGRATIONS = [
     ],
     docsUrl: 'https://buffer.com/developers/api',
   },
-  // Facebook direct (Graph API) was retired 2026-05-10 — Facebook Pages now
-  // publish through the Buffer channel above. No separate card on this page.
-  {
-    id: 'gbp',
-    label: 'Google Business Profile',
-    capabilityKey: 'gbpQueuePublish',
-    description:
-      'Scheduled posts to your Google Business Profile listings via a service account. Reserved for first-party Move Better workspaces.',
-    platforms: ['Google Business Profile'],
-    secretLabel: 'Service account private key (PEM)',
-    secretPlaceholder: '-----BEGIN PRIVATE KEY-----\n…',
-    secretIsTextarea: true,
-    fields: [
-      { key: 'service_account_email', label: 'Service account email', placeholder: 'name@project.iam.gserviceaccount.com' },
-      { key: 'account_id',            label: 'GBP account ID',         placeholder: 'accounts/123456789' },
-      { key: 'location_ids',          label: 'Location IDs (comma-separated)',   placeholder: 'locations/111,locations/222', isCsv: true },
-      { key: 'location_names',        label: 'Location names (comma-separated)', placeholder: 'Seattle,Bellevue',            isCsv: true },
-    ],
-    setupSteps: [
-      'In Google Cloud, enable the Business Information + Profile Performance APIs.',
-      'Create a service account and download the JSON key.',
-      'Add the service account email as a Manager on each GBP location.',
-      'Paste the private key + IDs below and Save.',
-    ],
-    docsUrl: 'https://developers.google.com/my-business/content/get-started',
-  },
+  // Facebook direct (Graph API) retired 2026-05-10. Google Business Profile
+  // direct (service account) retired 2026-05-11. Both publish through the
+  // Buffer channel above; GBP listings additionally need their per-location
+  // Buffer profile ID pasted into Workspace Settings → Locations.
   {
     id: 'wordpress',
     label: 'WordPress (REST publish)',

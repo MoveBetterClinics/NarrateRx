@@ -17,8 +17,10 @@ import { listConfiguredServices } from '../_lib/getCredential.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-// 'facebook' retired 2026-05-10 — FB now routes through Buffer.
-const KNOWN_SERVICES = new Set(['buffer', 'gbp', 'wordpress', 'astro_github', 'website', 'tdc'])
+// 'facebook' retired 2026-05-10 — FB routes through Buffer.
+// 'gbp' retired 2026-05-11 — GBP routes through Buffer (per-location channel
+//   IDs live on workspace_locations.gbp_location_id).
+const KNOWN_SERVICES = new Set(['buffer', 'wordpress', 'astro_github', 'website', 'tdc'])
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {

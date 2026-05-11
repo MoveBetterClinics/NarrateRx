@@ -48,31 +48,31 @@ export function createContentItems(items) {
 
 // ── Publishing ────────────────────────────────────────────────────────────────
 
-// Buffer is the universal social path. To add a new Buffer-supported platform:
-// (1) add an entry to OUTPUT_CHANNELS with publishMode: BUFFER, (2) add the
-// matching service string to PLATFORM_TO_SERVICE in api/publish/buffer.js,
-// (3) add a prompt generator in src/lib/prompts.js. GBP is the only direct
-// path (the multi-location architecture has no clean Buffer equivalent).
+// Buffer is the universal distribution path. As of 2026-05-11 every social +
+// local surface (including GBP) routes through Buffer — there are no direct
+// platform integrations left. To add a new Buffer-supported platform: (1) add
+// to BUFFER_PLATFORMS, (2) add the matching service string to
+// PLATFORM_TO_SERVICE in api/publish/buffer.js, (3) add a prompt generator in
+// src/lib/prompts.js.
+//
+// `locationIds` only applies to gbp: it carries an array of workspace_locations
+// row UUIDs selected in the Review picker. The buffer endpoint resolves those
+// to Buffer GBP profile IDs via workspace_locations.gbp_location_id. Empty/
+// missing means "fan out to every active location with a Buffer GBP channel".
 const BUFFER_PLATFORMS = [
   'instagram', 'facebook', 'linkedin', 'pinterest',
   'tiktok', 'youtube_short', 'twitter', 'threads', 'bluesky', 'mastodon',
+  'gbp',
 ]
-const DIRECT_PLATFORMS = { gbp: '/api/publish/gbp' }
 
 export async function publishItem(item, { scheduledAt } = {}) {
   const { platform, content, mediaUrls = [], locationIds } = item
   const results = {}
 
   if (BUFFER_PLATFORMS.includes(platform)) {
-    results.buffer = await apiFetch('/api/publish/buffer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ platform, content, mediaUrls, scheduledAt }),
-    })
-  } else if (DIRECT_PLATFORMS[platform]) {
-    const body = { content, mediaUrls, scheduledAt }
+    const body = { platform, content, mediaUrls, scheduledAt }
     if (platform === 'gbp' && locationIds?.length) body.locationIds = locationIds
-    results.direct = await apiFetch(DIRECT_PLATFORMS[platform], {
+    results.buffer = await apiFetch('/api/publish/buffer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -80,10 +80,6 @@ export async function publishItem(item, { scheduledAt } = {}) {
   }
 
   return results
-}
-
-export function fetchGBPLocations() {
-  return apiFetch('/api/gbp/locations')
 }
 
 // ── Website publish (workspace-agnostic; gated by workspace.capabilities.websitePublish) ─
@@ -112,24 +108,8 @@ export async function publishBlogToWebsite(post) {
 
 // Publish one item to all relevant platforms at once
 export async function publishAndTrack(item, userId) {
-  // GBP's localPosts API has no native scheduling. Any GBP post with a
-  // scheduledAt routes through the internal queue: api/cron/publish-due picks
-  // it up when scheduled_at <= now(). target_locations is persisted so the
-  // user's location selection survives the queue.
-  const isGbpScheduled = item.platform === 'gbp' && item.scheduledAt
-
-  if (isGbpScheduled) {
-    await updateContentItem(item.id, {
-      status: 'scheduled',
-      scheduledAt: item.scheduledAt,
-      targetLocations: item.locationIds?.length ? item.locationIds : null,
-      approvedBy: userId,
-    })
-    return { queued: true }
-  }
-
   const result = await publishItem(item, { scheduledAt: item.scheduledAt })
-  const postId = result.direct?.postId || result.buffer?.bufferId
+  const postId = result.buffer?.bufferId
 
   await updateContentItem(item.id, {
     status: item.scheduledAt ? 'scheduled' : 'published',
