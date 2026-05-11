@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
-import { Plus, Settings, Building2, Menu } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Users, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -75,13 +75,22 @@ export default function Layout({ children }) {
           )}
 
           {role === 'admin' && (
-            <Link
-              to="/settings/workspace"
-              aria-label="Workspace settings"
-              className="hidden sm:inline-flex text-muted-foreground hover:text-foreground transition-colors rounded p-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-            >
-              <Building2 className="h-4 w-4" />
-            </Link>
+            <>
+              <Link
+                to="/settings/members"
+                aria-label="Members"
+                className="hidden sm:inline-flex text-muted-foreground hover:text-foreground transition-colors rounded p-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <Users className="h-4 w-4" />
+              </Link>
+              <Link
+                to="/settings/workspace"
+                aria-label="Workspace settings"
+                className="hidden sm:inline-flex text-muted-foreground hover:text-foreground transition-colors rounded p-1.5 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <Building2 className="h-4 w-4" />
+              </Link>
+            </>
           )}
           <Link
             to="/settings/integrations"
@@ -102,7 +111,14 @@ export default function Layout({ children }) {
             <Menu className="h-5 w-5" aria-hidden="true" />
           </button>
 
-          <UserButton afterSignOutUrl="/" />
+          {/* afterSignOutUrl + userProfileMode point Clerk's UserButton menu
+              at our in-app /account page rather than its hosted modal so the
+              account surface lives inside the app chrome. */}
+          <UserButton
+            afterSignOutUrl="/"
+            userProfileMode="navigation"
+            userProfileUrl="/account"
+          />
         </div>
       </header>
 
@@ -136,13 +152,22 @@ export default function Layout({ children }) {
             })}
             <div className="border-t my-2" />
             {role === 'admin' && (
-              <Link
-                to="/settings/workspace"
-                onClick={() => setMobileOpen(false)}
-                className="rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted flex items-center gap-2"
-              >
-                <Building2 className="h-4 w-4" /> Workspace settings
-              </Link>
+              <>
+                <Link
+                  to="/settings/workspace"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted flex items-center gap-2"
+                >
+                  <Building2 className="h-4 w-4" /> Workspace settings
+                </Link>
+                <Link
+                  to="/settings/members"
+                  onClick={() => setMobileOpen(false)}
+                  className="rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted flex items-center gap-2"
+                >
+                  <Users className="h-4 w-4" /> Members
+                </Link>
+              </>
             )}
             <Link
               to="/settings/integrations"
@@ -150,6 +175,13 @@ export default function Layout({ children }) {
               className="rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted flex items-center gap-2"
             >
               <Settings className="h-4 w-4" /> Integrations
+            </Link>
+            <Link
+              to="/account"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-md px-3 py-2 text-sm text-foreground hover:bg-muted flex items-center gap-2"
+            >
+              <UserCircle className="h-4 w-4" /> Your account
             </Link>
             {isHome && (
               <Link
