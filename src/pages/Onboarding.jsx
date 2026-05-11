@@ -87,13 +87,20 @@ export default function Onboarding() {
             setField={setField}
             scanState={scanState}
             setScanState={setScanState}
-            applyScan={(scan) => setForm(f => ({
-              ...f,
-              display_name: scan.display_name || f.display_name,
-              clinic_context: scan.clinic_context || f.clinic_context,
-              audience_short: scan.audience_short || f.audience_short,
-              brand_voice: scan.brand_voice || f.brand_voice,
-            }))}
+            applyScan={(scan) => setForm(f => {
+              const services = Array.isArray(scan.services) ? scan.services : []
+              const base = scan.clinic_context || f.clinic_context
+              const ctx = services.length
+                ? `${base}\n\nServices: ${services.join(', ')}`.trim()
+                : base
+              return {
+                ...f,
+                display_name: scan.display_name || f.display_name,
+                clinic_context: ctx,
+                audience_short: scan.audience_short || f.audience_short,
+                brand_voice: scan.brand_voice || f.brand_voice,
+              }
+            })}
             onContinue={() => setStep('voice')}
           />
         )}
@@ -355,10 +362,44 @@ function SignedInPrompt({ onContinue }) {
 
 // ── 2. Business basics + scan ────────────────────────────────────────────────
 
+const SCAN_STATUS_MESSAGES = [
+  'Fetching your home page…',
+  'Looking for services, treatments, and program pages…',
+  'Reading your about and approach pages…',
+  'Pulling recent blog posts and articles…',
+  'Studying your voice and vocabulary…',
+  'Drafting your starter brand context…',
+  'Almost done — finalizing suggestions…',
+]
+
 function BusinessScreen({ form, setForm, setField, scanState, setScanState, applyScan, onContinue }) {
+  const isScanning = scanState.status === 'scanning'
   const canContinue = form.display_name.trim().length > 0
     && form.locations.length > 0 && form.locations[0].city.trim().length > 0
+    && !isScanning
   const canScan = /^https?:\/\/.+\..+/.test(form.website.trim()) || /^[^\s]+\.[^\s]+/.test(form.website.trim())
+
+  // Cycle through informational status messages while scanning. The scan is
+  // a single round-trip (we can't get true progress) but we know roughly what
+  // it's doing in what order, so we tick through messages on a timer to make
+  // the wait feel grounded.
+  const [scanMessageIdx, setScanMessageIdx] = useState(0)
+  const [scanElapsed, setScanElapsed] = useState(0)
+  useEffect(() => {
+    if (!isScanning) {
+      setScanMessageIdx(0)
+      setScanElapsed(0)
+      return
+    }
+    const started = Date.now()
+    const tick = setInterval(() => {
+      const sec = Math.floor((Date.now() - started) / 1000)
+      setScanElapsed(sec)
+      // ~5s per message, capped at the last one
+      setScanMessageIdx(Math.min(Math.floor(sec / 5), SCAN_STATUS_MESSAGES.length - 1))
+    }, 500)
+    return () => clearInterval(tick)
+  }, [isScanning])
 
   function updateLocation(idx, key, value) {
     setForm(f => ({
@@ -477,8 +518,11 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
           <p className="text-sm font-medium">Scan your website to draft your voice</p>
         </div>
         <p className="text-xs text-muted-foreground">
-          We'll fetch your home + about page, read the visible copy, and propose
-          starter brand voice context. You'll review and edit on the next step.
+          We'll read your home page, your services / treatments / programs
+          pages, your about page, and a few blog posts if you have them — then
+          propose starter brand voice context grounded in what you actually
+          offer and how you actually write. You'll review and edit on the next
+          step.
         </p>
         <div className="flex items-center gap-2">
           <Button
@@ -486,10 +530,10 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
             size="sm"
             variant="secondary"
             onClick={runScan}
-            disabled={!canScan || scanState.status === 'scanning'}
+            disabled={!canScan || isScanning}
           >
-            {scanState.status === 'scanning' && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-            {scanState.status === 'done' ? 'Re-scan' : 'Scan my website'}
+            {isScanning && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+            {isScanning ? 'Scanning…' : scanState.status === 'done' ? 'Re-scan' : 'Scan my website'}
           </Button>
           {scanState.status === 'done' && (
             <span className="text-xs text-green-600 inline-flex items-center gap-1">
@@ -504,9 +548,34 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
             </span>
           )}
         </div>
+
+        {isScanning && (
+          <div className="mt-1 rounded-md border border-orange-200 bg-orange-50 px-3 py-2.5 space-y-2">
+            <div className="flex items-start gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-orange-600 mt-0.5 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-orange-900">
+                  {SCAN_STATUS_MESSAGES[scanMessageIdx]}
+                </p>
+                <p className="text-[11px] text-orange-700 mt-0.5">
+                  This usually takes 20–60 seconds. We're reading up to 15 pages from your site.
+                  {scanElapsed > 0 && ` (${scanElapsed}s elapsed)`}
+                </p>
+              </div>
+            </div>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-orange-100">
+              <div className="h-full w-1/3 animate-pulse bg-orange-500 rounded-full" />
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="flex items-center justify-end pt-2">
+      <div className="flex items-center justify-end gap-3 pt-2">
+        {isScanning && (
+          <span className="text-xs text-muted-foreground">
+            Hang on — finishing the scan before you continue.
+          </span>
+        )}
         <Button onClick={onContinue} disabled={!canContinue}>
           Continue <ArrowRight className="h-4 w-4 ml-1" />
         </Button>
