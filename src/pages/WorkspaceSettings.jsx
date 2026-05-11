@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -141,6 +141,21 @@ export default function WorkspaceSettings() {
   useDocumentTitle('Workspace settings')
   const { getToken } = useAuth()
   const qc = useQueryClient()
+
+  // Active tab is driven by ?tab= so deep links open the right section and
+  // the browser back button restores it. Allowlist keeps unknown values
+  // from rendering blank when someone hand-edits the URL.
+  const ALLOWED_TABS = ['general', 'brand', 'voice', 'locations', 'channels']
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabFromUrl = searchParams.get('tab')
+  const activeTab = ALLOWED_TABS.includes(tabFromUrl) ? tabFromUrl : 'general'
+  function setActiveTab(value) {
+    const next = new URLSearchParams(searchParams)
+    if (value === 'general') next.delete('tab')        // keep default URL clean
+    else                     next.set('tab', value)
+    // replace: tab switches shouldn't pile up in browser history
+    setSearchParams(next, { replace: true })
+  }
   const { role, isLoading: roleLoading } = useUserRole()
   const [ws, setWs]       = useState(undefined) // undefined=loading, null=no-context, object=loaded
   const [form, setForm]   = useState(null)
@@ -282,7 +297,7 @@ export default function WorkspaceSettings() {
           own mutations independently and don't ride the top-level form
           state). When we move to per-card save for the rest of the form,
           this layout is already ready. */}
-      <Tabs defaultValue="general">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-5 w-full max-w-xl">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="brand">Brand</TabsTrigger>
