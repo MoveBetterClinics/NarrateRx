@@ -565,7 +565,7 @@ function WebsitePublishPanel({ markdown, fallbackTitle }) {
     const next = [...topics, slug]
     setAddingTopic(true)
     try {
-      const token = await getToken()
+      const token = await getToken({ skipCache: true })
       const r = await fetch('/api/workspace/me', {
         method: 'PATCH',
         headers: {

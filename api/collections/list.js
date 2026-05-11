@@ -47,9 +47,16 @@ export default async function handler(req, res) {
   const SELECT = `id,${scope.column},${SELECT_COMMON}`
 
   // Resolve an assetId membership filter into a collection-id whitelist
-  // before composing the main query.
+  // before composing the main query. Verify the asset belongs to this
+  // workspace first — collection_items has no workspace_id of its own
+  // (tenant scope inherited via FKs), and the final collections filter
+  // would silently turn into a leak if a future refactor drops it.
   let membershipCollectionIds = null
   if (assetId) {
+    const ownRes = await sb(`media_assets?id=eq.${encodeURIComponent(assetId)}&${scope.column}=eq.${scope.id}&select=id&limit=1`)
+    if (!ownRes.ok) return res.status(500).json({ error: 'Database error' })
+    const ownRows = await ownRes.json()
+    if (!ownRows[0]) return res.status(200).json([])
     const ciRes = await sb(`collection_items?asset_id=eq.${encodeURIComponent(assetId)}&select=collection_id`)
     if (!ciRes.ok) return res.status(500).json({ error: 'Database error' })
     const ciRows = await ciRes.json()

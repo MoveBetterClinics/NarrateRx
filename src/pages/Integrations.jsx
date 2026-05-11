@@ -115,7 +115,7 @@ export default function Integrations() {
   async function reload() {
     try {
       const r = await fetch('/api/workspace/credentials', {
-        headers: { Authorization: `Bearer ${await getToken()}` },
+        headers: { Authorization: `Bearer ${await getToken({ skipCache: true })}` },
       })
       if (!r.ok) {
         setServices([])
@@ -238,6 +238,7 @@ function IntegrationCard({ integration, row, loading, disabled, getToken, onChan
             row={row}
             disabled={disabled}
             getToken={getToken}
+            tokenOpts={{ skipCache: true }}
             onChange={onChange}
             removeLabel="Disconnect"
             saveLabel={({ configured }) => (configured ? 'Update' : 'Connect')}

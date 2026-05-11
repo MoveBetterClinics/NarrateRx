@@ -45,19 +45,30 @@ export default async function handler(req, res) {
   const limit       = Math.min(parseInt(searchParams.get('limit') || '60'), 200)
   const offset      = parseInt(searchParams.get('offset') || '0')
 
+  const scope = await workspaceScope(req)
+
   // Resolve a collection filter into an asset-id whitelist before composing
   // the main query. Two queries instead of a PostgREST embed because the
   // embed syntax fights with the existing or= text-search filter below.
+  //
+  // collection_items has no workspace_id of its own (tenant scope is inherited
+  // via the collection FK), so verify the collection belongs to this workspace
+  // before reading its items — otherwise an attacker passing a foreign
+  // collection_id can probe membership via response shape, and a future drop
+  // of the final workspace_id filter on media_assets would turn this into a
+  // real cross-tenant read.
   let collectionAssetIds = null
   if (collectionId) {
-    const ciRes = await sb(`collection_items?collection_id=eq.${collectionId}&select=asset_id`)
+    const ownRes = await sb(`collections?id=eq.${encodeURIComponent(collectionId)}&${scope.column}=eq.${scope.id}&select=id&limit=1`)
+    if (!ownRes.ok) return res.status(500).json({ error: 'Database error' })
+    const ownRows = await ownRes.json()
+    if (!ownRows[0]) return res.status(200).json([])
+    const ciRes = await sb(`collection_items?collection_id=eq.${encodeURIComponent(collectionId)}&select=asset_id`)
     if (!ciRes.ok) return res.status(500).json({ error: 'Database error' })
     const ciRows = await ciRes.json()
     collectionAssetIds = ciRows.map((r) => r.asset_id)
     if (collectionAssetIds.length === 0) return res.status(200).json([])
   }
-
-  const scope = await workspaceScope(req)
   const SELECT = `${scope.column},${SELECT_COMMON}`
 
   // Always workspace-scoped.
