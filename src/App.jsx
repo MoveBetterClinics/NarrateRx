@@ -31,6 +31,7 @@ import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { Toaster } from '@/lib/toast'
+import BrandedLoader from '@/components/BrandedLoader'
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
@@ -65,7 +66,8 @@ function OrgGate({ clerkOrgId, children }) {
   }, [match, isActive, setActive])
 
   // Still loading org list, or session hasn't flipped to the right org yet.
-  if (!isLoaded || (match && !isActive)) return null
+  if (!isLoaded || (match && !isActive)) return <BrandedLoader message="Loading your workspace…" />
+
 
   if (!match) {
     return (
@@ -130,7 +132,8 @@ function DomainGuard({ children }) {
 function WelcomeGate({ children }) {
   const { user, isLoaded } = useUser()
   const location = useLocation()
-  if (!isLoaded) return null
+  if (!isLoaded) return <BrandedLoader />
+
   const pending = getPendingAnnouncement(user)
   if (pending && location.pathname !== '/welcome') {
     return <Navigate to="/welcome" replace />
@@ -188,9 +191,11 @@ function ProtectedApp() {
       <SignedIn>
         {/* Hold SignedIn content until workspace fetch resolves to avoid a
             flash of the wrong guard. SignedOut renders immediately below. */}
-        {isLoading ? null : ws?.clerk_org_id
-          ? <OrgGate clerkOrgId={ws.clerk_org_id}><AppRoutes /></OrgGate>
-          : <DomainGuard><AppRoutes /></DomainGuard>
+        {isLoading
+          ? <BrandedLoader />
+          : ws?.clerk_org_id
+            ? <OrgGate clerkOrgId={ws.clerk_org_id}><AppRoutes /></OrgGate>
+            : <DomainGuard><AppRoutes /></DomainGuard>
         }
       </SignedIn>
 

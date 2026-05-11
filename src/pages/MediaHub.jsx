@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { Search, Loader2, Filter, X, CheckSquare } from 'lucide-react'
+import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import EmptyState from '@/components/EmptyState'
 import MediaUploader from '@/components/MediaUploader'
 import MediaGrid from '@/components/MediaGrid'
 import MediaDetail from '@/components/MediaDetail'
@@ -295,6 +296,55 @@ export default function MediaHub() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : assets.length === 0 ? (
+        // Distinguish "library is empty" from "filters returned nothing" so
+        // the coaching matches the situation. hasActiveFilter is true whenever
+        // any narrowing control is active.
+        (() => {
+          const hasActiveFilter = !!(debouncedSearch || kind || status || collectionId)
+          if (hasActiveFilter) {
+            return (
+              <EmptyState
+                icon={<SearchX className="h-5 w-5" />}
+                title="No media match these filters"
+                description="Try clearing the search, switching the kind/status, or opening a different collection."
+                action={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSearch('')
+                      setKind('')
+                      setStatus('')
+                      setCollectionId(null)
+                    }}
+                  >
+                    Clear all filters
+                  </Button>
+                }
+              />
+            )
+          }
+          return (
+            <EmptyState
+              icon={<ImageIcon className="h-5 w-5" />}
+              title="Your media library is empty"
+              description={
+                canUpload
+                  ? 'Drop a video or photo above to upload your first asset. The AI will tag and transcribe it automatically.'
+                  : 'Once your team uploads photos and videos, they will appear here. Ask an admin or editor for upload access.'
+              }
+              action={
+                canUpload
+                  ? <Button size="sm" onClick={() => document.querySelector('input[type=file]')?.click()}>
+                      <UploadIcon className="h-4 w-4 mr-1.5" />
+                      Upload your first asset
+                    </Button>
+                  : null
+              }
+            />
+          )
+        })()
       ) : (
         <>
           <MediaGrid

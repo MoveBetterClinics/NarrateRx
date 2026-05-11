@@ -9,6 +9,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import SharedEmptyState from '@/components/EmptyState'
 import { fetchContentItems } from '@/lib/publish'
 import { formatRelativeDate } from '@/lib/utils'
 
@@ -258,20 +259,32 @@ function StatChip({ label, value, color }) {
 }
 
 function EmptyState({ status }) {
+  if (status === 'all') {
+    return (
+      <SharedEmptyState
+        icon={<FileText className="h-5 w-5" />}
+        title="No content yet"
+        description="Complete an interview to generate blog posts, social posts, and newsletter copy that will show up here."
+        action={
+          <Button asChild size="sm">
+            <Link to="/new">Start a new interview</Link>
+          </Button>
+        }
+        secondaryAction={
+          <Button asChild size="sm" variant="outline">
+            <Link to="/">See past interviews</Link>
+          </Button>
+        }
+      />
+    )
+  }
+  // Status filter is narrowing — coach toward clearing it.
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mb-4">
-        <FileText className="h-7 w-7 text-muted-foreground" />
-      </div>
-      <h2 className="text-base font-semibold mb-1">
-        {status === 'all' ? 'No content yet' : `No ${status.replace('_', ' ')} content`}
-      </h2>
-      <p className="text-muted-foreground text-sm max-w-xs">
-        {status === 'all'
-          ? 'Complete an interview to generate content that will appear here.'
-          : 'Content will appear here once interviews are completed and reviewed.'}
-      </p>
-    </div>
+    <SharedEmptyState
+      icon={<FileText className="h-5 w-5" />}
+      title={`No ${status.replace('_', ' ')} content`}
+      description="Nothing matches this status right now. Switch to All to see everything, or complete an interview to add more."
+    />
   )
 }
 

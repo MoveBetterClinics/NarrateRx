@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import EmptyState from '@/components/EmptyState'
 import { fetchContentItems } from '@/lib/publish'
 import { PLATFORM_META } from './ContentHub'
 
@@ -162,6 +163,22 @@ export default function ContentCalendar() {
           </div>
         )}
       </div>
+
+      {/* Nothing scheduled this month — coach toward scheduling instead of
+          leaving the user staring at an empty grid. */}
+      {!loading && items.length === 0 && (
+        <EmptyState
+          icon={<CalendarDays className="h-5 w-5" />}
+          title="Nothing scheduled for this month"
+          description="Schedule posts from the Content Hub to see them land here. Approved posts that need media show up in the queue above when they exist."
+          action={
+            <Button asChild size="sm" variant="outline">
+              <Link to="/hub">Open Content Hub</Link>
+            </Button>
+          }
+          size="sm"
+        />
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3">
