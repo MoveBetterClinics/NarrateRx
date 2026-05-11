@@ -7,6 +7,7 @@ import {
   SignIn,
   useUser,
   useOrganizationList,
+  useSession,
 } from '@clerk/clerk-react'
 import Layout from '@/components/Layout'
 import Dashboard from '@/pages/Dashboard'
@@ -40,20 +41,29 @@ function OrgGate({ clerkOrgId, children }) {
   const { isLoaded, userMemberships, setActive } = useOrganizationList({
     userMemberships: { infinite: true },
   })
-  const [activated, setActivated] = useState(false)
+  const { session } = useSession()
 
   const memberships = userMemberships?.data ?? []
   const match = isLoaded
     ? memberships.find(m => m.organization.id === clerkOrgId)
     : undefined
 
-  useEffect(() => {
-    if (!match || activated) return
-    setActive({ organization: match.organization.id }).then(() => setActivated(true))
-  }, [match, activated, setActive])
+  // Drive setActive off the session's actual lastActiveOrganizationId rather
+  // than a one-shot `activated` flag. setActive can resolve without the session
+  // actually flipping (race with Clerk's own session restore on page load),
+  // which left the JWT with no org_id and every gated endpoint returning
+  // wrong-org. Re-running until the session reflects the expected org closes
+  // that gap. Children only render once the active org matches.
+  const activeOrgId = session?.lastActiveOrganizationId ?? null
+  const isActive = match && activeOrgId === clerkOrgId
 
-  // Still loading org list or waiting for setActive to settle.
-  if (!isLoaded || (match && !activated)) return null
+  useEffect(() => {
+    if (!match || isActive) return
+    setActive({ organization: match.organization.id }).catch(() => {})
+  }, [match, isActive, setActive])
+
+  // Still loading org list, or session hasn't flipped to the right org yet.
+  if (!isLoaded || (match && !isActive)) return null
 
   if (!match) {
     return (

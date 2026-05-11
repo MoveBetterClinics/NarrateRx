@@ -609,7 +609,7 @@ function CredentialsSection({ getToken }) {
   const reload = async () => {
     try {
       const r = await fetch('/api/workspace/credentials', {
-        headers: { Authorization: `Bearer ${await getToken()}` },
+        headers: { Authorization: `Bearer ${await getToken({ skipCache: true })}` },
       })
       if (!r.ok) {
         setServices([])
@@ -684,7 +684,7 @@ function CredentialCard({ service, row, loading, onChange, getToken }) {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${await getToken()}`,
+          Authorization: `Bearer ${await getToken({ skipCache: true })}`,
         },
         body: JSON.stringify({
           service: service.id,
@@ -716,7 +716,7 @@ function CredentialCard({ service, row, loading, onChange, getToken }) {
     try {
       const r = await fetch(`/api/workspace/credentials?service=${encodeURIComponent(service.id)}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${await getToken()}` },
+        headers: { Authorization: `Bearer ${await getToken({ skipCache: true })}` },
       })
       if (!r.ok) {
         const e = await r.json().catch(() => ({}))
@@ -830,7 +830,7 @@ function LocationsPanel({ getToken, onSyncWorkspace }) {
   async function reload() {
     try {
       const r = await fetch('/api/workspace/locations', {
-        headers: { Authorization: `Bearer ${await getToken()}` },
+        headers: { Authorization: `Bearer ${await getToken({ skipCache: true })}` },
       })
       if (!r.ok) {
         setLocations([])
@@ -859,7 +859,7 @@ function LocationsPanel({ getToken, onSyncWorkspace }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${await getToken()}`,
+          Authorization: `Bearer ${await getToken({ skipCache: true })}`,
         },
         body: JSON.stringify({
           ...draft,
@@ -975,7 +975,7 @@ function LocationRow({ location, getToken, onChange, isOnlyLocation }) {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${await getToken()}`,
+          Authorization: `Bearer ${await getToken({ skipCache: true })}`,
         },
         body: JSON.stringify(draft),
       })
@@ -1000,7 +1000,7 @@ function LocationRow({ location, getToken, onChange, isOnlyLocation }) {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${await getToken()}`,
+          Authorization: `Bearer ${await getToken({ skipCache: true })}`,
         },
         body: JSON.stringify({ is_primary: true }),
       })
@@ -1025,7 +1025,7 @@ function LocationRow({ location, getToken, onChange, isOnlyLocation }) {
     try {
       const r = await fetch(`/api/workspace/locations?id=${encodeURIComponent(location.id)}`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${await getToken()}` },
+        headers: { Authorization: `Bearer ${await getToken({ skipCache: true })}` },
       })
       if (!r.ok) {
         const e = await r.json().catch(() => ({}))
@@ -1127,7 +1127,7 @@ function LocationFields({ draft, setDraft }) {
           <Input
             value={draft.location_hashtag}
             onChange={e => set('location_hashtag')(e.target.value)}
-            placeholder="#PortlandPets"
+            placeholder="#YourCity"
             className="text-sm"
           />
         </div>
