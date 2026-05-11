@@ -59,24 +59,40 @@ export default async function handler(req) {
   }
 
   const encoder = new TextEncoder()
+  // We iterate fullStream rather than textStream so we can see error parts.
+  // textStream silently filters them out, which meant an upstream auth /
+  // model failure surfaced to the client as an empty assistant turn — see
+  // PR fixing the "interview not prompting questions" regression.
   const sse = new ReadableStream({
     async start(controller) {
-      try {
-        for await (const chunk of result.textStream) {
-          if (!chunk) continue
-          const payload = JSON.stringify({
-            type: 'content_block_delta',
-            delta: { type: 'text_delta', text: chunk },
-          })
-          controller.enqueue(encoder.encode(`data: ${payload}\n\n`))
-        }
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-      } catch (e) {
+      let errored = false
+      const sendError = (message) => {
+        errored = true
         const payload = JSON.stringify({
           type: 'error',
-          error: { message: e?.message || 'Stream error' },
+          error: { message: message || 'Stream error' },
         })
         controller.enqueue(encoder.encode(`data: ${payload}\n\n`))
+      }
+      try {
+        for await (const part of result.fullStream) {
+          if (part?.type === 'text-delta') {
+            const text = part.text ?? part.delta
+            if (!text) continue
+            const payload = JSON.stringify({
+              type: 'content_block_delta',
+              delta: { type: 'text_delta', text },
+            })
+            controller.enqueue(encoder.encode(`data: ${payload}\n\n`))
+          } else if (part?.type === 'error') {
+            const message = part.error?.message || part.errorText || String(part.error || 'Stream error')
+            sendError(message)
+            break
+          }
+        }
+        if (!errored) controller.enqueue(encoder.encode('data: [DONE]\n\n'))
+      } catch (e) {
+        sendError(e?.message)
       } finally {
         controller.close()
       }

@@ -24,13 +24,16 @@ export async function* streamMessage(messages, systemPrompt, { model } = {}) {
       if (!line.startsWith('data: ')) continue
       const data = line.slice(6).trim()
       if (data === '[DONE]') return
+      let parsed
       try {
-        const parsed = JSON.parse(data)
-        if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
-          yield parsed.delta.text
-        }
+        parsed = JSON.parse(data)
       } catch {
-        // skip malformed chunks
+        continue
+      }
+      if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+        yield parsed.delta.text
+      } else if (parsed.type === 'error') {
+        throw new Error(parsed.error?.message || 'Stream error')
       }
     }
   }
