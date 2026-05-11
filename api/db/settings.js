@@ -1,5 +1,7 @@
 export const config = { runtime: 'edge' }
 
+import { workspaceContext } from '../_lib/workspaceContext.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
@@ -24,8 +26,12 @@ const err = (msg, status = 400) =>
 const DEFAULT = { mode: 'bookings', notes: '' }
 
 export default async function handler(req) {
+  const ws = await workspaceContext(req)
+  if (!ws) return err('Workspace not resolved', 400)
+  const wsFilter = `workspace_id=eq.${ws.id}`
+
   if (req.method === 'GET') {
-    const res = await sb('clinic_settings?id=eq.default&select=campaign_mode,campaign_notes')
+    const res = await sb(`clinic_settings?${wsFilter}&select=campaign_mode,campaign_notes`)
     if (!res.ok) return ok(DEFAULT)
     const data = await res.json()
     if (!data.length) return ok(DEFAULT)
@@ -40,7 +46,7 @@ export default async function handler(req) {
     const userId = req.headers.get('x-user-id')
     if (userId) update.updated_by = userId
 
-    const res = await sb('clinic_settings?id=eq.default', {
+    const res = await sb(`clinic_settings?${wsFilter}`, {
       method: 'PATCH',
       body: JSON.stringify(update),
     })

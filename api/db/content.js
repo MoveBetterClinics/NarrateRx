@@ -1,5 +1,7 @@
 export const config = { runtime: 'edge' }
 
+import { workspaceContext } from '../_lib/workspaceContext.js'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
@@ -25,10 +27,14 @@ export default async function handler(req) {
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
 
+  const ws = await workspaceContext(req)
+  if (!ws) return err('Workspace not resolved', 400)
+  const wsFilter = `workspace_id=eq.${ws.id}`
+
   // ── GET ──────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
     if (id) {
-      const res = await sb(`content_items?id=eq.${id}&select=${SELECT}`)
+      const res = await sb(`content_items?id=eq.${id}&${wsFilter}&select=${SELECT}`)
       if (!res.ok) return err('Database error', 500)
       const data = await res.json()
       return ok(data[0] ?? null)
@@ -42,7 +48,7 @@ export default async function handler(req) {
     const interviewId = searchParams.get('interviewId')
     const limit       = parseInt(searchParams.get('limit') || '100')
 
-    let qs = `content_items?select=${SELECT}&order=created_at.desc&limit=${limit}`
+    let qs = `content_items?${wsFilter}&select=${SELECT}&order=created_at.desc&limit=${limit}`
     if (status)      qs += `&status=eq.${status}`
     if (platform)    qs += `&platform=eq.${platform}`
     if (from)        qs += `&scheduled_at=gte.${from}`
@@ -60,9 +66,10 @@ export default async function handler(req) {
 
     // Bulk insert
     if (Array.isArray(body)) {
+      const rows = body.map((r) => ({ ...r, workspace_id: ws.id }))
       const res = await sb('content_items', {
         method: 'POST',
-        body: JSON.stringify(body),
+        body: JSON.stringify(rows),
       })
       if (!res.ok) return err('Insert failed', 500)
       return ok(await res.json(), 201)
@@ -72,7 +79,7 @@ export default async function handler(req) {
     const { interviewId, clinicianId, clinicianName, topic, platform, content, status } = body
     if (!interviewId || !platform || !content) return err('Missing required fields')
 
-    const row = { interview_id: interviewId, clinician_id: clinicianId, clinician_name: clinicianName, topic, platform, content }
+    const row = { workspace_id: ws.id, interview_id: interviewId, clinician_id: clinicianId, clinician_name: clinicianName, topic, platform, content }
     if (status) row.status = status
     const res = await sb('content_items', {
       method: 'POST',
@@ -106,7 +113,7 @@ export default async function handler(req) {
     }
     const body = Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined))
 
-    const res = await sb(`content_items?id=eq.${id}`, {
+    const res = await sb(`content_items?id=eq.${id}&${wsFilter}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     })
@@ -118,7 +125,7 @@ export default async function handler(req) {
   // ── DELETE ───────────────────────────────────────────────────────────────
   if (req.method === 'DELETE') {
     if (!id) return err('Missing id')
-    const res = await sb(`content_items?id=eq.${id}`, { method: 'DELETE' })
+    const res = await sb(`content_items?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
     if (!res.ok) return err('Delete failed', 500)
     return ok({ deleted: true })
   }
