@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import {
   Plus, MessageSquare, Clock, ChevronRight, Users, Loader2, LayoutGrid, User, Tag,
   AlertCircle, FileText, Image as ImageIcon, Compass, Mic, TrendingUp, PlayCircle,
@@ -12,6 +12,8 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { fetchClinicians } from '@/lib/api'
+import { listMedia } from '@/lib/mediaLib'
+import { useUserRole } from '@/lib/useUserRole'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { getInitials, formatRelativeDate } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
@@ -21,13 +23,44 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 const RESUME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 const RESUME_INITIAL_CAP = 6
 
+// Personalized hero. Prefers Clerk firstName, falls back through fullName,
+// then the email's local-part, then the workspace's app name. Time-of-day
+// suffix is intentional: short and natural ("Good morning, Brian").
+function greetingFor(user, workspace) {
+  const fallback = workspace?.app_name || workspace?.appName || 'Welcome'
+  if (!user) return fallback
+  const first = user.firstName
+    || user.fullName?.split(' ')[0]
+    || user.primaryEmailAddress?.emailAddress?.split('@')[0]
+  if (!first) return fallback
+  const hour = new Date().getHours()
+  const tod  = hour < 5 ? 'evening' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'
+  return `Good ${tod}, ${first}`
+}
+
 export default function Dashboard() {
   useDocumentTitle('Interviews')
   const { user } = useUser()
+  const { getToken } = useAuth()
+  const { role } = useUserRole()
   const runtimeWorkspace = useWorkspace()
   const [clinicians, setClinicians] = useState([])
+  const [hasMedia, setHasMedia] = useState(false)
+  const [hasCredential, setHasCredential] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [showWelcome, setShowWelcome] = useState(searchParams.get('welcome') === '1')
+
+  // Drop the ?welcome=1 from the URL after picking it up so a refresh does
+  // not re-show the celebration.
+  useEffect(() => {
+    if (searchParams.get('welcome') === '1') {
+      searchParams.delete('welcome')
+      setSearchParams(searchParams, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     fetchClinicians()
@@ -35,6 +68,34 @@ export default function Dashboard() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [])
+
+  // Live signals for the Getting Started checklist. Cheap probes — listMedia
+  // with limit=1 and a credentials list call. Failures are swallowed (the
+  // step just stays unchecked) so a Dashboard render is never blocked.
+  useEffect(() => {
+    listMedia({ limit: 1 })
+      .then((rows) => setHasMedia(Array.isArray(rows) && rows.length > 0))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    // Only admins can read /api/workspace/credentials. For everyone else we
+    // hide the step entirely rather than show a permanent uncheckable item.
+    if (role !== 'admin') return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const token = await getToken()
+        const r = await fetch('/api/workspace/credentials', {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!r.ok) return
+        const data = await r.json()
+        if (!cancelled) setHasCredential(Array.isArray(data) && data.length > 0)
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [role, getToken])
 
   const allInterviews = clinicians.flatMap((c) =>
     (c.interviews || []).map((i) => ({ ...i, clinicianName: c.name, clinicianId: c.id }))
@@ -73,11 +134,41 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Hero */}
+      {/* Welcome-after-onboarding banner. Lands once on first load after the
+          /onboard wizard hands the user off to their new subdomain. Drops
+          itself from the URL on mount so a refresh does not re-show it. */}
+      {showWelcome && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-start gap-3">
+          <span aria-hidden="true" className="text-xl">🎉</span>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-emerald-900">
+              Your workspace is live
+            </p>
+            <p className="text-xs text-emerald-800 mt-0.5">
+              You can fine-tune brand voice anytime from Workspace settings. For now, let's get your first clinician interviewed.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowWelcome(false)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs font-medium"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Hero — greet by first name when we have one. Falls back to the
+          workspace app name so existing/legacy auth paths still see a clean
+          title rather than "Welcome, ". */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{workspace.appName}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {greetingFor(user, runtimeWorkspace)}
+        </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Capture your clinicians' expertise and turn it into patient-facing content.
+          {clinicians.length === 0
+            ? "Let's set up your first clinician and capture an interview."
+            : "Capture your clinicians' expertise and turn it into patient-facing content."}
         </p>
       </div>
 
@@ -85,6 +176,9 @@ export default function Dashboard() {
       <GettingStarted
         cliniciansCount={clinicians.length}
         completedCount={completedCount}
+        hasMedia={hasMedia}
+        hasCredential={hasCredential}
+        isAdmin={role === 'admin'}
       />
 
       {/* Launchpad — App outline */}
@@ -160,7 +254,7 @@ export default function Dashboard() {
 
 // Dismissible checklist that helps new users find the four core flows. Auto-
 // hides once dismissed (Clerk unsafeMetadata) or all steps are complete.
-function GettingStarted({ cliniciansCount, completedCount }) {
+function GettingStarted({ cliniciansCount, completedCount, hasMedia = false, hasCredential = false, isAdmin = false }) {
   const { user, isLoaded } = useUser()
   const [dismissed, setDismissed] = useState(false)
 
@@ -183,18 +277,23 @@ function GettingStarted({ cliniciansCount, completedCount }) {
       to: '/new',
     },
     {
-      done: false,
-      label: 'Browse the Media Hub',
+      // Live: ticks once the workspace has at least one media asset.
+      done: hasMedia,
+      label: 'Add media to the library',
       detail: 'Upload photos and videos to pair with future posts.',
       to: '/media',
     },
-    {
-      done: false,
-      label: 'Connect a publishing channel',
-      detail: 'Wire up the destinations where finished posts will go out.',
-      to: '/settings/integrations',
-      icon: Settings,
-    },
+    // Channel-connect step is admin-only — non-admins can't act on it, so
+    // showing a permanently-unchecked item just clutters their checklist.
+    ...(isAdmin
+      ? [{
+          done: hasCredential,
+          label: 'Connect a publishing channel',
+          detail: 'Wire up the destinations where finished posts will go out.',
+          to: '/settings/integrations',
+          icon: Settings,
+        }]
+      : []),
   ]
 
   const doneCount = items.filter((i) => i.done).length
