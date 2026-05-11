@@ -16,6 +16,7 @@ import { fetchInterview } from '@/lib/api'
 import { generateContent } from '@/lib/claude'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
@@ -121,6 +122,25 @@ export default function ReviewPost() {
 
     return () => clearTimeout(autoSaveTimer.current)
   }, [content])
+
+  // ⌘S flushes the autosave debounce immediately — saves what's currently
+  // typed without waiting the 2s. Useful when the user wants confirmation
+  // that a fresh edit is persisted before navigating away. Skips when the
+  // item is published (no edits possible) or no item is loaded yet.
+  useSaveShortcut(async () => {
+    if (!item || item.status === 'published') return
+    clearTimeout(autoSaveTimer.current)
+    setSaveStatus('saving')
+    try {
+      await updateContentItem(itemId, { content })
+      setSaveStatus('saved')
+      toast.success('Saved')
+      setTimeout(() => setSaveStatus(''), 2000)
+    } catch (e) {
+      setSaveStatus('error')
+      toast.error('Save failed', { description: e?.message || 'Try again.' })
+    }
+  }, { disabled: !item || item?.status === 'published' })
 
   useEffect(() => {
     fetchContentItem(itemId)

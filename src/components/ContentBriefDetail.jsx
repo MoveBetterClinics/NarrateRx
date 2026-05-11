@@ -9,6 +9,7 @@ import { uploadMedia, getMediaAsset } from '@/lib/mediaLib'
 import { toast } from '@/lib/toast'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
+import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
@@ -57,6 +58,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
     notes    !== initialNotes
   )
   useUnsavedChanges(isDirty)
+  useSaveShortcut(() => { if (isDirty && !saving) saveDraft() }, { disabled: !isDirty || saving })
 
   useEffect(() => {
     setCaption(brief.final_caption ?? brief.ai_caption ?? '')

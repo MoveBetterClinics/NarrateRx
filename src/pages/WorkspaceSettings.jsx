@@ -12,6 +12,7 @@ import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
+import { useSaveShortcut } from '@/lib/useSaveShortcut'
 
 function formFromWorkspace(ws) {
   return {
@@ -164,6 +165,9 @@ export default function WorkspaceSettings() {
   // either side changes.
   const isDirty = !!form && !!pristineForm && JSON.stringify(form) !== JSON.stringify(pristineForm)
   useUnsavedChanges(isDirty)
+  // ⌘S / Ctrl+S triggers the same Save button the user would click. Disabled
+  // when there's nothing to save or a save is already in flight.
+  useSaveShortcut(() => { if (isDirty && !saving) handleSave() }, { disabled: !isDirty || saving })
 
   async function handleSave() {
     setSaving(true)

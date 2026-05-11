@@ -17,6 +17,7 @@ import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
+import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import ContentBriefDetail from './ContentBriefDetail'
 import CollectionPicker from './CollectionPicker'
 
@@ -65,6 +66,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     JSON.stringify(aiTags) !== JSON.stringify(asset.ai_tags || [])
   )
   useUnsavedChanges(isDirty)
+  useSaveShortcut(() => { if (isDirty && !saving) save() }, { disabled: !isDirty || saving })
   const [restoring, setRestoring] = useState(false)
   const [purging, setPurging]   = useState(false)
   const [purgeConfirm, setPurgeConfirm] = useState('')
