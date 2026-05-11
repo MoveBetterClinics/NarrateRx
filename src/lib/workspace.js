@@ -264,8 +264,8 @@ const ANIMALS = {
   authDomain: 'movebetter.co',
 
   // Web presence
-  website: 'https://movebetteranimal.co/',
-  websiteHostname: 'movebetteranimal.co',
+  website: 'https://movebetteranimalchiro.com/',
+  websiteHostname: 'movebetteranimalchiro.com',
 
   // Location — two operational clinics; primary listed first.
   location: 'Portland, OR & Vancouver, WA',
@@ -312,22 +312,22 @@ const ANIMALS = {
     // Internal-link library used by the blog post prompt. Each brand keeps
     // its own equivalent. Drop in verbatim — the prompt expects markdown.
     //
-    // NOTE: Blog post URLs below assume the slugs we plan to use on movebetteranimal.co.
-    // Verify and update once the site is live.
+    // NOTE: Blog post URLs below assume the slugs published on movebetteranimalchiro.com
+    // (renamed from movebetteranimal.co on 2026-05-10; the old domain 301-redirects).
     internalLinksMarkdown: `CORE PAGES:
-- Move Better Animals (homepage): https://movebetteranimal.co/
-- About Dr. Whitney Phillips: https://movebetteranimal.co/about
-- Services & pricing: https://movebetteranimal.co/services
-- Is my pet a candidate?: https://movebetteranimal.co/candidate
-- Visit Portland: https://movebetteranimal.co/visit/portland
-- Visit Vancouver: https://movebetteranimal.co/visit/vancouver
-- Blog index: https://movebetteranimal.co/blog
+- Move Better Animals (homepage): https://movebetteranimalchiro.com/
+- About Dr. Whitney Phillips: https://movebetteranimalchiro.com/about
+- Services & pricing: https://movebetteranimalchiro.com/services
+- Is my pet a candidate?: https://movebetteranimalchiro.com/candidate
+- Visit Portland: https://movebetteranimalchiro.com/visit/portland
+- Visit Vancouver: https://movebetteranimalchiro.com/visit/vancouver
+- Blog index: https://movebetteranimalchiro.com/blog
 
 BLOG POSTS:
-- "Everything You Need to Know About Chiropractic Care for Pets and Animals": https://movebetteranimal.co/blog/everything-you-need-to-know-about-chiropractic-care-for-pets-and-animals
-- "Animal Chiropractor vs. Veterinarian: What's the Difference?": https://movebetteranimal.co/blog/animal-chiropractor-vs-veterinarian
-- "An Outsider's View of Animal Chiropractic": https://movebetteranimal.co/blog/an-outsiders-view-of-animal-chiropractic
-- "A Dog's Toenail Length Matters": https://movebetteranimal.co/blog/a-dogs-toenail-length-matters`,
+- "Everything You Need to Know About Chiropractic Care for Pets and Animals": https://movebetteranimalchiro.com/blog/everything-you-need-to-know-about-chiropractic-care-for-pets-and-animals
+- "Animal Chiropractor vs. Veterinarian: What's the Difference?": https://movebetteranimalchiro.com/blog/animal-chiropractor-vs-veterinarian
+- "An Outsider's View of Animal Chiropractic": https://movebetteranimalchiro.com/blog/an-outsiders-view-of-animal-chiropractic
+- "A Dog's Toenail Length Matters": https://movebetteranimalchiro.com/blog/a-dogs-toenail-length-matters`,
 
     // The single anchor link the blog CTA must always land on. The animals
     // brand uses the same Jane booking instance as the human workspace.
@@ -345,7 +345,7 @@ BLOG POSTS:
     locationKeyword: 'Portland',
     locationHashtag: '#PortlandPets',
     brandHashtag: '#MoveBetterAnimals',
-    spokenUrl: 'MoveBetterAnimal.co',
+    spokenUrl: 'MoveBetterAnimalChiro.com',
 
     // Tone-modifier vocabulary for working- and athletic-dog scenarios common
     // to PNW pet owners.

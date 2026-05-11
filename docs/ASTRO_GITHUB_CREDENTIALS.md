@@ -10,9 +10,9 @@ At publish time NarrateRx serializes the blog post (slug, title, description, pu
 
 **Source**: the Astro deployment that receives publish requests. The URL is whatever path on the Astro site implements the publish receiver — by convention, `/api/publish` on the marketing domain.
 
-For `movebetter-animals`: `https://movebetteranimal.co/api/publish`.
+For `movebetter-animals`: `https://movebetteranimalchiro.com/api/publish`.
 
-> Note the **singular** spelling: `movebetteranimal.co`, not `movebetteranimals.co`. The workspace was renamed from "Move Better Animal" → "Move Better Animals" but the domain was deliberately left unchanged.
+> Domain history: this site was at `movebetteranimal.co` through 2026-05-10, then renamed to `movebetteranimalchiro.com` to match the "Move Better Animals Chiropractic" brand. The old `.co` domain stays attached to the Astro Vercel project with a permanent (301) redirect to the new domain, so old blog post URLs and printed collateral keep working.
 
 This URL is not a secret in the OWASP sense — knowing it doesn't grant access without the bearer — but it points at an internal integration surface, so we treat it as Mildly sensitive (don't broadcast publicly).
 
@@ -21,7 +21,7 @@ This URL is not a secret in the OWASP sense — knowing it doesn't grant access 
 **Source**: the same secret value lives in **two** places that must stay in sync:
 
 - **NarrateRx side**: encrypted in `workspace_credentials.secret_ciphertext` for `(workspace='movebetter-animals', service='astro_github')`. Originally also lived as the `NARRATERX_PUBLISH_SECRET` env var on the legacy `narraterx-animals` Vercel project; that value was marked **Sensitive** there and so `vercel env pull` returns empty for it (see `feedback_vercel_sensitive_env_pull_empty.md`).
-- **Astro deployment side**: env var on the `movebetteranimal.co` Vercel project (probably named `NARRATERX_PUBLISH_SECRET` to match the NarrateRx side, but the receiver picks whichever env name it reads). The Astro `/api/publish` handler compares the inbound `Authorization: Bearer …` header against this env var.
+- **Astro deployment side**: env var on the `movebetteranimalchiro.com` Vercel project (probably named `NARRATERX_PUBLISH_SECRET` to match the NarrateRx side, but the receiver picks whichever env name it reads). The Astro `/api/publish` handler compares the inbound `Authorization: Bearer …` header against this env var.
 
 The two values **must match byte-for-byte**. A mismatch produces HTTP 401 from the Astro side, which NarrateRx surfaces as `error: 'auth_failed'` in the publish UI.
 
@@ -47,9 +47,9 @@ The output is ~44 characters of base64. Copy it once; it's the value you'll past
 
 ### Step 2 — paste into the Astro deployment first
 
-Set the env var on the receiving Vercel project (the one that hosts `movebetteranimal.co`) **before** updating NarrateRx. Publish requests with the *old* secret will fail during the gap; doing Astro first means the window is just the redeploy time, not the time it takes you to copy-paste.
+Set the env var on the receiving Vercel project (the one that hosts `movebetteranimalchiro.com`) **before** updating NarrateRx. Publish requests with the *old* secret will fail during the gap; doing Astro first means the window is just the redeploy time, not the time it takes you to copy-paste.
 
-1. Open https://vercel.com → switch to the project that hosts `movebetteranimal.co`.
+1. Open https://vercel.com → switch to the project that hosts `movebetteranimalchiro.com`.
 2. **Settings → Environment Variables**.
 3. Find `NARRATERX_PUBLISH_SECRET` (or whatever env name the receiver reads — check `api/publish.ts` in the `movebetteranimal` repo if unsure).
 4. Edit → paste the new value → save.
@@ -68,7 +68,7 @@ The "Configured" badge stays green; the encrypted value in `workspace_credential
 ### Step 4 — verify
 
 ```
-node scripts/astro-verify.mjs https://movebetteranimal.co/api/publish "<new-secret>"
+node scripts/astro-verify.mjs https://movebetteranimalchiro.com/api/publish "<new-secret>"
 ```
 
 Or send a test publish from the Review Post UI with the **Draft** toggle on so it lands as an unpublished entry on the Astro side.
@@ -91,7 +91,7 @@ Open the existing `NarrateRx — movebetter-animals Astro+GitHub credentials` Se
 Usage:
 
 ```
-node scripts/astro-verify.mjs https://movebetteranimal.co/api/publish "<shared-secret>"
+node scripts/astro-verify.mjs https://movebetteranimalchiro.com/api/publish "<shared-secret>"
 ```
 
 The script never sends a payload the Astro side could mistake for a real post — `slug: '__narraterx_verify__'` plus a deliberately empty `markdown` triggers the 400 path. If you ever change the Astro receiver to start writing minimum-viable posts from any well-formed payload, update this script.
@@ -123,7 +123,7 @@ Set date:     <YYYY-MM-DD>
 Key rotated:  <YYYY-MM-DD>
 
 These credentials let NarrateRx POST blog posts to the Astro site at
-movebetteranimal.co. The shared secret is mirrored on the receiving
+movebetteranimalchiro.com. The shared secret is mirrored on the receiving
 Vercel project's env vars; rotating one side without the other breaks
 publishing. Full rotation walkthrough: docs/ASTRO_GITHUB_CREDENTIALS.md.
 
@@ -131,8 +131,8 @@ publishing. Full rotation walkthrough: docs/ASTRO_GITHUB_CREDENTIALS.md.
 FIELD 1 — Publish webhook URL
 Sensitivity: Mildly sensitive
 ────────────────────────────────────────────
-Value:    https://movebetteranimal.co/api/publish
-Source:   The Astro deployment for movebetteranimal.co (Vercel project).
+Value:    https://movebetteranimalchiro.com/api/publish
+Source:   The Astro deployment for movebetteranimalchiro.com (Vercel project).
           Path is whatever the receiver implements; conventionally /api/publish.
 Rotation: Stays stable unless the receiving site's URL or path changes.
 
@@ -144,7 +144,7 @@ Value:    <paste the secret here — same value as set on the Astro side>
 
 Source:   Mirrored in two places that must match byte-for-byte:
             1. NarrateRx workspace_credentials row (encrypted)
-            2. movebetteranimal.co Vercel project env var
+            2. movebetteranimalchiro.com Vercel project env var
                (NARRATERX_PUBLISH_SECRET or equivalent — check the
                 receiver source if unsure)
 Rotation: Generate new with `openssl rand -base64 32`. Paste into the
@@ -156,7 +156,7 @@ Rotation: Generate new with `openssl rand -base64 32`. Paste into the
 RECOVERY SCENARIO
 ────────────────────────────────────────────
 If this 1Password entry is lost:
-  • Field 1 is recoverable from the movebetteranimal.co Vercel
+  • Field 1 is recoverable from the movebetteranimalchiro.com Vercel
     project's domain settings in seconds.
   • Field 2 may be recoverable from the Astro deployment's env vars
     (Vercel dashboard → Settings → Environment Variables → reveal the
@@ -186,7 +186,7 @@ Set date:     2026-05-10
 Key rotated:  <inherited from legacy narraterx-animals — set date unknown>
 
 These credentials let NarrateRx POST blog posts to the Astro site at
-movebetteranimal.co. The shared secret is mirrored on the receiving
+movebetteranimalchiro.com. The shared secret is mirrored on the receiving
 Vercel project's env vars; rotating one side without the other breaks
 publishing. Full rotation walkthrough: docs/ASTRO_GITHUB_CREDENTIALS.md.
 
@@ -194,8 +194,8 @@ publishing. Full rotation walkthrough: docs/ASTRO_GITHUB_CREDENTIALS.md.
 FIELD 1 — Publish webhook URL
 Sensitivity: Mildly sensitive
 ────────────────────────────────────────────
-Value:    https://movebetteranimal.co/api/publish
-Source:   The movebetteranimal.co Vercel project (Astro app).
+Value:    https://movebetteranimalchiro.com/api/publish
+Source:   The movebetteranimalchiro.com Vercel project (Astro app).
 
 ────────────────────────────────────────────
 FIELD 2 — Shared bearer secret
@@ -203,15 +203,15 @@ Sensitivity: Sensitive
 ────────────────────────────────────────────
 Value:    <REDACTED — retrieve from legacy narraterx-animals Vercel
            project (NARRATERX_PUBLISH_SECRET) OR from the receiving
-           movebetteranimal.co Vercel project (same env var name).
+           movebetteranimalchiro.com Vercel project (same env var name).
            If neither side can reveal the existing value, rotate per
            docs/ASTRO_GITHUB_CREDENTIALS.md.>
 
 ────────────────────────────────────────────
 RECOVERY SCENARIO
 ────────────────────────────────────────────
-Field 1: recoverable from the movebetteranimal.co Vercel project.
-Field 2: try the movebetteranimal.co Vercel env vars first; if not
+Field 1: recoverable from the movebetteranimalchiro.com Vercel project.
+Field 2: try the movebetteranimalchiro.com Vercel env vars first; if not
          revealable, rotate (non-destructive aside from a brief
          redeploy window on the Astro side).
 ```

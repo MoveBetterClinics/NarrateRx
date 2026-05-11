@@ -9,7 +9,7 @@
 //     Calls the WP REST API directly: markdown → HTML, hero upload to /media,
 //     tag-name → term-ID resolution. HTTP Basic + WP Application Password.
 //
-//   • Astro mode (animals → movebetteranimal.co)
+//   • Astro mode (animals → movebetteranimalchiro.com)
 //     getCredential('astro_github') = { config: { url }, secret: shared_secret }
 //     POSTs JSON to a single webhook on the receiving site, which commits a
 //     markdown file to GitHub and lets Vercel rebuild. Contract:
