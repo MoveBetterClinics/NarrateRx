@@ -1,6 +1,8 @@
--- 014_animals_domain_www.sql
+-- 015_animals_domain_www.sql (was 014 — bumped one in the follow-up PR
+-- that resolved a 012 prefix collision; already applied to prod under
+-- the old name).
 --
--- Follow-up to 012_animals_domain_rename.sql. The primary domain set on
+-- Follow-up to 013_animals_domain_rename.sql. The primary domain set on
 -- the Astro Vercel project is `www.movebetteranimalchiro.com` (the apex
 -- `movebetteranimalchiro.com` 307-redirects to the www form). Update the
 -- canonical URLs stored in the workspaces row to match the primary, so

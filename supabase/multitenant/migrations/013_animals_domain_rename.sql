@@ -1,4 +1,6 @@
--- 012_animals_domain_rename.sql
+-- 013_animals_domain_rename.sql (was 012 — renamed in the follow-up PR to
+-- resolve a prefix collision with 012_gbp_to_buffer.sql; already applied
+-- to prod when it was still 012).
 --
 -- Rename the movebetter-animals workspace's marketing domain from
 -- movebetteranimal.co → movebetteranimalchiro.com.
