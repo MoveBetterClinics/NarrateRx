@@ -29,6 +29,31 @@ const SPEAKER_ROLES = [
   },
 ]
 
+// Hard caps the user sees before the upload kicks off. The server still has
+// the last word (Vercel Blob enforces its own plan-level limits + handleUpload
+// can reject), but failing fast here keeps the user from staring at a 0%
+// progress bar for ten seconds on an obviously-too-big file.
+const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024  // 2 GB — covers a long clinical clip
+const MAX_IMAGE_BYTES = 50 * 1024 * 1024        // 50 MB — covers raw camera output
+
+// We accept the broad image/* + video/* via <input accept>, but reject obvious
+// non-media that ends up in the drop zone via drag-and-drop (browsers don't
+// honor `accept` on drop). Empty type === unknown; let those through and let
+// the server decide.
+function checkFile(file) {
+  const t = file.type || ''
+  if (t && !t.startsWith('image/') && !t.startsWith('video/')) {
+    return `Unsupported file type (${t}). Only images and videos are accepted.`
+  }
+  const isVideo = t.startsWith('video/')
+  const cap = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES
+  if (file.size > cap) {
+    const mb = (cap / (1024 * 1024)).toFixed(0)
+    return `File is too large (max ${mb} MB for ${isVideo ? 'video' : 'images'}).`
+  }
+  return null
+}
+
 // Drag-drop / click uploader for the Media Hub.
 // Multiple files supported; uploads run in parallel.
 export default function MediaUploader({ onUploaded, createdBy }) {
@@ -41,17 +66,21 @@ export default function MediaUploader({ onUploaded, createdBy }) {
     const files = Array.from(fileList || [])
     if (!files.length) return
 
-    const newRows = files.map((f) => ({
-      id: crypto.randomUUID(),
-      name: f.name,
-      status: 'uploading',
-      progress: 0,
-      transcoding: false,
-    }))
+    // Pre-validate each file before kicking off any upload. Failures still
+    // appear as rows so the user sees what was rejected and why; only the
+    // ones that pass make the network round trip.
+    const newRows = files.map((f) => {
+      const error = checkFile(f)
+      return error
+        ? { id: crypto.randomUUID(), name: f.name, status: 'error', error }
+        : { id: crypto.randomUUID(), name: f.name, status: 'uploading', progress: 0, transcoding: false }
+    })
     setUploads((prev) => [...newRows, ...prev])
 
     await Promise.all(files.map(async (file, i) => {
-      const rowId = newRows[i].id
+      const row = newRows[i]
+      if (row.status === 'error') return  // pre-validated reject — skip upload
+      const rowId = row.id
       try {
         await uploadMedia(
           file,
@@ -150,7 +179,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           <div>
             <div className="text-sm font-semibold">Drop your files</div>
             <p className="text-[11px] text-muted-foreground">
-              JPG, PNG, HEIC, MP4, MOV — uploads go to your private library.
+              JPG, PNG, HEIC, MP4, MOV — uploads go to your private library. Max 50 MB images, 2 GB videos.
             </p>
           </div>
         </div>
