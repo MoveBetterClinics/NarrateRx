@@ -9,6 +9,7 @@
 import { Component } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { reportError } from '@/lib/sentry'
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -21,9 +22,15 @@ export default class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // Surface to console + (eventually) Sentry. Logging the component stack
-    // makes it possible to locate the throw in production minified bundles.
+    // Logging the component stack makes it possible to locate the throw in
+    // production minified bundles. Sentry receives the same error + stack so
+    // a single dashboard view covers both render and async failures.
     console.error('[ErrorBoundary] caught:', error, info?.componentStack)
+    reportError(error, {
+      source: 'ErrorBoundary',
+      componentStack: info?.componentStack,
+      level: 'error',
+    })
   }
 
   reset = () => {

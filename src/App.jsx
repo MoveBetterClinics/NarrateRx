@@ -35,6 +35,7 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import { Toaster } from '@/lib/toast'
 import BrandedLoader from '@/components/BrandedLoader'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { setSentryUser } from '@/lib/sentry'
 
 // Single shared QueryClient for the app. Defaults chosen to match the audit's
 // brief: cache server state, invalidate on mutation, avoid double-fetches
@@ -217,6 +218,13 @@ function AppRoutes() {
 
 function ProtectedApp() {
   const { workspace: ws, isLoading } = useWorkspaceState()
+  const { user } = useUser()
+
+  // Tag the Sentry session with the active user so errors are filterable by
+  // person in the dashboard. Clears on sign-out via the null branch.
+  useEffect(() => {
+    setSentryUser(user || null)
+  }, [user?.id])
 
   // workspace row from context (DB on shared deployment; static-shaped fallback otherwise).
   const signInName  = ws?.app_name      ?? workspace.appName

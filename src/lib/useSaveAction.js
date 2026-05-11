@@ -26,6 +26,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from './toast'
+import { reportError } from './sentry'
 
 export function useSaveAction(fn, options = {}) {
   const {
@@ -68,6 +69,15 @@ export function useSaveAction(fn, options = {}) {
       }
       return result
     } catch (e) {
+      // Forward to Sentry whether the toast renders or not — silent: true
+      // hides the UI feedback but the error is still a real event we want to
+      // know about. ApiError's status field tags the report so 401s vs 500s
+      // are filterable in the dashboard.
+      reportError(e, {
+        source: 'useSaveAction',
+        status: e?.status,
+        level: 'error',
+      })
       if (alive.current) {
         setSaving(false)
         setError(e)

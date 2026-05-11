@@ -1,0 +1,55 @@
+# Minimal CI for NarrateRx. Runs on every PR + push to main.
+#
+# What it catches:
+#   - Vite build failures (syntax errors, broken imports, missing deps)
+#   - Node-side API route syntax errors (the .js files in /api don't go
+#     through Vite, so they were previously only validated at deploy time)
+#   - Lockfile drift (npm ci fails fast if package-lock.json is stale)
+#
+# What it intentionally does not do (yet):
+#   - Lint — no ESLint config in the repo; if we add one, plug it in here.
+#   - Type-check — repo is plain JS. checkJs + JSDoc could land later.
+#   - Tests — no test suite yet. When one appears, add `npm test` after build.
+#
+# Branch protection: enable "Require status checks to pass" on main with
+# `build` selected once this lands.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  # Cancel in-progress runs on the same ref when a new commit lands. Saves
+  # CI minutes on rapid pushes during development.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Vite build
+        run: npm run build
+
+      - name: Syntax-check API routes
+        # The /api directory is deployed as Vercel Functions and never goes
+        # through Vite — a stray syntax error would only surface at deploy.
+        # node --check parses each file without executing it; bails on first
+        # error so the log stays readable.
+        run: |
+          find api -type f \( -name '*.js' -o -name '*.mjs' \) -print0 \
+            | xargs -0 -n1 node --check
