@@ -5,9 +5,12 @@
 // Strategy: pg_dump is unavailable in Vercel Functions, so we read each
 // public-schema BASE TABLE via `pg`, build a single JSON snapshot
 // { meta, tables: { name: { columns, rows } } }, gzip it, and PUT it to
-// Vercel Blob at backups/narraterx-db/YYYY-MM-DD.json.gz. Restore via
-// scripts/restore-db-from-blob.mjs (JSON replay, not byte-identical SQL —
-// fine because schema is reproducible from supabase/multitenant/migrations/).
+// Vercel Blob at backups/narraterx-db/YYYY-MM-DD-<random>.json.gz with
+// access:'private'. Restore: `vercel blob list --prefix backups/narraterx-db/`
+// then `vercel blob get <pathname>` to download, then
+// scripts/restore-db-from-blob.mjs against the local file (JSON replay,
+// not byte-identical SQL — fine because schema is reproducible from
+// supabase/multitenant/migrations/).
 //
 // Retention: 30 days; older blobs in the same prefix are deleted on each run.
 //
@@ -92,12 +95,17 @@ export default async function handler(req, res) {
     const json = JSON.stringify(snapshot)
     const gz = gzipSync(Buffer.from(json, 'utf8'))
 
+    // Private + random suffix: dumps include workspace settings and encrypted
+    // workspace_credentials. Private blocks anonymous URL access; the random
+    // suffix prevents URL guessing even if the access mode is misconfigured.
+    // Restore: `vercel blob list` (with --prefix) to find the blob, then
+    // `vercel blob get <pathname>` to download locally, then run
+    // scripts/restore-db-from-blob.mjs against the local file.
     const pathname = `${PREFIX}${isoDate}.json.gz`
     const uploaded = await put(pathname, gz, {
-      access: 'public',
+      access: 'private',
       contentType: 'application/gzip',
-      addRandomSuffix: false,
-      allowOverwrite: true,
+      addRandomSuffix: true,
       token: blobToken,
     })
 
