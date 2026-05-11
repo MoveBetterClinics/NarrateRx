@@ -3,7 +3,8 @@
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "crons": [
-    { "path": "/api/cron/publish-due", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/publish-due", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/backup-db",   "schedule": "0 8 * * *" }
   ],
   "functions": {
     "api/media/upload.js": {
