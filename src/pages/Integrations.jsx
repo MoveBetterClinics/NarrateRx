@@ -2,19 +2,14 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '@clerk/clerk-react'
 import {
   ExternalLink,
-  CheckCircle2,
   AlertCircle,
-  Loader2,
   ChevronDown,
   ChevronUp,
   Sparkles,
   Mail,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
+import CredentialForm from '@/components/CredentialForm'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
 
@@ -238,12 +233,16 @@ function IntegrationCard({ integration, row, loading, disabled, getToken, onChan
         <div className="px-5 pb-5 space-y-5 border-t pt-4">
           <SetupSteps integration={integration} />
           <Separator />
-          <ConnectForm
-            integration={integration}
+          <CredentialForm
+            service={integration}
             row={row}
             disabled={disabled}
             getToken={getToken}
             onChange={onChange}
+            removeLabel="Disconnect"
+            saveLabel={({ configured }) => (configured ? 'Update' : 'Connect')}
+            secretPlaceholder={integration.secretPlaceholder}
+            confirmMessage={(svc) => `Disconnect ${svc.label} for this workspace?`}
           />
         </div>
       )}
@@ -273,170 +272,6 @@ function SetupSteps({ integration }) {
           Full documentation <ExternalLink className="h-3 w-3" />
         </a>
       )}
-    </div>
-  )
-}
-
-function emptyConfigFor(integration) {
-  const out = {}
-  for (const f of integration.fields) out[f.key] = ''
-  return out
-}
-
-function configFromRow(integration, row) {
-  const out = emptyConfigFor(integration)
-  if (!row?.config) return out
-  for (const f of integration.fields) {
-    const v = row.config[f.key]
-    if (f.isCsv) out[f.key] = Array.isArray(v) ? v.join(', ') : (v ?? '')
-    else out[f.key] = v ?? ''
-  }
-  return out
-}
-
-function configToPayload(integration, cfg) {
-  const out = {}
-  for (const f of integration.fields) {
-    const v = cfg[f.key] ?? ''
-    if (f.isCsv) out[f.key] = String(v).split(',').map((s) => s.trim()).filter(Boolean)
-    else out[f.key] = String(v).trim()
-  }
-  return out
-}
-
-function ConnectForm({ integration, row, disabled, getToken, onChange }) {
-  const [config, setConfig] = useState(() => configFromRow(integration, row))
-  const [secret, setSecret] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState(null)
-  const configured = Boolean(row)
-
-  useEffect(() => {
-    setConfig(configFromRow(integration, row))
-  }, [integration, row])
-
-  async function handleSave() {
-    setError(null)
-    setSaved(false)
-    if (!secret) {
-      setError('Paste your secret to save.')
-      return
-    }
-    setSaving(true)
-    try {
-      const r = await fetch('/api/workspace/credentials', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${await getToken()}`,
-        },
-        body: JSON.stringify({
-          service: integration.id,
-          config: configToPayload(integration, config),
-          secret,
-        }),
-      })
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}))
-        setError(e.error || 'save-failed')
-      } else {
-        setSecret('')
-        setSaved(true)
-        setTimeout(() => setSaved(false), 3000)
-        onChange?.()
-      }
-    } catch {
-      setError('network-error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleDisconnect() {
-    if (!configured) return
-    if (!confirm(`Disconnect ${integration.label} for this workspace?`)) return
-    setSaving(true)
-    setError(null)
-    try {
-      const r = await fetch(`/api/workspace/credentials?service=${encodeURIComponent(integration.id)}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${await getToken()}` },
-      })
-      if (!r.ok) {
-        const e = await r.json().catch(() => ({}))
-        setError(e.error || 'remove-failed')
-      } else {
-        setSecret('')
-        setConfig(emptyConfigFor(integration))
-        onChange?.()
-      }
-    } catch {
-      setError('network-error')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="space-y-3">
-      {integration.fields.map((f) => (
-        <div className="space-y-1" key={f.key}>
-          <Label className="text-xs">{f.label}</Label>
-          <Input
-            value={config[f.key] ?? ''}
-            onChange={(e) => setConfig((c) => ({ ...c, [f.key]: e.target.value }))}
-            placeholder={f.placeholder}
-            className="text-sm"
-            disabled={disabled}
-          />
-        </div>
-      ))}
-      <div className="space-y-1">
-        <Label className="text-xs">{integration.secretLabel}</Label>
-        {integration.secretIsTextarea ? (
-          <Textarea
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            rows={4}
-            placeholder={configured ? '•••••• (write-only — paste a new value to rotate)' : integration.secretPlaceholder}
-            className="text-sm font-mono resize-y"
-            disabled={disabled}
-          />
-        ) : (
-          <Input
-            type="password"
-            value={secret}
-            onChange={(e) => setSecret(e.target.value)}
-            placeholder={configured ? '•••••• (write-only — paste a new value to rotate)' : integration.secretPlaceholder}
-            className="text-sm"
-            disabled={disabled}
-          />
-        )}
-        <p className="text-[11px] text-muted-foreground">
-          Stored encrypted. Secrets never come back on read — to rotate, paste a new value and save.
-        </p>
-      </div>
-      <div className="flex items-center gap-2 justify-end">
-        {saved && (
-          <span className="text-xs text-green-600 flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Saved
-          </span>
-        )}
-        {error && (
-          <span className="text-xs text-destructive flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5" /> {error}
-          </span>
-        )}
-        {configured && (
-          <Button variant="ghost" size="sm" onClick={handleDisconnect} disabled={disabled || saving}>
-            Disconnect
-          </Button>
-        )}
-        <Button size="sm" onClick={handleSave} disabled={disabled || saving}>
-          {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : configured ? 'Update' : 'Connect'}
-        </Button>
-      </div>
     </div>
   )
 }
