@@ -1,5 +1,13 @@
+import { generateText } from 'ai'
+
 export const config = { maxDuration: 60 }
 
+// Generates a Claude completion via the Vercel AI Gateway.
+//
+// Wire format is kept Anthropic-shaped on purpose: callers
+// (src/lib/claude.js#generateContent and src/pages/ReviewPost.jsx) read
+// `data.content[0].text`, so we return `{ content: [{ type: 'text', text }] }`
+// to preserve that contract.
 export default async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json')
 
@@ -10,7 +18,6 @@ export default async function handler(req, res) {
 
   let messages, systemPrompt, model
   try {
-    // req.body is auto-parsed by Vercel when Content-Type is application/json
     ;({ messages, systemPrompt, model } = req.body || {})
   } catch {
     res.status(400).json({ error: 'Invalid request body' })
@@ -22,31 +29,28 @@ export default async function handler(req, res) {
     return
   }
 
+  if (!process.env.AI_GATEWAY_API_KEY) {
+    res.status(500).json({ error: 'AI_GATEWAY_API_KEY is not set on this deployment' })
+    return
+  }
+
+  // Callers pass either a bare Anthropic model id ("claude-sonnet-4-6",
+  // "claude-opus-4-7") or nothing. Normalize to AI Gateway's "anthropic/<id>".
+  const requested = model || 'claude-sonnet-4-6'
+  const gatewayModel = requested.includes('/') ? requested : `anthropic/${requested}`
+
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: model || 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system: [{ type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } }],
-        messages,
-      }),
+    const { text } = await generateText({
+      model: gatewayModel,
+      system: systemPrompt,
+      messages,
+      maxOutputTokens: 4096,
     })
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      res.status(response.status).json({ error: err.error?.message || `API error ${response.status}` })
-      return
-    }
-
-    const data = await response.json()
-    res.status(200).json(data)
+    res.status(200).json({
+      content: [{ type: 'text', text }],
+    })
   } catch (e) {
-    res.status(500).json({ error: e.message || 'Internal server error' })
+    res.status(500).json({ error: e?.message || 'Internal server error' })
   }
 }
