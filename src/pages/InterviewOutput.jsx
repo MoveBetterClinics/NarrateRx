@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/clerk-react'
 import {
   ArrowLeft, Copy, Check, Instagram, Facebook, FileText, RefreshCw, Loader2,
   Globe, Video, Mail, Linkedin, Youtube, MapPin, Search, Layout, Smartphone, Pin, Share2, Pencil, Sparkles, Megaphone, Send, ExternalLink, AlertCircle,
@@ -519,6 +519,8 @@ function todayIso() {
 }
 
 function WebsitePublishPanel({ markdown, fallbackTitle }) {
+  const ws = useWorkspace()
+  const { getToken } = useAuth()
   const { title: h1Title, body: bodyWithoutH1 } = useMemo(() => splitH1(markdown), [markdown])
   const defaultTitle = h1Title || fallbackTitle || ''
   const defaultDescription = useMemo(() => deriveDescription(bodyWithoutH1), [bodyWithoutH1])
@@ -532,6 +534,62 @@ function WebsitePublishPanel({ markdown, fallbackTitle }) {
   const [tagsInput, setTagsInput]         = useState('')
   const [draft, setDraft]                 = useState(false)
   const [pubDate, setPubDate]             = useState(todayIso())
+
+  // Per-workspace topic list (kebab-case slugs). When non-empty the
+  // panel renders a dropdown + "add new topic" affordance; the picked
+  // slug is forwarded as `topic` in the publish payload. Empty list →
+  // no UI, receiver falls back to its own default ("general" on
+  // movebetter.co; ignored by movebetteranimal).
+  const initialTopics = Array.isArray(ws?.publish_topics) ? ws.publish_topics : []
+  const [topics, setTopics]               = useState(initialTopics)
+  const [topic, setTopic]                 = useState('')
+  const [newTopicInput, setNewTopicInput] = useState('')
+  const [addingTopic, setAddingTopic]     = useState(false)
+  const [topicError, setTopicError]       = useState(null)
+  useEffect(() => {
+    setTopics(Array.isArray(ws?.publish_topics) ? ws.publish_topics : [])
+  }, [ws?.publish_topics])
+
+  async function handleAddTopic() {
+    const slug = slugify(newTopicInput)
+    setTopicError(null)
+    if (!slug) {
+      setTopicError('Type a topic name first.')
+      return
+    }
+    if (topics.includes(slug)) {
+      setTopic(slug)
+      setNewTopicInput('')
+      return
+    }
+    const next = [...topics, slug]
+    setAddingTopic(true)
+    try {
+      const token = await getToken()
+      const r = await fetch('/api/workspace/me', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ publish_topics: next }),
+      })
+      if (!r.ok) {
+        const j = await r.json().catch(() => ({}))
+        setTopicError(j.error === 'forbidden' ? 'Admins only — ask an admin to add new topics.' : `Couldn't save topic (${r.status}).`)
+        return
+      }
+      const updated = await r.json().catch(() => ({}))
+      const saved = Array.isArray(updated.publish_topics) ? updated.publish_topics : next
+      setTopics(saved)
+      setTopic(slug)
+      setNewTopicInput('')
+    } catch {
+      setTopicError('Network error saving topic.')
+    } finally {
+      setAddingTopic(false)
+    }
+  }
 
   const [status, setStatus] = useState('idle') // 'idle' | 'publishing' | 'success' | 'error'
   const [result, setResult] = useState(null)   // { postUrl, commitUrl, slug } on success
@@ -569,6 +627,7 @@ function WebsitePublishPanel({ markdown, fallbackTitle }) {
         draft,
         heroImage:    heroImage.trim()    || undefined,
         heroImageAlt: heroImageAlt.trim() || undefined,
+        topic:        topic                || undefined,
       })
       setResult(res)
       setStatus('success')
@@ -701,6 +760,58 @@ function WebsitePublishPanel({ markdown, fallbackTitle }) {
             />
           )}
         </div>
+
+        {topics.length > 0 && (
+          <div className="space-y-1.5">
+            <Label htmlFor="publish-topic" className="text-xs">
+              Topic <span className="text-muted-foreground font-normal">(controls the filter chip on the website)</span>
+            </Label>
+            <div className="flex gap-2">
+              <select
+                id="publish-topic"
+                value={topic}
+                onChange={(e) => setTopic(e.target.value)}
+                disabled={isPublishing}
+                className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="">Auto-categorize (general)</option>
+                {topics.map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex gap-2 items-center pt-1">
+              <Input
+                value={newTopicInput}
+                onChange={(e) => { setNewTopicInput(e.target.value); if (topicError) setTopicError(null) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddTopic() } }}
+                disabled={isPublishing || addingTopic}
+                placeholder="Add a new topic (e.g. running-form)"
+                maxLength={60}
+                className="text-xs h-8"
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={handleAddTopic}
+                disabled={isPublishing || addingTopic || !newTopicInput.trim()}
+                className="shrink-0"
+              >
+                {addingTopic ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Add'}
+              </Button>
+            </div>
+            {topicError && (
+              <p className="text-xs text-destructive flex items-start gap-1.5">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                {topicError}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              New topics become filter chips on the website automatically. Leave blank to file under <code>general</code>.
+            </p>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
