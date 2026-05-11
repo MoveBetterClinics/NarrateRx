@@ -128,6 +128,118 @@ function formToPatch(form) {
   }
 }
 
+// Per-section save configs. Each section owns:
+//   fields[]   — the form keys this section's inputs write to, used for the
+//                section-level dirty check (strict-equal compare against
+//                pristineForm).
+//   buildPatch — produces the subset of the workspace PATCH body for just
+//                this section. Matches the nested shape (social.*, logo.*,
+//                colors.*, brandbook.*, tone_modifiers.*) the server expects.
+//                For JSON sections, parsing happens inside buildPatch and
+//                throws on bad JSON so the SectionSaveBar can surface it.
+//
+// The page-level "Save all changes" button continues to PATCH everything in
+// one shot via the existing formToPatch + handleSave pair. Section saves
+// only ever PATCH their own keys.
+const SECTION_CONFIGS = {
+  identity: {
+    title: 'Identity',
+    fields: ['display_name', 'tagline', 'sign_in_blurb', 'app_name'],
+    buildPatch: (f) => ({
+      display_name:  f.display_name,
+      tagline:       f.tagline,
+      sign_in_blurb: f.sign_in_blurb,
+      app_name:      f.app_name,
+    }),
+  },
+  webPresence: {
+    title: 'Web presence',
+    fields: ['website', 'website_hostname', 'location', 'region', 'region_short', 'link_preview_blurb'],
+    buildPatch: (f) => ({
+      website:            f.website,
+      website_hostname:   f.website_hostname,
+      location:           f.location,
+      region:             f.region,
+      region_short:       f.region_short,
+      link_preview_blurb: f.link_preview_blurb,
+    }),
+  },
+  social: {
+    title: 'Social handles',
+    fields: ['social_instagram', 'social_facebook'],
+    buildPatch: (f) => ({
+      social: { instagram: f.social_instagram, facebook: f.social_facebook },
+    }),
+  },
+  brandAssets: {
+    title: 'Brand assets',
+    fields: ['logo_main', 'logo_icon', 'color_primary', 'color_secondary', 'color_accent', 'brandbook_url', 'brandbook_notes'],
+    buildPatch: (f) => ({
+      logo:      { main: f.logo_main || null, icon: f.logo_icon || null },
+      colors:    { primary: f.color_primary || null, secondary: f.color_secondary || null, accent: f.color_accent || null },
+      brandbook: { url: f.brandbook_url || null, notes: f.brandbook_notes || null },
+    }),
+  },
+  content: {
+    title: 'Content',
+    fields: ['internal_links_markdown', 'signature_system_name', 'signature_system_url', 'pinterest_boards', 'location_keyword', 'location_hashtag', 'brand_hashtag', 'spoken_url'],
+    buildPatch: (f) => ({
+      internal_links_markdown: f.internal_links_markdown,
+      signature_system_name:   f.signature_system_name || null,
+      signature_system_url:    f.signature_system_url  || null,
+      pinterest_boards:        f.pinterest_boards,
+      location_keyword:        f.location_keyword,
+      location_hashtag:        f.location_hashtag,
+      brand_hashtag:           f.brand_hashtag,
+      spoken_url:              f.spoken_url,
+    }),
+  },
+  voice: {
+    title: 'AI voice context',
+    fields: ['clinic_context', 'audience_short', 'audience_description', 'activity_context', 'brand_voice', 'booking_url'],
+    buildPatch: (f) => ({
+      clinic_context:       f.clinic_context,
+      audience_short:       f.audience_short,
+      audience_description: f.audience_description,
+      activity_context:     f.activity_context,
+      brand_voice:          f.brand_voice,
+      booking_url:          f.booking_url,
+    }),
+  },
+  tones: {
+    title: 'AI tone modifiers',
+    fields: ['tone_active', 'tone_clinical', 'tone_warm', 'tone_smart'],
+    buildPatch: (f) => ({
+      tone_modifiers: {
+        active:   f.tone_active   ?? '',
+        clinical: f.tone_clinical ?? '',
+        warm:     f.tone_warm     ?? '',
+        smart:    f.tone_smart    ?? '',
+      },
+    }),
+  },
+  paradigm: {
+    title: 'AI paradigm content',
+    fields: ['patient_context_json', 'interview_context_json', 'topic_suggestions_json'],
+    buildPatch: (f) => {
+      // Surface inline parse errors via thrown Error — SectionSaveBar catches
+      // and renders them next to the failing section, the same way the
+      // page-level handleSave used to.
+      const pc = tryParseJson(f.patient_context_json,    {})
+      const ic = tryParseJson(f.interview_context_json,  {})
+      const ts = tryParseJson(f.topic_suggestions_json,  [])
+      if (!pc.ok) throw new Error(`Patient context JSON: ${pc.error}`)
+      if (!ic.ok) throw new Error(`Interview context JSON: ${ic.error}`)
+      if (!ts.ok) throw new Error(`Topic suggestions JSON: ${ts.error}`)
+      return {
+        patient_context:   pc.value,
+        interview_context: ic.value,
+        topic_suggestions: ts.value,
+      }
+    },
+  },
+}
+
 // True if any first-party publish capability flag is set on this workspace.
 // External (founding) workspaces have capabilities={} and the credentials
 // section is hidden — direct-publish integrations are first-party only per
@@ -284,19 +396,18 @@ export default function WorkspaceSettings() {
               <AlertCircle className="h-3.5 w-3.5" />{error}
             </span>
           )}
-          <Button size="sm" onClick={handleSave} disabled={saving}>
+          <Button size="sm" variant={isDirty ? 'default' : 'outline'} onClick={handleSave} disabled={saving || !isDirty}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
-            Save changes
+            Save all changes
           </Button>
         </div>
       </div>
 
-      {/* Tabs split a 1,100-line scroll into navigable sections. The top
-          Save button still saves every tab at once — per-card save lives in
-          the LocationsPanel and CredentialsSection rows (which manage their
-          own mutations independently and don't ride the top-level form
-          state). When we move to per-card save for the rest of the form,
-          this layout is already ready. */}
+      {/* Per-section save bundle. Each Section inside General / Brand / Voice
+          gets its own "Save section" button keyed by the SECTION_CONFIGS
+          map; the top-of-page "Save all changes" stays as a one-click
+          fallback that PATCHes every dirty field across every tab.
+          Locations + Channels manage their own per-row/per-card saves. */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-5 w-full max-w-xl">
           <TabsTrigger value="general">General</TabsTrigger>
@@ -318,6 +429,7 @@ export default function WorkspaceSettings() {
           <Field label="App name"
             value={form.app_name} onChange={set('app_name')}
             hint="App name in browser tab — e.g. 'Move Better — NarrateRx'" />
+          <SectionSaveBar config={SECTION_CONFIGS.identity} form={form} pristineForm={pristineForm} setPristineForm={setPristineForm} setWs={setWs} getToken={getToken} qc={qc} />
         </Section>
 
         <Separator />
@@ -341,6 +453,7 @@ export default function WorkspaceSettings() {
             value={form.link_preview_blurb} onChange={set('link_preview_blurb')}
             rows={2}
             hint="OG / link-preview blurb — one sentence under 130 chars" />
+          <SectionSaveBar config={SECTION_CONFIGS.webPresence} form={form} pristineForm={pristineForm} setPristineForm={setPristineForm} setWs={setWs} getToken={getToken} qc={qc} />
         </Section>
 
         <Separator />
@@ -350,6 +463,7 @@ export default function WorkspaceSettings() {
             value={form.social_instagram} onChange={set('social_instagram')} placeholder="yourhandle" />
           <Field label="Facebook handle"
             value={form.social_facebook} onChange={set('social_facebook')} placeholder="yourpage" />
+          <SectionSaveBar config={SECTION_CONFIGS.social} form={form} pristineForm={pristineForm} setPristineForm={setPristineForm} setWs={setWs} getToken={getToken} qc={qc} />
         </Section>
       </TabsContent>
 
@@ -380,6 +494,7 @@ export default function WorkspaceSettings() {
             value={form.brandbook_notes} onChange={set('brandbook_notes')}
             rows={4}
             hint="Anything an image generator or designer should know — typography rules, photo style, what to avoid." />
+          <SectionSaveBar config={SECTION_CONFIGS.brandAssets} form={form} pristineForm={pristineForm} setPristineForm={setPristineForm} setWs={setWs} getToken={getToken} qc={qc} />
         </Section>
 
         <Separator />
@@ -417,6 +532,7 @@ export default function WorkspaceSettings() {
             value={form.spoken_url} onChange={set('spoken_url')}
             placeholder="MoveBetter.co"
             hint="Spoken URL — said aloud in video scripts, e.g. MoveBetter.co" />
+          <SectionSaveBar config={SECTION_CONFIGS.content} form={form} pristineForm={pristineForm} setPristineForm={setPristineForm} setWs={setWs} getToken={getToken} qc={qc} />
         </Section>
       </TabsContent>
 
@@ -440,6 +556,7 @@ export default function WorkspaceSettings() {
             value={form.brand_voice} onChange={set('brand_voice')} rows={6} />
           <Field label="Booking URL"
             value={form.booking_url} onChange={set('booking_url')} placeholder="https://..." />
+          <SectionSaveBar config={SECTION_CONFIGS.voice} form={form} pristineForm={pristineForm} setPristineForm={setPristineForm} setWs={setWs} getToken={getToken} qc={qc} />
         </Section>
 
         <Separator />
@@ -460,6 +577,7 @@ export default function WorkspaceSettings() {
           <Textarea2 label="Smart Default"
             value={form.tone_smart} onChange={set('tone_smart')} rows={6}
             hint="Used when the author picks 'Smart Default' or no tone." />
+          <SectionSaveBar config={SECTION_CONFIGS.tones} form={form} pristineForm={pristineForm} setPristineForm={setPristineForm} setWs={setWs} getToken={getToken} qc={qc} />
         </Section>
 
         <Separator />
@@ -480,6 +598,7 @@ export default function WorkspaceSettings() {
             value={form.topic_suggestions_json} onChange={set('topic_suggestions_json')}
             rows={14}
             hint="Shape: array of { topic, category, priority: 'high'|'medium'|'low', keywords[], pnwNote }" />
+          <SectionSaveBar config={SECTION_CONFIGS.paradigm} form={form} pristineForm={pristineForm} setPristineForm={setPristineForm} setWs={setWs} getToken={getToken} qc={qc} />
         </Section>
       </TabsContent>
 
@@ -568,6 +687,98 @@ function Section({ title, description, children }) {
       <div className="space-y-3">
         {children}
       </div>
+    </div>
+  )
+}
+
+// Per-section save button + status. Mounted at the bottom of each Section in
+// the General/Brand/Voice tabs (Locations + Channels manage their own).
+//
+//   - Reads the section's owned fields from `form` and compares strict-equal
+//     against `pristineForm` for the dirty signal — no JSON.stringify so a
+//     same-string typed-then-undone reads as clean.
+//   - On Save: builds only the section's patch via config.buildPatch and
+//     PATCHes /api/workspace/me with that subset (server's allowlist
+//     accepts any subset).
+//   - Updates pristineForm for only this section's keys on success, so
+//     other unsaved sections stay marked dirty.
+//   - Invalidates queryKeys.workspace.me so chrome (Layout brand name etc.)
+//     picks up the change immediately.
+function SectionSaveBar({ config, form, pristineForm, setPristineForm, setWs, getToken, qc }) {
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved]   = useState(false)
+  const [error, setError]   = useState(null)
+
+  const isDirty = !!form && !!pristineForm && config.fields.some(
+    (k) => (form[k] ?? '') !== (pristineForm[k] ?? ''),
+  )
+
+  async function handleSectionSave() {
+    if (!isDirty || saving) return
+    setSaving(true)
+    setSaved(false)
+    setError(null)
+    let patch
+    try {
+      patch = config.buildPatch(form)
+    } catch (e) {
+      // Most commonly a JSON parse error from the paradigm section.
+      setError(e?.message || 'Could not build save payload')
+      setSaving(false)
+      return
+    }
+    try {
+      const token = await getToken()
+      const r = await fetch('/api/workspace/me', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(patch),
+      })
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        setError(body?.error || `Save failed (${r.status})`)
+      } else {
+        const updated = await r.json()
+        if (setWs) setWs(updated)
+        // Refresh only this section's slice of pristineForm so other
+        // dirty sections stay dirty.
+        setPristineForm((prev) => {
+          if (!prev) return prev
+          const next = { ...prev }
+          for (const k of config.fields) next[k] = form[k]
+          return next
+        })
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2500)
+        qc?.invalidateQueries({ queryKey: queryKeys.workspace.me })
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-end gap-2 pt-1">
+      {saved && (
+        <span className="text-xs text-green-600 flex items-center gap-1">
+          <CheckCircle2 className="h-3.5 w-3.5" />Saved
+        </span>
+      )}
+      {error && (
+        <span className="text-xs text-destructive flex items-center gap-1 max-w-md">
+          <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+          <span className="truncate">{error}</span>
+        </span>
+      )}
+      <Button size="sm" variant="outline" onClick={handleSectionSave} disabled={!isDirty || saving}>
+        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+        Save section
+      </Button>
     </div>
   )
 }
