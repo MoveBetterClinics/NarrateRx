@@ -39,6 +39,24 @@ function readHostHeader(req) {
   return headers.host || headers.Host || null
 }
 
+// Non-prod-only fallback for Playwright preview-smoke tests. Vercel preview
+// URLs (narraterx-git-*.vercel.app) have no .narraterx.ai subdomain to
+// resolve, so we accept ?workspace=<slug> as an explicit override.
+// Production runs short-circuit before this is read.
+function extractSlugFromQuery(req) {
+  if (process.env.VERCEL_ENV === 'production') return null
+  const raw = req?.url
+  if (!raw) return null
+  let url
+  try {
+    url = typeof raw === 'string' ? new URL(raw, 'http://localhost') : raw
+  } catch {
+    return null
+  }
+  const slug = url?.searchParams?.get?.('workspace')
+  return slug || null
+}
+
 // Look up a workspace by primary key. Used by background paths (e.g. the
 // Vercel Blob upload-completion webhook) that don't have a request host to
 // resolve from but do have a workspace_id round-tripped through some other
@@ -77,7 +95,7 @@ export async function workspaceById(id) {
 
 export async function workspaceContext(req) {
   const host = readHostHeader(req)
-  const slug = extractSlug(host)
+  const slug = extractSlug(host) || extractSlugFromQuery(req)
   if (!slug) return null
 
   const supabaseUrl = process.env.SUPABASE_URL

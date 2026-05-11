@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "backup:db": "bash scripts/backup-db.sh"
+    "backup:db": "bash scripts/backup-db.sh",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium",
+    "e2e:seed": "node scripts/seed-e2e-fixtures.mjs"
   },
   "dependencies": {
     "@clerk/backend": "^1.13.0",
@@ -38,6 +41,8 @@
   },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3.654.0",
+    "@clerk/testing": "^1.4.0",
+    "@playwright/test": "^1.49.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.18",
     "pg": "^8.20.0",
