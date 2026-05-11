@@ -41,7 +41,7 @@ export default function Onboarding() {
     slug: '',
     enabled_outputs: [],
   })
-  const [scanState, setScanState] = useState({ status: 'idle', error: null, sources: [] })
+  const [scanState, setScanState] = useState({ status: 'idle', error: null, sources: [], recent_topics: [], services: [] })
   const [slugCheck, setSlugCheck] = useState({ status: 'idle', available: null, reason: null })
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
@@ -109,6 +109,7 @@ export default function Onboarding() {
           <VoiceScreen
             form={form}
             setField={setField}
+            scanState={scanState}
             onBack={() => setStep('business')}
             onContinue={() => setStep('subdomain')}
           />
@@ -418,7 +419,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
   }
 
   async function runScan() {
-    setScanState({ status: 'scanning', error: null, sources: [] })
+    setScanState({ status: 'scanning', error: null, sources: [], recent_topics: [], services: [] })
     try {
       const r = await fetch('/api/onboarding/scan-website', {
         method: 'POST',
@@ -427,14 +428,20 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
       })
       if (!r.ok) {
         const err = await r.json().catch(() => ({}))
-        setScanState({ status: 'error', error: err.error || 'scan-failed', sources: [] })
+        setScanState({ status: 'error', error: err.error || 'scan-failed', sources: [], recent_topics: [], services: [] })
         return
       }
       const data = await r.json()
       applyScan(data)
-      setScanState({ status: 'done', error: null, sources: data.source_pages || [] })
+      setScanState({
+        status: 'done',
+        error: null,
+        sources: data.source_pages || [],
+        recent_topics: Array.isArray(data.recent_topics) ? data.recent_topics : [],
+        services: Array.isArray(data.services) ? data.services : [],
+      })
     } catch (e) {
-      setScanState({ status: 'error', error: 'network-error', sources: [] })
+      setScanState({ status: 'error', error: 'network-error', sources: [], recent_topics: [], services: [] })
     }
   }
 
@@ -592,7 +599,8 @@ const VOICE_PLACEHOLDERS = {
   brand_voice: "Plain, direct, conversational. Expert without jargon. We avoid hype words and corporate-speak. We sound like a thoughtful clinician talking — not a marketer pitching.",
 }
 
-function VoiceScreen({ form, setField, onBack, onContinue }) {
+function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
+  const topics = scanState?.recent_topics || []
   return (
     <Card
       title="Brand voice"
@@ -623,6 +631,26 @@ function VoiceScreen({ form, setField, onBack, onContinue }) {
           className="text-sm"
         />
       </FieldRow>
+      {topics.length > 0 && (
+        <div className="rounded-md border border-orange-200 bg-orange-50 px-3 py-2.5">
+          <p className="text-xs font-medium text-orange-900 mb-1.5">
+            We saw you write about:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {topics.map((t, i) => (
+              <span
+                key={i}
+                className="inline-flex items-center rounded-full bg-white border border-orange-200 px-2 py-0.5 text-[11px] text-orange-900"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+          <p className="text-[11px] text-orange-700 mt-1.5">
+            These are topics pulled from your blog. We'll use them later to seed post ideas — you don't need to edit anything here.
+          </p>
+        </div>
+      )}
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>← Back</Button>
         <Button onClick={onContinue}>
