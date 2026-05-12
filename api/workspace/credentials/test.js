@@ -1,3 +1,4 @@
+import { withSentry } from '../../_lib/sentry.js'
 // Test-connection endpoint for stored credentials. Admin-only.
 //
 //   POST /api/workspace/credentials/test { service }
@@ -99,7 +100,7 @@ const TESTERS = {
   website:      testBearerEndpoint,
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'method-not-allowed' })
   }
@@ -133,3 +134,5 @@ export default async function handler(req, res) {
 
   return res.status(result.ok ? 200 : 502).json(result)
 }
+
+export default withSentry(handler)

@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // POST /api/onboarding/check-slug
 //
 // Body: { slug }
@@ -12,7 +13,7 @@ import { validateSlug } from '../_lib/onboardingValidation.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ available: false, reason: 'method-not-allowed' })
   }
@@ -46,3 +47,5 @@ export default async function handler(req, res) {
   if (rows.length > 0) return res.status(200).json({ available: false, reason: 'taken', slug: v.slug })
   return res.status(200).json({ available: true, slug: v.slug })
 }
+
+export default withSentry(handler)

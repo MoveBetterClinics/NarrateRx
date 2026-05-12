@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // POST /api/engagement/refresh — fetch the latest Buffer stats for a single
 // published content_item, write a new engagement_snapshots row, return it.
 //
@@ -32,7 +33,7 @@ async function sb(path, init = {}) {
   })
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   let scope
@@ -101,3 +102,5 @@ export default async function handler(req, res) {
   const inserted = await insertRes.json()
   return res.status(200).json({ snapshot: inserted?.[0] || null })
 }
+
+export default withSentry(handler)

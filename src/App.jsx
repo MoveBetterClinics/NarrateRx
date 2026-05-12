@@ -32,6 +32,7 @@ import Onboarding from '@/pages/Onboarding'
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
+import { setSentryUser, setSentryWorkspace } from '@/lib/sentry'
 import { Toaster } from '@/lib/toast'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -204,6 +205,10 @@ function AppRoutes() {
 
 function ProtectedApp() {
   const { workspace: ws, isLoading } = useWorkspaceState()
+  const { user } = useUser()
+
+  useEffect(() => { setSentryUser(user?.id ?? null) }, [user?.id])
+  useEffect(() => { setSentryWorkspace(ws?.slug ?? null) }, [ws?.slug])
 
   // workspace row from context (DB on shared deployment; static-shaped fallback otherwise).
   const signInName  = ws?.app_name      ?? workspace.appName

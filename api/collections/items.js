@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Add or remove media_assets from a collection.
 //
 //   POST   { collectionId, assetIds: [...] }       → add many at once
@@ -39,7 +40,7 @@ async function verifyScope(scope, table, ids) {
   return { ok: missing.length === 0, missing }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST' && req.method !== 'DELETE') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -103,3 +104,5 @@ export default async function handler(req, res) {
   }
   return res.status(200).json({ removed: assetIds.length })
 }
+
+export default withSentry(handler)

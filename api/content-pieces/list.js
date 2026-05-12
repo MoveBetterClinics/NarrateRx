@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // List content_pieces (a.k.a. "edit briefs") for the current workspace. Each piece
 // is a draft/edit task: AI surfaced a moment from a source media row, and the
 // editor reviews/accepts/rejects/returns through this list.
@@ -30,7 +31,7 @@ const SELECT_COMMON =
   'rejected_reason,created_at,updated_at,accepted_at,returned_at,' +
   'published_at,published_target_id'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -60,3 +61,5 @@ export default async function handler(req, res) {
   if (!r.ok) return res.status(500).json({ error: 'Database error' })
   return res.status(200).json(await r.json())
 }
+
+export default withSentry(handler)

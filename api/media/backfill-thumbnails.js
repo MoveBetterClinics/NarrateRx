@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
 import { requireRole } from '../_lib/auth.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
@@ -33,7 +34,7 @@ function sb(path, init = {}) {
   })
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -79,3 +80,5 @@ export default async function handler(req, res) {
     errors,
   })
 }
+
+export default withSentry(handler)

@@ -93,6 +93,14 @@ export async function workspaceById(id) {
   return row
 }
 
+// Best-effort: stash the resolved workspace on req so the shared Sentry
+// wrapper (api/_lib/sentry.js) can tag captured errors with workspace
+// slug/id without each handler needing to wire that up.
+function attachWorkspaceToReq(req, row) {
+  if (!req || !row) return
+  try { req.workspace = row } catch { /* frozen req, ignore */ }
+}
+
 export async function workspaceContext(req) {
   const host = readHostHeader(req)
   const slug = extractSlug(host) || extractSlugFromQuery(req)
@@ -126,5 +134,6 @@ export async function workspaceContext(req) {
   if (!Array.isArray(rows) || rows.length === 0) return null
   const row = rows[0]
   if (row.status !== 'active') return null
+  attachWorkspaceToReq(req, row)
   return row
 }

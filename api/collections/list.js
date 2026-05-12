@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // List collections for the current workspace. Editor-side groupings of
 // media_assets — campaigns, series, ad-hoc bundles. Filter by status (active
 // is the default; archived must be opted into) and kind. Includes a count of
@@ -26,7 +27,7 @@ const SELECT_COMMON =
   'created_at,updated_at,created_by,' +
   'collection_items(count)'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -89,3 +90,5 @@ export default async function handler(req, res) {
   })
   return res.status(200).json(out)
 }
+
+export default withSentry(handler)

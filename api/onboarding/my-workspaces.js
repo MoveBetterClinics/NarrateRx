@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // GET /api/onboarding/my-workspaces
 //
 // Returns the active workspaces the signed-in user belongs to (via Clerk org
@@ -36,7 +37,7 @@ async function authUserId(req) {
   }
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'method-not-allowed' })
   }
@@ -93,3 +94,5 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   return res.status(200).json({ workspaces })
 }
+
+export default withSentry(handler)

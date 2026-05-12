@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // POST /api/onboarding/claim
 //
 // Claims a new workspace for the signed-in user. Atomically (best-effort):
@@ -87,7 +88,7 @@ function pickEnabledOutputs(arr) {
   return out
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'method-not-allowed' })
   }
@@ -364,3 +365,5 @@ export default async function handler(req, res) {
     redirect_url: `https://${slug}.narraterx.ai/?welcome=1`,
   })
 }
+
+export default withSentry(handler)

@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Create a new collection. Editor or admin only — clinicians don't curate
 // collections. Slugs are derived from name when not provided; uniqueness is
 // enforced at the DB layer (unique on brand+slug).
@@ -32,7 +33,7 @@ function slugify(s) {
 
 const ALLOWED_KINDS = new Set(['campaign', 'series', 'session', 'adhoc'])
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -73,3 +74,5 @@ export default async function handler(req, res) {
   const data = await r.json()
   return res.status(200).json(data[0] ?? null)
 }
+
+export default withSentry(handler)

@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Tier 2b — daily engagement refresh + auto-flag.
 //
 // Vercel cron hits this once a day (vercel.json). For every active workspace
@@ -175,7 +176,7 @@ async function processWorkspace(ws, summary) {
   })
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret) {
     const auth = req.headers?.authorization || req.headers?.Authorization
@@ -208,3 +209,5 @@ export default async function handler(req, res) {
 
   return res.status(200).json(summary)
 }
+
+export default withSentry(handler)

@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Manual content_piece creation. Used when an editor (Philip or anyone)
 // wants to spin up a brief for a moment AI didn't surface — the
 // "always-have-a-backdoor" override path. Brand-scoped.
@@ -21,7 +22,7 @@ function sb(path, init = {}) {
   })
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -69,3 +70,5 @@ export default async function handler(req, res) {
   const data = await r.json()
   return res.status(200).json(data[0] ?? null)
 }
+
+export default withSentry(handler)

@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // GET /api/onboarding/capacity
 //
 // Response: { cap, used, remaining, full }
@@ -11,7 +12,7 @@ import { FOUNDING_CAP, SEED_SLUGS } from '../_lib/onboardingValidation.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'method-not-allowed' })
   }
@@ -50,3 +51,5 @@ export default async function handler(req, res) {
     full: remaining === 0,
   })
 }
+
+export default withSentry(handler)

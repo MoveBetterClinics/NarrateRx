@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Website publish endpoint — Node.js runtime.
 //
 // Two receiving modes are supported, dispatched on which credential the
@@ -24,7 +25,7 @@ import { marked } from 'marked'
 import { getCredential } from '../_lib/getCredential.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed', message: 'POST only' })
 
   const payload = (typeof req.body === 'object' && req.body) ? req.body : null
@@ -329,3 +330,5 @@ function markdownToHtml(md) {
   // semantics readers expect from a CMS (paragraphs separated by blank lines).
   return marked.parse(md, { gfm: true, breaks: false })
 }
+
+export default withSentry(handler)
