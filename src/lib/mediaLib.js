@@ -121,20 +121,43 @@ export function backfillThumbnails(limit = 25) {
 // most vision models. We transcode to JPEG client-side before upload so the
 // canonical blob is always a format every downstream consumer (workbench
 // preview, AI Gateway, segmenter) handles natively. heic2any pulls in a
-// libheif WASM bundle (~3 MB) — kept out of the main chunk via dynamic
-// import so the cost is paid only when a HEIC is actually selected.
-async function maybeTranscodeHeic(file) {
+// libheif WASM bundle (~3 MB) and runs CPU-heavy decode + re-encode — kept
+// off the main thread via a Worker so the UI stays responsive during the
+// transcode. The Worker bundle is its own dynamic chunk; cost is paid only
+// when a HEIC is actually selected.
+function isHeicFile(file) {
   const name = (file.name || '').toLowerCase()
   const type = (file.type || '').toLowerCase()
-  const isHeic = type === 'image/heic' || type === 'image/heif'
-                 || name.endsWith('.heic') || name.endsWith('.heif')
-  if (!isHeic) return file
+  return type === 'image/heic' || type === 'image/heif'
+      || name.endsWith('.heic') || name.endsWith('.heif')
+}
 
-  const { default: heic2any } = await import('heic2any')
-  const out = await heic2any({ blob: file, toType: 'image/jpeg', quality: 0.92 })
-  // heic2any returns a Blob for single-image input or an array for sequences;
-  // we only ever publish the primary frame.
-  const jpeg = Array.isArray(out) ? out[0] : out
+async function transcodeViaWorker(file) {
+  // Vite's `?worker` query generates a dedicated chunk + a Worker
+  // constructor. Dynamic import keeps the Worker bundle (which pulls in
+  // heic2any + libheif WASM) out of the main bundle.
+  const { default: HeicWorker } = await import('./heicWorker.js?worker')
+  const worker = new HeicWorker()
+  try {
+    return await new Promise((resolve, reject) => {
+      worker.onmessage = (e) => {
+        if (e.data?.ok) resolve(e.data.blob)
+        else reject(new Error(e.data?.error || 'Transcode failed'))
+      }
+      worker.onerror = (e) => reject(new Error(e.message || 'Worker error'))
+      worker.postMessage({ blob: file, quality: 0.92 })
+    })
+  } finally {
+    // Workers are one-shot from our side; terminating frees the wasm
+    // module + decoder state. Browsers cache the underlying source so the
+    // next HEIC re-instantiates instantly.
+    worker.terminate()
+  }
+}
+
+async function maybeTranscodeHeic(file) {
+  if (!isHeicFile(file)) return file
+  const jpeg = await transcodeViaWorker(file)
   const newName = file.name.replace(/\.(heic|heif)$/i, '.jpg')
   return new File([jpeg], newName, { type: 'image/jpeg', lastModified: file.lastModified })
 }
@@ -156,12 +179,8 @@ export async function uploadMedia(file, meta = {}, options = {}) {
   // the upload progress curve. Callers that want a UI signal during transcode
   // can pass options.onTranscodeStart / onTranscodeEnd; we keep both optional
   // so existing call sites stay unchanged.
-  if (typeof options.onTranscodeStart === 'function') {
-    const name = (file.name || '').toLowerCase()
-    const type = (file.type || '').toLowerCase()
-    if (type === 'image/heic' || type === 'image/heif' || name.endsWith('.heic') || name.endsWith('.heif')) {
-      options.onTranscodeStart()
-    }
+  if (typeof options.onTranscodeStart === 'function' && isHeicFile(file)) {
+    options.onTranscodeStart()
   }
   file = await maybeTranscodeHeic(file)
   options.onTranscodeEnd?.()
