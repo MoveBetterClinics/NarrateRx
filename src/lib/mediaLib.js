@@ -9,6 +9,7 @@
 // caller doesn't have to thread getToken through props or context.
 
 import { upload } from '@vercel/blob/client'
+import { throwApiError } from '@/lib/apiError'
 
 async function getClerkToken() {
   if (typeof window === 'undefined') return null
@@ -24,9 +25,12 @@ async function api(path, init = {}) {
   const headers = { ...(init.headers || {}) }
   if (token) headers.Authorization = `Bearer ${token}`
   const res  = await fetch(path, { ...init, headers })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || `Request failed: ${res.status}`)
-  return json
+  if (!res.ok) {
+    // Reconstruct a Response so throwApiError can read the body + headers.
+    const text = await res.text().catch(() => '')
+    await throwApiError(new Response(text, { status: res.status, headers: res.headers }))
+  }
+  return await res.json().catch(() => ({}))
 }
 
 // ── List & detail ────────────────────────────────────────────────────────────

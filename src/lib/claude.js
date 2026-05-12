@@ -1,14 +1,27 @@
+import { throwApiError } from '@/lib/apiError'
+
+// Best-effort Clerk session token so /api/generate + /api/stream can key
+// rate-limit buckets on Clerk user.id instead of falling back to IP.
+// Unauthenticated callers (e.g. SSR-style preflight) still work — the
+// server-side limiter falls back to x-forwarded-for.
+async function authHeaders() {
+  if (typeof window === 'undefined') return {}
+  try {
+    const token = await window.Clerk?.session?.getToken?.()
+    return token ? { Authorization: `Bearer ${token}` } : {}
+  } catch {
+    return {}
+  }
+}
+
 export async function* streamMessage(messages, systemPrompt, { model } = {}) {
   const response = await fetch('/api/stream', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ messages, systemPrompt, model }),
   })
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.error || `API error ${response.status}`)
-  }
+  if (!response.ok) await throwApiError(response)
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
@@ -42,14 +55,11 @@ export async function* streamMessage(messages, systemPrompt, { model } = {}) {
 export async function generateContent(messages, systemPrompt, { model } = {}) {
   const response = await fetch('/api/generate', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
     body: JSON.stringify({ messages, systemPrompt, model }),
   })
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}))
-    throw new Error(err.error || `API error ${response.status}`)
-  }
+  if (!response.ok) await throwApiError(response)
 
   const data = await response.json()
   return data.content[0].text

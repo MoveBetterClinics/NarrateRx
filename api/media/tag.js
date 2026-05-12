@@ -1,6 +1,7 @@
 import { tagById } from '../_lib/tagAsset.js'
 import { requireRole } from '../_lib/auth.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
+import { enforceLimit } from '../_lib/ratelimit.js'
 
 // Manual AI auto-tagging endpoint. POST { id } → vision + transcription via
 // the Vercel AI Gateway. The shared logic lives in _lib/tagAsset.js so
@@ -21,6 +22,8 @@ export default async function handler(req, res) {
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
+
+  if (!(await enforceLimit(req, res, 'media'))) return
 
   const id = req.body?.id
   if (!id) return res.status(400).json({ error: 'Missing id' })
