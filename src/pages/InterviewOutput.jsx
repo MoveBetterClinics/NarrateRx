@@ -73,7 +73,10 @@ export default function InterviewOutput() {
   }, [interviewLoading, interviewData, interviewId, navigate])
 
   async function generateGroup(group) {
-    if (!outputs?.blogPost) return
+    if (!outputs?.blogPost) {
+      setGenError('Generate the blog post first, then come back to create social or marketing content.')
+      return
+    }
     setGenerating(group)
     setGenError('')
     try {
@@ -432,7 +435,7 @@ function OutputCard({ title, subtitle, content, badge, editId }) {
   function handleCopy() {
     navigator.clipboard.writeText(content || '')
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => setCopied(false), 3000)
   }
 
   if (!content) {
