@@ -358,6 +358,9 @@ export default async function handler(req, res) {
       clerk_org_id: row.clerk_org_id,
     },
     domain_registered: domainRegistered,
-    redirect_url: `https://${slug}.narraterx.ai/settings/workspace`,
+    // New tenants land on Dashboard with the welcome banner + getting-started
+    // checklist rather than the (large) Workspace Settings page. They can
+    // still reach Settings from the Workspace icon in the chrome.
+    redirect_url: `https://${slug}.narraterx.ai/?welcome=1`,
   })
 }
