@@ -16,7 +16,7 @@ export default function Welcome() {
   const [searchParams] = useSearchParams()
   const [step, setStep] = useState(0)
   const [finishing, setFinishing] = useState(false)
-  const [resetting, setResetting] = useState(searchParams.get('reset') === '1')
+  const resetting = searchParams.get('reset') === '1'
 
   // QA escape hatch: /welcome?reset=1 clears all per-user "seen" flags so the
   // welcome flow + dashboard checklist replay from scratch. Strips the query

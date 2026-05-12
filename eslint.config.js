@@ -31,7 +31,7 @@ export default [
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/purity': 'off',
       'no-console': 'warn',
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
       'no-undef': 'warn',
     },
   },

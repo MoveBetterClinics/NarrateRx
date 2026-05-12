@@ -16,7 +16,7 @@
 
 import { createClerkClient, verifyToken } from '@clerk/backend'
 import { validateSlug, FOUNDING_CAP, SEED_SLUGS } from '../_lib/onboardingValidation.js'
-import { addProjectDomain, removeProjectDomain, vercelDomainConfigured, VercelDomainError } from '../_lib/vercelDomains.js'
+import { addProjectDomain, vercelDomainConfigured, VercelDomainError } from '../_lib/vercelDomains.js'
 import { sendAdminNotification } from '../_lib/notifyAdmin.js'
 import { OUTPUT_CHANNELS } from '../../src/lib/outputChannels.js'
 

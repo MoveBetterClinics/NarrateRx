@@ -17,7 +17,7 @@
 // and does NOT use OrgGate (Clerk Org is created server-side at the claim step).
 // Just <ClerkProvider> + <SignedIn/SignedOut>.
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { SignedIn, SignedOut, SignIn, SignUp, useAuth, useUser } from '@clerk/clerk-react'
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -25,8 +25,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
-
-const STEPS = ['loading', 'capacity-full', 'auth', 'business', 'voice', 'subdomain', 'channels', 'review', 'launching']
 
 export default function Onboarding() {
   const [step, setStep] = useState('loading')
@@ -184,7 +182,7 @@ export default function Onboarding() {
                 const data = await r.json()
                 setRedirectUrl(data.redirect_url)
                 setStep('launching')
-              } catch (e) {
+              } catch {
                 setSubmitError('network-error')
                 setSubmitting(false)
               }
@@ -505,7 +503,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
         recent_topics: Array.isArray(data.recent_topics) ? data.recent_topics : [],
         services: Array.isArray(data.services) ? data.services : [],
       })
-    } catch (e) {
+    } catch {
       setScanState({ status: 'error', error: 'network-error', sources: [], recent_topics: [], services: [] })
     }
   }

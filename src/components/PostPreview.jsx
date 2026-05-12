@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
-import { Heart, MessageCircle, Send, Bookmark, ThumbsUp, Repeat2, Globe, MapPin, Video, ChevronLeft, ChevronRight, Play } from 'lucide-react'
+import { Heart, MessageCircle, Send, Bookmark, ThumbsUp, Repeat2, Globe, MapPin, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import emailTemplateHtml from '../email-template.html?raw'
 import { workspace } from '@/lib/workspace'
 

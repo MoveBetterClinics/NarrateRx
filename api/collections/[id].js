@@ -82,7 +82,7 @@ export default async function handler(req, res) {
         return new Date(a.added_at) - new Date(b.added_at)
       })
 
-    const { collection_items, ...rest } = row
+    const { collection_items: _ci, ...rest } = row
     return res.status(200).json({ ...rest, items, item_count: items.length })
   }
 

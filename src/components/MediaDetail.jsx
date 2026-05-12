@@ -237,7 +237,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
       await navigator.clipboard.writeText(asset.blob_url)
       setCopied(true)
       setTimeout(() => setCopied(false), 1500)
-    } catch (e) {
+    } catch {
       setError('Could not copy link — try selecting the URL manually.')
     }
   }

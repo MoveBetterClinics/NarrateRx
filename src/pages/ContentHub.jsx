@@ -4,7 +4,7 @@ import {
   Instagram, Facebook, Linkedin, FileText, Mail,
   MapPin, ChevronRight, Clock, CheckCircle2, Send, CalendarDays,
   AlertCircle, Loader2, RefreshCw,
-  MousePointer2, LayoutTemplate, Clapperboard, Youtube, Music2, Megaphone,
+  MousePointer2, LayoutTemplate, Youtube, Music2, Megaphone,
   ThumbsUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
