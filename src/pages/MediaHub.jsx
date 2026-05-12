@@ -21,6 +21,18 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 const PAGE_SIZE = 120
 
 const KIND_FILTERS   = [{ id: '', label: 'All' }, { id: 'video', label: 'Video' }, { id: 'photo', label: 'Photo' }]
+// Purpose is the primary library lens — a clinic's media is mostly
+// non-interview content (B-roll, facility shots, brand assets), and the
+// interview-only default of the original Media Hub buried that diversity.
+// 'All' keeps the prior behavior; the rest are the four valid asset_purpose
+// values (see migration 024 + MediaUploader for the source of truth).
+const PURPOSE_FILTERS = [
+  { id: '',          label: 'All purposes' },
+  { id: 'interview', label: 'Interviews' },
+  { id: 'broll',     label: 'B-roll' },
+  { id: 'photo',     label: 'Photos' },
+  { id: 'brand',     label: 'Brand' },
+]
 // Default ('Any active') excludes archived rows server-side. The explicit
 // 'Archived' option opts in to viewing the trash bin.
 const STATUS_FILTERS = [
@@ -38,6 +50,7 @@ export default function MediaHub() {
   const { canUpload, canEdit, role } = useUserRole()
   const qc = useQueryClient()
   const [kind, setKind]         = useState('')
+  const [purpose, setPurpose]   = useState('')
   const [status, setStatus]     = useState('')
   const [search, setSearch]     = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -59,6 +72,7 @@ export default function MediaHub() {
   // filter change produces a single cache key per state.
   const mediaFilters = {
     kind:         kind || undefined,
+    purpose:      purpose || undefined,
     status:       status || undefined,
     q:            debouncedSearch || undefined,
     collectionId: collectionId || undefined,
@@ -241,7 +255,7 @@ export default function MediaHub() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">Media Hub</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Your library of raw and edited clips. AI suggests posts to make from each upload — accept, edit, return finished files, then attach to Content Hub.
+            Your whole clinic&apos;s media library — interview clips, B-roll, photos, and brand assets. Interview uploads also feed the editor brief queue; everything else is tagged for search and reuse.
           </p>
         </div>
         <MediaHubHelp />
@@ -275,6 +289,20 @@ export default function MediaHub() {
               <X className="h-4 w-4" />
             </button>
           )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          {PURPOSE_FILTERS.map((p) => (
+            <button
+              key={p.id || 'all-purpose'}
+              onClick={() => setPurpose(p.id)}
+              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                purpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex items-center gap-1.5">
@@ -368,7 +396,7 @@ export default function MediaHub() {
         // the coaching matches the situation. hasActiveFilter is true whenever
         // any narrowing control is active.
         (() => {
-          const hasActiveFilter = !!(debouncedSearch || kind || status || collectionId)
+          const hasActiveFilter = !!(debouncedSearch || kind || purpose || status || collectionId)
           if (hasActiveFilter) {
             return (
               <EmptyState
@@ -382,6 +410,7 @@ export default function MediaHub() {
                     onClick={() => {
                       setSearch('')
                       setKind('')
+                      setPurpose('')
                       setStatus('')
                       setCollectionId(null)
                     }}
@@ -398,7 +427,7 @@ export default function MediaHub() {
               title="Your media library is empty"
               description={
                 canUpload
-                  ? 'Drop a video or photo above to upload your first asset. The AI will tag and transcribe it automatically.'
+                  ? 'Pick an asset purpose above (interview, B-roll, photo, or brand) and drop your first file. AI tags every upload for search.'
                   : 'Once your team uploads photos and videos, they will appear here. Ask an admin or editor for upload access.'
               }
               action={

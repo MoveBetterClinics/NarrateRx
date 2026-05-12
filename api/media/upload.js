@@ -73,6 +73,16 @@ function kindFromMime(mime) {
   return null
 }
 
+const PURPOSES = new Set(['interview', 'broll', 'photo', 'brand'])
+
+// Default asset_purpose when the uploader didn't supply one — covers older
+// API callers (e.g. return-uploads of finished edits, server-side seeding).
+// Videos default to interview to preserve the historical behavior; photos
+// default to photo. Brand assets are always opted into explicitly.
+function defaultPurpose(kind) {
+  return kind === 'video' ? 'interview' : 'photo'
+}
+
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -122,6 +132,7 @@ async function handler(req, res) {
             condition: meta.condition || null,
             capturedAt: meta.capturedAt || null,
             notes: meta.notes || null,
+            assetPurpose: PURPOSES.has(meta.assetPurpose) ? meta.assetPurpose : null,
             speakerRole: meta.speakerRole || null,
             parentId: meta.parentId || null,
             contentPieceId: meta.contentPieceId || null,
@@ -162,6 +173,15 @@ async function handler(req, res) {
         // lands in 'approved' status and is linked to the source. Skips Phase
         // 2/3 auto-pipeline because the contractor has already done the work.
         const isReturnUpload = !!meta.parentId
+        const assetPurpose = PURPOSES.has(meta.assetPurpose)
+          ? meta.assetPurpose
+          : defaultPurpose(kind)
+        // speaker_role only carries meaning for interview-purpose uploads.
+        // For broll/photo/brand we deliberately store NULL so the segmenter
+        // doesn't pick the row up and so MediaDetail can hide the field.
+        const speakerRole = assetPurpose === 'interview'
+          ? (meta.speakerRole || 'clinician')
+          : null
         const row = {
           [scopeColumn]: scopeId,
           kind,
@@ -177,7 +197,8 @@ async function handler(req, res) {
           captured_at: meta.capturedAt || null,
           notes: meta.notes || null,
           created_by: meta.createdBy || null,
-          speaker_role: meta.speakerRole || 'clinician',
+          asset_purpose: assetPurpose,
+          speaker_role: speakerRole,
           parent_id: meta.parentId || null,
         }
 
@@ -234,12 +255,19 @@ async function handler(req, res) {
             }).catch((e) => console.error('Audit record failed:', e?.message)))
 
             // Auto-pipeline: tag (Phase 2) → segment into content_pieces
-            // (Phase 3, video only). tagAndPersist's own audit row writes
-            // inside _lib/tagAsset.js.
+            // (Phase 3, interview videos only). tagAndPersist's own audit
+            // row writes inside _lib/tagAsset.js.
+            //
+            // Segmentation is gated on asset_purpose='interview' because the
+            // segmenter prompt assumes spoken narrative + speaker role and
+            // produces nonsense for B-roll / facility photos / brand assets.
+            // Those still get AI tags (useful for search), just not edit
+            // briefs in the content queue.
             waitUntil(
               tagAndPersist(insertedRow, innerScope)
                 .then((tagged) => {
                   if (tagged?.kind !== 'video') return
+                  if (tagged?.asset_purpose !== 'interview') return
                   const hasSpeech = tagged?.transcription?.trim()
                   const hasVisual = tagged?.visual_narrative?.trim()
                   if (hasSpeech || hasVisual) return segmentAndPersist(tagged, innerScope)

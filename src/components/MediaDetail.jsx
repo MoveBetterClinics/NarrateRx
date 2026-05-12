@@ -19,11 +19,29 @@ import ContentBriefDetail from './ContentBriefDetail'
 import CollectionPicker from './CollectionPicker'
 
 const STATUSES = ['raw', 'tagged', 'rendered', 'approved', 'archived']
+// Purpose is the primary fork (see MediaUploader for the source of truth).
+// Detail drawer lets admins/editors re-classify if an upload landed on the
+// wrong purpose — flipping out of 'interview' clears speaker_role server-side
+// so the segmenter eligibility check stays honest.
+const PURPOSES = [
+  { id: 'interview', label: 'Interview' },
+  { id: 'broll',     label: 'B-roll' },
+  { id: 'photo',     label: 'Photo' },
+  { id: 'brand',     label: 'Brand asset' },
+]
 const SPEAKER_ROLES = [
   { id: 'clinician',     label: 'Clinician' },
   { id: 'admin',         label: 'Admin staff' },
   { id: 'patient_guest', label: 'Patient guest' },
 ]
+
+// Default purpose for legacy rows or asset types whose backfill we don't
+// trust. Videos default to interview (matches migration 024 backfill), photos
+// to photo.
+function defaultPurposeFor(asset) {
+  if (asset.asset_purpose) return asset.asset_purpose
+  return asset.kind === 'video' ? 'interview' : 'photo'
+}
 const PURGE_COOLDOWN_DAYS = 30
 
 function daysSince(iso) {
@@ -41,6 +59,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [patient, setPatient]   = useState(asset.patient_pseudonym || '')
   const [condition, setCondition] = useState(asset.condition || '')
   const [status, setStatus]     = useState(asset.status || 'raw')
+  const [assetPurpose, setAssetPurpose] = useState(defaultPurposeFor(asset))
   const [speakerRole, setSpeakerRole] = useState(asset.speaker_role || 'clinician')
   const [aiTags, setAiTags]     = useState(asset.ai_tags || [])
   const [transcription, setTranscription] = useState(asset.transcription || '')
@@ -78,6 +97,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setPatient(asset.patient_pseudonym || '')
     setCondition(asset.condition || '')
     setStatus(asset.status || 'raw')
+    setAssetPurpose(asset.asset_purpose || (asset.kind === 'video' ? 'interview' : 'photo'))
     setSpeakerRole(asset.speaker_role || 'clinician')
     setAiTags(asset.ai_tags || [])
     setTranscription(asset.transcription || '')
@@ -116,7 +136,11 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setSaving(true); setError('')
     try {
       await updateMediaAsset(asset.id, {
-        tags, aiTags, notes, altText, patientPseudonym: patient, condition, status, speakerRole,
+        tags, aiTags, notes, altText, patientPseudonym: patient, condition, status,
+        assetPurpose,
+        // Server enforces speaker_role=null when purpose != interview, but
+        // mirror the rule client-side so the optimistic state stays accurate.
+        speakerRole: assetPurpose === 'interview' ? speakerRole : null,
       })
       toast.success('Media details saved')
       onChange?.()
@@ -266,7 +290,12 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     }
   }
 
-  const canSegment = asset.kind === 'video' && (transcription || visualNarrative)
+  // Segmenter only runs on interview-purpose video (server enforces the same
+  // gate in segmentInterview.js). Disable the button up-front so B-roll /
+  // photo / brand drawers don't surface an action that would no-op server-side.
+  const canSegment = asset.kind === 'video'
+    && assetPurpose === 'interview'
+    && (transcription || visualNarrative)
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -354,7 +383,9 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               </div>
             )}
 
-            {/* Status + speaker role */}
+            {/* Status + purpose. Speaker role appears below only when purpose
+                is 'interview' — it has no meaning for B-roll, photo, or
+                brand-asset rows and surfacing it there confused users. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
@@ -373,16 +404,42 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 </div>
               </div>
               <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Asset purpose</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {PURPOSES.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setAssetPurpose(p.id)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                        assetPurpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                      }`}
+                      title={p.id === 'interview'
+                        ? 'Spoken-on-camera footage — feeds the editor brief queue'
+                        : p.id === 'broll'
+                          ? 'Video without spoken narrative — tagged for search, no brief queue'
+                          : p.id === 'photo'
+                            ? 'Still image of the clinic, team, or moment'
+                            : 'Logos, headshots, graphics'}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {assetPurpose === 'interview' && (
+              <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1.5">Who's speaking?</label>
                 <select
                   value={speakerRole}
                   onChange={(e) => setSpeakerRole(e.target.value)}
-                  className="text-sm h-8 px-2 rounded-md border border-border bg-background text-foreground w-full"
+                  className="text-sm h-8 px-2 rounded-md border border-border bg-background text-foreground w-full sm:max-w-xs"
                 >
                   {SPEAKER_ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                 </select>
               </div>
-            </div>
+            )}
 
             {/* Tags */}
             <div>
@@ -486,7 +543,13 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                         <Button
                           size="sm" variant="outline" onClick={handleSegment}
                           disabled={segmenting || !canSegment}
-                          title={canSegment ? 'Re-run AI segmenter on this source' : 'Tag with AI first to enable'}
+                          title={
+                            assetPurpose !== 'interview'
+                              ? 'Only interview-purpose video feeds the segmenter. Switch purpose to Interview to enable.'
+                              : canSegment
+                                ? 'Re-run AI segmenter on this source'
+                                : 'Tag with AI first to enable'
+                          }
                           className="h-7 gap-1.5 text-[11px]"
                         >
                           {segmenting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}

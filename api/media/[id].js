@@ -38,7 +38,7 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,asset_purpose,speaker_role,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
 
 async function fetchRow(where, select) {
   const r = await sb(`media_assets?${where}&select=${select}`)
@@ -85,6 +85,7 @@ async function handler(req, res) {
       captured_at:       patch.capturedAt,
       transcription:     patch.transcription,
       visual_narrative:  patch.visualNarrative,
+      asset_purpose:     patch.assetPurpose,
       speaker_role:      patch.speakerRole,
       duration_s:        patch.durationS,
       aspect_ratio:      patch.aspectRatio,
@@ -95,6 +96,21 @@ async function handler(req, res) {
       content_item_ids:  patch.contentItemIds,
     }
     const body = Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined))
+
+    // Validate asset_purpose if the caller is changing it, and enforce the
+    // invariant that speaker_role is only set for interview-purpose rows.
+    // Without this guard a flip from interview → photo via the detail drawer
+    // would leave a dangling 'clinician' on a row that no longer represents
+    // an interview, re-polluting the segmenter eligibility check.
+    const ALLOWED_PURPOSES = new Set(['interview', 'broll', 'photo', 'brand'])
+    if (body.asset_purpose !== undefined) {
+      if (!ALLOWED_PURPOSES.has(body.asset_purpose)) {
+        return res.status(400).json({ error: 'Invalid asset_purpose' })
+      }
+      if (body.asset_purpose !== 'interview') {
+        body.speaker_role = null
+      }
+    }
 
     // Snapshot before so the audit trail captures what changed.
     const before = await fetchRow(where, SELECT)

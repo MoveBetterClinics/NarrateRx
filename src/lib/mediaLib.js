@@ -35,12 +35,13 @@ async function api(path, init = {}) {
 
 // ── List & detail ────────────────────────────────────────────────────────────
 
-export function listMedia({ kind, status, q, tag, collectionId, limit, offset } = {}) {
+export function listMedia({ kind, status, q, tag, purpose, collectionId, limit, offset } = {}) {
   const params = new URLSearchParams()
   if (kind)         params.set('kind', kind)
   if (status)       params.set('status', status)
   if (q)            params.set('q', q)
   if (tag)          params.set('tag', tag)
+  if (purpose)      params.set('purpose', purpose)
   if (collectionId) params.set('collectionId', collectionId)
   if (limit)        params.set('limit', String(limit))
   if (offset)       params.set('offset', String(offset))
@@ -172,7 +173,11 @@ async function maybeTranscodeHeic(file) {
 //
 // meta keys (all optional):
 //   createdBy, patientPseudonym, condition, capturedAt, notes,
-//   speakerRole       — 'clinician' (default) | 'admin' | 'patient_guest'
+//   assetPurpose      — 'interview' | 'broll' | 'photo' | 'brand'.
+//                       Drives the AI pipeline branch on the server; if
+//                       omitted, server falls back to kind-based default.
+//   speakerRole       — 'clinician' | 'admin' | 'patient_guest'. Only set
+//                       when assetPurpose === 'interview'.
 //   parentId          — when set, this is a return-upload of a finished edit;
 //                       server inserts with parent_id set, status='approved',
 //                       and skips the AI auto-pipeline.
@@ -218,7 +223,8 @@ export async function uploadMedia(file, meta = {}, options = {}) {
       condition: meta.condition || null,
       capturedAt: meta.capturedAt || null,
       notes: meta.notes || null,
-      speakerRole: meta.speakerRole || 'clinician',
+      assetPurpose: meta.assetPurpose || null,
+      speakerRole: meta.assetPurpose === 'interview' ? (meta.speakerRole || 'clinician') : null,
       parentId: meta.parentId || null,
       contentPieceId: meta.contentPieceId || null,
     }),

@@ -220,6 +220,15 @@ export async function segmentAndPersist(asset, scope) {
     // No-op for photos in v1. Phase 3c may revisit.
     return []
   }
+  // The segmenter prompt is interview-specific (speaker role, dialog,
+  // patient-on-camera consent). Running it on B-roll / facility footage
+  // produces nonsense briefs. Asset must be explicitly tagged as an
+  // interview to enter the segmentation queue. Rows uploaded before
+  // migration 024 were backfilled to 'interview' for videos, so legacy
+  // assets continue to segment as before.
+  if (asset.asset_purpose && asset.asset_purpose !== 'interview') {
+    return []
+  }
   const s = requireScope(scope)
   const where = `id=eq.${asset.id}&${s.column}=eq.${s.id}`
   try {
@@ -252,7 +261,7 @@ export async function segmentById(id, scope) {
   const s = requireScope(scope)
   const where = `id=eq.${id}&${s.column}=eq.${s.id}`
   const lookup = await sb(
-    `media_assets?${where}&select=id,${s.column},kind,status,blob_url,mime_type,tags,ai_tags,transcription,visual_narrative,speaker_role,condition,patient_pseudonym,notes`,
+    `media_assets?${where}&select=id,${s.column},kind,status,blob_url,mime_type,tags,ai_tags,transcription,visual_narrative,speaker_role,asset_purpose,condition,patient_pseudonym,notes`,
   )
   if (!lookup.ok) throw new Error('Database error')
   const rows = await lookup.json()

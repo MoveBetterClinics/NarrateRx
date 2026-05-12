@@ -21,7 +21,7 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,asset_purpose,speaker_role,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
 
 async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -39,6 +39,7 @@ async function handler(req, res) {
   const status      = searchParams.get('status')       // raw | tagged | rendered | approved | archived
   const search      = searchParams.get('q')            // ilike on filename/notes/condition/patient
   const tag         = searchParams.get('tag')          // contained in tags or ai_tags
+  const purpose     = searchParams.get('purpose')      // interview | broll | photo | brand
   const speakerRole = searchParams.get('speakerRole')  // clinician | admin | patient_guest
   const sources     = searchParams.get('sources')      // 'true' → parent_id IS NULL (sources only)
   const parent      = searchParams.get('parent')       // parent_id for variants of one source
@@ -83,6 +84,9 @@ async function handler(req, res) {
     // grid where they'd just clutter and tempt accidental "is this still
     // here?" double-action by users.
     qs += `&status=neq.archived`
+  }
+  if (purpose && ['interview', 'broll', 'photo', 'brand'].includes(purpose)) {
+    qs += `&asset_purpose=eq.${purpose}`
   }
   if (speakerRole) qs += `&speaker_role=eq.${speakerRole}`
   if (sources === 'true') qs += `&parent_id=is.null`
