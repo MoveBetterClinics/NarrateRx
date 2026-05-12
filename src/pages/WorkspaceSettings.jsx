@@ -11,6 +11,7 @@ import CredentialForm from '@/components/CredentialForm'
 import { useUserRole } from '@/lib/useUserRole'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
+import { useSaveShortcut } from '@/lib/useSaveShortcut'
 
 function formFromWorkspace(ws) {
   return {
@@ -161,6 +162,9 @@ export default function WorkspaceSettings() {
   // threshold where stringify is a perf concern.
   const isDirty = !!form && !!pristineForm && JSON.stringify(form) !== JSON.stringify(pristineForm)
   useUnsavedChanges(isDirty)
+  // ⌘S / Ctrl+S triggers the same Save button the user would click. Disabled
+  // when there's nothing to save or a save is already in flight.
+  useSaveShortcut(() => { if (isDirty && !saving) handleSave() }, { disabled: !isDirty || saving })
 
   async function handleSave() {
     setSaving(true)
