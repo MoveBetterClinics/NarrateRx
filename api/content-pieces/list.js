@@ -1,3 +1,5 @@
+export const config = { runtime: 'nodejs' }
+
 import { withSentry } from '../_lib/sentry.js'
 // List content_pieces (a.k.a. "edit briefs") for the current workspace. Each piece
 // is a draft/edit task: AI surfaced a moment from a source media row, and the

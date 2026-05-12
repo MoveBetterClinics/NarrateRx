@@ -28,7 +28,7 @@ const err = (msg, status = 400) =>
   new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
 
 export default async function handler(req) {
-  const { searchParams } = new URL(req.url)
+  const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
   const userId = req.headers.get('x-user-id')
 

@@ -1,3 +1,5 @@
+export const config = { runtime: 'nodejs' }
+
 import { withSentry } from '../_lib/sentry.js'
 // GET / PATCH / DELETE for a single content_piece (edit brief).
 // Runs on Node (Fluid Compute). All workspace-scoped.
