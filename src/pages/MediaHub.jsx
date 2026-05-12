@@ -296,6 +296,7 @@ export default function MediaHub() {
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
+            aria-label="Filter by status"
             className="text-[11px] h-7 px-2 rounded-md border border-border bg-background text-foreground"
           >
             {STATUS_FILTERS.map((s) => (
