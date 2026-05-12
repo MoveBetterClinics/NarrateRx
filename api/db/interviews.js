@@ -124,16 +124,21 @@ export default async function handler(req) {
         const { clinician_id, topic, location_id } = rows[0]
         const o = body.outputs
 
-        // Fetch clinician name
+        // Fetch clinician name. Workspace filter is defense-in-depth: clinician_id
+        // came from the interview row that's already workspace-filtered above, so
+        // any belonging-to-this-workspace clinician is reachable, but an explicit
+        // filter prevents a stale FK from another workspace leaking a name string
+        // into a content_item insert below.
         let clinicianName = ''
-        const clinRes = await sb(`clinicians?id=eq.${clinician_id}&select=name`)
+        const clinRes = await sb(`clinicians?id=eq.${clinician_id}&${wsFilter}&select=name`)
         if (clinRes.ok) {
           const clinRows = await clinRes.json()
           clinicianName = clinRows[0]?.name ?? ''
         }
 
-        // Check if content_items already exist for this interview to avoid duplicates
-        const existsRes = await sb(`content_items?interview_id=eq.${id}&select=id&limit=1`)
+        // Check if content_items already exist for this interview to avoid duplicates.
+        // workspace filter is defense-in-depth (interview_id is already workspace-filtered).
+        const existsRes = await sb(`content_items?interview_id=eq.${id}&${wsFilter}&select=id&limit=1`)
         const existsRows = existsRes.ok ? await existsRes.json() : []
 
         if (existsRows.length === 0) {
