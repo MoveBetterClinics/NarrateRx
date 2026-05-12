@@ -1,0 +1,758 @@
+import { useMemo, useRef, useState } from 'react'
+import {
+  Upload, Search, Filter, Check, X, Sparkles, AlertCircle,
+  FileText, Image as ImageIcon, Tag as TagIcon, RotateCcw, Loader2, Trash2,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { FIXTURE_ASSETS, ROLE_DEFS, FIXTURE_STYLE } from '@/components/brandKitFixtures'
+import { uploadBrandAsset } from '@/lib/brandKitLib'
+import {
+  useBrandKit,
+  useAssignBrandRole,
+  useClearBrandRole,
+  useUpdateBrandStyle,
+  useDeleteBrandAsset,
+} from '@/lib/queries'
+import { toast } from '@/lib/toast'
+
+// Brand Kit — three panels (Library, Roles, Style) plus an onboarding variant.
+// Renders identically against the real backend (default) or fixture data
+// (`mockup` prop, used by the design preview at /settings/brand-kit-preview).
+//
+// All data + mutations flow through one small `dataSource` object built either
+// from react-query (live) or from local component state (fixtures). The view
+// itself doesn't know which mode it's in.
+
+const SHAPE_OPTIONS      = [{ id: 'horizontal', label: 'Horizontal' }, { id: 'square', label: 'Square' }, { id: 'vertical', label: 'Vertical' }, { id: 'icon', label: 'Icon' }]
+const BACKGROUND_OPTIONS = [{ id: 'light', label: 'On light' }, { id: 'dark', label: 'On dark' }, { id: 'transparent', label: 'Transparent' }]
+const COLOR_OPTIONS      = [{ id: 'color', label: 'Full color' }, { id: 'mono_black', label: 'Mono black' }, { id: 'mono_white', label: 'Mono white' }]
+const FORMAT_OPTIONS     = [{ id: 'image/svg+xml', label: 'SVG' }, { id: 'image/png', label: 'PNG' }, { id: 'application/pdf', label: 'PDF' }]
+const AUTO_ASSIGN_THRESHOLD = 0.7
+
+function classifyChips(a) {
+  const chips = []
+  if (a.shape)      chips.push(a.shape)
+  if (a.background) chips.push(a.background === 'light' ? 'on light' : a.background === 'dark' ? 'on dark' : a.background)
+  if (a.color_mode) chips.push(a.color_mode.replace('_', ' '))
+  return chips
+}
+
+// Renders the asset preview on a transparency-checkerboard backdrop so users
+// can see how the logo will look outside its native background. PDFs get a
+// document icon + filename instead.
+function AssetPreview({ asset, size = 'md' }) {
+  const h = size === 'sm' ? 'h-24' : size === 'lg' ? 'h-40' : 'h-32'
+  if (asset.mime_type === 'application/pdf') {
+    return (
+      <div className={`${h} w-full rounded-md bg-rose-50 dark:bg-rose-950/30 flex flex-col items-center justify-center gap-1`}>
+        <FileText className="h-8 w-8 text-rose-600 dark:text-rose-300" />
+        <span className="text-[10px] text-rose-700 dark:text-rose-200 font-medium uppercase tracking-wide">PDF</span>
+      </div>
+    )
+  }
+  return (
+    <div
+      className={`${h} w-full rounded-md flex items-center justify-center p-2`}
+      style={{
+        backgroundImage:
+          'linear-gradient(45deg,#e5e7eb 25%,transparent 25%),linear-gradient(-45deg,#e5e7eb 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#e5e7eb 75%),linear-gradient(-45deg,transparent 75%,#e5e7eb 75%)',
+        backgroundSize: '12px 12px',
+        backgroundPosition: '0 0,0 6px,6px -6px,-6px 0',
+      }}
+    >
+      <img src={asset.blob_url} alt={asset.filename} className="max-h-full max-w-full object-contain" />
+    </div>
+  )
+}
+
+// Single tile in the Library grid.
+function LibraryTile({ asset, onOpen, roleAssignments }) {
+  const assignedTo = Object.entries(roleAssignments).filter(([, id]) => id === asset.id).map(([role]) => role)
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(asset)}
+      className="text-left rounded-xl border bg-card hover:border-primary/50 transition-colors overflow-hidden group"
+    >
+      <AssetPreview asset={asset} />
+      <div className="p-2.5 space-y-1.5">
+        <div className="text-[11px] font-medium truncate" title={asset.filename}>{asset.filename}</div>
+        <div className="flex flex-wrap gap-1">
+          {classifyChips(asset).map((c) => (
+            <span key={c} className="inline-block text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{c}</span>
+          ))}
+        </div>
+        {assignedTo.length > 0 && (
+          <div className="flex flex-wrap gap-1 pt-1 border-t border-border/60">
+            {assignedTo.map((r) => (
+              <span key={r} className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">
+                <Check className="h-2.5 w-2.5" /> {ROLE_DEFS.find((d) => d.id === r)?.label || r}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+    </button>
+  )
+}
+
+// Side-panel that opens when you click a tile. Shows metadata + a "Use as…"
+// list of every role with its candidate confidence (if any).
+function AssetDetail({ asset, roleAssignments, onAssign, onDelete, onClose }) {
+  if (!asset) return null
+  const candidates = asset.ai_classification?.role_candidates || []
+  const candidateMap = new Map(candidates.map((c) => [c.role, c.confidence]))
+  const assignedTo = Object.entries(roleAssignments).filter(([, id]) => id === asset.id).map(([role]) => role)
+  return (
+    <div className="fixed inset-0 z-40 bg-black/40 flex justify-end" onClick={onClose}>
+      <div className="w-full max-w-md bg-background border-l shadow-xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 border-b flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold truncate" title={asset.filename}>{asset.filename}</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              {asset.width ? `${asset.width}×${asset.height}` : '—'} · {(asset.byte_size / 1024).toFixed(0)} KB · {asset.mime_type}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+
+        <div className="p-4">
+          <AssetPreview asset={asset} size="lg" />
+        </div>
+
+        <div className="px-4 pb-2">
+          <div className="text-xs font-semibold mb-1.5">Auto-classified</div>
+          <div className="flex flex-wrap gap-1.5">
+            {classifyChips(asset).map((c) => (
+              <span key={c} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{c}</span>
+            ))}
+            {asset.filename_tokens?.length > 0 && asset.filename_tokens.slice(0, 5).map((t) => (
+              <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">#{t}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="px-4 py-3 border-t mt-3">
+          <div className="text-xs font-semibold mb-2">Use as…</div>
+          <div className="space-y-1">
+            {ROLE_DEFS.map((r) => {
+              const isAssigned = roleAssignments[r.id] === asset.id
+              const conf = candidateMap.get(r.id)
+              return (
+                <div key={r.id} className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => onAssign(r.id, isAssigned ? null : asset.id)}
+                    className={`flex-1 text-left px-2.5 py-1.5 rounded-md border transition-colors ${
+                      isAssigned
+                        ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30'
+                        : 'border-border hover:border-primary/50'
+                    }`}
+                  >
+                    <span className="font-medium">{r.label}</span>
+                    {conf != null && (
+                      <span className="ml-2 text-[10px] text-muted-foreground">suggested · {Math.round(conf * 100)}%</span>
+                    )}
+                    {isAssigned && <Check className="inline h-3 w-3 text-emerald-600 ml-2" />}
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {onDelete && (
+          <div className="px-4 py-3 border-t mt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs h-7 text-destructive hover:bg-destructive/10"
+              disabled={assignedTo.length > 0}
+              onClick={async () => {
+                // The server already enforces this with a 409 on FK violation,
+                // but disabling the button locally avoids a round trip + toast
+                // for the obvious "still assigned to a role" case.
+                if (assignedTo.length > 0) return
+                if (!window.confirm(`Delete ${asset.filename}? The file is removed from storage too.`)) return
+                await onDelete(asset.id)
+                onClose()
+              }}
+              title={assignedTo.length > 0 ? 'Clear all role assignments first' : 'Delete asset + blob'}
+            >
+              <Trash2 className="h-3 w-3 mr-1.5" />
+              {assignedTo.length > 0 ? 'Clear role assignments first' : 'Delete asset'}
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// Role assignment modal — used by the Roles panel's "Change" button.
+// Surfaces the highest-confidence candidates for that role first.
+function RolePickerModal({ role, assets, currentAssetId, onPick, onClose }) {
+  if (!role) return null
+  const def = ROLE_DEFS.find((r) => r.id === role)
+  const scored = assets
+    .map((a) => ({ a, c: a.ai_classification?.role_candidates?.find((cc) => cc.role === role)?.confidence || 0 }))
+    .sort((x, y) => y.c - x.c)
+  return (
+    <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-background rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 border-b flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Pick {def?.label}</div>
+            <div className="text-xs text-muted-foreground mt-0.5">{def?.hint}</div>
+          </div>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {scored.map(({ a, c }) => {
+            const isCurrent = currentAssetId === a.id
+            return (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => { onPick(a.id); onClose() }}
+                className={`text-left rounded-lg border overflow-hidden transition-colors ${
+                  isCurrent ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-border hover:border-primary/50'
+                }`}
+              >
+                <AssetPreview asset={a} size="sm" />
+                <div className="p-2 space-y-1">
+                  <div className="text-[10px] font-medium truncate" title={a.filename}>{a.filename}</div>
+                  {c > 0 && (
+                    <div className="text-[9px] text-muted-foreground">
+                      {Math.round(c * 100)}% match{c >= AUTO_ASSIGN_THRESHOLD ? ' · auto-pick eligible' : ''}
+                    </div>
+                  )}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// One row in the Roles panel.
+function RoleCard({ def, asset, onChange, onClear }) {
+  return (
+    <div className="rounded-xl border bg-card p-3 flex items-center gap-3">
+      <div className="w-24 shrink-0">
+        {asset ? <AssetPreview asset={asset} size="sm" /> : (
+          <div className="h-24 rounded-md border-2 border-dashed border-border flex items-center justify-center text-muted-foreground">
+            <ImageIcon className="h-5 w-5" />
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold">{def.label}</div>
+        <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{def.hint}</div>
+        {asset && <div className="text-[10px] text-muted-foreground mt-1.5 truncate" title={asset.filename}>{asset.filename}</div>}
+      </div>
+      <div className="flex flex-col gap-1.5 shrink-0">
+        <Button size="sm" variant="outline" className="text-xs h-7" onClick={onChange}>
+          {asset ? 'Change' : 'Pick'}
+        </Button>
+        {asset && (
+          <button onClick={onClear} className="text-[10px] text-muted-foreground hover:text-destructive">Clear</button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// === Main component ========================================================
+
+// Builds the fixture-backed data source used by /settings/brand-kit-preview.
+// Mirrors the live shape exactly (assets, roleAssignments, style, isLoading,
+// + handler functions) so the view code below is mode-agnostic.
+function useMockupDataSource() {
+  const [assets, setAssets] = useState(FIXTURE_ASSETS)
+  const [roleAssignments, setRoleAssignments] = useState({})
+  const [style, setStyle] = useState(FIXTURE_STYLE)
+  return {
+    isLoading: false,
+    error: null,
+    assets,
+    roleAssignments,
+    style,
+    uploading: false,
+    assignRole: (role, assetId) => {
+      setRoleAssignments((prev) => {
+        const n = { ...prev }
+        if (assetId == null) delete n[role]
+        else n[role] = assetId
+        return n
+      })
+    },
+    clearRole: (role) => setRoleAssignments((prev) => { const n = { ...prev }; delete n[role]; return n }),
+    resetRoles: () => setRoleAssignments({}),
+    updateStyle: (patch) => setStyle((s) => ({ ...s, ...patch })),
+    uploadFiles: () => Promise.resolve(),   // drop-zone is a no-op visual in preview
+    deleteAsset: (id) => setAssets((prev) => prev.filter((a) => a.id !== id)),
+    setBulkRoles: (next) => setRoleAssignments((prev) => ({ ...prev, ...next })),
+  }
+}
+
+// Live data source — fetches the combined Brand Kit payload via react-query
+// and exposes mutations that invalidate the cache key on success.
+function useLiveDataSource() {
+  const { data, isLoading, error } = useBrandKit()
+  const assignMut  = useAssignBrandRole()
+  const clearMut   = useClearBrandRole()
+  const styleMut   = useUpdateBrandStyle()
+  const deleteMut  = useDeleteBrandAsset()
+  const [uploading, setUploading] = useState(false)
+
+  // The DB column is `original_filename`; the view (and fixtures) read
+  // `filename`. Normalize at the data-source boundary so the rest of the
+  // component stays mode-agnostic.
+  const assets = useMemo(
+    () => (data?.assets || []).map((a) => ({ ...a, filename: a.original_filename })),
+    [data?.assets],
+  )
+  const roleAssignments = data?.roles  || {}
+  const style           = data?.style  || {}
+
+  return {
+    isLoading,
+    error,
+    assets,
+    roleAssignments,
+    style,
+    uploading,
+    assignRole: async (role, assetId) => {
+      try {
+        if (assetId == null) await clearMut.mutateAsync({ role })
+        else await assignMut.mutateAsync({ role, assetId })
+      } catch (e) { toast.error(e.message || 'Failed to update role') }
+    },
+    clearRole: async (role) => {
+      try { await clearMut.mutateAsync({ role }) }
+      catch (e) { toast.error(e.message || 'Failed to clear role') }
+    },
+    resetRoles: async () => {
+      // No bulk-clear endpoint — issue per-role deletes in parallel. Fine for
+      // the 9-role enum; revisit if the slot count ever grows.
+      const filled = Object.keys(roleAssignments)
+      try { await Promise.all(filled.map((role) => clearMut.mutateAsync({ role }))) }
+      catch (e) { toast.error(e.message || 'Failed to reset roles') }
+    },
+    updateStyle: async (patch) => {
+      try { await styleMut.mutateAsync(patch) }
+      catch (e) { toast.error(e.message || 'Failed to update style') }
+    },
+    setBulkRoles: async (next) => {
+      try {
+        await Promise.all(
+          Object.entries(next).map(([role, assetId]) => assignMut.mutateAsync({ role, assetId })),
+        )
+      } catch (e) { toast.error(e.message || 'Failed to apply suggested roles') }
+    },
+    uploadFiles: async (files) => {
+      // Sequential upload — Vercel Blob handles each direct, but the server
+      // classifier holds the function alive briefly for sharp analysis.
+      // Sequential keeps the user's "what just uploaded" indicator coherent
+      // and avoids rate-limit blowback on a large folder dump.
+      setUploading(true)
+      try {
+        for (const file of files) {
+          try {
+            await uploadBrandAsset(file)
+          } catch (e) {
+            toast.error(`${file.name}: ${e.message || 'upload failed'}`)
+          }
+        }
+      } finally {
+        setUploading(false)
+      }
+    },
+    deleteAsset: async (id) => {
+      try { await deleteMut.mutateAsync({ id }) }
+      catch (e) { toast.error(e.message || 'Failed to delete asset') }
+    },
+  }
+}
+
+export default function BrandKit({ variant = 'settings', mockup = false }) {
+  const isOnboarding = variant === 'onboarding'
+  // Both hooks are declared so React's hook order stays consistent across
+  // renders. The `mockup` prop is set at mount time and doesn't change, so
+  // picking one of the two return values is safe.
+  const liveSource   = useLiveDataSource()
+  const mockSource   = useMockupDataSource()
+  const ds           = mockup ? mockSource : liveSource
+  const { assets, roleAssignments, style, isLoading, error, uploading } = ds
+  // Keep the original local-state aliases used below as setters → forward to
+  // the data source so the rest of the component code stays the same.
+  const setRoleAssignments = (next) => {
+    if (typeof next === 'function') {
+      const computed = next(roleAssignments)
+      // Compare key-by-key to figure out the diff and dispatch the right calls.
+      const removed = Object.keys(roleAssignments).filter((k) => !(k in computed))
+      const added   = Object.entries(computed).filter(([k, v]) => roleAssignments[k] !== v)
+      removed.forEach((k) => ds.clearRole(k))
+      added.forEach(([k, v]) => ds.assignRole(k, v))
+      return
+    }
+    // Direct object assignment — same diff logic.
+    const removed = Object.keys(roleAssignments).filter((k) => !(k in next))
+    const added   = Object.entries(next).filter(([k, v]) => roleAssignments[k] !== v)
+    removed.forEach((k) => ds.clearRole(k))
+    added.forEach(([k, v]) => ds.assignRole(k, v))
+  }
+  const setStyle = (next) => {
+    const patch = typeof next === 'function' ? next(style) : next
+    // Compute just the diff so we don't re-send unchanged fields.
+    const diff = {}
+    for (const k of Object.keys(patch)) {
+      if (JSON.stringify(patch[k]) !== JSON.stringify(style[k])) diff[k] = patch[k]
+    }
+    if (Object.keys(diff).length > 0) ds.updateStyle(diff)
+  }
+
+  const [search, setSearch]           = useState('')
+  const [shapeFilter, setShape]       = useState(null)
+  const [bgFilter, setBg]             = useState(null)
+  const [colorFilter, setColor]       = useState(null)
+  const [formatFilter, setFormat]     = useState(null)
+  const [openAsset, setOpenAsset]     = useState(null)
+  const [pickerRole, setPickerRole]   = useState(null)
+  const [confirmStrip, setConfirmStrip] = useState(null)  // onboarding auto-assign confirmation
+
+  const filtered = useMemo(() => {
+    return assets.filter((a) => {
+      if (search && !a.filename.toLowerCase().includes(search.toLowerCase()) &&
+          !(a.filename_tokens || []).some((t) => t.includes(search.toLowerCase()))) return false
+      if (shapeFilter  && a.shape      !== shapeFilter)  return false
+      if (bgFilter     && a.background !== bgFilter)     return false
+      if (colorFilter  && a.color_mode !== colorFilter)  return false
+      if (formatFilter && a.mime_type  !== formatFilter) return false
+      return true
+    })
+  }, [assets, search, shapeFilter, bgFilter, colorFilter, formatFilter])
+
+  async function autoAssign() {
+    const newAssignments = {}
+    const picked = []
+    for (const role of ROLE_DEFS) {
+      if (roleAssignments[role.id]) continue
+      const best = assets
+        .map((a) => ({ a, c: a.ai_classification?.role_candidates?.find((cc) => cc.role === role.id)?.confidence || 0 }))
+        .sort((x, y) => y.c - x.c)[0]
+      if (best && best.c >= AUTO_ASSIGN_THRESHOLD) {
+        newAssignments[role.id] = best.a.id
+        picked.push({ role: role.id, asset: best.a, confidence: best.c })
+      }
+    }
+    if (Object.keys(newAssignments).length > 0) {
+      // Single batched mutation rather than N parallel "assign" calls — keeps
+      // the live path from spamming the API and the mockup path from N
+      // re-renders.
+      await ds.setBulkRoles(newAssignments)
+    }
+    if (isOnboarding) setConfirmStrip(picked)
+  }
+
+  async function resetAssignments() {
+    await ds.resetRoles()
+    setConfirmStrip(null)
+  }
+
+  // File input + drop handlers for the Library drop zone. Both routes feed
+  // ds.uploadFiles, which is either the real Vercel-Blob direct upload or a
+  // no-op (preview mode).
+  const fileInputRef = useRef(null)
+  function handleFiles(fileList) {
+    const files = Array.from(fileList || [])
+    if (!files.length) return
+    ds.uploadFiles(files)
+  }
+  function handleDrop(e) {
+    e.preventDefault()
+    handleFiles(e.dataTransfer?.files)
+  }
+
+  const filledRoles = Object.keys(roleAssignments).length
+  const totalRoles  = ROLE_DEFS.length
+
+  // First-load gate. After the initial fetch, we render the panels with empty
+  // state so subsequent refetches don't blank the page.
+  if (isLoading && !mockup) {
+    return (
+      <div className="max-w-6xl mx-auto p-6 flex items-center justify-center min-h-[40vh]">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+  if (error && !mockup) {
+    return (
+      <div className="max-w-6xl mx-auto p-6">
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+          Failed to load brand kit: {error.message || 'unknown error'}
+        </div>
+      </div>
+    )
+  }
+
+  // ---- Onboarding confirmation strip --------------------------------------
+  // After auto-assign in onboarding, condense to a single "looks right?" strip
+  // instead of dumping the full Roles panel on the user. They can hit
+  // "Looks good" to advance, or "Let me adjust" to expand into the full panel.
+  if (isOnboarding && confirmStrip) {
+    return (
+      <div className="max-w-3xl mx-auto p-6 space-y-4">
+        <div className="text-center space-y-2">
+          <Sparkles className="h-8 w-8 text-primary mx-auto" />
+          <h1 className="text-xl font-semibold">We picked these for your workspace</h1>
+          <p className="text-sm text-muted-foreground">Based on your filenames and image shapes. You can adjust any of these later in Settings.</p>
+        </div>
+        <div className="space-y-2">
+          {confirmStrip.map(({ role, asset, confidence }) => {
+            const def = ROLE_DEFS.find((d) => d.id === role)
+            return (
+              <div key={role} className="rounded-lg border bg-card p-3 flex items-center gap-3">
+                <div className="w-16 shrink-0"><AssetPreview asset={asset} size="sm" /></div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">{def?.label}</div>
+                  <div className="text-[11px] text-muted-foreground truncate">{asset.filename} · {Math.round(confidence * 100)}% match</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="flex gap-2 justify-center pt-2">
+          <Button variant="outline" onClick={() => setConfirmStrip(null)}>Let me adjust</Button>
+          <Button>Looks good — continue</Button>
+        </div>
+      </div>
+    )
+  }
+
+  // ---- Default render -----------------------------------------------------
+  return (
+    <div className={`${isOnboarding ? 'max-w-4xl mx-auto p-6' : 'max-w-6xl mx-auto p-6'} space-y-6`}>
+      {isOnboarding && (
+        <div className="text-center space-y-1">
+          <h1 className="text-xl font-semibold">Add your brand assets</h1>
+          <p className="text-sm text-muted-foreground">Drop your logo files — a whole folder is fine, we&rsquo;ll sort them.</p>
+        </div>
+      )}
+
+      {!isOnboarding && filledRoles === 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-900 dark:text-amber-200">
+            <strong>No roles assigned yet.</strong> Upload assets, then assign a primary logo so downstream channels (email, social, site) render with the right artwork.
+          </div>
+        </div>
+      )}
+
+      {/* ===== LIBRARY PANEL ================================================ */}
+      <section className="space-y-3">
+        {!isOnboarding && (
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Library</h2>
+            <span className="text-xs text-muted-foreground">{filtered.length} of {assets.length} assets</span>
+          </div>
+        )}
+
+        {/* Drop zone. Click → opens file picker; drag-and-drop also supported.
+            In preview/mockup mode the upload is a no-op so the visual reads
+            "clickable" without writing anything. */}
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={handleDrop}
+          className="rounded-xl border-2 border-dashed border-border hover:border-primary/50 hover:bg-accent/20 transition-colors p-8 text-center cursor-pointer"
+        >
+          {uploading ? (
+            <Loader2 className="h-8 w-8 text-primary mx-auto mb-2 animate-spin" />
+          ) : (
+            <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
+          )}
+          <p className="text-sm font-medium mb-0.5">
+            {uploading ? 'Uploading…' : 'Drop logo files, a whole folder, or click to browse'}
+          </p>
+          <p className="text-xs text-muted-foreground">SVG, PNG, JPG, WebP, PDF · uploads stay private to your workspace</p>
+        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/svg+xml,image/png,image/jpeg,image/webp,application/pdf"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+
+        {/* Filter bar */}
+        {!isOnboarding && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 max-w-sm">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by filename or tag…"
+                  className="pl-7 h-8 text-xs"
+                />
+              </div>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Filter className="h-3.5 w-3.5" /> Filter
+              </div>
+            </div>
+            <FilterChipGroup label="Shape"      options={SHAPE_OPTIONS}      value={shapeFilter}  onChange={setShape} />
+            <FilterChipGroup label="Background" options={BACKGROUND_OPTIONS} value={bgFilter}     onChange={setBg} />
+            <FilterChipGroup label="Color"      options={COLOR_OPTIONS}      value={colorFilter}  onChange={setColor} />
+            <FilterChipGroup label="Format"     options={FORMAT_OPTIONS}     value={formatFilter} onChange={setFormat} />
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {filtered.map((a) => (
+            <LibraryTile key={a.id} asset={a} onOpen={setOpenAsset} roleAssignments={roleAssignments} />
+          ))}
+        </div>
+      </section>
+
+      {/* ===== ROLES PANEL ================================================== */}
+      {!isOnboarding ? (
+        <section className="space-y-3">
+          <div className="flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Roles</h2>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{filledRoles} / {totalRoles} filled</span>
+              <Button size="sm" variant="outline" className="text-xs h-7" onClick={resetAssignments} disabled={filledRoles === 0}>
+                <RotateCcw className="h-3 w-3 mr-1" /> Reset
+              </Button>
+              <Button size="sm" className="text-xs h-7" onClick={autoAssign}>
+                <Sparkles className="h-3 w-3 mr-1" /> Auto-assign suggested
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {ROLE_DEFS.map((def) => (
+              <RoleCard
+                key={def.id}
+                def={def}
+                asset={assets.find((a) => a.id === roleAssignments[def.id]) || null}
+                onChange={() => setPickerRole(def.id)}
+                onClear={() => setRoleAssignments((prev) => { const n = { ...prev }; delete n[def.id]; return n })}
+              />
+            ))}
+          </div>
+        </section>
+      ) : (
+        <div className="flex justify-center gap-2 pt-2">
+          <Button variant="outline">Skip for now</Button>
+          <Button onClick={autoAssign} disabled={assets.length === 0}>
+            <Sparkles className="h-4 w-4 mr-1.5" /> Auto-assign & continue
+          </Button>
+        </div>
+      )}
+
+      {/* ===== STYLE PANEL ================================================== */}
+      {!isOnboarding && (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Style</h2>
+          <div className="rounded-xl border bg-card p-4 space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Accent color</Label>
+                <div className="flex items-center gap-2 mt-1">
+                  <input
+                    type="color"
+                    value={style.accent_color || '#000000'}
+                    onChange={(e) => setStyle((s) => ({ ...s, accent_color: e.target.value }))}
+                    className="h-8 w-12 rounded border cursor-pointer"
+                  />
+                  <Input value={style.accent_color || ''} onChange={(e) => setStyle((s) => ({ ...s, accent_color: e.target.value }))} className="h-8 text-xs font-mono" placeholder="#0a7f3f" />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Secondary colors</Label>
+                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                  {(style.secondary_colors || []).map((c, i) => (
+                    <div key={i} className="flex items-center gap-1 rounded-md border px-1.5 py-0.5">
+                      <div className="w-4 h-4 rounded" style={{ background: c }} />
+                      <span className="text-[11px] font-mono">{c}</span>
+                      <button
+                        onClick={() => setStyle((s) => ({ ...s, secondary_colors: (s.secondary_colors || []).filter((_, j) => j !== i) }))}
+                        className="text-muted-foreground hover:text-destructive"
+                      ><X className="h-3 w-3" /></button>
+                    </div>
+                  ))}
+                  <Button size="sm" variant="ghost" className="h-6 text-[11px]"
+                    onClick={() => setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), '#888888'] }))}
+                  >+ Add</Button>
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">Heading font</Label>
+                <Input value={style.heading_font || ''} onChange={(e) => setStyle((s) => ({ ...s, heading_font: e.target.value }))} className="h-8 text-xs mt-1" placeholder="e.g. Inter" />
+              </div>
+              <div>
+                <Label className="text-xs">Body font</Label>
+                <Input value={style.body_font || ''} onChange={(e) => setStyle((s) => ({ ...s, body_font: e.target.value }))} className="h-8 text-xs mt-1" placeholder="e.g. Source Sans 3" />
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+              <TagIcon className="h-3 w-3 mt-0.5 shrink-0" />
+              Font names are stored as strings; the rendering layer (email, site, social) honors them where the channel supports custom fonts and falls back to system defaults otherwise.
+            </p>
+          </div>
+        </section>
+      )}
+
+      <AssetDetail
+        asset={openAsset}
+        roleAssignments={roleAssignments}
+        onAssign={(role, assetId) => {
+          setRoleAssignments((prev) => {
+            const n = { ...prev }
+            if (assetId == null) delete n[role]
+            else n[role] = assetId
+            return n
+          })
+        }}
+        onDelete={ds.deleteAsset}
+        onClose={() => setOpenAsset(null)}
+      />
+
+      <RolePickerModal
+        role={pickerRole}
+        assets={assets}
+        currentAssetId={pickerRole ? roleAssignments[pickerRole] : null}
+        onPick={(assetId) => setRoleAssignments((prev) => ({ ...prev, [pickerRole]: assetId }))}
+        onClose={() => setPickerRole(null)}
+      />
+    </div>
+  )
+}
+
+function FilterChipGroup({ label, options, value, onChange }) {
+  return (
+    <div className="flex items-center gap-1.5 flex-wrap">
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground w-20 shrink-0">{label}</span>
+      {options.map((o) => (
+        <button
+          key={o.id}
+          type="button"
+          onClick={() => onChange(value === o.id ? null : o.id)}
+          className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+            value === o.id
+              ? 'bg-primary text-primary-foreground border-primary'
+              : 'bg-muted/40 text-muted-foreground border-border hover:border-primary/40'
+          }`}
+        >{o.label}</button>
+      ))}
+    </div>
+  )
+}

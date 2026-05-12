@@ -24,6 +24,8 @@ const ContentCalendar = lazy(() => import('@/pages/ContentCalendar'))
 const MediaHub = lazy(() => import('@/pages/MediaHub'))
 const Integrations = lazy(() => import('@/pages/Integrations'))
 const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
+const BrandKitPreview = lazy(() => import('@/pages/BrandKitPreview'))
+const BrandKitSettings = lazy(() => import('@/pages/BrandKitSettings'))
 const Members = lazy(() => import('@/pages/Members'))
 const Account = lazy(() => import('@/pages/Account'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
@@ -199,6 +201,8 @@ function AppRoutes() {
             <Route path="/media" element={guarded(<MediaHub />)} />
             <Route path="/settings/integrations" element={guarded(<Integrations />)} />
             <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
+            <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
+            <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />
             {/* Both Clerk-mounted pages use routing="path" so deep links to
                 Clerk's own sub-routes resolve under the same base. */}
             <Route path="/settings/members/*" element={guarded(<Members />)} />

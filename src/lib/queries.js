@@ -34,6 +34,14 @@ import {
   deleteContentItem,
 } from './publish'
 import { listMedia } from './mediaLib'
+import {
+  getBrandKit,
+  updateBrandAsset,
+  deleteBrandAsset,
+  assignBrandRole,
+  clearBrandRole,
+  updateBrandStyle,
+} from './brandKitLib'
 
 export const queryKeys = {
   clinicians: {
@@ -58,6 +66,65 @@ export const queryKeys = {
     all:  ['media'],
     list: (filters = {}) => ['media', 'list', filters],
   },
+  brandKit: {
+    all: ['brandKit'],
+    me:  ['brandKit', 'me'],
+  },
+}
+
+// ── Brand Kit ───────────────────────────────────────────────────────────────
+//
+// Single combined fetch (assets + roles + style) — the Brand Kit UI renders
+// all three in one view and collapsing to one call avoids a loading cascade.
+// Every mutation invalidates the combined cache key; refetch is cheap on this
+// small payload (most workspaces have ≤30 brand assets).
+
+export function useBrandKit(options = {}) {
+  return useQuery({
+    queryKey: queryKeys.brandKit.me,
+    queryFn: getBrandKit,
+    ...options,
+  })
+}
+
+export function useUpdateBrandAsset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }) => updateBrandAsset(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
+  })
+}
+
+export function useDeleteBrandAsset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id }) => deleteBrandAsset(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
+  })
+}
+
+export function useAssignBrandRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ role, assetId }) => assignBrandRole(role, assetId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
+  })
+}
+
+export function useClearBrandRole() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ role }) => clearBrandRole(role),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
+  })
+}
+
+export function useUpdateBrandStyle() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (patch) => updateBrandStyle(patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
+  })
 }
 
 // ── Clinicians ──────────────────────────────────────────────────────────────
