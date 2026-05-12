@@ -1,3 +1,5 @@
+export const config = { runtime: 'nodejs' }
+
 import { withSentry } from '../_lib/sentry.js'
 // Manual content_piece creation. Used when an editor (Philip or anyone)
 // wants to spin up a brief for a moment AI didn't surface — the

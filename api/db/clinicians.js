@@ -30,7 +30,7 @@ const err = (msg, status = 400) =>
 const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email'
 
 export default async function handler(req) {
-  const { searchParams } = new URL(req.url)
+  const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
   const userId = req.headers.get('x-user-id')
 

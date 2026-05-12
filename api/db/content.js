@@ -28,7 +28,7 @@ const err = (msg, status = 400)  => new Response(JSON.stringify({ error: msg }),
 const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,notes,reviewed_by,approved_by,performed_well,created_at,updated_at'
 
 export default async function handler(req) {
-  const { searchParams } = new URL(req.url)
+  const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
 
   const ws = await workspaceContext(req)
