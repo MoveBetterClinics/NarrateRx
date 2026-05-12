@@ -13,6 +13,7 @@ import { useUserRole } from '@/lib/useUserRole'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 function formFromWorkspace(ws) {
   return {
@@ -135,6 +136,7 @@ function hasPublishCapability(ws) {
 }
 
 export default function WorkspaceSettings() {
+  useDocumentTitle('Settings — Workspace')
   const { getToken } = useAuth()
   const { role, isLoading: roleLoading } = useUserRole()
   const [ws, setWs]       = useState(undefined) // undefined=loading, null=no-context, object=loaded

@@ -1,0 +1,6 @@
+User-agent: *
+Disallow: /
+
+# NarrateRx is a B2B SaaS app — all routes are auth-gated.
+# The public onboarding wizard is at /onboard but does not benefit
+# from indexing (invite-only / direct-link acquisition only).
