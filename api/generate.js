@@ -1,6 +1,9 @@
 import { generateText } from 'ai'
+import { enforceLimit } from './_lib/ratelimit.js'
 
-export const config = { maxDuration: 60 }
+// Pinned to Node runtime so the Edge whole-graph bundler doesn't follow
+// the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
+export const config = { runtime: 'nodejs', maxDuration: 60 }
 
 // Generates a Claude completion via the Vercel AI Gateway.
 //
@@ -15,6 +18,8 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
+
+  if (!(await enforceLimit(req, res, 'ai'))) return
 
   let messages, systemPrompt, model
   try {

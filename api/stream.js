@@ -1,6 +1,11 @@
 import { streamText } from 'ai'
+import { enforceLimitEdge } from './_lib/ratelimit.js'
 
-export const config = { runtime: 'edge' }
+// Pinned to Node runtime (was Edge) so the Edge whole-graph bundler
+// doesn't follow the ratelimit.js → @clerk/backend → node:crypto chain
+// into middleware. Web-style (Request → Response) handler still works
+// on Vercel's Node/Fluid runtime, so the body of this file is unchanged.
+export const config = { runtime: 'nodejs', maxDuration: 60 }
 
 // Streams a Claude completion via the Vercel AI Gateway.
 //
@@ -12,6 +17,9 @@ export default async function handler(req) {
   if (req.method !== 'POST') {
     return new Response('Method not allowed', { status: 405 })
   }
+
+  const limited = await enforceLimitEdge(req, 'ai')
+  if (limited) return limited
 
   let body
   try {
