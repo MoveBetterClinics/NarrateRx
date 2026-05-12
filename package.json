@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "backup:db": "bash scripts/backup-db.sh",
+    "backup:blobs": "node scripts/backup-blobs.mjs",
     "e2e": "playwright test",
     "e2e:install": "playwright install --with-deps chromium",
     "e2e:seed": "node scripts/seed-e2e-fixtures.mjs",
