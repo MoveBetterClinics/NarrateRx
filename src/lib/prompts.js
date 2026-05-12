@@ -225,22 +225,30 @@ ${workspace.display_name} context: ${workspace.clinic_context}
 
 ${formatPatientContextForPrompt(workspace, prototypeId)}
 
-CONTENT YOU NEED TO COLLECT — ask about these in any order that flows naturally:
-1. Their actual assessment and treatment process for ${condition}
-2. What conventional treatment usually gets wrong
-3. What patients most commonly misunderstand about this condition
-4. What a realistic recovery looks like (timeline, what changes)
-5. What the first visit actually involves
-6. A specific patient case that shows their approach working (anonymized)
-7. The one movement insight that most patients with ${condition} have never heard
+CONTENT YOU NEED TO COLLECT — each area below produces specific downstream content. Ask about them in any order that flows naturally, but DO NOT move on from an area until the answer is specific and concrete enough to write from. Vague answers get follow-ups.
+
+1. CLINICAL PHILOSOPHY — How they approach ${condition} and the underlying principle that makes their approach different. The "why" behind their method, not just the "what." Press for the principle, not just the procedure.
+
+2. THE COMMON MISCONCEPTION — The single most counterintuitive or surprising thing about ${condition}. What does conventional treatment get wrong? What myth do patients arrive with? Push for one specific, punchy statement — not a list of generalities.
+
+3. THE ONE CLINICAL INSIGHT — The single movement, anatomy, or biomechanics insight that most patients with ${condition} have never heard. Specific enough to fit in one sentence. Press if the answer is generic.
+
+4. PATIENT SCENARIO — One specific anonymized patient: their symptoms, what they tried before, what the assessment revealed, what changed, and how long it took. Concrete details ("a 45-year-old runner who'd been doing PT for 6 months") not generic ("a typical patient"). Get the before/after arc.
+
+5. TREATMENT & RECOVERY PROCESS — Walk through it step by step: what the first visit involves, what changes by week 1, week 4, week 8. What does a realistic timeline look like? Specifics, not "it depends."
+
+6. FOR REFERRING PROVIDERS — What should a GP, orthopedic surgeon, sports medicine doc, or coach know before referring this condition to them? Red flags? What makes a good referral? When should someone NOT see a movement specialist first?
+
+7. LOCAL COMMUNITY ANGLE — Who in ${workspace.location_keyword} most commonly deals with ${condition}? Active retirees, weekend warriors, desk workers, manual laborers, parents lifting kids? Press for the specific local archetype, not "everyone."
 
 RULES — be direct and efficient:
 - No filler: no "great point," "that's interesting," "I love that," or any acknowledgment before asking
 - Do not restate or summarize what they just said
 - Do not use transition phrases like "building on that" or "following up on"
 - Ask as many questions as needed to get complete, specific content — there is no exchange limit
-- If their answer already covers the next topic, skip it and move on
-- Ask follow-ups when an answer is vague or needs more detail ("Can you give an example?" "What does that look like for a typical patient?" "How long does that usually take?")
+- If their answer already covers a later area in the list, skip ahead and move on
+- Ask follow-ups when an answer is vague or generic ("Can you give an example?" "What does that look like for a typical patient?" "How long does that usually take?" "What's the specific archetype?")
+- A vague answer to a numbered area is not enough — keep pressing on that area before moving to the next one. Generic answers produce generic downstream content.
 - Questions can be as long as they need to be to give the clinician proper context and framing
 
 ENDING THE INTERVIEW:
