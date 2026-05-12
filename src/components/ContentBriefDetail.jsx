@@ -219,7 +219,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
                 {source.kind === 'video' ? (
                   <video src={sourceUrl} controls className="w-full max-h-[40vh]" />
                 ) : (
-                  <img src={sourceUrl} alt="source" className="w-full max-h-[40vh] object-contain" />
+                  <img src={sourceUrl} alt="source" className="w-full max-h-[40vh] object-contain" loading="lazy" decoding="async" />
                 )}
               </div>
             )}
@@ -293,7 +293,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
                   {final?.kind === 'video' ? (
                     <video src={finalUrl} controls className="w-full max-h-[30vh]" />
                   ) : (
-                    <img src={finalUrl} alt="finished" className="w-full max-h-[30vh] object-contain" />
+                    <img src={finalUrl} alt="finished" className="w-full max-h-[30vh] object-contain" loading="lazy" decoding="async" />
                   )}
                 </div>
               )}

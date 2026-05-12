@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import {
   ClerkProvider,
@@ -11,24 +11,22 @@ import {
 } from '@clerk/clerk-react'
 import Layout from '@/components/Layout'
 import Dashboard from '@/pages/Dashboard'
-// Lazy-load Welcome — only fetched when an announcement is pending, which is
-// rare for repeat users.
-const Welcome = lazy(() => import('@/pages/Welcome'))
 import { getPendingAnnouncement } from '@/lib/announcements'
-import NewInterview from '@/pages/NewInterview'
-import InterviewSession from '@/pages/InterviewSession'
-import InterviewOutput from '@/pages/InterviewOutput'
-import ClinicianProfile from '@/pages/ClinicianProfile'
-import Strategy from '@/pages/Strategy'
-import ContentHub from '@/pages/ContentHub'
-import ReviewPost from '@/pages/ReviewPost'
-import ContentCalendar from '@/pages/ContentCalendar'
-import MediaHub from '@/pages/MediaHub'
-import Integrations from '@/pages/Integrations'
-import WorkspaceSettings from '@/pages/WorkspaceSettings'
-import Members from '@/pages/Members'
-import Account from '@/pages/Account'
-import Onboarding from '@/pages/Onboarding'
+const Welcome = lazy(() => import('@/pages/Welcome'))
+const NewInterview = lazy(() => import('@/pages/NewInterview'))
+const InterviewSession = lazy(() => import('@/pages/InterviewSession'))
+const InterviewOutput = lazy(() => import('@/pages/InterviewOutput'))
+const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
+const Strategy = lazy(() => import('@/pages/Strategy'))
+const ContentHub = lazy(() => import('@/pages/ContentHub'))
+const ReviewPost = lazy(() => import('@/pages/ReviewPost'))
+const ContentCalendar = lazy(() => import('@/pages/ContentCalendar'))
+const MediaHub = lazy(() => import('@/pages/MediaHub'))
+const Integrations = lazy(() => import('@/pages/Integrations'))
+const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
+const Members = lazy(() => import('@/pages/Members'))
+const Account = lazy(() => import('@/pages/Account'))
+const Onboarding = lazy(() => import('@/pages/Onboarding'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -179,24 +177,26 @@ function AppRoutes() {
   return (
     <WelcomeGate>
       <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/new" element={<NewInterview />} />
-          <Route path="/interview/:clinicianId/:interviewId" element={<InterviewSession />} />
-          <Route path="/output/:clinicianId/:interviewId" element={<InterviewOutput />} />
-          <Route path="/clinician/:clinicianId" element={<ClinicianProfile />} />
-          <Route path="/strategy" element={<Strategy />} />
-          <Route path="/hub" element={<ContentHub />} />
-          <Route path="/review/:itemId" element={<ReviewPost />} />
-          <Route path="/calendar" element={<ContentCalendar />} />
-          <Route path="/media" element={<MediaHub />} />
-          <Route path="/settings/integrations" element={<Integrations />} />
-          <Route path="/settings/workspace" element={<WorkspaceSettings />} />
-          {/* Both Clerk-mounted pages use routing="path" so deep links to
-              Clerk's own sub-routes resolve under the same base. */}
-          <Route path="/settings/members/*" element={<Members />} />
-          <Route path="/account/*" element={<Account />} />
-        </Routes>
+        <Suspense fallback={null}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/new" element={<NewInterview />} />
+            <Route path="/interview/:clinicianId/:interviewId" element={<InterviewSession />} />
+            <Route path="/output/:clinicianId/:interviewId" element={<InterviewOutput />} />
+            <Route path="/clinician/:clinicianId" element={<ClinicianProfile />} />
+            <Route path="/strategy" element={<Strategy />} />
+            <Route path="/hub" element={<ContentHub />} />
+            <Route path="/review/:itemId" element={<ReviewPost />} />
+            <Route path="/calendar" element={<ContentCalendar />} />
+            <Route path="/media" element={<MediaHub />} />
+            <Route path="/settings/integrations" element={<Integrations />} />
+            <Route path="/settings/workspace" element={<WorkspaceSettings />} />
+            {/* Both Clerk-mounted pages use routing="path" so deep links to
+                Clerk's own sub-routes resolve under the same base. */}
+            <Route path="/settings/members/*" element={<Members />} />
+            <Route path="/account/*" element={<Account />} />
+          </Routes>
+        </Suspense>
       </Layout>
     </WelcomeGate>
   )
@@ -246,7 +246,11 @@ function ProtectedApp() {
 // exists yet) and no OrgGate/DomainGuard (Clerk Org is created server-side at
 // the claim step).
 function OnboardingShell() {
-  return <Onboarding />
+  return (
+    <Suspense fallback={null}>
+      <Onboarding />
+    </Suspense>
+  )
 }
 
 // The protected app needs WorkspaceProvider so the Settings/etc. pages can

@@ -663,7 +663,7 @@ function LogoField({ label, value, onChange, hint }) {
       <div className="flex items-start gap-3">
         {value ? (
           <div className="h-16 w-16 rounded border border-input bg-muted/30 overflow-hidden shrink-0 flex items-center justify-center">
-            <img src={value} alt={label} className="h-full w-full object-contain" />
+            <img src={value} alt={label} className="h-full w-full object-contain" loading="lazy" decoding="async" />
           </div>
         ) : (
           <div className="h-16 w-16 rounded border border-dashed border-input bg-muted/20 flex items-center justify-center shrink-0">
