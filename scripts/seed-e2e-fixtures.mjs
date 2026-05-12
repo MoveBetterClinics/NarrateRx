@@ -39,7 +39,18 @@ async function resolveConnectionString() {
 const WORKSPACE_SLUG = process.env.E2E_WORKSPACE_SLUG || 'movebetter-people'
 const CLINICIAN_NAME = process.env.E2E_FIXTURE_CLINICIAN_NAME || 'E2E Smoke Clinician'
 
-const client = new Client({ connectionString: await resolveConnectionString() })
+const connectionString = await resolveConnectionString()
+try {
+  const u = new URL(connectionString)
+  console.log(`[seed] connecting to host=${u.hostname} port=${u.port || '(default)'} db=${u.pathname.replace(/^\//, '')} user=${u.username} (password redacted, length=${u.password.length})`)
+  if (u.searchParams.toString()) {
+    console.log(`[seed] connection-string query params present: ${[...u.searchParams.keys()].join(', ')}`)
+  }
+} catch (e) {
+  console.error('[seed] connection string is not a valid URL:', e.message)
+  process.exit(1)
+}
+const client = new Client({ connectionString })
 await client.connect()
 
 try {
