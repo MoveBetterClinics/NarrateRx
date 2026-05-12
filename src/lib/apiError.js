@@ -9,6 +9,21 @@ import { toast } from '@/lib/toast'
 
 let _last429At = 0
 
+// Coerce arbitrary payload values into a human-readable string. Servers
+// occasionally return `{ error: { ... } }` (e.g. an AI SDK error whose
+// `.message` was itself an object), and `new Error(obj)` would otherwise
+// stringify to the literal "[object Object]" that the user sees in the UI.
+function extractMessage(...candidates) {
+  for (const v of candidates) {
+    if (typeof v === 'string' && v.length > 0) return v
+    if (v && typeof v === 'object') {
+      if (typeof v.message === 'string' && v.message.length > 0) return v.message
+      try { return JSON.stringify(v) } catch { /* fall through */ }
+    }
+  }
+  return ''
+}
+
 export async function throwApiError(response) {
   let payload = {}
   try { payload = await response.json() } catch { /* empty */ }
@@ -25,8 +40,8 @@ export async function throwApiError(response) {
         : 'Try again in a few seconds.'
       toast.error("You're going faster than the limit", { description })
     }
-    throw new Error(payload.message || 'Rate limited')
+    throw new Error(extractMessage(payload.message, payload.error) || 'Rate limited')
   }
 
-  throw new Error(payload.error || payload.message || `Request failed: ${response.status}`)
+  throw new Error(extractMessage(payload.error, payload.message) || `Request failed: ${response.status}`)
 }
