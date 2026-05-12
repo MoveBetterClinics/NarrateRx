@@ -48,11 +48,29 @@ if (!dbUrl) {
 }
 
 // ---------------------------------------------------------------------------
-// Setup
+// Setup — default to Google Drive sync so backups auto-upload off-machine.
+// Override with BACKUP_BLOBS_DIR env var (parent dir; timestamped subfolder
+// is created inside).
 // ---------------------------------------------------------------------------
 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + 'Z';
-const backupDir = join(os.homedir(), 'Backups', 'narraterx-blobs', timestamp);
+const driveDefault = join(
+  os.homedir(),
+  'Library', 'CloudStorage', 'GoogleDrive-drq@movebetter.co', 'My Drive',
+  'NarrateRx Backups', 'media',
+);
+const localFallback = join(os.homedir(), 'Backups', 'narraterx-blobs');
+let parentDir;
+if (process.env.BACKUP_BLOBS_DIR) {
+  parentDir = process.env.BACKUP_BLOBS_DIR;
+} else if (existsSync(dirname(driveDefault))) {
+  parentDir = driveDefault;
+} else {
+  console.warn(`WARN: Google Drive sync folder not found, falling back to ${localFallback}`);
+  parentDir = localFallback;
+}
+const backupDir = join(parentDir, timestamp);
 mkdirSync(backupDir, { recursive: true });
+console.log(`Backup destination: ${backupDir}`);
 
 // ---------------------------------------------------------------------------
 // Parse DB URL (password may contain special chars)
