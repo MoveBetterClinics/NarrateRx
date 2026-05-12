@@ -4,7 +4,7 @@ async function apiFetch(path, init = {}) {
     const json = await res.json().catch(() => ({}))
     throw new Error(json.error || `Request failed: ${res.status}`)
   }
-  return res.json()
+  return res.json().catch(() => { throw new Error(`Invalid JSON from ${path}`) })
 }
 
 // ── Clinicians ──────────────────────────────────────────────────────────────
