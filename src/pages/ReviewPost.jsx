@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react'
 import {
   ArrowLeft, Send, CalendarDays, CheckCircle2, Loader2, Copy, Check,
   AlertCircle, Image, Trash2, ExternalLink, Eye, Pencil,
-  ChevronLeft, ChevronRight, Play, Video, RefreshCw, RotateCcw, ThumbsUp,
+  ChevronLeft, ChevronRight, Play, RefreshCw, RotateCcw, ThumbsUp,
 } from 'lucide-react'
 import PostPreview from '@/components/PostPreview'
 import { Button } from '@/components/ui/button'
@@ -158,8 +158,10 @@ export default function ReviewPost() {
   }, { disabled: !item || item?.status === 'published' })
 
   useEffect(() => {
+    let cancelled = false
     fetchContentItem(itemId)
       .then((i) => {
+        if (cancelled) return
         setItem(i)
         setContent(i?.content || '')
         if (i?.scheduled_at) {
@@ -169,15 +171,16 @@ export default function ReviewPost() {
         isFirstLoad.current = false
         if (i?.status === 'draft') {
           updateContentItem(itemId, { status: 'in_review' })
-            .then((updated) => { setItem(updated); invalidateContentCaches(updated) })
+            .then((updated) => { if (!cancelled) { setItem(updated); invalidateContentCaches(updated) } })
             .catch(() => {})
         }
         // GBP location picker is hydrated from workspace.locations in a
         // separate effect that waits for workspace to load — the picker now
         // shows workspace_locations rows (UUIDs), not Google location IDs.
       })
-      .catch(() => { toast.error('Could not load post — returning to Content Hub.'); navigate('/hub') })
-      .finally(() => setLoading(false))
+      .catch(() => { if (!cancelled) { toast.error('Could not load post — returning to Content Hub.'); navigate('/hub') } })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
   }, [itemId])
 
   // Auto-suggest a schedule time based on what's already queued
@@ -862,7 +865,7 @@ export default function ReviewPost() {
 //                    No manual refresh — the daily cron pulls these (interactive
 //                    refresh would require a per-call GA4 API round-trip whose
 //                    cost isn't justified for one-off editor curiosity).
-function EngagementPanel({ itemId, platform }) {
+function EngagementPanel({ itemId, platform: _platform }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [snapshot, setSnapshot] = useState(null)

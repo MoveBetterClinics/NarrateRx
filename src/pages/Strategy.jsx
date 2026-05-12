@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ChevronDown, ChevronRight, FileText, Share2, Globe, Video, Mail, MoreHorizontal, Zap } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Share2, Globe, Video, Mail, Zap } from 'lucide-react'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { CampaignWidget, useCampaign } from '@/components/CampaignWidget'

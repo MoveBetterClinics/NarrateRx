@@ -84,7 +84,7 @@ export default async function handler(req, res) {
   // Flatten the embedded count for cleaner client consumption.
   const out = rows.map((row) => {
     const itemCount = row.collection_items?.[0]?.count ?? 0
-    const { collection_items, ...rest } = row
+    const { collection_items: _ci, ...rest } = row
     return { ...rest, item_count: itemCount }
   })
   return res.status(200).json(out)
