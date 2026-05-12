@@ -24,6 +24,15 @@ The legacy `brands/<id>/` filesystem-overlay pattern and the `VITE_BRAND` / `BRA
 
 **Cross-workspace data isolation** is enforced at the API layer, not at the database layer: there is no RLS on the public schema (service_role bypasses anyway). Every API route that touches tenant-scoped tables must call `workspaceContext(req)` (or `workspaceById(id)` for background paths) and filter by `workspace_id`. Forgetting that = cross-tenant data leak. Treat the workspace_id filter the same way you'd treat an authorization check.
 
+## Lint ratchet
+The `npm run lint` script enforces a `--max-warnings <N>` ceiling (currently 152, set during the pre-launch audit). The ratchet should drift **down** over time, not up. Rule:
+
+- A PR may not raise the ratchet ceiling without fixing an equal-or-greater number of warnings elsewhere in the same PR.
+- If you introduce 1 new warning, fix at least 1 old one and keep the ceiling unchanged.
+- The only exception is intentional `console.error`/`console.warn` in shared instrumentation (e.g. `api/_lib/sentry.js`) — bump the ceiling and note the reason in the commit body, the way `chore(lint): bump ratchet to 152` did.
+
+The ceiling represents merged-baseline tech debt. Driving it down is the goal; raising it is a regression.
+
 ## Supabase migrations
 Migrations live in `supabase/multitenant/migrations/` and are applied via `node scripts/apply-multitenant-migrations.mjs <file.sql>` against `MULTITENANT_DATABASE_URL`. There is no migration tracker — the script just applies whatever you pass it, so filename ordering is informational only.
 
