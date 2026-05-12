@@ -62,5 +62,7 @@ export async function generateContent(messages, systemPrompt, { model } = {}) {
   if (!response.ok) await throwApiError(response)
 
   const data = await response.json()
-  return data.content[0].text
+  const text = data?.content?.[0]?.text
+  if (!text) throw new Error('Empty response from AI')
+  return text
 }
