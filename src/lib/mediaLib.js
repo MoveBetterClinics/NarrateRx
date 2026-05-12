@@ -151,8 +151,20 @@ async function maybeTranscodeHeic(file) {
 //                       and skips the AI auto-pipeline.
 //   contentPieceId    — paired with parentId; server marks the brief as
 //                       'returned' and links its final_asset_id.
-export async function uploadMedia(file, meta = {}) {
+export async function uploadMedia(file, meta = {}, options = {}) {
+  // HEIC transcode happens before the upload begins, so it's separate from
+  // the upload progress curve. Callers that want a UI signal during transcode
+  // can pass options.onTranscodeStart / onTranscodeEnd; we keep both optional
+  // so existing call sites stay unchanged.
+  if (typeof options.onTranscodeStart === 'function') {
+    const name = (file.name || '').toLowerCase()
+    const type = (file.type || '').toLowerCase()
+    if (type === 'image/heic' || type === 'image/heif' || name.endsWith('.heic') || name.endsWith('.heif')) {
+      options.onTranscodeStart()
+    }
+  }
   file = await maybeTranscodeHeic(file)
+  options.onTranscodeEnd?.()
 
   const ext       = (file.name.match(/\.[^.]+$/) || [''])[0]
   const baseName  = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()
@@ -170,6 +182,12 @@ export async function uploadMedia(file, meta = {}) {
     // webhook (Vercel Blob → server) is signature-verified by handleUpload
     // and doesn't need a user token.
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    // @vercel/blob exposes determinate progress via onUploadProgress. Event
+    // shape: { loaded, total, percentage }. We forward it directly so the
+    // caller can render an actual progress bar instead of an opaque spinner.
+    onUploadProgress: typeof options.onProgress === 'function'
+      ? (e) => options.onProgress(e)
+      : undefined,
     clientPayload: JSON.stringify({
       filename: file.name,
       createdBy: meta.createdBy || null,

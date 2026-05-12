@@ -34,7 +34,7 @@ const SPEAKER_ROLES = [
 export default function MediaUploader({ onUploaded, createdBy }) {
   const inputRef = useRef(null)
   const [dragOver, setDragOver]    = useState(false)
-  const [uploads, setUploads]      = useState([])  // [{ id, name, status:'uploading'|'done'|'error', error? }]
+  const [uploads, setUploads]      = useState([])  // [{ id, name, status, error?, progress?, transcoding? }]
   const [speakerRole, setSpeakerRole] = useState('clinician')
 
   async function handleFiles(fileList) {
@@ -45,16 +45,40 @@ export default function MediaUploader({ onUploaded, createdBy }) {
       id: crypto.randomUUID(),
       name: f.name,
       status: 'uploading',
+      progress: 0,
+      transcoding: false,
     }))
     setUploads((prev) => [...newRows, ...prev])
 
     await Promise.all(files.map(async (file, i) => {
       const rowId = newRows[i].id
       try {
-        await uploadMedia(file, { createdBy: createdBy || null, speakerRole })
-        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'done' } : r))
+        await uploadMedia(
+          file,
+          { createdBy: createdBy || null, speakerRole },
+          {
+            onTranscodeStart: () => setUploads((prev) => prev.map((r) =>
+              r.id === rowId ? { ...r, transcoding: true } : r,
+            )),
+            onTranscodeEnd: () => setUploads((prev) => prev.map((r) =>
+              r.id === rowId ? { ...r, transcoding: false } : r,
+            )),
+            // Vercel Blob's onUploadProgress event: { loaded, total, percentage }.
+            // We cap state writes at the integer-percentage granularity so
+            // a 1.2 GB file doesn't trigger a setState per chunk.
+            onProgress: (e) => {
+              const pct = typeof e.percentage === 'number'
+                ? Math.round(e.percentage)
+                : (e.total ? Math.round((e.loaded / e.total) * 100) : 0)
+              setUploads((prev) => prev.map((r) =>
+                r.id === rowId && r.progress !== pct ? { ...r, progress: pct } : r,
+              ))
+            },
+          },
+        )
+        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'done', progress: 100, transcoding: false } : r))
       } catch (e) {
-        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'error', error: e.message } : r))
+        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'error', error: e.message, transcoding: false } : r))
       }
     }))
 
@@ -157,10 +181,31 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         <div className="mt-3 space-y-1.5">
           {uploads.map((r) => (
             <div key={r.id} className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-md bg-muted/40">
-              {r.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-              {r.status === 'done'      && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />}
-              {r.status === 'error'     && <AlertCircle  className="h-3.5 w-3.5 text-destructive" />}
+              {r.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
+              {r.status === 'done'      && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+              {r.status === 'error'     && <AlertCircle  className="h-3.5 w-3.5 text-destructive shrink-0" />}
               <span className="truncate flex-1">{r.name}</span>
+              {r.status === 'uploading' && (
+                <>
+                  {r.transcoding ? (
+                    <span className="text-[10px] text-muted-foreground shrink-0">Converting HEIC…</span>
+                  ) : (
+                    <>
+                      {/* Determinate progress bar — replaces the prior spinner-
+                          only state which gave no signal on a 1 GB upload. */}
+                      <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden shrink-0" role="progressbar" aria-valuenow={r.progress || 0} aria-valuemin="0" aria-valuemax="100">
+                        <div
+                          className="h-full bg-primary transition-[width] duration-200"
+                          style={{ width: `${Math.min(100, Math.max(0, r.progress || 0))}%` }}
+                        />
+                      </div>
+                      <span className="tabular-nums text-[10px] text-muted-foreground w-9 text-right shrink-0">
+                        {r.progress || 0}%
+                      </span>
+                    </>
+                  )}
+                </>
+              )}
               {r.status === 'error' && <span className="text-destructive truncate max-w-[40%]">{r.error}</span>}
             </div>
           ))}
