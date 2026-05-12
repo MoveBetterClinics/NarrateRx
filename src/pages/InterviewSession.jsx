@@ -463,6 +463,11 @@ export default function InterviewSession() {
 
   const displayMessages = messages.filter((m) => !m.content?.includes(COMPLETE_TOKEN))
   const firstNameOnly = clinician.name.split(' ')[0]
+  // Require at least one back-and-forth before Finish: an opening prompt plus
+  // one captured user answer isn't enough material for the AI to write from.
+  const userMessageCount = messages.filter((m) => m.role === 'user').length
+  const canFinish = userMessageCount >= 2
+  const finishHelper = 'Answer at least one question before finishing.'
 
   const toneObj = TONES.find((t) => t.id === interview.tone) ?? TONES[0]
   const voiceObj = VOICE_MODES.find((v) => v.id === interview.voice_mode) ?? VOICE_MODES[0]
@@ -496,7 +501,15 @@ export default function InterviewSession() {
           ? <Badge variant="secondary" className="text-xs">Interview Complete</Badge>
           : isOwner && (
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" onClick={() => setInterviewComplete(true)} className="gap-1.5 text-primary border-primary/40 hover:bg-primary/5">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setInterviewComplete(true)}
+                disabled={!canFinish}
+                title={canFinish ? undefined : finishHelper}
+                aria-label={canFinish ? 'Finish interview' : finishHelper}
+                className="gap-1.5 text-primary border-primary/40 hover:bg-primary/5"
+              >
                 <Sparkles className="h-3.5 w-3.5" />
                 Finish
               </Button>

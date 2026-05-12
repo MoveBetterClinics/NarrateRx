@@ -418,10 +418,24 @@ function GeneratePrompt({ group, generating, error, onGenerate, label, descripti
         <>
           <p className="text-sm font-medium text-muted-foreground">{label} not generated yet</p>
           <p className="text-xs text-muted-foreground">{description}</p>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && (
+            <p className="text-xs text-destructive flex items-center justify-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {error}
+            </p>
+          )}
           <Button size="sm" onClick={() => onGenerate(group)}>
-            <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-            Generate {label}
+            {error ? (
+              <>
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                Retry
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                Generate {label}
+              </>
+            )}
           </Button>
         </>
       )}

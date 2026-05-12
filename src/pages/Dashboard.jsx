@@ -4,7 +4,7 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import {
   Plus, MessageSquare, Clock, ChevronRight, Users, Loader2, LayoutGrid, User, Tag,
   AlertCircle, FileText, Image as ImageIcon, Compass, Mic, TrendingUp, PlayCircle,
-  CheckCircle2, Circle, X, Sparkles, Settings,
+  CheckCircle2, Circle, X, Sparkles, Settings, RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
@@ -44,7 +44,7 @@ export default function Dashboard() {
   const { getToken } = useAuth()
   const { role } = useUserRole()
   const runtimeWorkspace = useWorkspace()
-  const { data: clinicians = [], isLoading: loading, error: cliniciansError } = useClinicians()
+  const { data: clinicians = [], isLoading: loading, error: cliniciansError, refetch: refetchClinicians, isFetching: isRefetching } = useClinicians()
   const error = cliniciansError?.message || ''
   const [hasMedia, setHasMedia] = useState(false)
   const [hasCredential, setHasCredential] = useState(false)
@@ -136,7 +136,15 @@ export default function Dashboard() {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <p className="text-sm text-destructive mb-2">Failed to load data</p>
-        <p className="text-xs text-muted-foreground">{error}</p>
+        <p className="text-xs text-muted-foreground mb-4">{error}</p>
+        <Button size="sm" variant="outline" onClick={() => refetchClinicians()} disabled={isRefetching}>
+          {isRefetching ? (
+            <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+          ) : (
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+          )}
+          Retry
+        </Button>
       </div>
     )
   }

@@ -949,14 +949,19 @@ function ReviewRow({ label, value, mono }) {
 function LaunchingScreen({ redirectUrl }) {
   const [elapsed, setElapsed] = useState(0)
   const [ready, setReady] = useState(false)
+  const [timedOut, setTimedOut] = useState(false)
+  const [probeKey, setProbeKey] = useState(0)
 
   useEffect(() => {
     if (!redirectUrl) return
     const host = new URL(redirectUrl).host
     let cancelled = false
     let attempts = 0
-    const MAX_ATTEMPTS = 30          // 30 attempts × 1s = ~30s ceiling
+    const MAX_ATTEMPTS = 60          // 60 attempts × 1s = ~60s ceiling
     const INTERVAL_MS = 1000
+
+    setElapsed(0)
+    setTimedOut(false)
 
     const tick = () => {
       if (cancelled || ready) return
@@ -973,17 +978,53 @@ function LaunchingScreen({ redirectUrl }) {
         }
       }
       img.src = `https://${host}/favicon.ico?probe=${attempts}-${Date.now()}`
-      if (attempts < MAX_ATTEMPTS) setTimeout(tick, INTERVAL_MS)
+      if (attempts < MAX_ATTEMPTS) {
+        setTimeout(tick, INTERVAL_MS)
+      } else {
+        // Out of attempts and still not ready — surface a clear error so the
+        // user isn't stuck staring at the spinner.
+        setTimeout(() => { if (!cancelled && !ready) setTimedOut(true) }, INTERVAL_MS)
+      }
     }
     tick()
     return () => { cancelled = true }
-  }, [redirectUrl, ready])
+  }, [redirectUrl, ready, probeKey])
 
   useEffect(() => {
     if (!ready || !redirectUrl) return
     const t = setTimeout(() => { window.location.href = redirectUrl }, 400)
     return () => clearTimeout(t)
   }, [ready, redirectUrl])
+
+  if (timedOut) {
+    return (
+      <Card
+        title="Setup is taking longer than expected"
+        subtitle="Your workspace was created, but the SSL certificate for your subdomain isn't responding yet. This usually resolves in another minute or two."
+      >
+        <div className="text-xs text-destructive flex items-center gap-1">
+          <AlertCircle className="h-3.5 w-3.5" />
+          Generation is taking longer than expected — try again or check your connection.
+        </div>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          <Button
+            onClick={() => {
+              setReady(false)
+              setTimedOut(false)
+              setProbeKey((k) => k + 1)
+            }}
+          >
+            Retry
+          </Button>
+          {redirectUrl && (
+            <a className="text-xs underline text-orange-600" href={redirectUrl}>
+              Continue manually
+            </a>
+          )}
+        </div>
+      </Card>
+    )
+  }
 
   return (
     <Card
