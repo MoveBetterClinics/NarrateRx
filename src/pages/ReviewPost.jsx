@@ -166,7 +166,7 @@ export default function ReviewPost() {
           setScheduledAt(i.scheduled_at.slice(0, 16))
           setScheduleIsCustom(true)
         }
-        setTimeout(() => { isFirstLoad.current = false }, 100)
+        isFirstLoad.current = false
         if (i?.status === 'draft') {
           updateContentItem(itemId, { status: 'in_review' })
             .then((updated) => { setItem(updated); invalidateContentCaches(updated) })
@@ -176,7 +176,7 @@ export default function ReviewPost() {
         // separate effect that waits for workspace to load — the picker now
         // shows workspace_locations rows (UUIDs), not Google location IDs.
       })
-      .catch(() => navigate('/hub'))
+      .catch(() => { toast.error('Could not load post — returning to Content Hub.'); navigate('/hub') })
       .finally(() => setLoading(false))
   }, [itemId])
 
@@ -254,8 +254,8 @@ export default function ReviewPost() {
       const effectiveScheduledAt = publishMode === 'schedule' ? (scheduledAt || null) : null
       const latest = { ...item, content, scheduledAt: effectiveScheduledAt, mediaUrls: item.media_urls || [], locationIds: item.platform === 'gbp' ? selectedLocs : undefined }
       await publishAndTrack(latest, user?.primaryEmailAddress?.emailAddress)
-      setSuccess(effectiveScheduledAt ? 'Scheduled successfully!' : 'Published successfully!')
-      setTimeout(() => navigate('/hub'), 1500)
+      setSuccess(effectiveScheduledAt ? 'Scheduled! Redirecting to Content Hub…' : 'Published! Redirecting to Content Hub…')
+      setTimeout(() => navigate('/hub'), 2000)
     } catch (e) {
       setError(`Publish failed: ${e.message}`)
     } finally {
@@ -352,6 +352,7 @@ export default function ReviewPost() {
       const updated = await updateContentItem(itemId, { content: newContent, status: 'in_review', updatedAt: new Date().toISOString() })
       setItem(updated)
       setContent(newContent)
+      setShowPreview(false)
       invalidateContentCaches(updated)
       setSuccess('Content regenerated!')
       setTimeout(() => setSuccess(''), 3000)
@@ -392,7 +393,7 @@ export default function ReviewPost() {
   function handleCopy() {
     navigator.clipboard.writeText(content)
     setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    setTimeout(() => setCopied(false), 3000)
   }
 
   async function removeMedia(index) {
@@ -767,6 +768,10 @@ export default function ReviewPost() {
 
               {needsMedia && !hasMedia && (
                 <p className="text-xs text-amber-600 text-center">Add a photo or video to publish to {pm.label}</p>
+              )}
+
+              {item.platform === 'gbp' && selectedLocs.length === 0 && (
+                <p className="text-xs text-amber-600 text-center">Select at least one location to publish to Google Business</p>
               )}
 
               {/* Platform note */}
