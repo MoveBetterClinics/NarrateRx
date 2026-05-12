@@ -230,7 +230,7 @@ export default function WorkspaceSettings() {
 
   if (!ws) {
     return (
-      <div className="max-w-2xl mx-auto py-16 text-center space-y-2">
+      <div className="max-w-3xl mx-auto py-16 text-center space-y-2">
         <p className="text-muted-foreground text-sm">
           Workspace settings are only available on the shared NarrateRx deployment
           (<code className="font-mono text-xs">*.narraterx.ai</code>).
@@ -240,7 +240,7 @@ export default function WorkspaceSettings() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Workspace Settings</h1>

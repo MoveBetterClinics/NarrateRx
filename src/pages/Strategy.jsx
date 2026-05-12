@@ -94,7 +94,7 @@ export default function Strategy() {
   const { campaign, saving, notesSaved, handleModeChange, handleNotesChange } = useCampaign()
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8">
 
       {/* Header */}
       <div>
