@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator'
 import CredentialForm from '@/components/CredentialForm'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 // Customer-facing publishing connect page. Per-workspace credentials are
 // stored encrypted via /api/workspace/credentials. Buffer is the recommended
@@ -102,6 +103,7 @@ function hasCapability(ws, key) {
 }
 
 export default function Integrations() {
+  useDocumentTitle('Integrations')
   const ws = useWorkspace()
   const { role, isLoading: roleLoading } = useUserRole()
   const { getToken } = useAuth()

@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { CampaignWidget, useCampaign } from '@/components/CampaignWidget'
 import { workspace } from '@/lib/workspace'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 function Accordion({ title, children, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -91,6 +92,7 @@ const AUTOMATION_ROWS = [
 ]
 
 export default function Strategy() {
+  useDocumentTitle('Strategy')
   const { campaign, saving, notesSaved, handleModeChange, handleNotesChange } = useCampaign()
 
   return (

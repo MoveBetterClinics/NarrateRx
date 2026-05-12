@@ -13,8 +13,10 @@ import {
 import { useClinician, useDeleteClinician, useDeleteInterview } from '@/lib/queries'
 import { getInitials, formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 export default function ClinicianProfile() {
+  useDocumentTitle('Clinician')
   const { clinicianId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()

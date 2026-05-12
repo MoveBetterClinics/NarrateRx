@@ -25,8 +25,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 export default function Onboarding() {
+  useDocumentTitle('Get started')
   const [step, setStep] = useState('loading')
   const [capacity, setCapacity] = useState(null)        // {cap, used, remaining, full}
   const [form, setForm] = useState({
