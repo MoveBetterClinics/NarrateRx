@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { Search, Loader2, Filter, X, CheckSquare } from 'lucide-react'
+import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import EmptyState from '@/components/EmptyState'
 import MediaUploader from '@/components/MediaUploader'
 import MediaGrid from '@/components/MediaGrid'
 import MediaDetail from '@/components/MediaDetail'
@@ -11,7 +12,10 @@ import CollectionsBar from '@/components/CollectionsBar'
 import BulkActionBar from '@/components/BulkActionBar'
 import MediaHubHelp from '@/components/MediaHubHelp'
 import { listMedia, getMediaAsset } from '@/lib/mediaLib'
+import { useMediaInfinite, queryKeys } from '@/lib/queries'
+import { useQueryClient } from '@tanstack/react-query'
 import { useUserRole } from '@/lib/useUserRole'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 const PAGE_SIZE = 120
 
@@ -28,13 +32,10 @@ const STATUS_FILTERS = [
 ]
 
 export default function MediaHub() {
+  useDocumentTitle('Media')
   const { user } = useUser()
   const { canUpload, canEdit } = useUserRole()
-  const [assets, setAssets]     = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore]   = useState(false)
-  const [error, setError]       = useState('')
+  const qc = useQueryClient()
   const [kind, setKind]         = useState('')
   const [status, setStatus]     = useState('')
   const [search, setSearch]     = useState('')
@@ -52,80 +53,70 @@ export default function MediaHub() {
     return () => clearTimeout(t)
   }, [search])
 
-  const refresh = useCallback(async () => {
-    setLoading(true); setError('')
-    try {
-      const rows = await listMedia({
-        kind: kind || undefined,
-        status: status || undefined,
-        q: debouncedSearch || undefined,
-        collectionId: collectionId || undefined,
-        limit: PAGE_SIZE,
-        offset: 0,
-      })
-      setAssets(rows)
-      setHasMore(rows.length === PAGE_SIZE)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
-  }, [kind, status, debouncedSearch, collectionId])
+  // Centralized filter object for the media query — every place that needs
+  // to read the same library page (here + SelectAll below) uses this so a
+  // filter change produces a single cache key per state.
+  const mediaFilters = {
+    kind:         kind || undefined,
+    status:       status || undefined,
+    q:            debouncedSearch || undefined,
+    collectionId: collectionId || undefined,
+  }
 
-  useEffect(() => { refresh() }, [refresh])
+  const {
+    data:           mediaData,
+    isLoading:      loading,
+    isFetchingNextPage: loadingMore,
+    hasNextPage:    hasMore,
+    fetchNextPage:  fetchNext,
+    error:          queryError,
+    refetch:        refetchMedia,
+  } = useMediaInfinite(mediaFilters, { pageSize: PAGE_SIZE })
+  const error = queryError?.message || ''
+  // Flatten pages → flat asset array for the existing grid/select code.
+  const assets = mediaData?.pages?.flat() ?? []
 
-  const loadMore = useCallback(async () => {
+  // Stable callback name so the existing IntersectionObserver effect keeps
+  // working without churn.
+  const loadMore = useCallback(() => {
     if (loadingMore || loading || !hasMore) return
-    setLoadingMore(true)
-    try {
-      const rows = await listMedia({
-        kind: kind || undefined,
-        status: status || undefined,
-        q: debouncedSearch || undefined,
-        collectionId: collectionId || undefined,
-        limit: PAGE_SIZE,
-        offset: assets.length,
-      })
-      setAssets((prev) => [...prev, ...rows])
-      setHasMore(rows.length === PAGE_SIZE)
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoadingMore(false)
-    }
-  }, [loadingMore, loading, hasMore, kind, status, debouncedSearch, collectionId, assets.length])
+    fetchNext()
+  }, [loadingMore, loading, hasMore, fetchNext])
 
-  // Walk every remaining page of the current filter, append the rows into the
-  // grid, then mark the entire result set as selected. Without this, "Select
-  // all" would only cover the visible pages and silently miss off-screen
-  // matches — a footgun on libraries that have grown past one page.
+  // Existing call sites use refresh() after mutations to re-read the list.
+  // Map that to invalidating the whole media tree so any other view watching
+  // a different filter combo also picks up the change.
+  const refresh = useCallback(() => {
+    qc.invalidateQueries({ queryKey: queryKeys.media.all })
+    refetchMedia()
+  }, [qc, refetchMedia])
+
+  // Walk every remaining page of the current filter and mark the full
+  // result set as selected. Without this, "Select all" would only cover the
+  // visible pages and silently miss off-screen matches — a footgun on
+  // libraries past one page. Drives the infinite query forward until either
+  // the cursor exhausts or we hit the 5000-row ceiling.
   const selectAllMatching = useCallback(async () => {
-    let collected = assets.slice()
-    let offset = collected.length
-    let more = hasMore
     try {
-      // Hard ceiling so a corrupted hasMore signal can't loop forever.
-      while (more && offset < 5000) {
-        const rows = await listMedia({
-          kind: kind || undefined,
-          status: status || undefined,
-          q: debouncedSearch || undefined,
-          collectionId: collectionId || undefined,
-          limit: PAGE_SIZE,
-          offset,
-        })
-        if (!rows.length) break
-        collected = collected.concat(rows)
-        setAssets(collected)
-        offset += rows.length
-        more = rows.length === PAGE_SIZE
+      let safety = 50  // 50 × PAGE_SIZE = 6000-row ceiling
+      while (true) {
+        // Re-read the latest paged state each iteration since fetchNextPage
+        // updates the query cache directly.
+        const current = qc.getQueryData(queryKeys.media.list(mediaFilters))
+        const flat = current?.pages?.flat() ?? []
+        const canFetchMore = current?.pageParams && current.pages.at(-1)?.length === PAGE_SIZE
+        if (!canFetchMore || safety-- <= 0) {
+          setSelectedIds(flat.map((a) => a.id))
+          return
+        }
+        await fetchNext()
       }
-      setHasMore(false)
-      setSelectedIds(collected.map((a) => a.id))
     } catch (e) {
-      setError(e.message)
+      // Selection still includes whatever pages were already fetched; that's
+      // a better outcome than aborting silently.
+      console.error('[selectAllMatching] failed:', e)
     }
-  }, [assets, hasMore, kind, status, debouncedSearch, collectionId])
+  }, [qc, fetchNext, mediaFilters])
 
   // IntersectionObserver-driven infinite scroll. The sentinel sits 400px below
   // the last grid row so the next page starts loading before the user reaches
@@ -152,7 +143,31 @@ export default function MediaHub() {
     }
   }
 
-  function toggleSelected(asset) {
+  // Track the last clicked index so shift-click can extend a range.
+  const lastClickedIndexRef = useRef(null)
+
+  function toggleSelected(asset, meta = {}) {
+    const { shiftKey, index } = meta
+    const lastIndex = lastClickedIndexRef.current
+
+    // Shift-click range select: every asset between the anchor and the new
+    // click gets added (never removed) to the selection. Matches the standard
+    // gallery behavior in Dropbox / Photos / Finder.
+    if (shiftKey && typeof lastIndex === 'number' && typeof index === 'number' && lastIndex !== index) {
+      const [lo, hi] = lastIndex < index ? [lastIndex, index] : [index, lastIndex]
+      const rangeIds = assets.slice(lo, hi + 1).map((a) => a.id)
+      setSelectedIds((prev) => {
+        const next = new Set(prev)
+        rangeIds.forEach((id) => next.add(id))
+        return [...next]
+      })
+      // Update anchor to the new endpoint so chained shift-clicks behave like
+      // every other gallery (anchor follows the latest click).
+      lastClickedIndexRef.current = index
+      return
+    }
+
+    if (typeof index === 'number') lastClickedIndexRef.current = index
     setSelectedIds((prev) =>
       prev.includes(asset.id) ? prev.filter((id) => id !== asset.id) : [...prev, asset.id]
     )
@@ -161,6 +176,7 @@ export default function MediaHub() {
   function exitMultiSelect() {
     setMultiSelectMode(false)
     setSelectedIds([])
+    lastClickedIndexRef.current = null
   }
 
   // Drop ids that vanish from the visible list (e.g. filter narrows the
@@ -295,6 +311,55 @@ export default function MediaHub() {
         <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
+      ) : assets.length === 0 ? (
+        // Distinguish "library is empty" from "filters returned nothing" so
+        // the coaching matches the situation. hasActiveFilter is true whenever
+        // any narrowing control is active.
+        (() => {
+          const hasActiveFilter = !!(debouncedSearch || kind || status || collectionId)
+          if (hasActiveFilter) {
+            return (
+              <EmptyState
+                icon={<SearchX className="h-5 w-5" />}
+                title="No media match these filters"
+                description="Try clearing the search, switching the kind/status, or opening a different collection."
+                action={
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSearch('')
+                      setKind('')
+                      setStatus('')
+                      setCollectionId(null)
+                    }}
+                  >
+                    Clear all filters
+                  </Button>
+                }
+              />
+            )
+          }
+          return (
+            <EmptyState
+              icon={<ImageIcon className="h-5 w-5" />}
+              title="Your media library is empty"
+              description={
+                canUpload
+                  ? 'Drop a video or photo above to upload your first asset. The AI will tag and transcribe it automatically.'
+                  : 'Once your team uploads photos and videos, they will appear here. Ask an admin or editor for upload access.'
+              }
+              action={
+                canUpload
+                  ? <Button size="sm" onClick={() => document.querySelector('input[type=file]')?.click()}>
+                      <UploadIcon className="h-4 w-4 mr-1.5" />
+                      Upload your first asset
+                    </Button>
+                  : null
+              }
+            />
+          )
+        })()
       ) : (
         <>
           <MediaGrid

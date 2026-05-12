@@ -18,7 +18,7 @@
 // "everything clinician-shaped" we want one consistent prefix. Inline keys
 // drift over time and become silent staleness bugs.
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   fetchClinicians,
   fetchClinician,
@@ -33,6 +33,7 @@ import {
   updateContentItem,
   deleteContentItem,
 } from './publish'
+import { listMedia } from './mediaLib'
 
 export const queryKeys = {
   clinicians: {
@@ -52,6 +53,10 @@ export const queryKeys = {
   workspace: {
     all: ['workspace'],
     me:  ['workspace', 'me'],
+  },
+  media: {
+    all:  ['media'],
+    list: (filters = {}) => ['media', 'list', filters],
   },
 }
 
@@ -168,5 +173,27 @@ export function useDeleteContentItem() {
       qc.removeQueries({ queryKey: queryKeys.contentItems.detail(id) })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
     },
+  })
+}
+
+// ── Media (infinite) ───────────────────────────────────────────────────────
+
+// MediaHub serves a paginated grid that can run into thousands of rows.
+// useInfiniteQuery gives us: cache by filter signature, automatic dedupe
+// across remounts, getNextPageParam-driven "load more," and pages-array
+// shape that keeps prior pages on disk so a return-to-grid is instant.
+export function useMediaInfinite(filters = {}, options = {}) {
+  const { pageSize = 120, ...rest } = options
+  return useInfiniteQuery({
+    queryKey: queryKeys.media.list(filters),
+    queryFn: ({ pageParam = 0 }) => listMedia({ ...filters, limit: pageSize, offset: pageParam }),
+    initialPageParam: 0,
+    // Stop paginating once we get a short page — the server returned fewer
+    // rows than requested, so there's nothing beyond it.
+    getNextPageParam: (lastPage, allPages) => {
+      if (!Array.isArray(lastPage) || lastPage.length < pageSize) return undefined
+      return allPages.reduce((sum, p) => sum + p.length, 0)
+    },
+    ...rest,
   })
 }
