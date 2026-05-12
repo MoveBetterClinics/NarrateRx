@@ -84,7 +84,7 @@ export default function Dashboard() {
         if (!r.ok) return
         const data = await r.json()
         if (!cancelled) setHasCredential(Array.isArray(data) && data.length > 0)
-      } catch {}
+      } catch { /* empty */ }
     })()
     return () => { cancelled = true }
   }, [role, getToken])

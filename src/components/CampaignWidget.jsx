@@ -27,7 +27,7 @@ export function useCampaign() {
     setSaving(true)
     try {
       await updateCampaign({ mode }, user?.id)
-    } catch {}
+    } catch { /* empty */ }
     setSaving(false)
   }
 
@@ -40,7 +40,7 @@ export function useCampaign() {
         await updateCampaign({ notes }, user?.id)
         setNotesSaved(true)
         setTimeout(() => setNotesSaved(false), 2000)
-      } catch {}
+      } catch { /* empty */ }
     }, 800)
   }
 

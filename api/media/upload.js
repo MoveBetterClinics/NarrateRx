@@ -106,7 +106,7 @@ async function handler(req, res) {
       onBeforeGenerateToken: async (pathname, clientPayload) => {
         // clientPayload is a JSON string the browser opted into sending.
         let meta = {}
-        try { meta = clientPayload ? JSON.parse(clientPayload) : {} } catch {}
+        try { meta = clientPayload ? JSON.parse(clientPayload) : {} } catch { /* empty */ }
 
         return {
           allowedContentTypes: ALLOWED_MIME,
@@ -131,7 +131,7 @@ async function handler(req, res) {
 
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         let meta = {}
-        try { meta = tokenPayload ? JSON.parse(tokenPayload) : {} } catch {}
+        try { meta = tokenPayload ? JSON.parse(tokenPayload) : {} } catch { /* empty */ }
 
         const kind = kindFromMime(blob.contentType)
         if (!kind) return  // unknown type → don't record
@@ -196,7 +196,7 @@ async function handler(req, res) {
         try {
           const inserted = await ins.json()
           insertedRow = inserted?.[0]
-        } catch {}
+        } catch { /* empty */ }
 
         if (isReturnUpload && insertedRow?.id && meta.contentPieceId) {
           try {

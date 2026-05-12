@@ -92,7 +92,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     try {
       const rows = await listContentPieces({ sourceId: asset.id, limit: 50 })
       setLinkedBriefs(rows)
-    } catch {}
+    } catch { /* empty */ }
   }, [asset.id])
 
   useEffect(() => { refreshBriefs() }, [refreshBriefs])

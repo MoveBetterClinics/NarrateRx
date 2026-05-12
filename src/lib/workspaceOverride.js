@@ -23,7 +23,7 @@ function readSlug() {
     slug = null
   }
   if (slug) {
-    try { sessionStorage.setItem(STORAGE_KEY, slug) } catch {}
+    try { sessionStorage.setItem(STORAGE_KEY, slug) } catch { /* empty */ }
     return slug
   }
   try { return sessionStorage.getItem(STORAGE_KEY) } catch { return null }
