@@ -207,6 +207,7 @@ export default function NewInterview() {
                 value={clinicianName}
                 onChange={(e) => setClinicianName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleNext()}
+                autoComplete="name"
                 autoFocus
               />
               <p className="text-xs text-muted-foreground">

@@ -200,6 +200,7 @@ export default function CredentialForm({
             placeholder={resolvedSecretPlaceholder}
             className="text-sm"
             disabled={disabled}
+            autoComplete="new-password"
           />
         )}
         <p className="text-[11px] text-muted-foreground">

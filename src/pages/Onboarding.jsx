@@ -514,10 +514,10 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
       subtitle="The basics. You can edit any of this later in workspace settings."
     >
       <FieldRow label="Business name *" hint="What you'd put on a sign.">
-        <Input value={form.display_name} onChange={e => setField('display_name')(e.target.value)} placeholder="Acme Movement" />
+        <Input value={form.display_name} onChange={e => setField('display_name')(e.target.value)} placeholder="Acme Movement" autoComplete="organization" />
       </FieldRow>
       <FieldRow label="Website" hint="We can scan it to draft your brand voice — optional but recommended.">
-        <Input value={form.website} onChange={e => setField('website')(e.target.value)} placeholder="https://yourpractice.com" />
+        <Input type="url" value={form.website} onChange={e => setField('website')(e.target.value)} placeholder="https://yourpractice.com" autoComplete="url" />
       </FieldRow>
       <div className="space-y-2">
         <Label className="text-xs">Location *</Label>
@@ -533,6 +533,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
                   value={loc.city}
                   onChange={e => updateLocation(idx, 'city', e.target.value)}
                   placeholder={idx === 0 ? 'Portland' : 'Vancouver'}
+                  autoComplete="address-level2"
                 />
                 {idx === 0 && (
                   <p className="text-[10px] text-muted-foreground mt-1">City (primary)</p>
@@ -543,6 +544,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
                   value={loc.region}
                   onChange={e => updateLocation(idx, 'region', e.target.value)}
                   placeholder={idx === 0 ? 'OR' : 'WA'}
+                  autoComplete="address-level1"
                 />
                 {idx === 0 && (
                   <p className="text-[10px] text-muted-foreground mt-1">State</p>
