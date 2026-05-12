@@ -509,7 +509,115 @@ export default function WorkspaceSettings() {
           <CredentialsSection getToken={getToken} />
         </>
       )}
+
+      <Separator />
+      <DangerZone workspace={ws} getToken={getToken} />
     </div>
+  )
+}
+
+// Destructive actions live at the bottom of the form behind a typed-confirm
+// gate (paste the workspace's slug). The same check runs server-side in
+// api/workspace/danger.js — the slug is the gate not the display name
+// because it's the irreversible primary key bound to the subdomain.
+//
+// archive is the only action wired today. rename / transfer / hard-delete
+// each require additional server plumbing (Vercel domain swap, Clerk org
+// ownership API, cross-table cascade) and are signposted as "contact the
+// platform team" below.
+function DangerZone({ workspace, getToken }) {
+  const [confirmText, setConfirmText]   = useState('')
+  const [archiving, setArchiving]       = useState(false)
+  const [error, setError]               = useState(null)
+
+  const slug = workspace?.slug || ''
+  const matches = confirmText.trim().toLowerCase() === slug.toLowerCase() && slug.length > 0
+
+  async function handleArchive() {
+    if (!matches || archiving) return
+    if (!confirm(`Archive "${workspace?.display_name || slug}"? This suspends the workspace immediately. Members lose access on their next request. Restoring requires database access.`)) return
+    setArchiving(true)
+    setError(null)
+    try {
+      const token = await getToken({ skipCache: true })
+      const r = await fetch('/api/workspace/danger', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action: 'archive', confirm_slug: confirmText.trim() }),
+      })
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}))
+        setError(body?.error || `archive-failed (${r.status})`)
+        setArchiving(false)
+        return
+      }
+      // Workspace is now archived. workspaceContext rejects status !== 'active',
+      // so any further API call will 404. Sign the user out + bounce to the
+      // apex so they don't sit on a half-broken session.
+      try { await window.Clerk?.signOut?.() } catch {}
+      window.location.href = 'https://narraterx.ai'
+    } catch (e) {
+      setError(e?.message || 'network-error')
+      setArchiving(false)
+    }
+  }
+
+  return (
+    <Section title="Danger zone" description="Destructive actions. Read carefully — these affect every member of the workspace.">
+      <div className="rounded-lg border-2 border-destructive/30 bg-destructive/5 p-4 space-y-3">
+        <div className="flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
+          <div>
+            <p className="text-sm font-semibold text-destructive">Archive workspace</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Suspends this workspace immediately. All members lose access — the subdomain stops resolving and every API call returns 404. Content, media, and credentials stay in storage so the workspace can be restored manually via the database.
+            </p>
+            <ul className="text-[11px] text-muted-foreground list-disc pl-4 mt-1.5 space-y-0.5">
+              <li>Published posts on external channels (WordPress / Astro / Buffer) are <strong>not</strong> taken down.</li>
+              <li>Cron jobs that reference this workspace start no-op'ing.</li>
+              <li>Your Clerk Organization is not deleted; members can still sign in elsewhere.</li>
+            </ul>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium">
+            To confirm, type the workspace slug: <code className="text-foreground bg-muted px-1 py-0.5 rounded">{slug}</code>
+          </Label>
+          <Input
+            value={confirmText}
+            onChange={(e) => setConfirmText(e.target.value)}
+            placeholder={slug}
+            disabled={archiving}
+            autoComplete="off"
+            className="text-sm"
+          />
+          {error && (
+            <p className="text-xs text-destructive flex items-center gap-1.5">
+              <AlertCircle className="h-3.5 w-3.5" />
+              {error === 'confirm-slug-mismatch'
+                ? "The slug you typed doesn't match. Copy the value above exactly."
+                : error}
+            </p>
+          )}
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleArchive}
+            disabled={!matches || archiving}
+          >
+            {archiving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+            Archive this workspace
+          </Button>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        Rename, transfer ownership, and hard delete are not available in-app yet — each requires substantial server work (Vercel domain re-register, Clerk org-ownership swap, cross-table cascade + blob cleanup). Contact the platform team (drq@narraterx.ai) for any of these.
+      </p>
+    </Section>
   )
 }
 
