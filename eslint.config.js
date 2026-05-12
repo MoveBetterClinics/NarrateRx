@@ -30,7 +30,8 @@ export default [
       // React Compiler rules (react-hooks v7+) — app doesn't use React Compiler
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/purity': 'off',
-      'no-console': 'warn',
+      // Allow production logging (console.error/.warn/.info) — only flag debug console.log.
+      'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
       'no-undef': 'warn',
     },
