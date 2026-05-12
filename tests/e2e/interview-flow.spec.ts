@@ -15,7 +15,6 @@
 
 import { test, expect } from '@playwright/test'
 
-const WORKSPACE_SLUG = process.env.E2E_WORKSPACE_SLUG || 'movebetter-people'
 const FIXTURE_CLINICIAN = process.env.E2E_FIXTURE_CLINICIAN_NAME || 'E2E Smoke Clinician'
 
 test('interview create flow + integrations page', async ({ page }) => {
@@ -23,7 +22,7 @@ test('interview create flow + integrations page', async ({ page }) => {
   // OrgGate must admit (PR #213 surface): if the JWT lacks org_id, the page
   // sits on the "No access to this workspace" guard and the New Interview
   // link never renders.
-  await page.goto(`/?workspace=${WORKSPACE_SLUG}`)
+  await page.goto('/')
   const newInterviewLink = page.getByRole('link', { name: /new interview/i }).first()
   await expect(newInterviewLink).toBeVisible({ timeout: 30_000 })
 
@@ -66,7 +65,7 @@ test('interview create flow + integrations page', async ({ page }) => {
   // through requireRole with an orgId check. If the JWT is missing org_id
   // the call returns 403 and the UI shows "Admins only." or a network-error
   // toast — anything other than the credentials list.
-  await page.goto(`/settings/integrations?workspace=${WORKSPACE_SLUG}`)
+  await page.goto('/settings/integrations')
   await expect(page.getByRole('heading', { name: /integrations/i })).toBeVisible()
 
   // Negative assertion: the credentials fetch must not have failed with a

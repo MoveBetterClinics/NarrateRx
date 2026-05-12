@@ -1,26 +1,11 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Preview URL is injected by GitHub Actions after waiting for the Vercel
-// deployment for the current SHA. Local runs can set E2E_BASE_URL to any
-// reachable narraterx host, but must include a workspace one way or another
-// (subdomain in prod-shape URLs, or ?workspace= for preview URLs).
-const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173'
-
-// Vercel Deployment Protection 401s anonymous requests to preview URLs.
-// The bypass token can be sent either as a header or as a query parameter;
-// we use the query-parameter form because the header form triggers CORS
-// preflights on every cross-origin subresource (Clerk frontend API, Google
-// Fonts, etc.) — and those preflights then fail because the third-party
-// hosts don't whitelist the custom Vercel header. The query-param form,
-// combined with `x-vercel-set-bypass-cookie=samesitenone`, drops a
-// `_vercel_jwt` cookie on the first request, and all subsequent requests
-// authenticate via cookie with no custom headers anywhere.
-//
-// `bypassQuery` is wired into auth.setup.ts where it's appended to the
-// first page.goto. The cookie persists in storageState for the spec.
-export const bypassQuery = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
-  ? `x-vercel-protection-bypass=${encodeURIComponent(process.env.VERCEL_AUTOMATION_BYPASS_SECRET)}&x-vercel-set-bypass-cookie=samesitenone`
-  : ''
+// Base URL points at the workspace's production subdomain. The workflow
+// runs post-deploy on main against `https://movebetter-people.narraterx.ai`
+// (real prod, real Clerk, real DB). Local runs can override via E2E_BASE_URL
+// to point at any reachable narraterx host that already includes a workspace
+// subdomain.
+const baseURL = process.env.E2E_BASE_URL || 'https://movebetter-people.narraterx.ai'
 
 export default defineConfig({
   testDir: './tests/e2e',

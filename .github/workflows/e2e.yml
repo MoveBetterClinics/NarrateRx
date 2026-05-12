@@ -1,11 +1,19 @@
 name: E2E smoke
 
-on:
-  pull_request:
-    branches: [main]
+# Post-deploy smoke against the real production subdomain. Pre-merge gating
+# on PR-preview URLs is architecturally blocked: prod Clerk only accepts
+# origins that are narraterx.ai or a subdomain (vercel.app preview URLs are
+# rejected with "Production Keys are only allowed for domain narraterx.ai").
+# We run after each merge to main, wait for Vercel's production deployment,
+# then test against movebetter-people.narraterx.ai. Catches regressions
+# within a few minutes of shipping, before customers notice. See the
+# `project_e2e_staging_stack_option` memory for the pre-merge alternative.
 
-# Cancel in-progress e2e runs on new pushes to the same PR — preview URLs
-# only point at the latest commit anyway, so older runs are stale.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
 concurrency:
   group: e2e-${{ github.ref }}
   cancel-in-progress: true
@@ -25,46 +33,41 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Wait for the Vercel Preview deployment for this commit to reach
-      # `success`, then capture its environment_url. We poll GitHub's
-      # Deployments API rather than hitting the URL directly because
-      # Vercel Deployment Protection 401s anonymous probes — and the
-      # third-party "wait" actions all probe the URL.
-      - name: Wait for Vercel preview
-        id: vercel-preview
+      # Wait for the Vercel Production deployment for this commit to reach
+      # `success`. The Vercel GitHub integration posts deployment_status
+      # events on every commit; we poll the Deployments API rather than
+      # hitting the URL directly (cleaner and works regardless of any
+      # transient unprotected/protected toggles).
+      - name: Wait for Vercel production
+        id: vercel-prod
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           for i in $(seq 1 90); do
             statuses_url=$(gh api \
-              "repos/${{ github.repository }}/deployments?sha=${HEAD_SHA}&environment=Preview" \
+              "repos/${{ github.repository }}/deployments?sha=${HEAD_SHA}&environment=Production" \
               --jq '.[0].statuses_url // ""')
             if [ -n "$statuses_url" ]; then
               state=$(gh api "$statuses_url" --jq '.[0].state // ""')
-              env_url=$(gh api "$statuses_url" --jq '.[0].environment_url // ""')
-              echo "[$i/90] state=$state url=$env_url"
+              echo "[$i/90] state=$state"
               case "$state" in
                 success)
-                  if [ -z "$env_url" ]; then
-                    echo "Deployment success but no environment_url — bailing." >&2
-                    exit 1
-                  fi
-                  echo "url=$env_url" >> "$GITHUB_OUTPUT"
+                  echo "Production deployment for ${HEAD_SHA} is ready."
                   exit 0
                   ;;
                 failure|error)
-                  echo "Vercel deployment ended in state=$state — bailing." >&2
+                  echo "Vercel production deployment ended in state=$state — bailing." >&2
                   exit 1
                   ;;
               esac
             else
-              echo "[$i/90] no Preview deployment yet for ${HEAD_SHA}"
+              echo "[$i/90] no Production deployment yet for ${HEAD_SHA}"
             fi
             sleep 10
           done
-          echo "Timed out waiting for Vercel Preview deployment for ${HEAD_SHA}." >&2
+          echo "Timed out waiting for Vercel Production deployment for ${HEAD_SHA}." >&2
           exit 1
 
       - name: Seed fixture data
@@ -79,14 +82,11 @@ jobs:
 
       - name: Run Playwright smoke
         env:
-          E2E_BASE_URL: ${{ steps.vercel-preview.outputs.url }}
+          E2E_BASE_URL: https://movebetter-people.narraterx.ai
           E2E_WORKSPACE_SLUG: movebetter-people
           E2E_FIXTURE_CLINICIAN_NAME: E2E Smoke Clinician
           E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
-          CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
-          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
-          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
         run: npm run e2e
 
       - name: Upload Playwright report
