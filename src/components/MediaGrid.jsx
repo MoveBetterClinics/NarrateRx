@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Video, Image as ImageIcon, Play, Check } from 'lucide-react'
 
 const STATUS_LABEL = {
@@ -8,17 +9,23 @@ const STATUS_LABEL = {
   archived: { label: 'Archived', tone: 'bg-muted text-muted-foreground' },
 }
 
+// Thumb renders the per-asset preview. loading="lazy" + decoding="async" keep
+// the initial paint cheap for libraries of hundreds-to-thousands of assets;
+// the audit flagged this as a P1 (every img was eager-loaded). alt is set
+// to the human-readable alt_text when present, falling back to the filename
+// so screen readers still get something useful.
 function Thumb({ asset }) {
+  const alt = asset.alt_text || asset.filename || 'Media asset'
   if (asset.kind === 'photo') {
     const src = asset.thumbnail_url || asset.blob_url
-    if (src) return <img src={src} alt={asset.filename} className="w-full h-full object-cover" />
+    if (src) return <img src={src} alt={alt} loading="lazy" decoding="async" className="w-full h-full object-cover" />
     return <div className="h-full bg-muted flex items-center justify-center"><ImageIcon className="h-6 w-6 text-muted-foreground" /></div>
   }
   // video
   return (
     <div className="relative h-full w-full">
       {asset.thumbnail_url ? (
-        <img src={asset.thumbnail_url} alt={asset.filename} className="w-full h-full object-cover" />
+        <img src={asset.thumbnail_url} alt={alt} loading="lazy" decoding="async" className="w-full h-full object-cover" />
       ) : (
         <div className="h-full bg-slate-800 flex flex-col items-center justify-center gap-1 px-1">
           <Video className="h-6 w-6 text-slate-400 shrink-0" />
@@ -49,24 +56,113 @@ function handleDragStart(e, asset) {
   } catch {}
 }
 
+// Tailwind breakpoint → column count. Matches the className on the grid
+// container below; if the grid breakpoints change, mirror it here. Used by
+// the keyboard navigator to translate ArrowUp/Down into "move by one row."
+function useColumnCount() {
+  const [cols, setCols] = useState(() => columnsAt(typeof window !== 'undefined' ? window.innerWidth : 1024))
+  useEffect(() => {
+    function onResize() { setCols(columnsAt(window.innerWidth)) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return cols
+}
+
+function columnsAt(width) {
+  if (width >= 1024) return 5  // lg
+  if (width >= 768)  return 4  // md
+  if (width >= 640)  return 3  // sm
+  return 2                     // default
+}
+
 export default function MediaGrid({ assets, selectedId, onSelect, multiSelect = false, selectedIds = [] }) {
-  if (!assets?.length) {
-    return <div className="text-center py-16 text-sm text-muted-foreground">No media yet — upload some clips to get started.</div>
+  // The MediaHub renders its own empty state above us now (with proper coaching
+  // and CTAs) — this fallback is just a safety net for any other caller.
+  if (!assets?.length) return null
+
+  const cols = useColumnCount()
+  // Button refs keyed by index so the keyboard navigator can call .focus()
+  // on the new target. Array is rebuilt on every render — refs themselves
+  // are stable across re-renders for the same index.
+  const buttonRefs = useRef([])
+
+  // Roving tabindex: only one item is tab-focusable at a time so a Tab from
+  // the search field lands on the selected/first item rather than walking
+  // through all N. ArrowKeys move within the grid from there.
+  const [focusedIndex, setFocusedIndex] = useState(() => {
+    if (multiSelect) return selectedIds.length ? assets.findIndex(a => a.id === selectedIds[0]) : 0
+    return selectedId ? Math.max(0, assets.findIndex(a => a.id === selectedId)) : 0
+  })
+
+  // Keep focusedIndex in bounds when the asset list shrinks (e.g. archive
+  // removes the row). Without this, an out-of-range index would orphan focus.
+  useEffect(() => {
+    if (focusedIndex >= assets.length) setFocusedIndex(Math.max(0, assets.length - 1))
+  }, [assets.length, focusedIndex])
+
+  function focusAt(nextIndex) {
+    const clamped = Math.max(0, Math.min(assets.length - 1, nextIndex))
+    setFocusedIndex(clamped)
+    buttonRefs.current[clamped]?.focus()
+  }
+
+  function handleKeyDown(e) {
+    // Inside the grid only — child buttons own arrow/Home/End. Enter/Space is
+    // native <button> activation, so we don't need to handle it here.
+    switch (e.key) {
+      case 'ArrowRight':
+        e.preventDefault()
+        focusAt(focusedIndex + 1)
+        return
+      case 'ArrowLeft':
+        e.preventDefault()
+        focusAt(focusedIndex - 1)
+        return
+      case 'ArrowDown':
+        e.preventDefault()
+        focusAt(focusedIndex + cols)
+        return
+      case 'ArrowUp':
+        e.preventDefault()
+        focusAt(focusedIndex - cols)
+        return
+      case 'Home':
+        e.preventDefault()
+        focusAt(0)
+        return
+      case 'End':
+        e.preventDefault()
+        focusAt(assets.length - 1)
+        return
+      default:
+        return
+    }
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-      {assets.map((a) => {
+    <div
+      role="grid"
+      onKeyDown={handleKeyDown}
+      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
+    >
+      {assets.map((a, index) => {
         const isSelected = multiSelect ? selectedIds.includes(a.id) : selectedId === a.id
         const statusMeta = STATUS_LABEL[a.status] || STATUS_LABEL.raw
+        const isFocused = index === focusedIndex
         return (
           <button
             key={a.id}
-            onClick={() => onSelect?.(a)}
+            ref={(el) => { buttonRefs.current[index] = el }}
+            // Roving tabindex — only the focused item participates in tab order.
+            tabIndex={isFocused ? 0 : -1}
+            onFocus={() => setFocusedIndex(index)}
+            onClick={(e) => onSelect?.(a, { index, shiftKey: e.shiftKey, metaKey: e.metaKey || e.ctrlKey })}
             draggable
             onDragStart={(e) => handleDragStart(e, a)}
             title={`${a.filename} — click to open, or drag into another browser tab to upload it there`}
-            className={`relative rounded-lg overflow-hidden border-2 aspect-square transition-all text-left ${
+            aria-label={`${a.filename}, ${statusMeta.label.toLowerCase()}`}
+            className={`relative rounded-lg overflow-hidden border-2 aspect-square transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
               isSelected ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'
             }`}
           >
