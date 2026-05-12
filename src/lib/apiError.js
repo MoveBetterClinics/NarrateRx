@@ -11,7 +11,7 @@ let _last429At = 0
 
 export async function throwApiError(response) {
   let payload = {}
-  try { payload = await response.json() } catch {}
+  try { payload = await response.json() } catch { /* empty */ }
 
   if (response.status === 429) {
     // Debounce: a burst of parallel calls (e.g. ReviewPost firing three

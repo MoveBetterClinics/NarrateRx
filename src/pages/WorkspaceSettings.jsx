@@ -558,7 +558,7 @@ function DangerZone({ workspace, getToken }) {
       // Workspace is now archived. workspaceContext rejects status !== 'active',
       // so any further API call will 404. Sign the user out + bounce to the
       // apex so they don't sit on a half-broken session.
-      try { await window.Clerk?.signOut?.() } catch {}
+      try { await window.Clerk?.signOut?.() } catch { /* empty */ }
       window.location.href = 'https://narraterx.ai'
     } catch (e) {
       setError(e?.message || 'network-error')
@@ -775,7 +775,7 @@ function CredentialsSection({ getToken }) {
     }
   }
 
-  useEffect(() => { reload() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+  useEffect(() => { reload()   }, [])
 
   return (
     <Section
@@ -876,7 +876,7 @@ function LocationsPanel({ getToken, onSyncWorkspace }) {
     }
   }
 
-  useEffect(() => { reload() /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [])
+  useEffect(() => { reload()   }, [])
 
   async function handleCreate() {
     if (!draft.city.trim()) {

@@ -22,7 +22,7 @@ export default function MediaHubHelp() {
         setOpen(true)
         localStorage.setItem(WELCOME_KEY, new Date().toISOString())
       }
-    } catch {}
+    } catch { /* empty */ }
   }, [])
 
   return (

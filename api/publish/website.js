@@ -96,7 +96,7 @@ async function publishToAstro(res, payload, cred) {
   }
 
   let data = {}
-  try { data = await upstream.json() } catch {}
+  try { data = await upstream.json() } catch { /* empty */ }
 
   if (upstream.status === 200 && data.success) {
     return res.status(200).json({ success: true, slug: data.slug, commitUrl: data.commitUrl, postUrl: data.postUrl })
@@ -202,7 +202,7 @@ async function publishToWordPress(res, payload, cred) {
   }
 
   let postData = {}
-  try { postData = await postRes.json() } catch {}
+  try { postData = await postRes.json() } catch { /* empty */ }
 
   if (postRes.status === 201 || postRes.status === 200) {
     return res.status(200).json({

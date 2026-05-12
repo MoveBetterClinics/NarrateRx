@@ -53,7 +53,7 @@ function handleDragStart(e, asset) {
     e.dataTransfer.setData('text/plain', asset.blob_url)
     const thumbImg = e.currentTarget.querySelector('img')
     if (thumbImg) e.dataTransfer.setDragImage(thumbImg, 16, 16)
-  } catch {}
+  } catch { /* empty */ }
 }
 
 // Tailwind breakpoint → column count. Matches the className on the grid
@@ -77,10 +77,7 @@ function columnsAt(width) {
 }
 
 export default function MediaGrid({ assets, selectedId, onSelect, multiSelect = false, selectedIds = [] }) {
-  // The MediaHub renders its own empty state above us now (with proper coaching
-  // and CTAs) — this fallback is just a safety net for any other caller.
-  if (!assets?.length) return null
-
+  // Hooks must come before the early return below (Rules of Hooks).
   const cols = useColumnCount()
   // Button refs keyed by index so the keyboard navigator can call .focus()
   // on the new target. Array is rebuilt on every render — refs themselves
@@ -91,6 +88,7 @@ export default function MediaGrid({ assets, selectedId, onSelect, multiSelect = 
   // the search field lands on the selected/first item rather than walking
   // through all N. ArrowKeys move within the grid from there.
   const [focusedIndex, setFocusedIndex] = useState(() => {
+    if (!assets?.length) return 0
     if (multiSelect) return selectedIds.length ? assets.findIndex(a => a.id === selectedIds[0]) : 0
     return selectedId ? Math.max(0, assets.findIndex(a => a.id === selectedId)) : 0
   })
@@ -98,8 +96,12 @@ export default function MediaGrid({ assets, selectedId, onSelect, multiSelect = 
   // Keep focusedIndex in bounds when the asset list shrinks (e.g. archive
   // removes the row). Without this, an out-of-range index would orphan focus.
   useEffect(() => {
-    if (focusedIndex >= assets.length) setFocusedIndex(Math.max(0, assets.length - 1))
-  }, [assets.length, focusedIndex])
+    if (focusedIndex >= (assets?.length ?? 0)) setFocusedIndex(Math.max(0, (assets?.length ?? 1) - 1))
+  }, [assets?.length, focusedIndex])
+
+  // The MediaHub renders its own empty state above us now (with proper coaching
+  // and CTAs) — this fallback is just a safety net for any other caller.
+  if (!assets?.length) return null
 
   function focusAt(nextIndex) {
     const clamped = Math.max(0, Math.min(assets.length - 1, nextIndex))

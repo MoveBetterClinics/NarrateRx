@@ -70,7 +70,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
           const f = await getMediaAsset(brief.final_asset_id)
           if (alive) setFinal(f)
         }
-      } catch {}
+      } catch { /* empty */ }
     })()
     return () => { alive = false }
   }, [brief.id])
