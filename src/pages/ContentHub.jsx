@@ -5,7 +5,7 @@ import {
   MapPin, ChevronRight, Clock, CheckCircle2, Send, CalendarDays,
   AlertCircle, Loader2, RefreshCw,
   MousePointer2, LayoutTemplate, Youtube, Music2, Megaphone,
-  ThumbsUp,
+  ThumbsUp, Pin,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -27,6 +27,7 @@ const PLATFORM_META = {
   youtube:      { label: 'YouTube Script',  icon: Youtube,       color: 'text-red-600',    bg: 'bg-red-50' },
   tiktok:       { label: 'TikTok / Reels', icon: Music2,        color: 'text-fuchsia-600', bg: 'bg-fuchsia-50' },
   email:        { label: 'Email',           icon: Mail,       color: 'text-teal-600',   bg: 'bg-teal-50' },
+  pinterest:    { label: 'Pinterest',       icon: Pin,        color: 'text-red-500',    bg: 'bg-red-50' },
 }
 
 const STATUS_META = {
@@ -45,7 +46,7 @@ const PLATFORM_GROUPS = [
   ['instagram', 'facebook', 'linkedin', 'gbp'],
   ['instagram_ads'],
   ['google_ads', 'landing_page'],
-  ['youtube', 'tiktok'],
+  ['youtube', 'tiktok', 'pinterest'],
   ['email'],
 ]
 
@@ -100,7 +101,7 @@ export default function ContentHub() {
 
   const needsMedia = filteredItems.filter((i) =>
     ['draft', 'in_review', 'approved'].includes(i.status) &&
-    ['instagram', 'facebook', 'gbp'].includes(i.platform) &&
+    ['instagram', 'facebook', 'gbp', 'pinterest'].includes(i.platform) &&
     (!i.media_urls || i.media_urls.length === 0)
   ).length
 
@@ -251,7 +252,7 @@ function ContentRow({ item }) {
   const Icon = pm.icon
   const preview = item.content?.replace(/[#*_`]/g, '').slice(0, 120)
   const hasMedia = item.media_urls?.length > 0
-  const needsMedia = ['instagram', 'facebook', 'gbp'].includes(item.platform) && !hasMedia
+  const needsMedia = ['instagram', 'facebook', 'gbp', 'pinterest'].includes(item.platform) && !hasMedia
 
   return (
     <Card className="hover:shadow-sm transition-shadow">
