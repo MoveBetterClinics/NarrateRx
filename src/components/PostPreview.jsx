@@ -580,7 +580,7 @@ function EmailPreview({ content, mediaUrls = [] }) {
         srcDoc={filledHtml}
         title="Email Preview"
         style={{ width: '100%', height: 960, border: '1px solid #e2e8f0', borderRadius: 8, display: 'block' }}
-        sandbox="allow-same-origin"
+        sandbox=""
       />
 
       {/* Section copy cards */}
