@@ -673,7 +673,7 @@ export default function ReviewPost() {
               {publishMode === 'schedule' && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs text-muted-foreground">Schedule for</label>
+                    <label htmlFor="schedule-datetime" className="text-xs text-muted-foreground">Schedule for</label>
                     {scheduleSuggestion && (
                       <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
                         scheduleIsCustom
@@ -685,6 +685,7 @@ export default function ReviewPost() {
                     )}
                   </div>
                   <input
+                    id="schedule-datetime"
                     type="datetime-local"
                     value={scheduledAt}
                     onChange={(e) => { setScheduledAt(e.target.value); setScheduleIsCustom(true) }}

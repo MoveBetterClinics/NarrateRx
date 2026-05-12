@@ -578,8 +578,8 @@ export default function InterviewSession() {
 
       {isGenerating && (
         <div className="py-3 shrink-0">
-          <div className="rounded-xl border bg-muted p-4 flex items-center gap-3">
-            <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" />
+          <div className="rounded-xl border bg-muted p-4 flex items-center gap-3" role="status" aria-live="polite">
+            <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" aria-hidden="true" />
             <div className="flex-1">
               <p className="text-sm font-medium">
                 Writing blog post…
@@ -600,19 +600,27 @@ export default function InterviewSession() {
       {!interviewComplete && isOwner && (
         <div className="pt-4 pb-1 shrink-0 flex flex-col items-center gap-3">
           {transcript && (
-            <div className="w-full rounded-xl bg-muted px-4 py-3 text-sm text-foreground/80 italic min-h-[44px]">
+            <div
+              aria-live="polite"
+              aria-label="Transcript"
+              className="w-full rounded-xl bg-muted px-4 py-3 text-sm text-foreground/80 italic min-h-[44px]"
+            >
               "{transcript}"
             </div>
           )}
 
-          <p className="text-xs text-muted-foreground h-4">
+          <p
+            role="status"
+            aria-live="polite"
+            className="text-xs text-muted-foreground h-4"
+          >
             {isStreaming ? '' : isSpeaking ? (
               <span className="flex items-center gap-1.5">
-                <Volume2 className="h-3 w-3 animate-pulse" /> Speaking…
+                <Volume2 className="h-3 w-3 animate-pulse" aria-hidden="true" /> Speaking…
               </span>
             ) : isListening ? (
               <span className="flex items-center gap-1.5 text-red-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" /> Listening — say "done" or tap mic to send
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — say "done" or tap mic to send
               </span>
             ) : 'Tap to speak'}
           </p>
@@ -620,6 +628,8 @@ export default function InterviewSession() {
           <button
             onClick={isListening ? stopListening : startListening}
             disabled={isStreaming || isGenerating || isSpeaking}
+            aria-label={isListening ? 'Stop recording' : 'Start recording'}
+            aria-pressed={isListening}
             className={`h-16 w-16 rounded-full flex items-center justify-center transition-all shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
               ${isListening
                 ? 'bg-red-500 text-white scale-110'
@@ -627,8 +637,8 @@ export default function InterviewSession() {
               } disabled:opacity-30 disabled:cursor-not-allowed disabled:scale-100`}
           >
             {isListening
-              ? <MicOff className="h-6 w-6" />
-              : <Mic className="h-6 w-6" />
+              ? <MicOff className="h-6 w-6" aria-hidden="true" />
+              : <Mic className="h-6 w-6" aria-hidden="true" />
             }
           </button>
         </div>

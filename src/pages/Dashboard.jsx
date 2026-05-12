@@ -602,6 +602,11 @@ function TopicView({ byTopic, existingTopics, currentUserId, workspace }) {
                     key={topic}
                     className="border-b last:border-0 hover:bg-muted/20 cursor-pointer transition-colors"
                     onClick={() => setSelected(selected === topic ? null : topic)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelected(selected === topic ? null : topic) } }}
+                    tabIndex={0}
+                    role="button"
+                    aria-expanded={selected === topic}
+                    aria-label={`${topic} — ${byTopic[topic]?.length ?? 0} interviews`}
                   >
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
