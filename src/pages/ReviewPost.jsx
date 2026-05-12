@@ -13,6 +13,9 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack } from '@/lib/publish'
 import { fetchInterview } from '@/lib/api'
+import { generateContent } from '@/lib/claude'
+import { toast } from '@/lib/toast'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
@@ -67,6 +70,7 @@ function suggestScheduleTime(platform, scheduledItems) {
 }
 
 export default function ReviewPost() {
+  useDocumentTitle('Review post')
   const { itemId }   = useParams()
   const navigate     = useNavigate()
   const { user }     = useUser()
@@ -76,7 +80,7 @@ export default function ReviewPost() {
   const [content, setContent]         = useState('')
   const [loading, setLoading]         = useState(true)
   const [saving, setSaving]           = useState(false)
-  const [saveStatus, setSaveStatus]   = useState('') // '' | 'saving' | 'saved'
+  const [saveStatus, setSaveStatus]   = useState('') // '' | 'saving' | 'saved' | 'error'
   const autoSaveTimer                 = useRef(null)
   const isFirstLoad                   = useRef(true)
   const [publishing, setPublishing]     = useState(false)
@@ -105,8 +109,13 @@ export default function ReviewPost() {
         await updateContentItem(itemId, { content })
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus(''), 2000)
-      } catch {
-        setSaveStatus('')
+      } catch (e) {
+        // Autosave failure used to be a silent catch — user could lose
+        // minutes of edits with no idea anything was wrong. Surface it.
+        setSaveStatus('error')
+        toast.error('Autosave failed', {
+          description: e?.message || 'Your latest edits were not saved. Check your connection and try again.',
+        })
       }
     }, 2000)
 
@@ -245,6 +254,10 @@ export default function ReviewPost() {
 
   async function regenerate() {
     if (!item) return
+    // Stash the pre-regenerate body so the toast can offer one-click undo.
+    // Skip stashing if the content is empty (nothing meaningful to restore)
+    // or hasn't changed from the last AI generation.
+    const prevContent = item.content || ''
     setRegenerating(true)
     setError('')
     setSuccess('')
@@ -282,22 +295,12 @@ export default function ReviewPost() {
         }
       }
 
-      const res = await fetch('/api/generate', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({
-          messages: inputMessages,
-          systemPrompt,
-          ...(platform === 'blog' ? { model: 'claude-opus-4-7' } : {}),
-        }),
-      })
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}))
-        throw new Error(errBody.error || `Generation failed (${res.status})`)
-      }
-      const data = await res.json()
-      const generated = data.content?.[0]?.text || ''
-      if (!generated) throw new Error(data.error || 'No content returned from generation.')
+      const generated = await generateContent(
+        inputMessages,
+        systemPrompt,
+        platform === 'blog' ? { model: 'claude-opus-4-7' } : {},
+      )
+      if (!generated) throw new Error('No content returned from generation.')
 
       const [startMarker, endMarker] = PLATFORM_MARKERS[platform] || [null, null]
       const newContent = extractSection(generated, startMarker, endMarker)
@@ -308,6 +311,32 @@ export default function ReviewPost() {
       setContent(newContent)
       setSuccess('Content regenerated!')
       setTimeout(() => setSuccess(''), 3000)
+
+      // Offer one-click revert if the user didn't want the new version.
+      // The toast persists for 12s — long enough to read the new copy and
+      // decide. Restoring writes the stashed text back via the same
+      // updateContentItem path and refreshes local state.
+      if (prevContent && prevContent !== newContent) {
+        toast.success('Content regenerated', {
+          duration: 12_000,
+          action: {
+            label: 'Undo',
+            onClick: async () => {
+              try {
+                const reverted = await updateContentItem(itemId, {
+                  content: prevContent,
+                  updatedAt: new Date().toISOString(),
+                })
+                setItem(reverted)
+                setContent(prevContent)
+                toast.success('Restored previous version')
+              } catch (e) {
+                toast.error('Could not undo', { description: e.message })
+              }
+            },
+          },
+        })
+      }
     } catch (e) {
       setError(`Regenerate failed: ${e.message}`)
     } finally {
@@ -383,6 +412,7 @@ export default function ReviewPost() {
                 <label className="text-sm font-medium">Content</label>
                 {saveStatus === 'saving' && <span className="text-xs text-muted-foreground">↑ Saving…</span>}
                 {saveStatus === 'saved'  && <span className="text-xs text-green-600">✓ Saved</span>}
+                {saveStatus === 'error'  && <span className="text-xs text-destructive">⚠ Not saved — check your connection</span>}
               </div>
               <div className="flex items-center gap-1">
                 <Button
