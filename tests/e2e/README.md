@@ -56,8 +56,9 @@ MULTITENANT_DATABASE_URL=...   # same value as in your .env.local
 | `E2E_BASE_URL` | optional, defaults `https://movebetter-people.narraterx.ai` | Not sensitive | Playwright `baseURL` |
 | `E2E_WORKSPACE_SLUG` | optional, defaults `movebetter-people` | Not sensitive | seed |
 | `E2E_FIXTURE_CLINICIAN_NAME` | optional, defaults `E2E Smoke Clinician` | Not sensitive | seed + spec |
-| `E2E_TEST_USER_EMAIL` | GHA secret | Mildly sensitive | sign-in |
-| `E2E_TEST_USER_PASSWORD` | GHA secret | **Sensitive** | sign-in |
+| `E2E_TEST_USER_EMAIL` | GHA secret | Mildly sensitive | resolving the Clerk user via Backend API |
+| `E2E_TEST_USER_PASSWORD` | GHA secret | **Sensitive** | break-glass / local UI sign-in only — the workflow doesn't use it |
+| `CLERK_SECRET_KEY` | GHA secret `E2E_CLERK_SECRET_KEY` (prod `sk_live_...`) | **Sensitive** | minting Clerk sign-in tickets server-side |
 | `MULTITENANT_DATABASE_URL` | GHA secret (Supabase **shared pooler** URL) | **Sensitive** | fixture seed |
 
 All sensitive values live in the **NarrateRx** 1Password vault and are
@@ -92,10 +93,12 @@ Playwright uploads its HTML report as a GHA artifact on failure (retention
    Check `OrgGate` in `src/App.jsx` and the Clerk dashboard session-token
    template (must include org claims, per the
    `feedback_clerk_session_token_org_claims` memory).
-3. **Stuck on sign-in screen** → test user got locked, deleted, or removed
-   from the `movebetter-people` Clerk Org in **prod**. Re-create in Clerk
-   dashboard → Production instance → Users, re-invite to org as Member,
-   refresh 1Password + GHA secrets.
+3. **Ticket-exchange / window.Clerk timeout in setup** → either the prod
+   Clerk secret key (`E2E_CLERK_SECRET_KEY`) was rotated without updating
+   the GHA secret, or the test user was deleted/locked. Verify the user
+   exists in Clerk → **Production** → Users. The flow uses Clerk sign-in
+   tickets (Backend API) — the password secret is only used for break-glass
+   local UI sign-in.
 4. **"No access to this workspace" guard** → test user lost org membership.
    Re-invite via Clerk dashboard (prod instance).
 5. **Timed out waiting for Vercel Production** → Vercel didn't post a

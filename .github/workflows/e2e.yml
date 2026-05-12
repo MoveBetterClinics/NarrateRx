@@ -86,7 +86,11 @@ jobs:
           E2E_WORKSPACE_SLUG: movebetter-people
           E2E_FIXTURE_CLINICIAN_NAME: E2E Smoke Clinician
           E2E_TEST_USER_EMAIL: ${{ secrets.E2E_TEST_USER_EMAIL }}
+          # The workflow mints a Clerk sign-in ticket via Backend API and
+          # exchanges it in-browser, so the password is unused here. Keep the
+          # secret around for local break-glass UI sign-in via the README.
           E2E_TEST_USER_PASSWORD: ${{ secrets.E2E_TEST_USER_PASSWORD }}
+          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
         run: npm run e2e
 
       - name: Upload Playwright report
