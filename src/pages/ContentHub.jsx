@@ -5,12 +5,13 @@ import {
   MapPin, ChevronRight, Clock, CheckCircle2, Send, CalendarDays,
   AlertCircle, Loader2, RefreshCw,
   MousePointer2, LayoutTemplate, Clapperboard, Youtube, Music2, Megaphone,
+  ThumbsUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import SharedEmptyState from '@/components/EmptyState'
-import { useContentItems } from '@/lib/queries'
+import { useContentItems, useUpdateContentItem } from '@/lib/queries'
 import { formatRelativeDate } from '@/lib/utils'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
@@ -289,6 +290,9 @@ function ContentRow({ item }) {
           </div>
         </div>
 
+        {/* Exemplar thumbs-up — only meaningful for already-published items */}
+        {item.status === 'published' && <PerformedWellToggle item={item} />}
+
         {/* CTA */}
         <Button asChild variant="ghost" size="sm" className="shrink-0">
           <Link to={`/review/${item.id}`}>
@@ -298,6 +302,25 @@ function ContentRow({ item }) {
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+function PerformedWellToggle({ item }) {
+  const m = useUpdateContentItem()
+  const on = !!item.performed_well
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className={`shrink-0 ${on ? 'text-green-600' : 'text-muted-foreground'}`}
+      disabled={m.isPending}
+      onClick={() => m.mutate({ id: item.id, patch: { performedWell: !on } })}
+      title={on ? 'Marked as performed well — used as AI exemplar' : 'Mark as performed well (used as AI exemplar)'}
+      aria-pressed={on}
+      aria-label="Mark as performed well"
+    >
+      <ThumbsUp className={`h-4 w-4 ${on ? 'fill-current' : ''}`} />
+    </Button>
   )
 }
 
