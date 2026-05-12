@@ -19,8 +19,12 @@ export const config = { maxDuration: 300 }
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-const DEFAULT_LIMIT = 25
-const MAX_LIMIT     = 100
+const DEFAULT_LIMIT = 10
+const MAX_LIMIT     = 25
+// Stop picking up new videos once we've burned this much wall-clock. Leaves
+// ~60s of slack under the 300s maxDuration so the in-flight video has room
+// to finish and the response can flush before Vercel's gateway 504s.
+const DEADLINE_MS   = 240_000
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -60,9 +64,18 @@ async function handler(req, res) {
 
   let succeeded = 0
   let failed = 0
+  let processed = 0
   const errors = []
+  const startedAt = Date.now()
 
   for (const asset of candidates) {
+    // Wall-clock guard: a single large video can take 30s+ end-to-end, so a
+    // count-based cap isn't enough to keep the function under 300s. Bail
+    // before starting another one if we've crossed the deadline; the client
+    // loops until processed=0 so the next request will pick up where this
+    // one left off.
+    if (Date.now() - startedAt > DEADLINE_MS) break
+    processed += 1
     try {
       await generateAndPersistThumbnail(asset, scope)
       succeeded += 1
@@ -74,7 +87,7 @@ async function handler(req, res) {
   }
 
   return res.status(200).json({
-    processed: candidates.length,
+    processed,
     succeeded,
     failed,
     errors,
