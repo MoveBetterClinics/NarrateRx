@@ -1,5 +1,4 @@
 import { generateText } from 'ai'
-import { enforceLimit } from './_lib/ratelimit.js'
 
 export const config = { maxDuration: 60 }
 
@@ -16,8 +15,6 @@ export default async function handler(req, res) {
     res.status(405).json({ error: 'Method not allowed' })
     return
   }
-
-  if (!(await enforceLimit(req, res, 'ai'))) return
 
   let messages, systemPrompt, model
   try {
