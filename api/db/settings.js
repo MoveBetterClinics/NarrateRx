@@ -46,9 +46,10 @@ export default async function handler(req) {
     const userId = req.headers.get('x-user-id')
     if (userId) update.updated_by = userId
 
-    const res = await sb(`clinic_settings?${wsFilter}`, {
-      method: 'PATCH',
-      body: JSON.stringify(update),
+    const res = await sb(`clinic_settings`, {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({ workspace_id: ws.id, ...update }),
     })
     if (!res.ok) return err('Failed to save settings', 500)
     return ok({ success: true })
