@@ -7,13 +7,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { getOrCreateClinician, createInterview, fetchClinicians } from '@/lib/api'
+import { getOrCreateClinician, createInterview } from '@/lib/api'
+import { useClinicians } from '@/lib/queries'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { useWorkspace, useWorkspaceState } from '@/lib/WorkspaceContext'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '@/lib/queries'
 
 export default function NewInterview() {
   useDocumentTitle('New interview')
@@ -21,6 +24,7 @@ export default function NewInterview() {
   const [searchParams] = useSearchParams()
   const { user } = useUser()
   const { getToken } = useAuth()
+  const qc = useQueryClient()
   const workspace = useWorkspace()
   const { role } = useUserRole()
   const isAdmin = role === 'admin'
@@ -42,20 +46,25 @@ export default function NewInterview() {
     ? workspace.locations.filter(l => l.status === 'active')
     : []
   const showLocationPicker = activeLocations.length > 1
-  const [suggestions, setSuggestions] = useState([])
-  const [suggestionsLoading, setSuggestionsLoading] = useState(true)
-
-  useEffect(() => {
-    fetchClinicians()
-      .then((clinicians) => {
-        const existingTopics = clinicians.flatMap((c) =>
-          (c.interviews || []).map((i) => i.topic)
-        )
-        setSuggestions(getSuggestedTopics(workspace, existingTopics))
-      })
-      .catch(() => setSuggestions(getSuggestedTopics(workspace, [])))
-      .finally(() => setSuggestionsLoading(false))
-  }, [])
+  // Shares cache with Dashboard's useClinicians() — if the user navigated
+  // here from Dashboard, the data is already warm and we paint instantly.
+  const { data: cliniciansForSuggestions = [], isLoading: cliniciansLoading } = useClinicians()
+  const existingTopics = cliniciansForSuggestions.flatMap((c) =>
+    (c.interviews || []).map((i) => i.topic),
+  )
+  // Just-added topics in this session — kept local so the admin "Add to
+  // suggestions" affordance can show the chip immediately without waiting
+  // for a workspace-context refetch. Merged with the workspace's persisted
+  // topic_suggestions when deriving the ranked list.
+  const [localAddedSuggestions, setLocalAddedSuggestions] = useState([])
+  const suggestions = getSuggestedTopics(
+    { ...workspace, topic_suggestions: [
+      ...(Array.isArray(workspace?.topic_suggestions) ? workspace.topic_suggestions : []),
+      ...localAddedSuggestions,
+    ] },
+    existingTopics,
+  )
+  const suggestionsLoading = cliniciansLoading
 
   function handleNext() {
     if (step === 1 && clinicianName.trim()) setStep(2)
@@ -140,12 +149,13 @@ export default function NewInterview() {
       }
       toast.success(`Added "${trimmedCondition}" to suggestions`)
       setSuggestionAddedFor(trimmedCondition)
-      // Also reflect locally so the chip shows up in the suggestion sections
-      // immediately, without waiting for a workspace context refresh.
-      setSuggestions((prev) => [
-        ...prev,
-        { ...newRow, interviewCount: 0 },
-      ])
+      // Reflect locally for instant feedback…
+      setLocalAddedSuggestions((prev) => [...prev, newRow])
+      // …and also invalidate the workspace query so the workspace row gets
+      // re-fetched with the new persisted topic_suggestions JSONB. Other
+      // components (ContentHub topic filter, future re-mounts of this page)
+      // pick it up automatically.
+      qc.invalidateQueries({ queryKey: queryKeys.workspace.me })
     } catch (e) {
       toast.error('Could not add topic', { description: e.message })
     } finally {
