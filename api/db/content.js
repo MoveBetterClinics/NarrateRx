@@ -27,6 +27,16 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
+// Log a Supabase non-ok response body to function logs and return a generic
+// 500 to the client. Public response stays opaque (no schema leak); details
+// land in Vercel logs so the next "Database error" report is one log fetch
+// away from a root cause.
+async function dbErr(res, r, msg = 'Database error', status = 500) {
+  const body = await r.text().catch(() => '')
+  console.error(`[db/content] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
+  return res.status(status).json({ error: msg })
+}
+
 const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,notes,reviewed_by,approved_by,performed_well,created_at,updated_at'
 
 export default async function handler(req, res) {
@@ -41,7 +51,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (id) {
       const r = await sb(`content_items?id=eq.${id}&${wsFilter}&select=${SELECT}`)
-      if (!r.ok) return err(res, 'Database error', 500)
+      if (!r.ok) return dbErr(res, r)
       const data = await r.json()
       return ok(res, data[0] ?? null)
     }
@@ -62,7 +72,7 @@ export default async function handler(req, res) {
     if (interviewId) qs += `&interview_id=eq.${interviewId}`
 
     const r = await sb(qs)
-    if (!r.ok) return err(res, 'Database error', 500)
+    if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }
 
@@ -79,7 +89,7 @@ export default async function handler(req, res) {
         method: 'POST',
         body: JSON.stringify(rows),
       })
-      if (!r.ok) return err(res, 'Insert failed', 500)
+      if (!r.ok) return dbErr(res, r, 'Insert failed')
       return ok(res, await r.json(), 201)
     }
 
@@ -93,7 +103,7 @@ export default async function handler(req, res) {
       method: 'POST',
       body: JSON.stringify(row),
     })
-    if (!r.ok) return err(res, 'Insert failed', 500)
+    if (!r.ok) return dbErr(res, r, 'Insert failed')
     const data = await r.json()
     return ok(res, data[0], 201)
   }
@@ -129,7 +139,7 @@ export default async function handler(req, res) {
       method: 'PATCH',
       body: JSON.stringify(body),
     })
-    if (!r.ok) return err(res, 'Update failed', 500)
+    if (!r.ok) return dbErr(res, r, 'Update failed')
     const data = await r.json()
     return ok(res, data[0])
   }
@@ -140,7 +150,7 @@ export default async function handler(req, res) {
 
     if (!id) return err(res, 'Missing id')
     const r = await sb(`content_items?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
-    if (!r.ok) return err(res, 'Delete failed', 500)
+    if (!r.ok) return dbErr(res, r, 'Delete failed')
     return ok(res, { deleted: true })
   }
 
