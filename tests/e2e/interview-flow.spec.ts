@@ -14,14 +14,9 @@
 // smoke after deploy.
 
 import { test, expect } from '@playwright/test'
-import { setupClerkTestingToken } from '@clerk/testing/playwright'
 
 const WORKSPACE_SLUG = process.env.E2E_WORKSPACE_SLUG || 'movebetter-people'
 const FIXTURE_CLINICIAN = process.env.E2E_FIXTURE_CLINICIAN_NAME || 'E2E Smoke Clinician'
-
-test.beforeEach(async ({ page }) => {
-  await setupClerkTestingToken({ page })
-})
 
 test('interview create flow + integrations page', async ({ page }) => {
   // ── 1. Dashboard ─────────────────────────────────────────────────────────
