@@ -70,7 +70,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt }) {
         <div>
           <h2 className="text-base font-semibold">Content Plan</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {totalAtoms} atoms across {Object.keys(byPlatform).length} platforms — draft each on demand and trickle out over 4 weeks.
+            {totalAtoms} atoms across {Object.keys(byPlatform).length} platforms — drafts auto-schedule to the week shown so they trickle out over 4 weeks.
           </p>
         </div>
         <div className="flex gap-2 text-xs text-muted-foreground shrink-0">
@@ -160,7 +160,7 @@ function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip
           </Badge>
           {isDrafted && (
             <Badge className="text-xs bg-green-100 text-green-700 border-0 px-1.5 py-0">
-              Drafted
+              Drafted · scheduled {dateHint || `Week ${atom.slot}`}
             </Badge>
           )}
         </div>

@@ -7,6 +7,7 @@ import { generateText } from 'ai'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
+import { suggestedScheduledAt } from '../_lib/atomPlan.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -56,9 +57,9 @@ export default async function handler(req, res) {
   })
 
   try {
-    // Fetch the interview (blog post + metadata)
+    // Fetch the interview (blog post + metadata, + created_at for slot anchoring)
     const ivRes = await sb(
-      `interviews?id=eq.${atom.interview_id}&${wsFilter}&select=outputs,topic,tone,voice_mode,clinician_id,location_id`
+      `interviews?id=eq.${atom.interview_id}&${wsFilter}&select=outputs,topic,tone,voice_mode,clinician_id,location_id,created_at`
     )
     if (!ivRes.ok) throw new Error('Could not fetch interview')
     const ivRows = await ivRes.json()
@@ -100,7 +101,10 @@ export default async function handler(req, res) {
 
     if (!text?.trim()) throw new Error('AI returned empty content')
 
-    // Create the content_item
+    // Create the content_item. Auto-anchor the suggested publish date based on
+    // the atom's slot (interview.created_at + (slot - 1) weeks) so drafted
+    // atoms land on the calendar at the cadence the Plan implies. Clinician
+    // can always override before scheduling.
     const itemPayload = {
       workspace_id:   ws.id,
       interview_id:   atom.interview_id,
@@ -110,6 +114,7 @@ export default async function handler(req, res) {
       platform:       atom.platform,
       content:        text.trim(),
       status:         'draft',
+      scheduled_at:   suggestedScheduledAt(interview.created_at, atom.slot),
       media_urls:     [],
       location_id:    interview.location_id ?? null,
     }
