@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import {
@@ -89,23 +89,40 @@ export default function Dashboard() {
     return () => { cancelled = true }
   }, [role, getToken])
 
-  const allInterviews = clinicians.flatMap((c) =>
-    (c.interviews || []).map((i) => ({ ...i, clinicianName: c.name, clinicianId: c.id }))
+  const allInterviews = useMemo(
+    () => clinicians.flatMap((c) =>
+      (c.interviews || []).map((i) => ({ ...i, clinicianName: c.name, clinicianId: c.id }))
+    ),
+    [clinicians]
   )
-  const completedCount = allInterviews.filter((i) => i.status === 'completed').length
-
-  const byInterviewer = groupBy(allInterviews, (i) => i.owner_email || 'unknown')
-  const byTopic = groupBy(allInterviews, (i) => i.topic)
-
-  const existingTopics = allInterviews.map((i) => i.topic)
-  const topicGaps = getSuggestedTopics(runtimeWorkspace, existingTopics)
-    .filter((t) => t.interviewCount === 0 && t.priority !== 'low')
-    .slice(0, 8)
-
-  const now = Date.now()
-  const resumeInterviews = allInterviews
-    .filter((i) => i.status !== 'completed' && i.updated_at && (now - new Date(i.updated_at).getTime()) <= RESUME_WINDOW_MS)
-    .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+  const completedCount = useMemo(
+    () => allInterviews.filter((i) => i.status === 'completed').length,
+    [allInterviews]
+  )
+  const byInterviewer = useMemo(
+    () => groupBy(allInterviews, (i) => i.owner_email || 'unknown'),
+    [allInterviews]
+  )
+  const byTopic = useMemo(
+    () => groupBy(allInterviews, (i) => i.topic),
+    [allInterviews]
+  )
+  const existingTopics = useMemo(
+    () => allInterviews.map((i) => i.topic),
+    [allInterviews]
+  )
+  const topicGaps = useMemo(
+    () => getSuggestedTopics(runtimeWorkspace, existingTopics)
+      .filter((t) => t.interviewCount === 0 && t.priority !== 'low')
+      .slice(0, 8),
+    [existingTopics, runtimeWorkspace]
+  )
+  const resumeInterviews = useMemo(() => {
+    const now = Date.now()
+    return allInterviews
+      .filter((i) => i.status !== 'completed' && i.updated_at && (now - new Date(i.updated_at).getTime()) <= RESUME_WINDOW_MS)
+      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+  }, [allInterviews])
 
   if (loading) {
     return (

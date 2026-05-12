@@ -61,7 +61,7 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
       {m.type === 'video' ? (
         <div className="absolute inset-0 bg-slate-900 flex flex-col items-center justify-center gap-2">
           {src ? (
-            <img src={src} alt={m.name} className="w-full h-full object-cover opacity-70" onError={(e) => { e.target.style.display = 'none' }} />
+            <img src={src} alt={m.name} className="w-full h-full object-cover opacity-70" loading="lazy" decoding="async" onError={(e) => { e.target.style.display = 'none' }} />
           ) : null}
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="h-12 w-12 rounded-full bg-black/50 flex items-center justify-center">
@@ -71,7 +71,7 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
           <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-white/60 px-4 line-clamp-1">{m.name}</p>
         </div>
       ) : src ? (
-        <img src={src} alt={m.name} className="absolute inset-0 w-full h-full object-cover" />
+        <img src={src} alt={m.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" />
       ) : (
         <div className="absolute inset-0 bg-muted flex items-center justify-center">
           <p className="text-xs text-muted-foreground">{m.name}</p>

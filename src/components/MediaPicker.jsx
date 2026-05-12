@@ -176,7 +176,7 @@ export default function MediaPicker({ onSelect, onClose }) {
                         {a.kind === 'video' ? (
                           <div className="relative h-full w-full">
                             {previewSrc ? (
-                              <img src={previewSrc} alt={a.filename} className="w-full h-full object-cover" />
+                              <img src={previewSrc} alt={a.filename} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                             ) : (
                               <div className="h-full bg-slate-800 flex flex-col items-center justify-center gap-1 px-1">
                                 <Video className="h-6 w-6 text-slate-400 shrink-0" />
@@ -190,7 +190,7 @@ export default function MediaPicker({ onSelect, onClose }) {
                             </div>
                           </div>
                         ) : previewSrc ? (
-                          <img src={previewSrc} alt={a.filename} className="w-full h-full object-cover" />
+                          <img src={previewSrc} alt={a.filename} className="w-full h-full object-cover" loading="lazy" decoding="async" />
                         ) : (
                           <div className="h-full bg-muted flex items-center justify-center">
                             <Image className="h-6 w-6 text-muted-foreground" />

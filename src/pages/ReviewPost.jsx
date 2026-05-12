@@ -555,14 +555,14 @@ export default function ReviewPost() {
                       {/* Thumbnail */}
                       {m.type === 'video' ? (
                         <div className="absolute inset-0 bg-slate-800 flex flex-col items-center justify-center gap-1 px-1">
-                          {imgSrc && <img src={imgSrc} alt={m.name} className="absolute inset-0 w-full h-full object-cover opacity-50" onError={(e) => { e.target.style.display='none' }} />}
+                          {imgSrc && <img src={imgSrc} alt={m.name} className="absolute inset-0 w-full h-full object-cover opacity-50" loading="lazy" decoding="async" onError={(e) => { e.target.style.display='none' }} />}
                           <div className="relative z-10 flex flex-col items-center gap-1">
                             <Play className="h-6 w-6 text-white" />
                             <span className="text-[9px] text-white/70 text-center line-clamp-2 px-1">{m.name}</span>
                           </div>
                         </div>
                       ) : (
-                        <img src={imgSrc} alt={m.name} className="absolute inset-0 w-full h-full object-cover" />
+                        <img src={imgSrc} alt={m.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" />
                       )}
 
                       {/* Position badge */}
