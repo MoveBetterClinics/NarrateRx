@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX } from 'lucide-react'
+import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/EmptyState'
@@ -11,7 +11,8 @@ import ContentBriefList from '@/components/ContentBriefList'
 import CollectionsBar from '@/components/CollectionsBar'
 import BulkActionBar from '@/components/BulkActionBar'
 import MediaHubHelp from '@/components/MediaHubHelp'
-import { listMedia, getMediaAsset } from '@/lib/mediaLib'
+import { listMedia, getMediaAsset, backfillThumbnails } from '@/lib/mediaLib'
+import { toast } from '@/lib/toast'
 import { useMediaInfinite, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUserRole } from '@/lib/useUserRole'
@@ -34,7 +35,7 @@ const STATUS_FILTERS = [
 export default function MediaHub() {
   useDocumentTitle('Media')
   const { user } = useUser()
-  const { canUpload, canEdit } = useUserRole()
+  const { canUpload, canEdit, role } = useUserRole()
   const qc = useQueryClient()
   const [kind, setKind]         = useState('')
   const [status, setStatus]     = useState('')
@@ -90,6 +91,42 @@ export default function MediaHub() {
     qc.invalidateQueries({ queryKey: queryKeys.media.all })
     refetchMedia()
   }, [qc, refetchMedia])
+
+  // Admin-only one-click backfill for legacy videos uploaded before the
+  // auto-thumbnail path landed (#159). Pages internally until the API
+  // reports nothing left to process, then refreshes the grid so the new
+  // thumbnails appear in place of the generic film-strip placeholder.
+  const [backfilling, setBackfilling] = useState(false)
+  const onBackfillThumbnails = useCallback(async () => {
+    if (backfilling) return
+    setBackfilling(true)
+    try {
+      let totalSucceeded = 0
+      let totalFailed = 0
+      // Loop until a pass returns processed=0. Each call processes up to 100
+      // videos sequentially on the server, so this finishes fast even for
+      // large backlogs.
+      for (let pass = 0; pass < 50; pass++) {
+        const r = await backfillThumbnails(100)
+        totalSucceeded += r?.succeeded ?? 0
+        totalFailed    += r?.failed    ?? 0
+        if (!r || (r.processed ?? 0) === 0) break
+      }
+      refresh()
+      if (totalSucceeded === 0 && totalFailed === 0) {
+        toast.success('All videos already have thumbnails')
+      } else {
+        toast.success(
+          `Backfilled ${totalSucceeded} thumbnail${totalSucceeded === 1 ? '' : 's'}` +
+          (totalFailed ? ` · ${totalFailed} failed` : '')
+        )
+      }
+    } catch (e) {
+      toast.error('Backfill failed', { description: e?.message || 'See server logs' })
+    } finally {
+      setBackfilling(false)
+    }
+  }, [backfilling, refresh])
 
   // Walk every remaining page of the current filter and mark the full
   // result set as selected. Without this, "Select all" would only cover the
@@ -280,6 +317,20 @@ export default function MediaHub() {
           >
             <CheckSquare className="h-3.5 w-3.5" />
             {multiSelectMode ? 'Exit select' : 'Select'}
+          </Button>
+        )}
+
+        {role === 'admin' && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onBackfillThumbnails}
+            disabled={backfilling}
+            className="h-7 gap-1.5 text-[11px] rounded-full"
+            title="Generate missing thumbnails for older videos"
+          >
+            {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
+            {backfilling ? 'Backfilling…' : 'Backfill video thumbnails'}
           </Button>
         )}
       </div>
