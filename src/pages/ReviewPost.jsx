@@ -778,6 +778,10 @@ export default function ReviewPost() {
             </div>
           )}
 
+          {isPublished && item.buffer_update_id && (
+            <EngagementPanel itemId={itemId} platform={item.platform} />
+          )}
+
           {isPublished && (
             <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center space-y-2">
               <CheckCircle2 className="h-8 w-8 text-green-600 mx-auto" />
@@ -838,6 +842,100 @@ export default function ReviewPost() {
           onClose={() => setShowPicker(false)}
           topic={item.topic}
         />
+      )}
+    </div>
+  )
+}
+
+// Tier 2a engagement panel. Shows the most recent Buffer-side stats for this
+// content item (latest engagement_snapshots row) and lets the editor refresh
+// them on demand. Mounted only when buffer_update_id is set — Buffer is the
+// only source we support today; GA4 / native platform pulls come later.
+function EngagementPanel({ itemId, platform }) {
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [snapshot, setSnapshot] = useState(null)
+  const [err, setErr] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    fetch(`/api/engagement/latest?contentItemId=${encodeURIComponent(itemId)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled) setSnapshot(data?.snapshot || null) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [itemId])
+
+  async function onRefresh() {
+    setRefreshing(true)
+    setErr(null)
+    try {
+      const r = await fetch('/api/engagement/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentItemId: itemId }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data?.error || `Refresh failed (${r.status})`)
+      setSnapshot(data.snapshot)
+      toast.success('Engagement refreshed')
+    } catch (e) {
+      setErr(e?.message || 'Refresh failed')
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
+  const stats = snapshot?.stats?.statistics || {}
+  const hasAnyStat = Object.values(stats).some(v => typeof v === 'number' && v > 0)
+
+  return (
+    <div className="rounded-xl border bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-sm font-medium">Engagement</p>
+        <Button size="sm" variant="outline" onClick={onRefresh} disabled={refreshing}>
+          <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+
+      {loading && <p className="text-xs text-muted-foreground">Loading…</p>}
+
+      {!loading && !snapshot && (
+        <p className="text-xs text-muted-foreground">
+          No engagement data yet. Click <span className="font-medium">Refresh</span> to pull the latest stats from Buffer.
+        </p>
+      )}
+
+      {!loading && snapshot && !hasAnyStat && (
+        <p className="text-xs text-muted-foreground">
+          Buffer reports no engagement on this post yet — give it a day or two and refresh again.
+        </p>
+      )}
+
+      {!loading && snapshot && hasAnyStat && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {Object.entries(stats)
+            .filter(([, v]) => typeof v === 'number')
+            .map(([k, v]) => (
+              <div key={k} className="rounded-md bg-muted/40 px-2.5 py-1.5">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{k.replace(/_/g, ' ')}</p>
+                <p className="text-sm font-semibold tabular-nums">{v}</p>
+              </div>
+            ))}
+        </div>
+      )}
+
+      {snapshot?.fetched_at && (
+        <p className="text-[11px] text-muted-foreground">
+          Last pulled {formatDate(snapshot.fetched_at)} · source: {snapshot.source}
+        </p>
+      )}
+
+      {err && (
+        <p className="text-xs text-destructive">{err}</p>
       )}
     </div>
   )
