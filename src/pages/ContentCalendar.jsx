@@ -11,8 +11,16 @@ function startOfMonth(date) {
 function daysInMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
 }
+// Local-timezone YYYY-MM-DD. toISOString() converts to UTC first, which
+// flips the date forward an hour-or-so before midnight in any negative-UTC
+// timezone — e.g. 23:30 PT on May 11 becomes "2026-05-12" via toISOString.
+// That made the calendar grid off-by-one near midnight and could include or
+// exclude items from a queried range. Pad date parts directly instead.
 function isoDate(date) {
-  return date.toISOString().slice(0, 10)
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
 }
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
