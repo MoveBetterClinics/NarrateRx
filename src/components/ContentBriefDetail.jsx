@@ -1,13 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Loader2, Sparkles, Upload as UploadIcon, Check, Trash2, AlertTriangle } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useUser } from '@clerk/clerk-react'
+import { X, Loader2, Sparkles, Upload as UploadIcon, Check, Trash2, AlertTriangle, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { updateContentPiece, deleteContentPiece } from '@/lib/contentLib'
 import { uploadMedia, getMediaAsset } from '@/lib/mediaLib'
+import { dispatchBrief, BUFFER_DISPATCH_PLATFORMS } from '@/lib/publish'
+import { queryKeys } from '@/lib/queries'
 
-const PLATFORMS = ['reels', 'feed', 'story', 'shorts', 'tiktok', 'gbp', 'newsletter']
+// Target platform options. The Buffer-dispatchable subset is what the publish
+// workbench can actually push to; non-Buffer values (reels/feed/story/shorts/
+// newsletter) are kept here so historic briefs still render their target.
+const PLATFORMS = [
+  'instagram', 'facebook', 'linkedin', 'twitter', 'threads',
+  'tiktok', 'youtube_short', 'pinterest', 'bluesky', 'mastodon',
+  'gbp',
+  'newsletter',
+]
 
 // Edit-brief detail modal. Renders a single content_piece with edit fields,
 // the source clip preview, and the actions: accept, reject, mark in-progress,
@@ -16,6 +28,8 @@ const PLATFORMS = ['reels', 'feed', 'story', 'shorts', 'tiktok', 'gbp', 'newslet
 // `brief` is the current content_pieces row, `onClose` dismisses, `onChange`
 // is fired after any state change so the parent list refreshes.
 export default function ContentBriefDetail({ brief, onClose, onChange }) {
+  const qc = useQueryClient()
+  const { user } = useUser()
   const [source, setSource] = useState(null)
   const [final, setFinal]   = useState(null)
   const [caption, setCaption]     = useState(brief.final_caption ?? brief.ai_caption ?? '')
@@ -28,6 +42,9 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
   const [saved, setSaved]         = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError]         = useState('')
+  const [publishing, setPublishing] = useState(false)
+  const [publishMode, setPublishMode] = useState('now')   // 'now' | 'schedule'
+  const [scheduledAt, setScheduledAt] = useState('')
   const fileRef                   = useRef(null)
 
   useEffect(() => {
@@ -97,6 +114,50 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
     } catch (e) {
       setError(e.message)
       setSaving(false)
+    }
+  }
+
+  // Compose the post body the dispatcher will send. Same shape ReviewPost emits.
+  function composedContent() {
+    const parts = []
+    if (caption.trim()) parts.push(caption.trim())
+    const tags = splitTags(hashtags)
+    if (tags.length) parts.push(tags.join(' '))
+    if (ctaText.trim()) parts.push(ctaUrl.trim() ? `${ctaText.trim()} ${ctaUrl.trim()}` : ctaText.trim())
+    return parts.join('\n\n')
+  }
+
+  async function handlePublish() {
+    if (!platform) { setError('Pick a target platform first'); return }
+    if (!BUFFER_DISPATCH_PLATFORMS.includes(platform)) {
+      setError(`Platform "${platform}" isn't wired for direct dispatch yet. Save the brief and publish manually.`)
+      return
+    }
+    const asset = final || source
+    if (!asset?.blob_url) { setError('Upload a final file (or use the source clip) before dispatching'); return }
+    if (publishMode === 'schedule' && !scheduledAt) { setError('Pick a schedule time'); return }
+
+    setPublishing(true); setError('')
+    try {
+      await saveDraft()
+      const effectiveScheduledAt = publishMode === 'schedule' ? new Date(scheduledAt).toISOString() : null
+      const { item } = await dispatchBrief({
+        brief: { ...brief, target_platform: platform },
+        asset,
+        composedContent: composedContent(),
+        scheduledAt: effectiveScheduledAt,
+        userId: user?.primaryEmailAddress?.emailAddress,
+      })
+      await updateContentPiece(brief.id, {
+        status: 'published',
+        publishedTargetId: item.id,
+      })
+      qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      onChange?.()
+    } catch (e) {
+      setError(`Publish failed: ${e.message}`)
+    } finally {
+      setPublishing(false)
     }
   }
 
@@ -237,6 +298,51 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
                 </div>
               )}
             </div>
+
+            {/* Publish workbench — visible once a target platform is set and we
+                have a clip to attach. Routes through api/publish/buffer.js so
+                this surface stays in sync with ReviewPost's dispatch path. */}
+            {brief.status !== 'published' && (
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <div className="text-xs font-medium">Publish</div>
+                    <div className="text-[11px] text-muted-foreground">
+                      Dispatches via Buffer using this workspace's credentials. The finished file (or source clip) is attached as the post media.
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => setPublishMode('now')}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border ${publishMode === 'now' ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border'}`}
+                    >Now</button>
+                    <button
+                      onClick={() => setPublishMode('schedule')}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border ${publishMode === 'schedule' ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border'}`}
+                    >Schedule</button>
+                  </div>
+                </div>
+                {publishMode === 'schedule' && (
+                  <Input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    className="h-8 text-sm w-fit"
+                  />
+                )}
+                <div className="flex items-center justify-end">
+                  <Button
+                    size="sm"
+                    onClick={handlePublish}
+                    disabled={publishing || saving || !platform}
+                  >
+                    {publishing
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Publishing</>
+                      : <><Send className="h-3.5 w-3.5 mr-1.5" />{publishMode === 'schedule' ? 'Schedule' : 'Publish now'}</>}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             {error && <div className="text-sm text-destructive">{error}</div>}
           </div>

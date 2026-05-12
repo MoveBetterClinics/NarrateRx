@@ -106,6 +106,60 @@ export async function publishBlogToWebsite(post) {
   return json
 }
 
+// Universal Buffer-eligible platform list — exposed so workbench UIs know which
+// targets they can dispatch to. Mirrors PLATFORM_TO_SERVICE in api/publish/buffer.js.
+export const BUFFER_DISPATCH_PLATFORMS = BUFFER_PLATFORMS
+
+// ── Workbench dispatch (Media Hub editor briefs) ─────────────────────────────
+// Materializes an edit brief into a content_items row and pushes it through the
+// universal api/publish/buffer.js endpoint. Returns the new content_items row.
+//
+// Keeps content_items as the canonical published-post record while leaving the
+// brief (content_pieces row) intact as the editor's draft surface — callers
+// stamp brief.status='published' + published_target_id=<item.id> afterward.
+export async function dispatchBrief({
+  brief,
+  asset,            // media_assets row for the final or source clip
+  composedContent,  // caption + hashtags + cta string, prepared by the workbench
+  scheduledAt,      // ISO string | null
+  locationIds,      // optional, gbp only
+  userId,
+}) {
+  if (!brief?.target_platform) throw new Error('Pick a target platform first')
+  if (!composedContent?.trim()) throw new Error('Empty post body')
+
+  const mediaUrls = asset?.blob_url
+    ? [{ url: asset.blob_url, type: asset.kind === 'video' ? 'video' : 'photo' }]
+    : []
+
+  // 1. Create the canonical content_items row.
+  const [created] = await apiFetch('/api/db/content', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify([{
+      platform: brief.target_platform,
+      content: composedContent,
+      status: scheduledAt ? 'scheduled' : 'draft',
+      media_urls: mediaUrls,
+      scheduled_at: scheduledAt || null,
+      notes: `Dispatched from brief ${brief.id}`,
+    }]),
+  })
+  if (!created?.id) throw new Error('Failed to create content item')
+
+  // 2. Dispatch through Buffer (no parallel dispatcher logic).
+  const item = {
+    id: created.id,
+    platform: brief.target_platform,
+    content: composedContent,
+    mediaUrls,
+    scheduledAt,
+    locationIds: brief.target_platform === 'gbp' ? locationIds : undefined,
+  }
+  const result = await publishAndTrack(item, userId)
+  return { item: created, result }
+}
+
 // Publish one item to all relevant platforms at once
 export async function publishAndTrack(item, userId) {
   const result = await publishItem(item, { scheduledAt: item.scheduledAt })
