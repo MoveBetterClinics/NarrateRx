@@ -563,3 +563,23 @@ CREATIVE NOTES:
 - Recommend a real photo of ${workspace.display_name} clinicians or patients in motion over stock${campaignContext}
 ${getToneModifier(tone, workspace)}`
 }
+
+
+// ── Exemplar block — Tier 1 of the feedback loop ──────────────────────────
+//
+// Renders a "use these as style references" section from editor-flagged
+// posts. Returns empty string when the pool is empty (common at first), so
+// callers can append unconditionally:
+//
+//   const exemplars = await fetchTopExemplars({ platform })
+//   const prompt = base + getExemplarsBlock(exemplars)
+//
+// Kept terse on purpose — verbose "STYLE GUIDE" framing makes models mimic
+// surface phrases. We want them to absorb voice, not parrot.
+export function getExemplarsBlock(exemplars) {
+  if (!Array.isArray(exemplars) || exemplars.length === 0) return ""
+  const samples = exemplars
+    .map((e, i) => `[Example ${i + 1}]\n${e.content}`)
+    .join("\n\n")
+  return `\n\n---EXEMPLARS---\nThese past posts performed well with our audience. Match their voice and rhythm — do not copy phrasing:\n\n${samples}\n`
+}

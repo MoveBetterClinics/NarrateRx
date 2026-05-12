@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react'
 import {
   ArrowLeft, Send, CalendarDays, CheckCircle2, Loader2, Copy, Check,
   AlertCircle, Image, Trash2, ExternalLink, Eye, Pencil,
-  ChevronLeft, ChevronRight, Play, Video, RefreshCw, RotateCcw,
+  ChevronLeft, ChevronRight, Play, Video, RefreshCw, RotateCcw, ThumbsUp,
 } from 'lucide-react'
 import PostPreview from '@/components/PostPreview'
 import { Button } from '@/components/ui/button'
@@ -776,6 +776,22 @@ export default function ReviewPost() {
               <p className="text-sm font-medium text-green-800">Published</p>
               {item.published_at && <p className="text-xs text-green-700">{formatDate(item.published_at)}</p>}
               {item.platform_post_id && <p className="text-xs text-muted-foreground font-mono">{item.platform_post_id}</p>}
+
+              <Button
+                variant={item.performed_well ? 'default' : 'outline'}
+                size="sm"
+                className={`mt-2 ${item.performed_well ? 'bg-green-600 hover:bg-green-700' : ''}`}
+                onClick={async () => {
+                  const next = !item.performed_well
+                  const updated = await updateContentItem(itemId, { performedWell: next })
+                  qc.setQueryData(queryKeys.contentItems.detail(itemId), updated)
+                  qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+                  toast.success(next ? 'Marked as performed well — will be used as AI exemplar' : 'Unmarked')
+                }}
+              >
+                <ThumbsUp className={`h-4 w-4 mr-1.5 ${item.performed_well ? 'fill-current' : ''}`} />
+                {item.performed_well ? 'Performed well' : 'Mark as performed well'}
+              </Button>
             </div>
           )}
 
