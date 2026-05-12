@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Trash2, Plus, Star } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Trash2, Plus, Star, Upload, Image as ImageIcon } from 'lucide-react'
 import CredentialForm from '@/components/CredentialForm'
+import MediaPicker from '@/components/MediaPicker'
 import { useUserRole } from '@/lib/useUserRole'
 import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
@@ -337,14 +338,14 @@ export default function WorkspaceSettings() {
 
       <Section
         title="Brand assets"
-        description="Logos, colors, and brandbook reference. Used for link previews, social avatars, and image generation. Paste hosted URLs (Vercel Blob, Drive share, etc.)."
+        description="Logos, colors, and brandbook reference. Used for link previews, social avatars, and image generation. Logo uploads are stored in your Media library."
       >
-        <Field label="Logo URL (main)"
+        <LogoField label="Logo (main)"
           value={form.logo_main} onChange={set('logo_main')}
-          placeholder="https://..." hint="Wordmark / horizontal logo for headers and link previews." />
-        <Field label="Logo URL (icon)"
+          hint="Wordmark / horizontal logo for headers and link previews." />
+        <LogoField label="Logo (icon)"
           value={form.logo_icon} onChange={set('logo_icon')}
-          placeholder="https://..." hint="Square mark for social avatars and favicons." />
+          hint="Square mark for social avatars and favicons." />
         <Field label="Primary color"
           value={form.color_primary} onChange={set('color_primary')}
           placeholder="#E36525" hint="Hex code (e.g. #E36525)." />
@@ -646,6 +647,56 @@ function Field({ label, value, onChange, placeholder, hint }) {
         className="text-sm"
       />
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+    </div>
+  )
+}
+
+// Asset field that opens the Media Hub picker. Uploads flow through
+// /api/media/upload like any Media Hub upload — logos are tagged, searchable,
+// and never orphaned. We store the rendered URL on the workspace; the asset
+// row stays in media_assets as the source of truth.
+function LogoField({ label, value, onChange, hint }) {
+  const [pickerOpen, setPickerOpen] = useState(false)
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{label}</Label>
+      <div className="flex items-start gap-3">
+        {value ? (
+          <div className="h-16 w-16 rounded border border-input bg-muted/30 overflow-hidden shrink-0 flex items-center justify-center">
+            <img src={value} alt={label} className="h-full w-full object-contain" />
+          </div>
+        ) : (
+          <div className="h-16 w-16 rounded border border-dashed border-input bg-muted/20 flex items-center justify-center shrink-0">
+            <ImageIcon className="h-5 w-5 text-muted-foreground/60" />
+          </div>
+        )}
+        <div className="flex-1 min-w-0 space-y-1">
+          <div className="flex items-center gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+              {value ? 'Replace' : 'Upload'}
+            </Button>
+            {value && (
+              <Button type="button" size="sm" variant="ghost" onClick={() => onChange('')}>
+                Remove
+              </Button>
+            )}
+          </div>
+          {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+          {value && (
+            <p className="text-[11px] text-muted-foreground font-mono truncate" title={value}>{value}</p>
+          )}
+        </div>
+      </div>
+      {pickerOpen && (
+        <MediaPicker
+          onClose={() => setPickerOpen(false)}
+          onSelect={(asset) => {
+            onChange(asset.url)
+            setPickerOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }
