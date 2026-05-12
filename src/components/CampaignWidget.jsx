@@ -138,7 +138,7 @@ export function CampaignModeChip() {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[360px] rounded-xl border bg-white shadow-lg z-50 p-4 space-y-3">
+        <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-[calc(100vw-1rem)] sm:w-[360px] rounded-xl border bg-white shadow-lg z-50 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Content Focus</p>
             {saving && <span className="text-[11px] text-muted-foreground">Saving…</span>}

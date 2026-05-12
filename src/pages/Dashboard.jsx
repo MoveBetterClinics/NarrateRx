@@ -410,7 +410,7 @@ function LaunchpadTiles({ cliniciansCount, interviewsCount, completedCount }) {
       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
         App
       </p>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {tiles.map((t) => (
           <Link
             key={t.to}
@@ -585,8 +585,8 @@ function TopicView({ byTopic, existingTopics, currentUserId, workspace }) {
         <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-4">
           Interview Count by Topic
         </h2>
-        <div className="rounded-xl border overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="w-full text-sm min-w-[320px]">
             <thead>
               <tr className="bg-muted/40 border-b">
                 <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">Topic</th>
