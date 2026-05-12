@@ -9,7 +9,7 @@
 // can launch already-signed-in.
 
 import { test as setup, expect } from '@playwright/test'
-import { clerk, clerkSetup } from '@clerk/testing/playwright'
+import { clerk, clerkSetup, setupClerkTestingToken } from '@clerk/testing/playwright'
 import path from 'node:path'
 import fs from 'node:fs'
 
@@ -27,6 +27,11 @@ setup('authenticate fixture user', async ({ page }) => {
   }
 
   await clerkSetup()
+  // Required per-page: installs route interception that injects the testing
+  // token onto Clerk Frontend API requests so Clerk's bot protection lets
+  // window.Clerk initialize. Without this, page.goto loads the SPA but
+  // window.Clerk never appears and clerk.signIn() hangs.
+  await setupClerkTestingToken({ page })
 
   // Navigating to the workspace-overridden home loads Clerk on the right host
   // and triggers the SignedOut SignIn component.
