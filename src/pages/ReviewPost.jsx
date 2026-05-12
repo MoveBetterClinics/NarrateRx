@@ -19,7 +19,8 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/queries'
-import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt } from '@/lib/prompts'
+import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt, getExemplarsBlock } from '@/lib/prompts'
+import { fetchTopExemplars } from '@/lib/exemplars'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { PLATFORM_META, STATUS_META } from './ContentHub'
@@ -329,6 +330,13 @@ export default function ReviewPost() {
           systemPrompt = getMarketingBatchSystemPrompt(ws, clinicianName, condition, '', tone, prototypeId)
         }
       }
+
+      // Append "performed well" exemplars (Tier 1 feedback loop). Only kicks
+      // in once editors have thumbs-upped a few posts for this platform; the
+      // helper returns an empty string when the pool is empty so this is a
+      // no-op until the signal exists.
+      const exemplars = await fetchTopExemplars({ platform })
+      systemPrompt = systemPrompt + getExemplarsBlock(exemplars)
 
       const generated = await generateContent(
         inputMessages,
