@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import SharedEmptyState from '@/components/EmptyState'
-import { fetchContentItems } from '@/lib/publish'
+import { useContentItems } from '@/lib/queries'
 import { formatRelativeDate } from '@/lib/utils'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
@@ -50,29 +50,19 @@ const PLATFORM_GROUPS = [
 
 export default function ContentHub() {
   useDocumentTitle('Content Hub')
-  const [items, setItems]         = useState([])
-  const [loading, setLoading]     = useState(true)
   const [activeStatus, setStatus] = useState('all')
   const [platform, setPlatform]   = useState('all')
   const [topicFilter, setTopicFilter] = useState('all')
-  const [error, setError]         = useState('')
 
-  async function load() {
-    setLoading(true)
-    setError('')
-    try {
-      const filters = {}
-      if (activeStatus !== 'all') filters.status = activeStatus
-      if (platform !== 'all')     filters.platform = platform
-      setItems(await fetchContentItems(filters))
-    } catch (e) {
-      setError(e.message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [activeStatus, platform])
+  // useContentItems re-runs whenever the filters object changes (query key
+  // includes the filter args). Refetch on demand via refetch() — wired to
+  // the manual reload button in the header.
+  const filters = {}
+  if (activeStatus !== 'all') filters.status = activeStatus
+  if (platform !== 'all')     filters.platform = platform
+  const { data: items = [], isLoading: loading, error: queryError, refetch } = useContentItems(filters)
+  const error = queryError?.message || ''
+  const load = refetch
 
   // Derive the topic dropdown options from the fetched items. Topics are
   // free-form strings on content_items.topic (mirrored from the source

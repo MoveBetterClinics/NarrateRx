@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Loader2, AlertCircle, CalendarDays } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { fetchContentItems } from '@/lib/publish'
+import EmptyState from '@/components/EmptyState'
+import { useContentItems } from '@/lib/queries'
+import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { PLATFORM_META } from './ContentHub'
 
 function startOfMonth(date) {
@@ -11,47 +13,33 @@ function startOfMonth(date) {
 function daysInMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
 }
-// Local-timezone YYYY-MM-DD. toISOString() converts to UTC first, which
-// flips the date forward an hour-or-so before midnight in any negative-UTC
-// timezone — e.g. 23:30 PT on May 11 becomes "2026-05-12" via toISOString.
-// That made the calendar grid off-by-one near midnight and could include or
-// exclude items from a queried range. Pad date parts directly instead.
 function isoDate(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
+  return date.toISOString().slice(0, 10)
 }
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 
 export default function ContentCalendar() {
+  useDocumentTitle('Calendar')
   const [today]                = useState(new Date())
   const [current, setCurrent]  = useState(new Date(today.getFullYear(), today.getMonth(), 1))
-  const [items, setItems]      = useState([])
-  const [loading, setLoading]  = useState(true)
-  const [mediaNeeded, setMediaNeeded] = useState([])
 
-  useEffect(() => {
-    const from = isoDate(startOfMonth(current))
-    const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0)
-    const to = isoDate(lastDay)
+  const from = isoDate(startOfMonth(current))
+  const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0)
+  const to = isoDate(lastDay)
 
-    setLoading(true)
-    // Fetch scheduled/approved items in this month range + all approved without media
-    Promise.all([
-      fetchContentItems({ from, to }),
-      fetchContentItems({ status: 'approved' }),
-    ]).then(([scheduled, approved]) => {
-      setItems(scheduled)
-      setMediaNeeded(approved.filter((i) =>
-        ['instagram', 'facebook', 'gbp'].includes(i.platform) &&
-        (!i.media_urls || i.media_urls.length === 0)
-      ))
-    }).catch(() => {})
-     .finally(() => setLoading(false))
-  }, [current])
+  // Two parallel queries keyed by (from, to) and ('approved') respectively.
+  // Cache hits across re-renders of the same month; switching months is a
+  // fresh fetch but the previous month's data stays in cache (gcTime: 5min)
+  // so navigating back is instant.
+  const { data: items = [], isLoading: loadingScheduled } = useContentItems({ from, to })
+  const { data: approved = [], isLoading: loadingApproved } = useContentItems({ status: 'approved' })
+  const loading = loadingScheduled || loadingApproved
+  const mediaNeeded = approved.filter((i) =>
+    ['instagram', 'facebook', 'gbp'].includes(i.platform) &&
+    (!i.media_urls || i.media_urls.length === 0),
+  )
 
   function prevMonth() { setCurrent(new Date(current.getFullYear(), current.getMonth() - 1, 1)) }
   function nextMonth() { setCurrent(new Date(current.getFullYear(), current.getMonth() + 1, 1)) }
@@ -170,6 +158,22 @@ export default function ContentCalendar() {
           </div>
         )}
       </div>
+
+      {/* Nothing scheduled this month — coach toward scheduling instead of
+          leaving the user staring at an empty grid. */}
+      {!loading && items.length === 0 && (
+        <EmptyState
+          icon={<CalendarDays className="h-5 w-5" />}
+          title="Nothing scheduled for this month"
+          description="Schedule posts from the Content Hub to see them land here. Approved posts that need media show up in the queue above when they exist."
+          action={
+            <Button asChild size="sm" variant="outline">
+              <Link to="/hub">Open Content Hub</Link>
+            </Button>
+          }
+          size="sm"
+        />
+      )}
 
       {/* Legend */}
       <div className="flex flex-wrap gap-3">

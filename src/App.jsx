@@ -33,6 +33,26 @@ import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import { Toaster } from '@/lib/toast'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+// Single shared QueryClient. Defaults: staleTime 30s, gcTime 5min,
+// refetchOnWindowFocus off, retry once on transient query errors but never
+// on 401/403/404 (won't fix themselves), no retry on mutations.
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,
+      retry: (failureCount, error) => {
+        const status = error?.status
+        if (status === 401 || status === 403 || status === 404) return false
+        return failureCount < 1
+      },
+    },
+    mutations: { retry: false },
+  },
+})
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
@@ -257,15 +277,17 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/onboard/*" element={<OnboardingShell />} />
-            <Route path="*" element={<ProtectedAppWithProvider />} />
-          </Routes>
-        </BrowserRouter>
-        <Toaster richColors position="top-right" closeButton />
-      </ClerkProvider>
+      <QueryClientProvider client={queryClient}>
+        <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/onboard/*" element={<OnboardingShell />} />
+              <Route path="*" element={<ProtectedAppWithProvider />} />
+            </Routes>
+          </BrowserRouter>
+          <Toaster richColors position="top-right" closeButton />
+        </ClerkProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   )
 }

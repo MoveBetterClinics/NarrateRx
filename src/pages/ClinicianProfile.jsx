@@ -10,55 +10,49 @@ import { Separator } from '@/components/ui/separator'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
-import { fetchClinician, deleteClinician, deleteInterview } from '@/lib/api'
+import { useClinician, useDeleteClinician, useDeleteInterview } from '@/lib/queries'
 import { getInitials, formatDate, formatRelativeDate } from '@/lib/utils'
+import { toast } from '@/lib/toast'
 
 export default function ClinicianProfile() {
   const { clinicianId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
-  const [clinician, setClinician] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const { data: clinician, isLoading: loading, error: loadError } = useClinician(clinicianId)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
 
-  async function refresh() {
-    try {
-      const c = await fetchClinician(clinicianId)
-      if (!c) { navigate('/'); return }
-      setClinician(c)
-    } catch {
-      navigate('/')
-    } finally {
-      setLoading(false)
-    }
-  }
+  const deleteClinicianMut = useDeleteClinician()
+  const deleteInterviewMut = useDeleteInterview()
+  const deleting = deleteClinicianMut.isPending || deleteInterviewMut.isPending
 
-  useEffect(() => { refresh() }, [clinicianId])
+  // 404 (no such clinician) or any load failure bounces back to Dashboard,
+  // matching the previous explicit refresh()-throws-navigate behavior.
+  useEffect(() => {
+    if (!loading && (loadError || clinician === null)) {
+      navigate('/')
+    }
+  }, [loading, loadError, clinician, navigate])
 
   async function handleDeleteInterview(interviewId) {
-    setDeleting(true)
     setDeleteError('')
     try {
-      await deleteInterview(interviewId, user.id)
+      await deleteInterviewMut.mutateAsync({ id: interviewId, userId: user.id })
       setDeleteTarget(null)
-      await refresh()
+      // Cache invalidation in useDeleteInterview's onSuccess will refetch
+      // the clinician detail automatically — no manual refresh() needed.
     } catch (e) {
       setDeleteError(e.message)
-    } finally {
-      setDeleting(false)
     }
   }
 
   async function handleDeleteClinician() {
-    setDeleting(true)
     try {
-      await deleteClinician(clinicianId, user.id)
+      await deleteClinicianMut.mutateAsync({ id: clinicianId, userId: user.id })
+      toast.success(`Deleted ${clinician?.name || 'clinician'}`)
       navigate('/')
     } catch (e) {
-      alert(e.message)
-      setDeleting(false)
+      toast.error('Could not delete clinician', { description: e.message })
     }
   }
 
