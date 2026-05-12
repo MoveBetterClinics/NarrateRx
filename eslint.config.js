@@ -3,6 +3,7 @@ import globals from 'globals'
 import reactPlugin from 'eslint-plugin-react'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
+import apiHandlerShape from './eslint/rules/api-handler-shape.js'
 
 export default [
   { ignores: ['dist/**', 'node_modules/**', 'playwright-report/**'] },
@@ -34,6 +35,20 @@ export default [
       'no-console': ['warn', { allow: ['warn', 'error', 'info'] }],
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
       'no-undef': 'warn',
+    },
+  },
+  // Local rule: block Vercel runtime ↔ handler shape mismatches in api/*.
+  // Source: eslint/rules/api-handler-shape.js. Scoped to handler files only
+  // (api/_lib/** is helpers, no default export → rule no-ops anyway, but
+  // scoping out keeps the visitor cheap).
+  {
+    files: ['api/**/*.js'],
+    ignores: ['api/_lib/**'],
+    plugins: {
+      narraterx: { rules: { 'api-handler-shape': apiHandlerShape } },
+    },
+    rules: {
+      'narraterx/api-handler-shape': 'error',
     },
   },
 ]
