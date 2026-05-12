@@ -26,6 +26,7 @@ const Integrations = lazy(() => import('@/pages/Integrations'))
 const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
 const BrandKitPreview = lazy(() => import('@/pages/BrandKitPreview'))
 const BrandKitSettings = lazy(() => import('@/pages/BrandKitSettings'))
+const OnboardingBrandKit = lazy(() => import('@/pages/OnboardingBrandKit'))
 const Members = lazy(() => import('@/pages/Members'))
 const Account = lazy(() => import('@/pages/Account'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
@@ -151,12 +152,18 @@ function DomainGuard({ children }) {
 // /welcome before showing the rest of the app. The first entry is the new-user
 // intro; future entries become "what's new" notifications shown once on next
 // login. Per-user seen state lives in Clerk's unsafeMetadata.seenAnnouncements.
+// Paths that legitimately render even when there's a pending announcement.
+// `/welcome` is the announcement target itself; `/onboard/brand-kit` is the
+// final onboarding-wizard step on the new subdomain — both must show before
+// the announcement gate redirects.
+const WELCOME_GATE_BYPASS = new Set(['/welcome', '/onboard/brand-kit'])
+
 function WelcomeGate({ children }) {
   const { user, isLoaded } = useUser()
   const location = useLocation()
   if (!isLoaded) return null
   const pending = getPendingAnnouncement(user)
-  if (pending && location.pathname !== '/welcome') {
+  if (pending && !WELCOME_GATE_BYPASS.has(location.pathname)) {
     return <Navigate to="/welcome" replace />
   }
   return children
@@ -172,13 +179,16 @@ function guarded(node) {
 function AppRoutes() {
   const location = useLocation()
   // /welcome renders standalone (no app chrome) so the intro feels like its
-  // own surface rather than another dashboard tab.
-  if (location.pathname === '/welcome') {
+  // own surface rather than another dashboard tab. /onboard/brand-kit is the
+  // final wizard step on the new subdomain; same treatment so it doesn't
+  // double-render the workspace nav before the user has even finished setup.
+  if (location.pathname === '/welcome' || location.pathname === '/onboard/brand-kit') {
     return (
       <WelcomeGate>
         <Suspense fallback={null}>
           <Routes>
             <Route path="/welcome" element={guarded(<Welcome />)} />
+            <Route path="/onboard/brand-kit" element={guarded(<OnboardingBrandKit />)} />
           </Routes>
         </Suspense>
       </WelcomeGate>
@@ -303,6 +313,11 @@ export default function App() {
         <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
           <BrowserRouter>
             <Routes>
+              {/* /onboard/brand-kit is the post-claim wizard step — it runs on
+                  the new subdomain and needs WorkspaceProvider + OrgGate, so
+                  it routes through ProtectedAppWithProvider rather than the
+                  apex onboarding shell. */}
+              <Route path="/onboard/brand-kit" element={<ProtectedAppWithProvider />} />
               <Route path="/onboard/*" element={<OnboardingShell />} />
               <Route path="*" element={<ProtectedAppWithProvider />} />
             </Routes>

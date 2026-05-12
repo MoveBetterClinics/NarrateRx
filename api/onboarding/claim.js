@@ -359,10 +359,12 @@ async function handler(req, res) {
       clerk_org_id: row.clerk_org_id,
     },
     domain_registered: domainRegistered,
-    // New tenants land on Dashboard with the welcome banner + getting-started
-    // checklist rather than the (large) Workspace Settings page. They can
-    // still reach Settings from the Workspace icon in the chrome.
-    redirect_url: `https://${slug}.narraterx.ai/?welcome=1`,
+    // Final wizard step lives on the new subdomain because the brand-kit
+    // upload endpoints resolve workspace via Host header — they can't run on
+    // the apex onboarding page. /onboard/brand-kit advances to /?welcome=1
+    // (Dashboard + welcome banner + getting-started checklist) once the user
+    // hits "Looks good — continue" or "Skip for now".
+    redirect_url: `https://${slug}.narraterx.ai/onboard/brand-kit?welcome=1`,
   })
 }
 

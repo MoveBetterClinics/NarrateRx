@@ -380,7 +380,7 @@ function useLiveDataSource() {
   }
 }
 
-export default function BrandKit({ variant = 'settings', mockup = false }) {
+export default function BrandKit({ variant = 'settings', mockup = false, onAdvance }) {
   const isOnboarding = variant === 'onboarding'
   // Both hooks are declared so React's hook order stays consistent across
   // renders. The `mockup` prop is set at mount time and doesn't change, so
@@ -425,6 +425,7 @@ export default function BrandKit({ variant = 'settings', mockup = false }) {
   const [openAsset, setOpenAsset]     = useState(null)
   const [pickerRole, setPickerRole]   = useState(null)
   const [confirmStrip, setConfirmStrip] = useState(null)  // onboarding auto-assign confirmation
+  const [adjusting, setAdjusting]       = useState(false)  // onboarding "Let me adjust" expanded view
 
   const filtered = useMemo(() => {
     return assets.filter((a) => {
@@ -528,8 +529,13 @@ export default function BrandKit({ variant = 'settings', mockup = false }) {
           })}
         </div>
         <div className="flex gap-2 justify-center pt-2">
-          <Button variant="outline" onClick={() => setConfirmStrip(null)}>Let me adjust</Button>
-          <Button>Looks good — continue</Button>
+          <Button
+            variant="outline"
+            onClick={() => { setConfirmStrip(null); setAdjusting(true) }}
+          >
+            Let me adjust
+          </Button>
+          <Button onClick={() => onAdvance?.()}>Looks good — continue</Button>
         </div>
       </div>
     )
@@ -545,11 +551,14 @@ export default function BrandKit({ variant = 'settings', mockup = false }) {
         </div>
       )}
 
-      {!isOnboarding && filledRoles === 0 && (
+      {!isOnboarding && !roleAssignments.primary_logo && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 flex items-start gap-2">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
           <div className="text-xs text-amber-900 dark:text-amber-200">
-            <strong>No roles assigned yet.</strong> Upload assets, then assign a primary logo so downstream channels (email, social, site) render with the right artwork.
+            <strong>No primary logo set.</strong>{' '}
+            {assets.length === 0
+              ? 'Upload your logo files and assign one as the primary logo so downstream channels (email, social, site) render with the right artwork.'
+              : 'Pick a primary logo from your assets so downstream channels (email, social, site) render with the right artwork.'}
           </div>
         </div>
       )}
@@ -623,7 +632,7 @@ export default function BrandKit({ variant = 'settings', mockup = false }) {
       </section>
 
       {/* ===== ROLES PANEL ================================================== */}
-      {!isOnboarding ? (
+      {(!isOnboarding || adjusting) ? (
         <section className="space-y-3">
           <div className="flex items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Roles</h2>
@@ -648,13 +657,31 @@ export default function BrandKit({ variant = 'settings', mockup = false }) {
               />
             ))}
           </div>
+          {isOnboarding && adjusting && (
+            <div className="flex items-center justify-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => onAdvance?.()}
+                className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+              >
+                Skip for now
+              </button>
+              <Button onClick={() => onAdvance?.()}>Done — continue</Button>
+            </div>
+          )}
         </section>
       ) : (
-        <div className="flex justify-center gap-2 pt-2">
-          <Button variant="outline">Skip for now</Button>
+        <div className="flex flex-col items-center gap-2 pt-2">
           <Button onClick={autoAssign} disabled={assets.length === 0}>
             <Sparkles className="h-4 w-4 mr-1.5" /> Auto-assign & continue
           </Button>
+          <button
+            type="button"
+            onClick={() => onAdvance?.()}
+            className="text-xs text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+          >
+            Skip for now
+          </button>
         </div>
       )}
 
