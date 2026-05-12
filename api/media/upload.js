@@ -7,7 +7,6 @@ import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import { workspaceById } from '../_lib/workspaceContext.js'
-import { enforceLimit } from '../_lib/ratelimit.js'
 
 // Two-phase upload via @vercel/blob/client:
 //   Phase 1 — body.type='blob.generate-client-token' (browser handshake):
@@ -85,11 +84,6 @@ export default async function handler(req, res) {
     if (!auth.ok) {
       return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
     }
-    // Rate-limit only the user-initiated handshake. The completion webhook
-    // (body.type === 'blob.upload-completed') is platform→server and not
-    // attacker-controlled, so capping it would hurt the upload pipeline
-    // without reducing abuse surface.
-    if (!(await enforceLimit(req, res, 'media'))) return
     scope = await workspaceScope(req)
   }
 
