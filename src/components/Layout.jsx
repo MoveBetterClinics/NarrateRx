@@ -53,11 +53,11 @@ export default function Layout({ children }) {
           <div className="hidden md:flex items-center gap-3">
             <CampaignModeChip />
             {role === 'admin' && (
-              <Link to="/settings/workspace" className="text-muted-foreground hover:text-foreground transition-colors" title="Workspace settings">
+              <Link to="/settings/workspace" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors" title="Workspace settings">
                 <Building2 className="h-4 w-4" />
               </Link>
             )}
-            <Link to="/settings/integrations" className="text-muted-foreground hover:text-foreground transition-colors" title="Integrations">
+            <Link to="/settings/integrations" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors" title="Integrations">
               <Settings className="h-4 w-4" />
             </Link>
           </div>

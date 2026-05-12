@@ -699,7 +699,7 @@ function MessageBubble({ message, clinicianName, isStreaming }) {
         </div>
       )}
       <div
-        className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+        className={`max-w-[90%] sm:max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
           isAI
             ? 'bg-muted rounded-tl-sm'
             : 'bg-primary text-primary-foreground rounded-tr-sm'
