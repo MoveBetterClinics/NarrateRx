@@ -35,7 +35,7 @@ export default function Layout({ children }) {
               <p className="text-xs font-semibold leading-none text-foreground truncate" style={{ fontFamily: "'Titillium Web', sans-serif" }}>
                 NarrateRx
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 leading-none truncate">
+              <p className="text-[10px] text-muted-foreground mt-0.5 leading-none truncate" title={workspace.tagline}>
                 {workspace.tagline}
               </p>
             </div>

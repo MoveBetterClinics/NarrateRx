@@ -191,7 +191,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
         <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="h-4 w-4 text-primary shrink-0" />
-            <h2 className="font-semibold text-sm truncate">
+            <h2 className="font-semibold text-sm truncate" title={source?.filename ?? brief.source_asset_id ?? ''}>
               Edit brief — {source?.filename ?? brief.source_asset_id?.slice(0, 8)}
             </h2>
             <Badge variant="outline" className="text-[10px] uppercase">{brief.status}</Badge>

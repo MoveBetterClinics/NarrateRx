@@ -213,7 +213,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
               {r.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
               {r.status === 'done'      && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
               {r.status === 'error'     && <AlertCircle  className="h-3.5 w-3.5 text-destructive shrink-0" />}
-              <span className="truncate flex-1">{r.name}</span>
+              <span className="truncate flex-1" title={r.name}>{r.name}</span>
               {r.status === 'uploading' && (
                 <>
                   {r.transcoding ? (
@@ -235,7 +235,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
                   )}
                 </>
               )}
-              {r.status === 'error' && <span className="text-destructive truncate max-w-[40%]">{r.error}</span>}
+              {r.status === 'error' && <span className="text-destructive truncate max-w-[40%]" title={r.error}>{r.error}</span>}
             </div>
           ))}
           {uploads.some((r) => r.status === 'done') && (

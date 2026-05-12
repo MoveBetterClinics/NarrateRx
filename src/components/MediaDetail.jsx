@@ -273,7 +273,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
       <div className="bg-background rounded-xl shadow-2xl w-full max-w-full sm:max-w-3xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-          <h2 className="font-semibold text-sm truncate pr-2">{asset.filename}</h2>
+          <h2 className="font-semibold text-sm truncate pr-2" title={asset.filename}>{asset.filename}</h2>
           <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
         </div>
 

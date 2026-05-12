@@ -186,7 +186,7 @@ export default function MediaGrid({ assets, selectedId, onSelect, multiSelect = 
             )}
 
             {/* Filename caption */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] px-1.5 py-1 leading-tight truncate">
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] px-1.5 py-1 leading-tight truncate" title={a.filename}>
               {a.filename}
             </div>
           </button>
