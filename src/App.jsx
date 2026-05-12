@@ -26,6 +26,8 @@ import ContentCalendar from '@/pages/ContentCalendar'
 import MediaHub from '@/pages/MediaHub'
 import Integrations from '@/pages/Integrations'
 import WorkspaceSettings from '@/pages/WorkspaceSettings'
+import Members from '@/pages/Members'
+import Account from '@/pages/Account'
 import Onboarding from '@/pages/Onboarding'
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
@@ -170,6 +172,10 @@ function AppRoutes() {
           <Route path="/media" element={<MediaHub />} />
           <Route path="/settings/integrations" element={<Integrations />} />
           <Route path="/settings/workspace" element={<WorkspaceSettings />} />
+          {/* Both Clerk-mounted pages use routing="path" so deep links to
+              Clerk's own sub-routes resolve under the same base. */}
+          <Route path="/settings/members/*" element={<Members />} />
+          <Route path="/account/*" element={<Account />} />
         </Routes>
       </Layout>
     </WelcomeGate>
