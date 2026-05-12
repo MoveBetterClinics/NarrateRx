@@ -261,6 +261,14 @@ function ProtectedApp() {
                 },
               }}
             />
+            {/* Required mount point for Clerk's bot-protection / device-trust
+                challenge. Without it, the post-first-factor `needs_client_trust`
+                step silently no-ops on iOS WebKit (Safari + iOS Chrome) and the
+                user's sign-in hangs after Continue — first-factor passes
+                server-side but `created_session_id` stays null. Desktop usually
+                completes the invisible attestation; mobile WebKit does not.
+                See feedback_mobile_signin_silent_no_advance.md. */}
+            <div id="clerk-captcha" />
           </div>
         </div>
       </SignedOut>
