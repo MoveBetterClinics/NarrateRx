@@ -117,11 +117,12 @@ export default function MediaHub() {
     try {
       let totalSucceeded = 0
       let totalFailed = 0
-      // Loop until a pass returns processed=0. Each call processes up to 100
-      // videos sequentially on the server, so this finishes fast even for
-      // large backlogs.
-      for (let pass = 0; pass < 50; pass++) {
-        const r = await backfillThumbnails(100)
+      // Loop until a pass returns processed=0. The server caps each batch at
+      // 25 and self-bounds by wall-clock (~4 min) so any single HTTP call
+      // stays comfortably under Vercel's 300s maxDuration; the loop here
+      // walks the rest of the backlog one batch at a time.
+      for (let pass = 0; pass < 200; pass++) {
+        const r = await backfillThumbnails(25)
         totalSucceeded += r?.succeeded ?? 0
         totalFailed    += r?.failed    ?? 0
         if (!r || (r.processed ?? 0) === 0) break
