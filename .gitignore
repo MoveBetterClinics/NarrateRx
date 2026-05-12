@@ -9,5 +9,8 @@ dist
 
 # Claude Code cowork session worktrees — local-only
 .claude/worktrees/
+
+# Claude Code scheduled-task runtime artifacts — local-only
+.claude/scheduled_tasks.lock
 .vercel
 .env*.local
