@@ -1,10 +1,13 @@
+import { withSentry } from './_lib/sentry.js'
 import { streamText } from 'ai'
-import { enforceLimitEdge } from './_lib/ratelimit.js'
+import { enforceLimit } from './_lib/ratelimit.js'
 
-// Pinned to Node runtime (was Edge) so the Edge whole-graph bundler
-// doesn't follow the ratelimit.js → @clerk/backend → node:crypto chain
-// into middleware. Web-style (Request → Response) handler still works
-// on Vercel's Node/Fluid runtime, so the body of this file is unchanged.
+// Pinned to Node runtime (was Edge) so the Edge whole-graph bundler doesn't
+// follow the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
+// Web-style (Request → Response) handlers silently hang on Vercel's Node
+// runtime — Vercel ignores the returned Response and the function times out at
+// maxDuration. Stream via res.write() instead. (Caused the prod 504s after
+// the runtime flip in #293.)
 export const config = { runtime: 'nodejs', maxDuration: 60 }
 
 // Streams a Claude completion via the Vercel AI Gateway.
@@ -13,38 +16,24 @@ export const config = { runtime: 'nodejs', maxDuration: 60 }
 // client parser in src/lib/claude.js#streamMessage keeps working without
 // changes. We emit one `data: { type: 'content_block_delta', delta: { text } }`
 // event per text chunk and finish with `data: [DONE]`.
-export default async function handler(req) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
+    res.status(405).json({ error: 'Method not allowed' })
+    return
   }
 
-  const limited = await enforceLimitEdge(req, 'ai')
-  if (limited) return limited
+  if (!(await enforceLimit(req, res, 'ai'))) return
 
-  let body
-  try {
-    body = await req.json()
-  } catch {
-    return new Response(JSON.stringify({ error: 'Invalid request body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
-  }
-
-  const { messages, systemPrompt, model } = body || {}
+  const { messages, systemPrompt, model } = req.body || {}
 
   if (!messages || !systemPrompt) {
-    return new Response(JSON.stringify({ error: 'Missing messages or systemPrompt' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    res.status(400).json({ error: 'Missing messages or systemPrompt' })
+    return
   }
 
   if (!process.env.AI_GATEWAY_API_KEY) {
-    return new Response(
-      JSON.stringify({ error: 'AI_GATEWAY_API_KEY is not set on this deployment' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } },
-    )
+    res.status(500).json({ error: 'AI_GATEWAY_API_KEY is not set on this deployment' })
+    return
   }
 
   // Normalize bare Anthropic ids to AI Gateway form.
@@ -60,58 +49,53 @@ export default async function handler(req) {
       maxOutputTokens: 1024,
     })
   } catch (e) {
-    return new Response(JSON.stringify({ error: e?.message || 'Stream init failed' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    })
+    res.status(500).json({ error: e?.message || 'Stream init failed' })
+    return
   }
 
-  const encoder = new TextEncoder()
-  // We iterate fullStream rather than textStream so we can see error parts.
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+  res.setHeader('Cache-Control', 'no-cache, no-transform')
+  res.setHeader('Connection', 'keep-alive')
+  // Tell upstream proxies (Vercel edge / nginx-style) not to buffer the stream.
+  res.setHeader('X-Accel-Buffering', 'no')
+  res.flushHeaders?.()
+
+  // Iterate fullStream rather than textStream so we can see error parts.
   // textStream silently filters them out, which meant an upstream auth /
   // model failure surfaced to the client as an empty assistant turn — see
-  // PR fixing the "interview not prompting questions" regression.
-  const sse = new ReadableStream({
-    async start(controller) {
-      let errored = false
-      const sendError = (message) => {
-        errored = true
-        const payload = JSON.stringify({
-          type: 'error',
-          error: { message: message || 'Stream error' },
-        })
-        controller.enqueue(encoder.encode(`data: ${payload}\n\n`))
-      }
-      try {
-        for await (const part of result.fullStream) {
-          if (part?.type === 'text-delta') {
-            const text = part.text ?? part.delta
-            if (!text) continue
-            const payload = JSON.stringify({
-              type: 'content_block_delta',
-              delta: { type: 'text_delta', text },
-            })
-            controller.enqueue(encoder.encode(`data: ${payload}\n\n`))
-          } else if (part?.type === 'error') {
-            const message = part.error?.message || part.errorText || String(part.error || 'Stream error')
-            sendError(message)
-            break
-          }
-        }
-        if (!errored) controller.enqueue(encoder.encode('data: [DONE]\n\n'))
-      } catch (e) {
-        sendError(e?.message)
-      } finally {
-        controller.close()
-      }
-    },
-  })
+  // PR #249.
+  let errored = false
+  const sendError = (message) => {
+    errored = true
+    const payload = JSON.stringify({
+      type: 'error',
+      error: { message: message || 'Stream error' },
+    })
+    res.write(`data: ${payload}\n\n`)
+  }
 
-  return new Response(sse, {
-    headers: {
-      'Content-Type': 'text/event-stream; charset=utf-8',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-    },
-  })
+  try {
+    for await (const part of result.fullStream) {
+      if (part?.type === 'text-delta') {
+        const text = part.text ?? part.delta
+        if (!text) continue
+        const payload = JSON.stringify({
+          type: 'content_block_delta',
+          delta: { type: 'text_delta', text },
+        })
+        res.write(`data: ${payload}\n\n`)
+      } else if (part?.type === 'error') {
+        const message = part.error?.message || part.errorText || String(part.error || 'Stream error')
+        sendError(message)
+        break
+      }
+    }
+    if (!errored) res.write('data: [DONE]\n\n')
+  } catch (e) {
+    sendError(e?.message)
+  } finally {
+    res.end()
+  }
 }
+
+export default withSentry(handler)
