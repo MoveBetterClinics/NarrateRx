@@ -56,7 +56,15 @@ export default function CredentialForm({
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState(null)
+  // Test-connection state. Allowlist mirrors what api/workspace/credentials/
+  // test.js can actually probe (Buffer / WordPress / Astro / Website). tdc
+  // is provisioned but the tester isn't wired yet — keep it off the allowlist
+  // until it is so we don't show a button that can only fail.
+  const TESTABLE = new Set(['buffer', 'wordpress', 'astro_github', 'website'])
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
   const configured = Boolean(row)
+  const canTest = configured && TESTABLE.has(service.id)
 
   useEffect(() => {
     setConfig(configFromRow(service, row))
@@ -98,6 +106,30 @@ export default function CredentialForm({
       setError('network-error')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const r = await fetch('/api/workspace/credentials/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await tokenArg()}`,
+        },
+        body: JSON.stringify({ service: service.id }),
+      })
+      const body = await r.json().catch(() => ({}))
+      setTestResult(body?.ok
+        ? { ok: true, info: body.info }
+        : { ok: false, error: body?.error || `Test failed (${r.status})` },
+      )
+    } catch (e) {
+      setTestResult({ ok: false, error: e?.message || 'Network error.' })
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -174,7 +206,7 @@ export default function CredentialForm({
           Stored encrypted. Secrets never come back on read — to rotate, paste a new value and save.
         </p>
       </div>
-      <div className="flex items-center gap-2 justify-end">
+      <div className="flex items-center gap-2 justify-end flex-wrap">
         {saved && (
           <span className="text-xs text-green-600 flex items-center gap-1">
             <CheckCircle2 className="h-3.5 w-3.5" /> Saved
@@ -184,6 +216,25 @@ export default function CredentialForm({
           <span className="text-xs text-destructive flex items-center gap-1">
             <AlertCircle className="h-3.5 w-3.5" /> {error}
           </span>
+        )}
+        {testResult?.ok && (
+          <span className="text-xs text-green-600 flex items-center gap-1">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Verified{testResult.info?.account ? ` · ${testResult.info.account}` : ''}
+          </span>
+        )}
+        {testResult && !testResult.ok && (
+          <span className="text-xs text-destructive flex items-start gap-1 max-w-md">
+            <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>{testResult.error}</span>
+          </span>
+        )}
+        {canTest && (
+          <Button variant="ghost" size="sm" onClick={handleTest} disabled={disabled || testing || saving}>
+            {testing
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Testing…</>
+              : 'Test connection'}
+          </Button>
         )}
         {configured && (
           <Button variant="ghost" size="sm" onClick={handleRemove} disabled={disabled || saving}>
