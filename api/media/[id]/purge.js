@@ -1,3 +1,4 @@
+import { withSentry } from '../../_lib/sentry.js'
 import { del as blobDel } from '@vercel/blob'
 import { recordAudit, snapshot } from '../../_lib/audit.js'
 import { requireRole } from '../../_lib/auth.js'
@@ -46,7 +47,7 @@ async function fetchRow(where, select) {
   return rows[0] || null
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -114,3 +115,5 @@ export default async function handler(req, res) {
 
   return res.status(200).json({ purged: true })
 }
+
+export default withSentry(handler)

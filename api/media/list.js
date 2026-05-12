@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Runs on Node (Fluid Compute) for consistency with the other media routes,
 // which need Node for @vercel/blob. Uses the (req, res) handler shape — on
 // Vercel's Node runtime req is an IncomingMessage, not a Web Request.
@@ -22,7 +23,7 @@ function sb(path, init = {}) {
 
 const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,speaker_role,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -103,3 +104,5 @@ export default async function handler(req, res) {
   if (!r.ok) return res.status(500).json({ error: 'Database error' })
   return res.status(200).json(await r.json())
 }
+
+export default withSentry(handler)

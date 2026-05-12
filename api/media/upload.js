@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
 import { tagAndPersist } from '../_lib/tagAsset.js'
@@ -72,7 +73,7 @@ function kindFromMime(mime) {
   return null
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -267,3 +268,5 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: e.message || 'Upload handler failed' })
   }
 }
+
+export default withSentry(handler)

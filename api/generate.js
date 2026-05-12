@@ -1,3 +1,4 @@
+import { withSentry } from './_lib/sentry.js'
 import { generateText } from 'ai'
 import { enforceLimit } from './_lib/ratelimit.js'
 
@@ -11,7 +12,7 @@ export const config = { runtime: 'nodejs', maxDuration: 60 }
 // (src/lib/claude.js#generateContent and src/pages/ReviewPost.jsx) read
 // `data.content[0].text`, so we return `{ content: [{ type: 'text', text }] }`
 // to preserve that contract.
-export default async function handler(req, res) {
+async function handler(req, res) {
   res.setHeader('Content-Type', 'application/json')
 
   if (req.method !== 'POST') {
@@ -59,3 +60,5 @@ export default async function handler(req, res) {
     res.status(500).json({ error: e?.message || 'Internal server error' })
   }
 }
+
+export default withSentry(handler)

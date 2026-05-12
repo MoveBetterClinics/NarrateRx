@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
@@ -46,7 +47,7 @@ async function fetchRow(where, select) {
   return rows[0] || null
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (!(req.method in ROLE_REQUIREMENTS)) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -158,3 +159,5 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: 'Method not allowed' })
 }
+
+export default withSentry(handler)

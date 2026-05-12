@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // GET / PATCH / DELETE for a single collection.
 //   GET    → any authenticated user; embeds the asset list (id, blob_url,
 //            thumbnail_url, kind, status, filename) so the detail view can
@@ -39,7 +40,7 @@ const SELECT_COMMON =
   'collection_items(asset_id,position,added_at,added_by,' +
   'media_assets(id,kind,status,filename,blob_url,thumbnail_url,duration_s,aspect_ratio))'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (!(req.method in ROLE_REQUIREMENTS)) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -127,3 +128,5 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: 'Method not allowed' })
 }
+
+export default withSentry(handler)

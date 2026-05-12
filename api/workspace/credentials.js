@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Per-workspace publish credential management. Admin-only.
 //
 //   GET    /api/workspace/credentials          → list configured services (no secrets)
@@ -34,7 +35,7 @@ function sb(path, init = {}) {
   })
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const auth = await requireRole(req, ['admin'])
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
@@ -103,3 +104,5 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: 'method-not-allowed' })
 }
+
+export default withSentry(handler)

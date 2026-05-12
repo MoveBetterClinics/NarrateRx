@@ -1,3 +1,4 @@
+import { withSentry } from '../../_lib/sentry.js'
 import { thumbnailById } from '../../_lib/thumbnail.js'
 import { requireRole } from '../../_lib/auth.js'
 import { workspaceScope } from '../../_lib/workspaceScope.js'
@@ -14,7 +15,7 @@ import { workspaceScope } from '../../_lib/workspaceScope.js'
 
 export const config = { maxDuration: 120 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -39,3 +40,5 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: msg })
   }
 }
+
+export default withSentry(handler)

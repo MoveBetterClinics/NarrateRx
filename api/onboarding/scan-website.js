@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // POST /api/onboarding/scan-website
 //
 // Body: { url }
@@ -208,7 +209,7 @@ For audience_short: one tight phrase, ~10 words max.
 
 For display_name: the brand name as they present it.`
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'method-not-allowed' })
   }
@@ -303,3 +304,5 @@ export default async function handler(req, res) {
     source_pages: sourcePages,
   })
 }
+
+export default withSentry(handler)

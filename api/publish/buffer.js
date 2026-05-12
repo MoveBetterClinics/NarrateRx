@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Buffer publish endpoint — Node.js runtime.
 //
 // Resolves the Buffer access token per-workspace via getCredential() so each
@@ -70,7 +71,7 @@ async function resolveGbpProfileIds(workspaceId, locationIds) {
     .filter((s) => typeof s === 'string' && s.trim().length > 0)
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   const scope = await workspaceScope(req)
@@ -153,3 +154,5 @@ export default async function handler(req, res) {
     profileCount: profileIds.length,
   })
 }
+
+export default withSentry(handler)

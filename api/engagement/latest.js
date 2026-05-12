@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // GET /api/engagement/latest?contentItemId=… — return the most recent
 // engagement_snapshots row for a content item (workspace-scoped). Used by
 // ReviewPost to render the engagement panel without forcing a re-fetch
@@ -8,7 +9,7 @@ import { workspaceScope } from '../_lib/workspaceScope.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
   let scope
@@ -28,3 +29,5 @@ export default async function handler(req, res) {
   const rows = await r.json().catch(() => [])
   return res.status(200).json({ snapshot: rows?.[0] || null })
 }
+
+export default withSentry(handler)

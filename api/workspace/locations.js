@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Workspace locations endpoint.
 //
 //   GET                    — list locations for the active workspace (any signed-in member)
@@ -86,7 +87,7 @@ async function unsetOtherPrimaries(workspaceId, exceptId) {
   })
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     return res.status(500).json({ error: 'server-misconfigured' })
   }
@@ -227,3 +228,5 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: 'method-not-allowed' })
 }
+
+export default withSentry(handler)

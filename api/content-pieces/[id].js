@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // GET / PATCH / DELETE for a single content_piece (edit brief).
 // Runs on Node (Fluid Compute). All workspace-scoped.
 
@@ -38,7 +39,7 @@ const SELECT_COMMON =
   'rejected_reason,created_at,updated_at,accepted_at,returned_at,' +
   'published_at,published_target_id'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (!(req.method in ROLE_REQUIREMENTS)) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
@@ -105,3 +106,5 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: 'Method not allowed' })
 }
+
+export default withSentry(handler)

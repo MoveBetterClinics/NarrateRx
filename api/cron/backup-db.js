@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Nightly cloud backup of the shared narraterx Supabase DB to Vercel Blob.
 //
 // Vercel cron hits this daily (see vercel.json). Auth = Bearer CRON_SECRET.
@@ -25,7 +26,7 @@ const { Pool } = pg
 const RETENTION_DAYS = 30
 const PREFIX = 'backups/narraterx-db/'
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret) {
     const auth = req.headers?.authorization || req.headers?.Authorization
@@ -143,3 +144,5 @@ export default async function handler(req, res) {
     await pool.end().catch(() => {})
   }
 }
+
+export default withSentry(handler)

@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Workspace profile endpoint.
 //
 // GET  — returns the active workspace row (resolved from Host header). No auth required.
@@ -104,7 +105,7 @@ function sb(path, init = {}) {
   })
 }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method === 'GET') {
     const workspace = await workspaceContext(req)
     if (!workspace) return res.status(404).json({ error: 'no-workspace-context' })
@@ -213,3 +214,5 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: 'method-not-allowed' })
 }
+
+export default withSentry(handler)

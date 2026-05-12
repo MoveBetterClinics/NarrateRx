@@ -1,3 +1,4 @@
+import { withSentry } from '../_lib/sentry.js'
 // Destructive workspace operations. Admin-only, typed-confirm gated.
 //
 // POST /api/workspace/danger { action: 'archive', confirm_slug }
@@ -41,7 +42,7 @@ function sb(path, init = {}) {
 
 const SUPPORTED_ACTIONS = new Set(['archive'])
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'method-not-allowed' })
   }
@@ -98,3 +99,5 @@ export default async function handler(req, res) {
   // Unreachable — SUPPORTED_ACTIONS keeps the switch honest.
   return res.status(400).json({ error: 'unsupported-action' })
 }
+
+export default withSentry(handler)
