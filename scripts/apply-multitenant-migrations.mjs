@@ -27,9 +27,27 @@ if (!match) {
 }
 const connectionString = match[1].trim().replace(/^"(.*)"$/, '$1')
 
-const client = new Client({ connectionString })
+// pg-connection-string can't handle a literal @ in the password (Supabase
+// pooler passwords contain one). Split on the LAST @ to find the host portion,
+// then split the credentials from the scheme prefix.
+function parseConnectionString(url) {
+  const withoutScheme = url.replace(/^(?:postgresql|postgres):\/\//, '')
+  const lastAt = withoutScheme.lastIndexOf('@')
+  if (lastAt === -1) throw new Error(`Cannot parse connection string`)
+  const credentials = withoutScheme.slice(0, lastAt)
+  const hostPart = withoutScheme.slice(lastAt + 1)
+  const colonIdx = credentials.indexOf(':')
+  const user = credentials.slice(0, colonIdx)
+  const password = credentials.slice(colonIdx + 1)
+  const [hostPort, database] = hostPart.split('/')
+  const [host, port] = hostPort.split(':')
+  return { user, password, host, port: Number(port), database }
+}
+
+const config = parseConnectionString(connectionString)
+const client = new Client(config)
 await client.connect()
-console.log(`Connected to ${new URL(connectionString.replace('postgresql://', 'http://')).host}`)
+console.log(`Connected to ${config.host}:${config.port}`)
 
 try {
   for (const file of args) {
