@@ -1,10 +1,12 @@
 // Pinned to Node runtime so the Edge whole-graph bundler doesn't follow
 // the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
-// Web-style (Request → Response) handler still works on Vercel's Node/Fluid runtime.
+// Uses Express-style (req, res) handler — the Web-style (req) → Response
+// pattern silently hangs on Vercel's Node runtime (response never sent;
+// function times out at 300s). Match the convention used by /api/content-pieces/*.
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { enforceLimitEdge } from '../_lib/ratelimit.js'
+import { enforceLimit } from '../_lib/ratelimit.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -22,49 +24,46 @@ function sb(path, init = {}) {
   })
 }
 
-const ok = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
-const err = (msg, status = 400) =>
-  new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
+const ok  = (res, data, status = 200) => res.status(status).json(data)
+const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
 const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email'
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
   const userId = req.headers['x-user-id'] ?? req.headers.get?.('x-user-id') ?? null
 
   const ws = await workspaceContext(req)
-  if (!ws) return err('Workspace not resolved', 400)
+  if (!ws) return err(res, 'Workspace not resolved', 400)
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   if (req.method === 'GET') {
     if (id) {
       // Single clinician with full interview list
-      const res = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
-      if (!res.ok) return err('Database error', 500)
-      const data = await res.json()
-      return ok(data[0] ?? null)
+      const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
+      if (!r.ok) return err(res, 'Database error', 500)
+      const data = await r.json()
+      return ok(res, data[0] ?? null)
     }
     // All clinicians with interview summaries
-    const res = await sb(`clinicians?${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
-    if (!res.ok) return err('Database error', 500)
-    return ok(await res.json())
+    const r = await sb(`clinicians?${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
+    if (!r.ok) return err(res, 'Database error', 500)
+    return ok(res, await r.json())
   }
 
   if (req.method === 'POST') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    const { name, createdById, createdByEmail } = await req.json()
-    if (!name?.trim()) return err('Name required')
-    if (!createdById) return err('Unauthorized', 401)
+    const { name, createdById, createdByEmail } = req.body || {}
+    if (!name?.trim()) return err(res, 'Name required')
+    if (!createdById) return err(res, 'Unauthorized', 401)
 
     // Find existing by name (case-insensitive) within this workspace
     const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
-    if (!findRes.ok) return err('Database error', 500)
+    if (!findRes.ok) return err(res, 'Database error', 500)
     const found = await findRes.json()
-    if (found.length > 0) return ok(found[0])
+    if (found.length > 0) return ok(res, found[0])
 
     // Create new
     const createRes = await sb('clinicians', {
@@ -76,28 +75,27 @@ export default async function handler(req) {
         created_by_email: createdByEmail,
       }),
     })
-    if (!createRes.ok) return err('Create failed', 500)
+    if (!createRes.ok) return err(res, 'Create failed', 500)
     const data = await createRes.json()
-    return ok(data[0], 201)
+    return ok(res, data[0], 201)
   }
 
   if (req.method === 'DELETE') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    if (!id) return err('Missing id')
-    if (!userId) return err('Unauthorized', 401)
+    if (!id) return err(res, 'Missing id')
+    if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=created_by_id`)
-    if (!chk.ok) return err('Database error', 500)
+    if (!chk.ok) return err(res, 'Database error', 500)
     const rows = await chk.json()
-    if (!rows.length) return err('Not found', 404)
-    if (rows[0].created_by_id !== userId) return err('Forbidden', 403)
+    if (!rows.length) return err(res, 'Not found', 404)
+    if (rows[0].created_by_id !== userId) return err(res, 'Forbidden', 403)
 
-    const res = await sb(`clinicians?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
-    if (!res.ok) return err('Delete failed', 500)
-    return ok({ ok: true })
+    const r = await sb(`clinicians?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
+    if (!r.ok) return err(res, 'Delete failed', 500)
+    return ok(res, { ok: true })
   }
 
-  return new Response('Method not allowed', { status: 405 })
+  return res.status(405).send('Method not allowed')
 }

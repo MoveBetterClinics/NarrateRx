@@ -1,10 +1,12 @@
 // Pinned to Node runtime so the Edge whole-graph bundler doesn't follow
 // the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
-// Web-style (Request → Response) handler still works on Vercel's Node/Fluid runtime.
+// Uses Express-style (req, res) handler — the Web-style (req) → Response
+// pattern silently hangs on Vercel's Node runtime (response never sent;
+// function times out at 300s). Match the convention used by /api/content-pieces/*.
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { enforceLimitEdge } from '../_lib/ratelimit.js'
+import { enforceLimit } from '../_lib/ratelimit.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -22,26 +24,26 @@ function sb(path, init = {}) {
   })
 }
 
-const ok  = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
-const err = (msg, status = 400)  => new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
+const ok  = (res, data, status = 200) => res.status(status).json(data)
+const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
 const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,notes,reviewed_by,approved_by,performed_well,created_at,updated_at'
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
 
   const ws = await workspaceContext(req)
-  if (!ws) return err('Workspace not resolved', 400)
+  if (!ws) return err(res, 'Workspace not resolved', 400)
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   // ── GET ──────────────────────────────────────────────────────────────────
   if (req.method === 'GET') {
     if (id) {
-      const res = await sb(`content_items?id=eq.${id}&${wsFilter}&select=${SELECT}`)
-      if (!res.ok) return err('Database error', 500)
-      const data = await res.json()
-      return ok(data[0] ?? null)
+      const r = await sb(`content_items?id=eq.${id}&${wsFilter}&select=${SELECT}`)
+      if (!r.ok) return err(res, 'Database error', 500)
+      const data = await r.json()
+      return ok(res, data[0] ?? null)
     }
 
     // List with optional filters
@@ -59,51 +61,49 @@ export default async function handler(req) {
     if (to)          qs += `&scheduled_at=lte.${to}`
     if (interviewId) qs += `&interview_id=eq.${interviewId}`
 
-    const res = await sb(qs)
-    if (!res.ok) return err('Database error', 500)
-    return ok(await res.json())
+    const r = await sb(qs)
+    if (!r.ok) return err(res, 'Database error', 500)
+    return ok(res, await r.json())
   }
 
   // ── POST (bulk create from interview outputs) ────────────────────────────
   if (req.method === 'POST') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    const body = await req.json()
+    const body = req.body
 
     // Bulk insert
     if (Array.isArray(body)) {
       const rows = body.map((r) => ({ ...r, workspace_id: ws.id }))
-      const res = await sb('content_items', {
+      const r = await sb('content_items', {
         method: 'POST',
         body: JSON.stringify(rows),
       })
-      if (!res.ok) return err('Insert failed', 500)
-      return ok(await res.json(), 201)
+      if (!r.ok) return err(res, 'Insert failed', 500)
+      return ok(res, await r.json(), 201)
     }
 
     // Single insert
-    const { interviewId, clinicianId, clinicianName, topic, platform, content, status } = body
-    if (!interviewId || !platform || !content) return err('Missing required fields')
+    const { interviewId, clinicianId, clinicianName, topic, platform, content, status } = body || {}
+    if (!interviewId || !platform || !content) return err(res, 'Missing required fields')
 
     const row = { workspace_id: ws.id, interview_id: interviewId, clinician_id: clinicianId, clinician_name: clinicianName, topic, platform, content }
     if (status) row.status = status
-    const res = await sb('content_items', {
+    const r = await sb('content_items', {
       method: 'POST',
       body: JSON.stringify(row),
     })
-    if (!res.ok) return err('Insert failed', 500)
-    const data = await res.json()
-    return ok(data[0], 201)
+    if (!r.ok) return err(res, 'Insert failed', 500)
+    const data = await r.json()
+    return ok(res, data[0], 201)
   }
 
   // ── PATCH ────────────────────────────────────────────────────────────────
   if (req.method === 'PATCH') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    if (!id) return err('Missing id')
-    const patch = await req.json()
+    if (!id) return err(res, 'Missing id')
+    const patch = req.body || {}
 
     // Map camelCase → snake_case
     const allowed = {
@@ -125,25 +125,24 @@ export default async function handler(req) {
     }
     const body = Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined))
 
-    const res = await sb(`content_items?id=eq.${id}&${wsFilter}`, {
+    const r = await sb(`content_items?id=eq.${id}&${wsFilter}`, {
       method: 'PATCH',
       body: JSON.stringify(body),
     })
-    if (!res.ok) return err('Update failed', 500)
-    const data = await res.json()
-    return ok(data[0])
+    if (!r.ok) return err(res, 'Update failed', 500)
+    const data = await r.json()
+    return ok(res, data[0])
   }
 
   // ── DELETE ───────────────────────────────────────────────────────────────
   if (req.method === 'DELETE') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    if (!id) return err('Missing id')
-    const res = await sb(`content_items?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
-    if (!res.ok) return err('Delete failed', 500)
-    return ok({ deleted: true })
+    if (!id) return err(res, 'Missing id')
+    const r = await sb(`content_items?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
+    if (!r.ok) return err(res, 'Delete failed', 500)
+    return ok(res, { deleted: true })
   }
 
-  return err('Method not allowed', 405)
+  return err(res, 'Method not allowed', 405)
 }

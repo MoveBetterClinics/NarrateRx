@@ -1,10 +1,12 @@
 // Pinned to Node runtime so the Edge whole-graph bundler doesn't follow
 // the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
-// Web-style (Request → Response) handler still works on Vercel's Node/Fluid runtime.
+// Uses Express-style (req, res) handler — the Web-style (req) → Response
+// pattern silently hangs on Vercel's Node runtime (response never sent;
+// function times out at 300s). Match the convention used by /api/content-pieces/*.
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { enforceLimitEdge } from '../_lib/ratelimit.js'
+import { enforceLimit } from '../_lib/ratelimit.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -22,55 +24,52 @@ function sb(path, init = {}) {
   })
 }
 
-const ok = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
-const err = (msg, status = 400) =>
-  new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
+const ok  = (res, data, status = 200) => res.status(status).json(data)
+const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
   const userId = req.headers['x-user-id'] ?? req.headers.get?.('x-user-id') ?? null
 
   const ws = await workspaceContext(req)
-  if (!ws) return err('Workspace not resolved', 400)
+  if (!ws) return err(res, 'Workspace not resolved', 400)
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   if (req.method === 'GET') {
     if (id) {
-      const res = await sb(
+      const r = await sb(
         `interviews?id=eq.${id}&${wsFilter}&select=id,clinician_id,topic,status,messages,outputs,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,created_at,updated_at`
       )
-      if (!res.ok) return err('Database error', 500)
-      const data = await res.json()
-      return ok(data[0] ?? null)
+      if (!r.ok) return err(res, 'Database error', 500)
+      const data = await r.json()
+      return ok(res, data[0] ?? null)
     }
 
     // Search past completed interviews by topic (for cross-interview context)
     const topic = searchParams.get('topic')
     const excludeId = searchParams.get('excludeId')
-    if (!topic) return err('Missing id or topic')
+    if (!topic) return err(res, 'Missing id or topic')
 
     let qs = `interviews?${wsFilter}&topic=ilike.${encodeURIComponent(topic)}&status=eq.completed`
     qs += `&select=id,topic,messages,created_at,clinicians(name)`
     if (excludeId) qs += `&id=neq.${excludeId}`
     qs += `&order=created_at.desc&limit=3`
 
-    const res = await sb(qs)
-    if (!res.ok) return err('Database error', 500)
-    return ok(await res.json())
+    const r = await sb(qs)
+    if (!r.ok) return err(res, 'Database error', 500)
+    return ok(res, await r.json())
   }
 
   if (req.method === 'POST') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    const { clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId } = await req.json()
-    if (!clinicianId) return err('Missing clinicianId')
-    if (!topic?.trim()) return err('Topic required')
-    if (!ownerId) return err('Unauthorized', 401)
+    const { clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId } = req.body || {}
+    if (!clinicianId) return err(res, 'Missing clinicianId')
+    if (!topic?.trim()) return err(res, 'Topic required')
+    if (!ownerId) return err(res, 'Unauthorized', 401)
 
-    const res = await sb('interviews', {
+    const r = await sb('interviews', {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
@@ -86,37 +85,36 @@ export default async function handler(req) {
         location_id: locationId || null,
       }),
     })
-    if (!res.ok) return err('Create failed', 500)
-    const data = await res.json()
-    return ok(data[0], 201)
+    if (!r.ok) return err(res, 'Create failed', 500)
+    const data = await r.json()
+    return ok(res, data[0], 201)
   }
 
   if (req.method === 'PATCH') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    if (!id) return err('Missing id')
-    if (!userId) return err('Unauthorized', 401)
+    if (!id) return err(res, 'Missing id')
+    if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,clinician_id,topic,location_id`)
-    if (!chk.ok) return err('Database error', 500)
+    if (!chk.ok) return err(res, 'Database error', 500)
     const rows = await chk.json()
-    if (!rows.length) return err('Not found', 404)
-    if (rows[0].owner_id !== userId) return err('Forbidden', 403)
+    if (!rows.length) return err(res, 'Not found', 404)
+    if (rows[0].owner_id !== userId) return err(res, 'Forbidden', 403)
 
-    const body = await req.json()
+    const body = req.body || {}
     const patch = { updated_at: new Date().toISOString() }
     if (body.messages !== undefined) patch.messages = body.messages
     if (body.outputs !== undefined) patch.outputs = body.outputs
     if (body.status !== undefined) patch.status = body.status
     if (body.locationId !== undefined) patch.location_id = body.locationId || null
 
-    const res = await sb(`interviews?id=eq.${id}&${wsFilter}`, {
+    const r = await sb(`interviews?id=eq.${id}&${wsFilter}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     })
-    if (!res.ok) return err('Update failed', 500)
-    const data = await res.json()
+    if (!r.ok) return err(res, 'Update failed', 500)
+    const data = await r.json()
 
     // Auto-create content_items when outputs are saved for the first time
     if (body.outputs && body.status === 'completed') {
@@ -184,35 +182,34 @@ export default async function handler(req) {
       }
     }
 
-    return ok(data[0])
+    return ok(res, data[0])
   }
 
   if (req.method === 'DELETE') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    if (!id) return err('Missing id')
-    if (!userId) return err('Unauthorized', 401)
+    if (!id) return err(res, 'Missing id')
+    if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id`)
-    if (!chk.ok) return err('Database error', 500)
+    if (!chk.ok) return err(res, 'Database error', 500)
     const rows = await chk.json()
-    if (!rows.length) return err('Not found', 404)
-    if (rows[0].owner_id !== userId) return err('Forbidden', 403)
+    if (!rows.length) return err(res, 'Not found', 404)
+    if (rows[0].owner_id !== userId) return err(res, 'Forbidden', 403)
 
     // Block deletion if any content items from this interview have been published
     const pubChk = await sb(`content_items?interview_id=eq.${id}&${wsFilter}&status=eq.published&select=id&limit=1`)
     if (pubChk.ok) {
       const published = await pubChk.json()
       if (published.length > 0) {
-        return err('This interview has published content and cannot be deleted. Archive the published posts first.', 409)
+        return err(res, 'This interview has published content and cannot be deleted. Archive the published posts first.', 409)
       }
     }
 
-    const res = await sb(`interviews?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
-    if (!res.ok) return err('Delete failed', 500)
-    return ok({ ok: true })
+    const r = await sb(`interviews?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
+    if (!r.ok) return err(res, 'Delete failed', 500)
+    return ok(res, { ok: true })
   }
 
-  return new Response('Method not allowed', { status: 405 })
+  return res.status(405).send('Method not allowed')
 }
