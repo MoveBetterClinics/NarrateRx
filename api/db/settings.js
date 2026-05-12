@@ -27,6 +27,16 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
+// Log a Supabase non-ok response body to function logs and return a generic
+// 500 to the client. Public response stays opaque (no schema leak); details
+// land in Vercel logs so the next "Database error" report is one log fetch
+// away from a root cause.
+async function dbErr(res, r, msg = 'Database error', status = 500) {
+  const body = await r.text().catch(() => '')
+  console.error(`[db/settings] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
+  return res.status(status).json({ error: msg })
+}
+
 const DEFAULT = { mode: 'bookings', notes: '' }
 
 export default async function handler(req, res) {
@@ -36,7 +46,10 @@ export default async function handler(req, res) {
 
   if (req.method === 'GET') {
     const r = await sb(`clinic_settings?${wsFilter}&select=campaign_mode,campaign_notes`)
-    if (!r.ok) return ok(res, DEFAULT)
+    if (!r.ok) {
+      console.error(`[db/settings] select failed — supabase ${r.status}: ${(await r.text().catch(() => '')).slice(0, 500)}`)
+      return ok(res, DEFAULT)
+    }
     const data = await r.json()
     if (!data.length) return ok(res, DEFAULT)
     return ok(res, { mode: data[0].campaign_mode || 'bookings', notes: data[0].campaign_notes || '' })
@@ -57,7 +70,7 @@ export default async function handler(req, res) {
       headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({ workspace_id: ws.id, ...update }),
     })
-    if (!r.ok) return err(res, 'Failed to save settings', 500)
+    if (!r.ok) return dbErr(res, r, 'Failed to save settings')
     return ok(res, { success: true })
   }
 

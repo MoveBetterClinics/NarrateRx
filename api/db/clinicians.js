@@ -27,6 +27,16 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
+// Log a Supabase non-ok response body to function logs and return a generic
+// 500 to the client. Public response stays opaque (no schema leak); details
+// land in Vercel logs so the next "Database error" report is one log fetch
+// away from a root cause.
+async function dbErr(res, r, msg = 'Database error', status = 500) {
+  const body = await r.text().catch(() => '')
+  console.error(`[db/clinicians] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
+  return res.status(status).json({ error: msg })
+}
+
 const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email'
 
 export default async function handler(req, res) {
@@ -42,13 +52,13 @@ export default async function handler(req, res) {
     if (id) {
       // Single clinician with full interview list
       const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
-      if (!r.ok) return err(res, 'Database error', 500)
+      if (!r.ok) return dbErr(res, r)
       const data = await r.json()
       return ok(res, data[0] ?? null)
     }
     // All clinicians with interview summaries
     const r = await sb(`clinicians?${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
-    if (!r.ok) return err(res, 'Database error', 500)
+    if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }
 
@@ -61,7 +71,7 @@ export default async function handler(req, res) {
 
     // Find existing by name (case-insensitive) within this workspace
     const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
-    if (!findRes.ok) return err(res, 'Database error', 500)
+    if (!findRes.ok) return dbErr(res, findRes)
     const found = await findRes.json()
     if (found.length > 0) return ok(res, found[0])
 
@@ -75,7 +85,7 @@ export default async function handler(req, res) {
         created_by_email: createdByEmail,
       }),
     })
-    if (!createRes.ok) return err(res, 'Create failed', 500)
+    if (!createRes.ok) return dbErr(res, createRes, 'Create failed')
     const data = await createRes.json()
     return ok(res, data[0], 201)
   }
@@ -87,13 +97,13 @@ export default async function handler(req, res) {
     if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=created_by_id`)
-    if (!chk.ok) return err(res, 'Database error', 500)
+    if (!chk.ok) return dbErr(res, chk)
     const rows = await chk.json()
     if (!rows.length) return err(res, 'Not found', 404)
     if (rows[0].created_by_id !== userId) return err(res, 'Forbidden', 403)
 
     const r = await sb(`clinicians?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
-    if (!r.ok) return err(res, 'Delete failed', 500)
+    if (!r.ok) return dbErr(res, r, 'Delete failed')
     return ok(res, { ok: true })
   }
 

@@ -27,6 +27,16 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
+// Log a Supabase non-ok response body to function logs and return a generic
+// 500 to the client. Public response stays opaque (no schema leak); details
+// land in Vercel logs so the next "Database error" report is one log fetch
+// away from a root cause.
+async function dbErr(res, r, msg = 'Database error', status = 500) {
+  const body = await r.text().catch(() => '')
+  console.error(`[db/interviews] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
+  return res.status(status).json({ error: msg })
+}
+
 export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
@@ -41,7 +51,7 @@ export default async function handler(req, res) {
       const r = await sb(
         `interviews?id=eq.${id}&${wsFilter}&select=id,clinician_id,topic,status,messages,outputs,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,created_at,updated_at`
       )
-      if (!r.ok) return err(res, 'Database error', 500)
+      if (!r.ok) return dbErr(res, r)
       const data = await r.json()
       return ok(res, data[0] ?? null)
     }
@@ -57,7 +67,7 @@ export default async function handler(req, res) {
     qs += `&order=created_at.desc&limit=3`
 
     const r = await sb(qs)
-    if (!r.ok) return err(res, 'Database error', 500)
+    if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }
 
@@ -85,7 +95,7 @@ export default async function handler(req, res) {
         location_id: locationId || null,
       }),
     })
-    if (!r.ok) return err(res, 'Create failed', 500)
+    if (!r.ok) return dbErr(res, r, 'Create failed')
     const data = await r.json()
     return ok(res, data[0], 201)
   }
@@ -97,7 +107,7 @@ export default async function handler(req, res) {
     if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,clinician_id,topic,location_id`)
-    if (!chk.ok) return err(res, 'Database error', 500)
+    if (!chk.ok) return dbErr(res, chk)
     const rows = await chk.json()
     if (!rows.length) return err(res, 'Not found', 404)
     if (rows[0].owner_id !== userId) return err(res, 'Forbidden', 403)
@@ -113,7 +123,7 @@ export default async function handler(req, res) {
       method: 'PATCH',
       body: JSON.stringify(patch),
     })
-    if (!r.ok) return err(res, 'Update failed', 500)
+    if (!r.ok) return dbErr(res, r, 'Update failed')
     const data = await r.json()
 
     // Auto-create content_items when outputs are saved for the first time
@@ -192,7 +202,7 @@ export default async function handler(req, res) {
     if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id`)
-    if (!chk.ok) return err(res, 'Database error', 500)
+    if (!chk.ok) return dbErr(res, chk)
     const rows = await chk.json()
     if (!rows.length) return err(res, 'Not found', 404)
     if (rows[0].owner_id !== userId) return err(res, 'Forbidden', 403)
@@ -207,7 +217,7 @@ export default async function handler(req, res) {
     }
 
     const r = await sb(`interviews?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
-    if (!r.ok) return err(res, 'Delete failed', 500)
+    if (!r.ok) return dbErr(res, r, 'Delete failed')
     return ok(res, { ok: true })
   }
 
