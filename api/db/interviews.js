@@ -151,18 +151,17 @@ export default async function handler(req, res) {
         const existsRows = existsRes.ok ? await existsRes.json() : []
 
         if (existsRows.length === 0) {
-          // Map outputs keys → platform identifiers
+          // Map outputs keys → platform identifiers. Platforms covered by
+          // the on-demand content plan (instagram, facebook, linkedin, gbp,
+          // pinterest, tiktok) are intentionally NOT in this map — the Plan
+          // tab handles those via content_plan_atoms.
           const platformMap = [
             { key: 'blogPost',        platform: 'blog' },
-            { key: 'instagram',       platform: 'instagram' },
-            { key: 'facebook',        platform: 'facebook' },
-            { key: 'linkedin',        platform: 'linkedin' },
-            { key: 'gbpPost',         platform: 'gbp' },
             { key: 'googleAds',       platform: 'google_ads' },
             { key: 'landingPage',     platform: 'landing_page' },
             { key: 'youtubeScript',   platform: 'youtube' },
-            { key: 'tiktokScript',    platform: 'tiktok' },
             { key: 'emailNewsletter', platform: 'email' },
+            { key: 'instagramAds',    platform: 'instagram_ads' },
           ]
 
           const items = platformMap

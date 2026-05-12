@@ -378,7 +378,7 @@ export function getVideoScriptBatchSystemPrompt(workspace, clinicianName, condit
   const firstName = clinicianName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
   const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
-  return `Based on the blog post provided, write two video scripts for ${workspace.display_name} about ${condition}.
+  return `Based on the blog post provided, write a YouTube video script for ${workspace.display_name} about ${condition}.
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'video' })}
 ${patientContext ? `\n${patientContext}\n` : ''}
@@ -417,22 +417,7 @@ Write a complete YouTube description (200–300 words):
 - Opening sentence mirroring the hook
 - 3–4 sentence summary of what the video covers
 - Book link: ${workspace.website}
-- 5–8 keyword hashtags for YouTube (#${condition.replace(/\s+/g, '')} ${workspace.location_hashtag} ${workspace.brand_hashtag} etc.)
-
----TIKTOK SCRIPT---
-Write a 45–60 second TikTok / Instagram Reels script (~120–150 words).
-
-[HOOK — first 3 seconds]
-One punchy sentence that stops the scroll. Lead with tension or a counterintuitive claim. Example: "Most people with ${condition} are doing this wrong — and it's making it worse."
-
-[BODY — 30–40 seconds]
-3–4 short punchy points from ${isPersonal ? `${firstName}'s clinical perspective in first person` : `${workspace.display_name}'s clinical perspective`}. 1–2 sentences each. Plain language, no jargon. Add [ON SCREEN TEXT: ...] for any text overlays.
-
-[CLOSE — 10 seconds]
-Soft CTA: "If you're dealing with ${condition} in ${workspace.location_keyword}, follow for more — link in bio to book at ${workspace.display_name}."
-
-CAPTION:
-50–80 word TikTok caption with 5–6 relevant hashtags. Brand as ${workspace.display_name}.${campaignContext}
+- 5–8 keyword hashtags for YouTube (#${condition.replace(/\s+/g, '')} ${workspace.location_hashtag} ${workspace.brand_hashtag} etc.)${campaignContext}
 ${getToneModifier(tone, workspace)}`
 }
 

@@ -2,8 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import {
-  ArrowLeft, Copy, Check, Instagram, Facebook, FileText, RefreshCw, Loader2,
-  Globe, Video, Mail, Linkedin, Youtube, MapPin, Search, Layout, Smartphone, Pin, Share2, Pencil, Sparkles, Megaphone, Send, ExternalLink, AlertCircle,
+  ArrowLeft, Copy, Check, FileText, RefreshCw, Loader2,
+  Globe, Mail, Youtube, Search, Layout, Pencil, Sparkles, Megaphone, Send, ExternalLink, AlertCircle,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
@@ -20,7 +20,6 @@ import { generateContent } from '@/lib/claude'
 import { workspace } from '@/lib/workspace'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import {
-  getSocialBatchSystemPrompt,
   getVideoScriptBatchSystemPrompt,
   getMarketingBatchSystemPrompt,
 } from '@/lib/prompts'
@@ -97,20 +96,10 @@ export default function InterviewOutput() {
       const campaignContext = getCampaignPromptContext(campaign)
       let updates = {}
 
-      if (group === 'social') {
-        const result = await generateContent(blogInput, getSocialBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone, voiceMode), { signal })
-        updates = {
-          instagram: parseSection(result, '---INSTAGRAM---', '---FACEBOOK---'),
-          facebook: parseSection(result, '---FACEBOOK---', '---GBP POST---'),
-          gbpPost: parseSection(result, '---GBP POST---', '---LINKEDIN---'),
-          linkedin: parseSection(result, '---LINKEDIN---', '---PINTEREST---'),
-          pinterest: parseSection(result, '---PINTEREST---', null),
-        }
-      } else if (group === 'video') {
+      if (group === 'video') {
         const result = await generateContent(blogInput, getVideoScriptBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone, voiceMode), { signal })
         updates = {
-          youtubeScript: parseSection(result, '---YOUTUBE SCRIPT---', '---TIKTOK SCRIPT---'),
-          tiktokScript: parseSection(result, '---TIKTOK SCRIPT---', null),
+          youtubeScript: parseSection(result, '---YOUTUBE SCRIPT---', null),
         }
       } else if (group === 'marketing') {
         const result = await generateContent(blogInput, getMarketingBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone), { signal })
@@ -132,18 +121,13 @@ export default function InterviewOutput() {
         qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       }
 
-      // Create content items in the database for each generated platform
+      // Create content items in the database for each generated platform.
+      // Social platforms (instagram, facebook, linkedin, gbp, pinterest) and
+      // tiktok are intentionally excluded — they're handled by the Plan tab
+      // via on-demand content_plan_atoms drafts.
       const platformsByGroup = {
-        social: [
-          { platform: 'instagram',    key: 'instagram' },
-          { platform: 'facebook',     key: 'facebook' },
-          { platform: 'gbp',          key: 'gbpPost' },
-          { platform: 'linkedin',     key: 'linkedin' },
-          { platform: 'pinterest',    key: 'pinterest' },
-        ],
         video: [
           { platform: 'youtube',      key: 'youtubeScript' },
-          { platform: 'tiktok',       key: 'tiktokScript' },
         ],
         marketing: [
           { platform: 'email',         key: 'emailNewsletter' },
@@ -228,7 +212,7 @@ export default function InterviewOutput() {
       </div>
 
       <Tabs defaultValue="plan">
-        <TabsList className={`grid w-full ${isPersonal ? 'grid-cols-4' : 'grid-cols-7'}`}>
+        <TabsList className={`grid w-full ${isPersonal ? 'grid-cols-3' : 'grid-cols-7'}`}>
           <TabsTrigger value="plan" className="gap-1.5 text-xs">
             <Sparkles className="h-3.5 w-3.5" />
             Plan
@@ -237,10 +221,6 @@ export default function InterviewOutput() {
             <FileText className="h-3.5 w-3.5" />
             Blog
           </TabsTrigger>
-          <TabsTrigger value="social" className="gap-1.5 text-xs">
-            <Share2 className="h-3.5 w-3.5" />
-            Social
-          </TabsTrigger>
           {!isPersonal && (
             <TabsTrigger value="instagram_ads" className="gap-1.5 text-xs">
               <Megaphone className="h-3.5 w-3.5" />
@@ -248,14 +228,20 @@ export default function InterviewOutput() {
             </TabsTrigger>
           )}
           {!isPersonal && (
-            <TabsTrigger value="google" className="gap-1.5 text-xs">
-              <Globe className="h-3.5 w-3.5" />
-              Google
+            <TabsTrigger value="google_ads" className="gap-1.5 text-xs">
+              <Search className="h-3.5 w-3.5" />
+              Google Ads
             </TabsTrigger>
           )}
-          <TabsTrigger value="video" className="gap-1.5 text-xs">
-            <Video className="h-3.5 w-3.5" />
-            Video
+          {!isPersonal && (
+            <TabsTrigger value="landing_page" className="gap-1.5 text-xs">
+              <Layout className="h-3.5 w-3.5" />
+              Landing
+            </TabsTrigger>
+          )}
+          <TabsTrigger value="youtube" className="gap-1.5 text-xs">
+            <Youtube className="h-3.5 w-3.5" />
+            YouTube
           </TabsTrigger>
           {!isPersonal && (
             <TabsTrigger value="email" className="gap-1.5 text-xs">
@@ -293,46 +279,6 @@ export default function InterviewOutput() {
           )}
         </TabsContent>
 
-        {/* ── Social Media ── */}
-        <TabsContent value="social">
-          {outputs.instagram ? (
-            <Tabs defaultValue="instagram">
-              <TabsList className="grid w-full grid-cols-4 mt-1">
-                <TabsTrigger value="instagram" className="gap-1.5 text-xs">
-                  <Instagram className="h-3.5 w-3.5" />
-                  Instagram
-                </TabsTrigger>
-                <TabsTrigger value="facebook" className="gap-1.5 text-xs">
-                  <Facebook className="h-3.5 w-3.5" />
-                  Facebook
-                </TabsTrigger>
-                <TabsTrigger value="linkedin" className="gap-1.5 text-xs">
-                  <Linkedin className="h-3.5 w-3.5" />
-                  LinkedIn
-                </TabsTrigger>
-                <TabsTrigger value="pinterest" className="gap-1.5 text-xs">
-                  <Pin className="h-3.5 w-3.5" />
-                  Pinterest
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="instagram">
-                <OutputCard title="Instagram Caption" subtitle="Copy and paste into your Instagram post — no URLs in body, use bio link" content={outputs.instagram} badge="Instagram" editId={itemMap['instagram']} />
-              </TabsContent>
-              <TabsContent value="facebook">
-                <OutputCard title="Facebook Post" subtitle="Copy and paste into your Facebook page — URL generates a rich link preview" content={outputs.facebook} badge="Facebook" editId={itemMap['facebook']} />
-              </TabsContent>
-              <TabsContent value="linkedin">
-                <OutputCard title="LinkedIn Post" subtitle={`Post from the ${workspace.name} LinkedIn page`} content={outputs.linkedin} badge="LinkedIn" editId={itemMap['linkedin']} />
-              </TabsContent>
-              <TabsContent value="pinterest">
-                <OutputCard title="Pinterest Pins" subtitle="3 pin variations — use with a vertical image linked to the blog post" content={outputs.pinterest} badge="Pinterest" editId={itemMap['pinterest']} />
-              </TabsContent>
-            </Tabs>
-          ) : (
-            <GeneratePrompt group="social" generating={generating} error={genError} onGenerate={generateGroup} label="Social Media" description="Instagram, Facebook, LinkedIn, Pinterest, and GBP post" />
-          )}
-        </TabsContent>
-
         {/* ── Instagram Ads ── */}
         {!isPersonal && (
           <TabsContent value="instagram_ads">
@@ -350,64 +296,52 @@ export default function InterviewOutput() {
           </TabsContent>
         )}
 
-        {/* ── Google ── */}
+        {/* ── Google Ads ── */}
         {!isPersonal && (
-        <TabsContent value="google">
-          {outputs.googleAds ? (
-            <Tabs defaultValue="gbp">
-              <TabsList className="grid w-full grid-cols-3 mt-1">
-                <TabsTrigger value="gbp" className="gap-1.5 text-xs">
-                  <MapPin className="h-3.5 w-3.5" />
-                  GBP Post
-                </TabsTrigger>
-                <TabsTrigger value="ads" className="gap-1.5 text-xs">
-                  <Search className="h-3.5 w-3.5" />
-                  Google Ads
-                </TabsTrigger>
-                <TabsTrigger value="landing" className="gap-1.5 text-xs">
-                  <Layout className="h-3.5 w-3.5" />
-                  Landing Page
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="gbp">
-                <OutputCard title="Google Business Profile Post" subtitle="Post directly to your GBP — appears in Maps and Search results" content={outputs.gbpPost} badge="GBP" editId={itemMap['gbp']} />
-              </TabsContent>
-              <TabsContent value="ads">
-                <OutputCard title="Google Search Ad Copy" subtitle="Responsive Search Ad — 15 headlines, 4 descriptions, extensions" content={outputs.googleAds} badge="Google Ads" editId={itemMap['google_ads']} />
-              </TabsContent>
-              <TabsContent value="landing">
-                <OutputCard title="Landing Page Copy" subtitle="Conversion-focused page copy — includes SEO title tag and meta description" content={outputs.landingPage} badge="Landing Page" editId={itemMap['landing_page']} />
-              </TabsContent>
-            </Tabs>
-          ) : (
-            <GeneratePrompt group="marketing" generating={generating} error={genError} onGenerate={generateGroup} label="Google & Marketing" description="GBP post, Google Ads, Instagram Ads, and landing page copy" />
-          )}
-        </TabsContent>
+          <TabsContent value="google_ads">
+            {outputs.googleAds ? (
+              <OutputCard
+                title="Google Search Ad Copy"
+                subtitle="Responsive Search Ad — 15 headlines, 4 descriptions, extensions"
+                content={outputs.googleAds}
+                badge="Google Ads"
+                editId={itemMap['google_ads']}
+              />
+            ) : (
+              <GeneratePrompt group="marketing" generating={generating} error={genError} onGenerate={generateGroup} label="Google Ads" description="Responsive Search Ad — generated alongside Landing Page, IG Ads, and Email" />
+            )}
+          </TabsContent>
         )}
 
-        {/* ── Video ── */}
-        <TabsContent value="video">
+        {/* ── Landing Page ── */}
+        {!isPersonal && (
+          <TabsContent value="landing_page">
+            {outputs.landingPage ? (
+              <OutputCard
+                title="Landing Page Copy"
+                subtitle="Conversion-focused page copy — includes SEO title tag and meta description"
+                content={outputs.landingPage}
+                badge="Landing Page"
+                editId={itemMap['landing_page']}
+              />
+            ) : (
+              <GeneratePrompt group="marketing" generating={generating} error={genError} onGenerate={generateGroup} label="Landing Page" description="Conversion-focused page copy — generated alongside Google Ads, IG Ads, and Email" />
+            )}
+          </TabsContent>
+        )}
+
+        {/* ── YouTube ── */}
+        <TabsContent value="youtube">
           {outputs.youtubeScript ? (
-            <Tabs defaultValue="youtube">
-              <TabsList className="grid w-full grid-cols-2 mt-1">
-                <TabsTrigger value="youtube" className="gap-1.5 text-xs">
-                  <Youtube className="h-3.5 w-3.5" />
-                  YouTube Script
-                </TabsTrigger>
-                <TabsTrigger value="tiktok" className="gap-1.5 text-xs">
-                  <Smartphone className="h-3.5 w-3.5" />
-                  TikTok / Reels
-                </TabsTrigger>
-              </TabsList>
-              <TabsContent value="youtube">
-                <OutputCard title="YouTube Video Script" subtitle="5–8 minute script with B-roll cues, patient story, and video description" content={outputs.youtubeScript} badge="YouTube" editId={itemMap['youtube']} />
-              </TabsContent>
-              <TabsContent value="tiktok">
-                <OutputCard title="TikTok / Reels Script" subtitle="45–60 second vertical video script with on-screen text cues and caption" content={outputs.tiktokScript} badge="TikTok / Reels" editId={itemMap['tiktok']} />
-              </TabsContent>
-            </Tabs>
+            <OutputCard
+              title="YouTube Video Script"
+              subtitle="5–8 minute script with B-roll cues, patient story, and video description"
+              content={outputs.youtubeScript}
+              badge="YouTube"
+              editId={itemMap['youtube']}
+            />
           ) : (
-            <GeneratePrompt group="video" generating={generating} error={genError} onGenerate={generateGroup} label="Video Scripts" description="YouTube (5–8 min) and TikTok/Reels (45–60 sec) scripts" />
+            <GeneratePrompt group="video" generating={generating} error={genError} onGenerate={generateGroup} label="YouTube Script" description="5–8 minute long-form video script (TikTok / Reels scripts live in the Plan tab as on-demand atoms)" />
           )}
         </TabsContent>
 
