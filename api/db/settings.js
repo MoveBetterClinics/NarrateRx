@@ -1,10 +1,12 @@
 // Pinned to Node runtime so the Edge whole-graph bundler doesn't follow
 // the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
-// Web-style (Request → Response) handler still works on Vercel's Node/Fluid runtime.
+// Uses Express-style (req, res) handler — the Web-style (req) → Response
+// pattern silently hangs on Vercel's Node runtime (response never sent;
+// function times out at 300s). Match the convention used by /api/content-pieces/*.
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { enforceLimitEdge } from '../_lib/ratelimit.js'
+import { enforceLimit } from '../_lib/ratelimit.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -22,45 +24,42 @@ function sb(path, init = {}) {
   })
 }
 
-const ok = (data, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } })
-const err = (msg, status = 400) =>
-  new Response(JSON.stringify({ error: msg }), { status, headers: { 'Content-Type': 'application/json' } })
+const ok  = (res, data, status = 200) => res.status(status).json(data)
+const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
 const DEFAULT = { mode: 'bookings', notes: '' }
 
-export default async function handler(req) {
+export default async function handler(req, res) {
   const ws = await workspaceContext(req)
-  if (!ws) return err('Workspace not resolved', 400)
+  if (!ws) return err(res, 'Workspace not resolved', 400)
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   if (req.method === 'GET') {
-    const res = await sb(`clinic_settings?${wsFilter}&select=campaign_mode,campaign_notes`)
-    if (!res.ok) return ok(DEFAULT)
-    const data = await res.json()
-    if (!data.length) return ok(DEFAULT)
-    return ok({ mode: data[0].campaign_mode || 'bookings', notes: data[0].campaign_notes || '' })
+    const r = await sb(`clinic_settings?${wsFilter}&select=campaign_mode,campaign_notes`)
+    if (!r.ok) return ok(res, DEFAULT)
+    const data = await r.json()
+    if (!data.length) return ok(res, DEFAULT)
+    return ok(res, { mode: data[0].campaign_mode || 'bookings', notes: data[0].campaign_notes || '' })
   }
 
   if (req.method === 'PATCH') {
-    const limited = await enforceLimitEdge(req, 'media')
-    if (limited) return limited
+    if (!(await enforceLimit(req, res, 'media'))) return
 
-    const body = await req.json().catch(() => ({}))
+    const body = req.body || {}
     const update = { updated_at: new Date().toISOString() }
     if (body.mode) update.campaign_mode = body.mode
     if (body.notes !== undefined) update.campaign_notes = body.notes
     const userId = req.headers['x-user-id'] ?? req.headers.get?.('x-user-id') ?? null
     if (userId) update.updated_by = userId
 
-    const res = await sb(`clinic_settings`, {
+    const r = await sb(`clinic_settings`, {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({ workspace_id: ws.id, ...update }),
     })
-    if (!res.ok) return err('Failed to save settings', 500)
-    return ok({ success: true })
+    if (!r.ok) return err(res, 'Failed to save settings', 500)
+    return ok(res, { success: true })
   }
 
-  return new Response('Method not allowed', { status: 405 })
+  return res.status(405).send('Method not allowed')
 }
