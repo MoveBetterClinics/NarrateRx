@@ -91,7 +91,7 @@ export default function ContentCalendar() {
                 >
                   {Icon && <Icon className={`h-4 w-4 ${pm.color} shrink-0`} />}
                   <div className="min-w-0">
-                    <p className="text-xs font-medium truncate">{item.topic}</p>
+                    <p className="text-xs font-medium truncate" title={item.topic}>{item.topic}</p>
                     <p className="text-xs text-muted-foreground">{pm?.label} · {item.clinician_name}</p>
                   </div>
                   <span className="text-xs text-amber-600 ml-auto shrink-0">Add media →</span>
@@ -142,6 +142,7 @@ export default function ContentCalendar() {
                         <Link
                           key={item.id}
                           to={`/review/${item.id}`}
+                          title={`${pm?.label || ''} · ${item.topic}`}
                           className={`block text-[10px] px-1.5 py-0.5 rounded truncate ${pm?.bg || 'bg-muted'} ${pm?.color || ''} hover:opacity-80 transition-opacity`}
                         >
                           {pm?.label} · {item.topic}

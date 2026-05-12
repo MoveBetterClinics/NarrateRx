@@ -490,7 +490,7 @@ export default function InterviewSession() {
         </Avatar>
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm leading-none">{clinician.name}</p>
-          <p className="text-xs text-muted-foreground mt-0.5 truncate">{interview.topic}</p>
+          <p className="text-xs text-muted-foreground mt-0.5 truncate" title={interview.topic}>{interview.topic}</p>
         </div>
         {saveStatus && (
           <span className={`text-xs shrink-0 ${saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>

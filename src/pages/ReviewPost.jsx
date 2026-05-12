@@ -572,7 +572,7 @@ export default function ReviewPost() {
 
                       {/* Reorder + delete controls — visible on hover */}
                       {!isPublished && (
-                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-1 py-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between px-1 py-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                           <button
                             onClick={() => reorderMedia(i, i - 1)}
                             disabled={i === 0}

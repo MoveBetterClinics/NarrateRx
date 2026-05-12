@@ -110,11 +110,11 @@ export default function ContentBriefList({ refreshKey, expandedDefault = true })
                       {b.target_platform && (
                         <span className="text-[10px] uppercase font-medium text-primary">{b.target_platform}</span>
                       )}
-                      <span className="text-xs text-muted-foreground truncate">
+                      <span className="text-xs text-muted-foreground truncate" title={b.source_quote || ''}>
                         {b.source_quote ? `"${b.source_quote.slice(0, 80)}${b.source_quote.length > 80 ? '…' : ''}"` : '(no quote)'}
                       </span>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                    <div className="text-[11px] text-muted-foreground mt-0.5 truncate" title={b.final_caption || b.ai_caption || ''}>
                       {b.final_caption?.slice(0, 120) || b.ai_caption?.slice(0, 120) || '(no caption draft)'}
                     </div>
                   </div>

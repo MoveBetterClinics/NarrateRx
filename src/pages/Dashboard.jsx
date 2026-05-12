@@ -370,9 +370,9 @@ function GettingStarted({ cliniciansCount, completedCount, hasMedia = false, has
                   <p className="text-xs text-muted-foreground mt-0.5">{item.detail}</p>
                 </div>
                 {RowIcon && !item.done && (
-                  <RowIcon className="h-4 w-4 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <RowIcon className="h-4 w-4 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" />
                 )}
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition-opacity" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity" />
               </Link>
             </li>
           )
@@ -512,9 +512,9 @@ function ResumeCard({ interview, currentUserId }) {
             {getInitials(interview.clinicianName)}
           </AvatarFallback>
         </Avatar>
-        <p className="text-xs font-medium text-foreground/80 truncate">{interview.clinicianName}</p>
+        <p className="text-xs font-medium text-foreground/80 truncate" title={interview.clinicianName}>{interview.clinicianName}</p>
       </div>
-      <p className="text-sm font-semibold text-amber-900 truncate">{interview.topic}</p>
+      <p className="text-sm font-semibold text-amber-900 truncate" title={interview.topic}>{interview.topic}</p>
       <p className="text-[11px] text-amber-700/80 mt-0.5">
         Updated {formatRelativeDate(interview.updated_at)}
         {!isOwner && interview.owner_email ? ` · by ${formatInterviewerName(interview.owner_email)}` : ''}
@@ -679,8 +679,8 @@ function TopicView({ byTopic, existingTopics, currentUserId, workspace }) {
                 className="flex items-center justify-between rounded-lg border border-dashed px-3 py-2.5 hover:border-primary hover:bg-primary/5 transition-colors group"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{t.topic}</p>
-                  <p className="text-xs text-muted-foreground truncate">{t.category}</p>
+                  <p className="text-sm font-medium truncate" title={t.topic}>{t.topic}</p>
+                  <p className="text-xs text-muted-foreground truncate" title={t.category}>{t.category}</p>
                 </div>
                 <Badge
                   variant="outline"
@@ -745,7 +745,7 @@ function ClinicianTile({ clinician }) {
             </AvatarFallback>
           </Avatar>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold truncate">{clinician.name}</h3>
+            <h3 className="font-semibold truncate" title={clinician.name}>{clinician.name}</h3>
             <p className="text-sm text-muted-foreground mt-0.5">
               {interviews.length === 0
                 ? 'No interviews yet'
@@ -827,9 +827,9 @@ function InterviewListRow({ interview, currentUserId, showClinician }) {
       <CardContent className="p-3 flex items-center gap-3">
         <div className="flex-1 min-w-0">
           {showClinician && (
-            <p className="text-xs text-muted-foreground truncate">{interview.clinicianName}</p>
+            <p className="text-xs text-muted-foreground truncate" title={interview.clinicianName}>{interview.clinicianName}</p>
           )}
-          <p className="font-medium text-sm truncate">{interview.topic}</p>
+          <p className="font-medium text-sm truncate" title={interview.topic}>{interview.topic}</p>
           <p className="text-xs text-muted-foreground">{formatRelativeDate(interview.updated_at)}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

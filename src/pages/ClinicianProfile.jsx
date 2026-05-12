@@ -216,7 +216,7 @@ function InterviewRow({ interview, clinicianId, currentUserId, onDelete }) {
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-medium text-sm truncate">{interview.topic}</p>
+          <p className="font-medium text-sm truncate" title={interview.topic}>{interview.topic}</p>
           <p className="text-xs text-muted-foreground">
             {formatRelativeDate(interview.updated_at)}
             {!isOwner && <span className="ml-2 text-muted-foreground/60">· by {interview.owner_email?.split('@')[0]}</span>}

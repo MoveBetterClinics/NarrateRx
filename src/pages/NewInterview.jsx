@@ -12,6 +12,7 @@ import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 import { useQueryClient } from '@tanstack/react-query'
@@ -45,6 +46,16 @@ export default function NewInterview() {
     ? workspace.locations.filter(l => l.status === 'active')
     : []
   const showLocationPicker = activeLocations.length > 1
+
+  // Warn before tab close / refresh / typed-URL nav when the form has
+  // unsaved entries. Suppressed during submission (handleStart sets
+  // loading=true, then navigates on success). Initial condition from a
+  // ?topic= search param doesn't count as user-entered input.
+  const initialTopic = searchParams.get('topic') || ''
+  const isDirty =
+    !loading &&
+    (clinicianName.trim().length > 0 || condition.trim() !== initialTopic)
+  useUnsavedChanges(isDirty)
   // Shares cache with Dashboard's useClinicians() — if the user navigated
   // here from Dashboard, the data is already warm and we paint instantly.
   const { data: cliniciansForSuggestions = [], isLoading: cliniciansLoading } = useClinicians()
@@ -240,7 +251,7 @@ export default function NewInterview() {
             {PATIENT_PROTOTYPES_UI.length > 1 && (
               <div className="space-y-2">
                 <Label className="text-sm">Patient archetype</Label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {PATIENT_PROTOTYPES_UI.map((p) => (
                     <button
                       key={String(p.id)}
@@ -266,7 +277,7 @@ export default function NewInterview() {
             {/* Voice mode selector */}
             <div className="space-y-2">
               <Label className="text-sm">Voice</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {VOICE_MODES.map((v) => (
                   <button
                     key={v.id}
@@ -301,7 +312,7 @@ export default function NewInterview() {
                   Which clinic is this interview for? Affects local hashtags, "near me" copy,
                   and (for GBP posts) which Google Business Profile receives the post.
                 </p>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setLocationId(null)}
@@ -347,7 +358,7 @@ export default function NewInterview() {
             {/* Tone selector */}
             <div className="space-y-2">
               <Label className="text-sm">Content tone</Label>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {TONES.map((t) => (
                   <button
                     key={t.id}

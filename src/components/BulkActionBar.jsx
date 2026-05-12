@@ -468,7 +468,7 @@ export default function BulkActionBar({
                         : wasAdded
                           ? <Check className="h-3 w-3 text-emerald-600" />
                           : <Plus className="h-3 w-3" />}
-                      <span className="truncate max-w-[160px]">{c.name}</span>
+                      <span className="truncate max-w-[160px]" title={c.name}>{c.name}</span>
                       {c.item_count > 0 && (
                         <span className="text-muted-foreground">· {c.item_count}</span>
                       )}

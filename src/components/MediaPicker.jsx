@@ -219,7 +219,7 @@ export default function MediaPicker({ onSelect, onClose }) {
 
             {/* Footer */}
             <div className="px-5 py-3 border-t flex items-center justify-between shrink-0">
-              <p className="text-xs text-muted-foreground truncate max-w-[55%]">
+              <p className="text-xs text-muted-foreground truncate max-w-[55%]" title={selected ? selected.filename || selected.name : ''}>
                 {selected ? `Selected: ${selected.filename || selected.name}` : 'Pick a file from your library'}
               </p>
               <div className="flex gap-2">
