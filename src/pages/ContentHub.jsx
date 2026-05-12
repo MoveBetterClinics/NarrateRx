@@ -315,7 +315,7 @@ function PerformedWellToggle({ item }) {
       className={`shrink-0 ${on ? 'text-green-600' : 'text-muted-foreground'}`}
       disabled={m.isPending}
       onClick={() => m.mutate({ id: item.id, patch: { performedWell: !on } })}
-      title={on ? 'Marked as performed well — used as AI exemplar' : 'Mark as performed well (used as AI exemplar)'}
+      title={on ? 'Marked as performed well — the AI will reference this when generating future content' : 'Mark as performed well — the AI will use flagged posts as style references for future content'}
       aria-pressed={on}
       aria-label="Mark as performed well"
     >

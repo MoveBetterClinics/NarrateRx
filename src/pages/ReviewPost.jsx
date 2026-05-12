@@ -792,6 +792,9 @@ export default function ReviewPost() {
                 <ThumbsUp className={`h-4 w-4 mr-1.5 ${item.performed_well ? 'fill-current' : ''}`} />
                 {item.performed_well ? 'Performed well' : 'Mark as performed well'}
               </Button>
+              <p className="text-[11px] text-green-700/80 leading-snug px-2">
+                Flagged posts become style references the AI uses when generating future {item.platform} content.
+              </p>
             </div>
           )}
 
