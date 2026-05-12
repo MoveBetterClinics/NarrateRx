@@ -283,7 +283,7 @@ export default function WorkspaceSettings() {
 
       <Section title="Web presence">
         <Field label="Website"
-          value={form.website} onChange={set('website')} placeholder="https://..." />
+          value={form.website} onChange={set('website')} placeholder="https://..." type="url" autoComplete="url" />
         <Field label="Website hostname"
           value={form.website_hostname} onChange={set('website_hostname')}
           placeholder="movebetter.co"
@@ -357,7 +357,7 @@ export default function WorkspaceSettings() {
           placeholder="#9DB39C" />
         <Field label="Brandbook URL"
           value={form.brandbook_url} onChange={set('brandbook_url')}
-          placeholder="https://..." hint="Notion / PDF / Drive link to your brand guidelines." />
+          placeholder="https://..." hint="Notion / PDF / Drive link to your brand guidelines." type="url" autoComplete="off" />
         <Textarea2 label="Brandbook notes"
           value={form.brandbook_notes} onChange={set('brandbook_notes')}
           rows={4}
@@ -384,7 +384,7 @@ export default function WorkspaceSettings() {
         <Textarea2 label="Brand voice"
           value={form.brand_voice} onChange={set('brand_voice')} rows={6} />
         <Field label="Booking URL"
-          value={form.booking_url} onChange={set('booking_url')} placeholder="https://..." />
+          value={form.booking_url} onChange={set('booking_url')} placeholder="https://..." type="url" autoComplete="off" />
       </Section>
 
       <Separator />
@@ -636,14 +636,16 @@ function Section({ title, description, children }) {
   )
 }
 
-function Field({ label, value, onChange, placeholder, hint }) {
+function Field({ label, value, onChange, placeholder, hint, type = 'text', autoComplete }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       <Input
+        type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        autoComplete={autoComplete}
         className="text-sm"
       />
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
@@ -1137,11 +1139,11 @@ function LocationFields({ draft, setDraft }) {
       <div className="grid grid-cols-12 gap-2">
         <div className="col-span-5 space-y-1">
           <Label className="text-xs">City</Label>
-          <Input value={draft.city} onChange={e => set('city')(e.target.value)} placeholder="Portland" className="text-sm" />
+          <Input value={draft.city} onChange={e => set('city')(e.target.value)} placeholder="Portland" className="text-sm" autoComplete="address-level2" />
         </div>
         <div className="col-span-3 space-y-1">
           <Label className="text-xs">State</Label>
-          <Input value={draft.region} onChange={e => set('region')(e.target.value)} placeholder="OR" className="text-sm" />
+          <Input value={draft.region} onChange={e => set('region')(e.target.value)} placeholder="OR" className="text-sm" autoComplete="address-level1" />
         </div>
         <div className="col-span-4 space-y-1">
           <Label className="text-xs">Label</Label>
@@ -1172,10 +1174,12 @@ function LocationFields({ draft, setDraft }) {
       <div className="space-y-1">
         <Label className="text-xs">Visit URL</Label>
         <Input
+          type="url"
           value={draft.visit_url}
           onChange={e => set('visit_url')(e.target.value)}
           placeholder="https://yourpractice.com/visit/portland"
           className="text-sm"
+          autoComplete="off"
         />
       </div>
       <div className="space-y-1">
