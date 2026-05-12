@@ -5,15 +5,17 @@ import {
   MapPin, ChevronRight, Clock, CheckCircle2, Send, CalendarDays,
   AlertCircle, Loader2, RefreshCw,
   MousePointer2, LayoutTemplate, Youtube, Music2, Megaphone,
-  ThumbsUp, Pin,
+  ThumbsUp, Pin, Archive, ArchiveRestore, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import SharedEmptyState from '@/components/EmptyState'
-import { useContentItems, useUpdateContentItem } from '@/lib/queries'
+import { useContentItems, useUpdateContentItem, useDeleteContentItem } from '@/lib/queries'
 import { formatRelativeDate } from '@/lib/utils'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { toast } from '@/lib/toast'
 
 const PLATFORM_META = {
   blog:         { label: 'Blog Post',       icon: FileText,   color: 'text-slate-600',  bg: 'bg-slate-100' },
@@ -36,9 +38,13 @@ const STATUS_META = {
   approved:   { label: 'Approved',   color: 'bg-blue-100 text-blue-700',     icon: CheckCircle2 },
   scheduled:  { label: 'Scheduled',  color: 'bg-purple-100 text-purple-700', icon: CalendarDays },
   published:  { label: 'Published',  color: 'bg-green-100 text-green-700',   icon: Send },
+  archived:   { label: 'Archived',   color: 'bg-zinc-100 text-zinc-600',     icon: Archive },
 }
 
-const STATUS_TABS = ['all', 'draft', 'in_review', 'approved', 'scheduled', 'published']
+// 'archived' is a UI-only pseudo-tab — there's no `archived` value on the
+// status enum. Selecting it switches the list query to `archived=only` so
+// rows with archived_at set come back regardless of their underlying status.
+const STATUS_TABS = ['all', 'draft', 'in_review', 'approved', 'scheduled', 'published', 'archived']
 
 // Chip groups for the platform filter — IG Ads sits alone between Social and Google.
 const PLATFORM_GROUPS = [
@@ -59,9 +65,15 @@ export default function ContentHub() {
   // useContentItems re-runs whenever the filters object changes (query key
   // includes the filter args). Refetch on demand via refetch() — wired to
   // the manual reload button in the header.
+  //
+  // 'archived' is the one tab that doesn't map to a status enum value — it
+  // flips the archive filter on instead, returning archived rows regardless
+  // of their workflow status.
+  const isArchivedView = activeStatus === 'archived'
   const filters = {}
-  if (activeStatus !== 'all') filters.status = activeStatus
-  if (platform !== 'all')     filters.platform = platform
+  if (activeStatus !== 'all' && !isArchivedView) filters.status = activeStatus
+  if (platform !== 'all')                        filters.platform = platform
+  if (isArchivedView)                            filters.archived = 'only'
   const { data: items = [], isLoading: loading, error: queryError, refetch } = useContentItems(filters)
   const error = queryError?.message || ''
   const load = refetch
@@ -125,16 +137,21 @@ export default function ContentHub() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <StatChip label="Drafts"    value={counts.draft || 0}     color="text-slate-600" />
-        <StatChip label="In Review" value={counts.in_review || 0} color="text-amber-600" />
-        <StatChip label="Scheduled" value={counts.scheduled || 0} color="text-purple-600" />
-        <StatChip label="Published" value={counts.published || 0} color="text-green-600" />
-      </div>
+      {/* Stats — only meaningful for the live workflow. In the Archived view
+          the counts would reflect underlying status of archived rows, which
+          is confusing; just hide them. */}
+      {!isArchivedView && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <StatChip label="Drafts"    value={counts.draft || 0}     color="text-slate-600" />
+          <StatChip label="In Review" value={counts.in_review || 0} color="text-amber-600" />
+          <StatChip label="Scheduled" value={counts.scheduled || 0} color="text-purple-600" />
+          <StatChip label="Published" value={counts.published || 0} color="text-green-600" />
+        </div>
+      )}
 
-      {/* Media needed warning */}
-      {needsMedia > 0 && (
+      {/* Media needed warning — suppressed in the Archived view since archived
+          posts aren't on the publish path. */}
+      {!isArchivedView && needsMedia > 0 && (
         <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
           <p className="text-sm text-amber-800">
@@ -223,7 +240,13 @@ export default function ContentHub() {
             }`}
           >
             {s === 'all' ? 'All' : STATUS_META[s]?.label}
-            {s !== 'all' && counts[s] ? ` (${counts[s]})` : ''}
+            {/* Counts reflect the current result set, which on the Archived
+                view are archived rows — surfacing those numbers next to
+                Draft/In Review/etc. would be misleading. */}
+            {s !== 'all' && !isArchivedView && counts[s] ? ` (${counts[s]})` : ''}
+            {s === 'archived' && isArchivedView && filteredItems.length
+              ? ` (${filteredItems.length})`
+              : ''}
           </button>
         ))}
       </div>
@@ -239,23 +262,73 @@ export default function ContentHub() {
         <EmptyState status={activeStatus} topic={topicFilter} onClearTopic={() => setTopicFilter('all')} />
       ) : (
         <div className="space-y-2">
-          {filteredItems.map((item) => <ContentRow key={item.id} item={item} />)}
+          {filteredItems.map((item) => <ContentRow key={item.id} item={item} archivedView={isArchivedView} />)}
         </div>
       )}
     </div>
   )
 }
 
-function ContentRow({ item }) {
+function ContentRow({ item, archivedView }) {
   const pm = PLATFORM_META[item.platform] || PLATFORM_META.blog
-  const sm = STATUS_META[item.status]     || STATUS_META.draft
+  // While viewing the Archived tab we display the Archived badge instead of
+  // the underlying lifecycle status — restore preserves the original status,
+  // but the relevant signal for the user here is "this is archived."
+  const sm = archivedView
+    ? STATUS_META.archived
+    : (STATUS_META[item.status] || STATUS_META.draft)
   const Icon = pm.icon
   const preview = item.content?.replace(/[#*_`]/g, '').slice(0, 120)
   const hasMedia = item.media_urls?.length > 0
   const needsMedia = ['instagram', 'facebook', 'gbp', 'pinterest'].includes(item.platform) && !hasMedia
 
+  const updateItem = useUpdateContentItem()
+  const deleteItem = useDeleteContentItem()
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Archive + restore both go through PATCH archived_at. The toast on archive
+  // exposes an Undo action so an accidental click is fully reversible without
+  // hunting through the Archived tab.
+  const archive = () => {
+    updateItem.mutate(
+      { id: item.id, patch: { archivedAt: new Date().toISOString() } },
+      {
+        onSuccess: () => {
+          toast.success('Archived', {
+            description: `${pm.label} · ${item.topic || 'Untitled'}`,
+            action: {
+              label: 'Undo',
+              onClick: () => updateItem.mutate({ id: item.id, patch: { archivedAt: null } }),
+            },
+          })
+        },
+        onError: (e) => toast.error('Archive failed', { description: e?.message }),
+      },
+    )
+  }
+
+  const restore = () => {
+    updateItem.mutate(
+      { id: item.id, patch: { archivedAt: null } },
+      {
+        onSuccess: () => toast.success('Restored', { description: `${pm.label} · ${item.topic || 'Untitled'}` }),
+        onError: (e) => toast.error('Restore failed', { description: e?.message }),
+      },
+    )
+  }
+
+  const remove = () => {
+    deleteItem.mutate(item.id, {
+      onSuccess: () => {
+        setConfirmDelete(false)
+        toast.success('Deleted permanently')
+      },
+      onError: (e) => toast.error('Delete failed', { description: e?.message }),
+    })
+  }
+
   return (
-    <Card className="hover:shadow-sm transition-shadow">
+    <Card className={`hover:shadow-sm transition-shadow ${archivedView ? 'opacity-75' : ''}`}>
       <CardContent className="p-4 flex items-start gap-4">
         {/* Platform badge — icon + name */}
         <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${pm.bg} shrink-0 min-w-[110px]`}>
@@ -275,7 +348,7 @@ function ContentRow({ item }) {
           <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">{preview}…</p>
           <div className="flex items-center gap-2 mt-2 flex-wrap">
             <Badge className={`text-xs ${sm.color} border-0`}>{sm.label}</Badge>
-            {needsMedia && (
+            {needsMedia && !archivedView && (
               <Badge className="text-xs bg-amber-100 text-amber-700 border-0">⚠ Needs media</Badge>
             )}
             {hasMedia && (
@@ -283,7 +356,7 @@ function ContentRow({ item }) {
                 {item.media_urls.length} media file{item.media_urls.length !== 1 ? 's' : ''}
               </Badge>
             )}
-            {item.scheduled_at && (
+            {item.scheduled_at && !archivedView && (
               <span className="text-xs text-purple-600 font-medium">
                 Scheduled {formatRelativeDate(item.scheduled_at)}
               </span>
@@ -291,16 +364,69 @@ function ContentRow({ item }) {
           </div>
         </div>
 
-        {/* Exemplar thumbs-up — only meaningful for already-published items */}
-        {item.status === 'published' && <PerformedWellToggle item={item} />}
+        {/* Exemplar thumbs-up — only meaningful for already-published, non-archived items */}
+        {!archivedView && item.status === 'published' && <PerformedWellToggle item={item} />}
 
-        {/* CTA */}
-        <Button asChild variant="ghost" size="sm" className="shrink-0">
-          <Link to={`/review/${item.id}`}>
-            {item.status === 'draft' ? 'Review' : item.status === 'published' ? 'View' : 'Edit'}
-            <ChevronRight className="h-3.5 w-3.5 ml-1" />
-          </Link>
-        </Button>
+        {/* Row actions — different for live vs. archived views.
+            Live: Archive icon + primary Review/Edit/View CTA.
+            Archived: Restore (primary) + Delete-permanently (destructive). */}
+        {archivedView ? (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              onClick={restore}
+              disabled={updateItem.isPending}
+              title="Restore — move back to its prior status"
+              aria-label="Restore"
+            >
+              <ArchiveRestore className="h-4 w-4 mr-1" />
+              Restore
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleteItem.isPending}
+              title="Delete permanently — can't be undone"
+              aria-label="Delete permanently"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              onClick={archive}
+              disabled={updateItem.isPending}
+              title="Archive — hide without deleting (recoverable from the Archived tab)"
+              aria-label="Archive"
+            >
+              <Archive className="h-4 w-4" />
+            </Button>
+            <Button asChild variant="ghost" size="sm" className="shrink-0">
+              <Link to={`/review/${item.id}`}>
+                {item.status === 'draft' ? 'Review' : item.status === 'published' ? 'View' : 'Edit'}
+                <ChevronRight className="h-3.5 w-3.5 ml-1" />
+              </Link>
+            </Button>
+          </>
+        )}
+
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete permanently?"
+          description={`This will permanently remove the ${pm.label.toLowerCase()} draft for "${item.topic || 'Untitled'}". This action cannot be undone — use Archive if you might want it back.`}
+          confirmLabel="Delete permanently"
+          onConfirm={remove}
+          loading={deleteItem.isPending}
+        />
       </CardContent>
     </Card>
   )
@@ -369,6 +495,15 @@ function EmptyState({ status, topic, onClearTopic }) {
             <Link to="/">See past interviews</Link>
           </Button>
         }
+      />
+    )
+  }
+  if (status === 'archived') {
+    return (
+      <SharedEmptyState
+        icon={<Archive className="h-5 w-5" />}
+        title="Nothing archived"
+        description="Archived posts land here so you can recover them later. Use the archive button on any post to hide it without deleting it."
       />
     )
   }
