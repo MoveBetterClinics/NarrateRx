@@ -42,6 +42,7 @@ import {
   clearBrandRole,
   updateBrandStyle,
 } from './brandKitLib'
+import { fetchContentPlanAtoms, updateAtomStatus, draftAtom } from './contentPlan'
 
 export const queryKeys = {
   clinicians: {
@@ -57,6 +58,10 @@ export const queryKeys = {
     all:    ['contentItems'],
     list:   (filters = {}) => ['contentItems', 'list', filters],
     detail: (id) => ['contentItems', 'detail', id],
+  },
+  contentPlan: {
+    all:              ['contentPlan'],
+    atoms: (ivId) => ['contentPlan', 'atoms', ivId],
   },
   workspace: {
     all: ['workspace'],
@@ -262,5 +267,37 @@ export function useMediaInfinite(filters = {}, options = {}) {
       return allPages.reduce((sum, p) => sum + p.length, 0)
     },
     ...rest,
+  })
+}
+
+// ── Content plan ───────────────────────────────────────────────────────────
+
+export function useContentPlanAtoms(interviewId, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.contentPlan.atoms(interviewId),
+    queryFn: () => fetchContentPlanAtoms(interviewId),
+    enabled: !!interviewId,
+    ...options,
+  })
+}
+
+export function useDraftAtom() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ atomId }) => draftAtom(atomId),
+    onSuccess: (_data, { interviewId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.atoms(interviewId) })
+      qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+    },
+  })
+}
+
+export function useSkipAtom() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ atomId, status }) => updateAtomStatus(atomId, status),
+    onSuccess: (_data, { interviewId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.atoms(interviewId) })
+    },
   })
 }

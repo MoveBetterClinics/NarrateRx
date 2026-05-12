@@ -7,6 +7,7 @@ export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
+import { buildPlanRows } from '../_lib/atomPlan.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -183,6 +184,22 @@ export default async function handler(req, res) {
             await sb('content_items', {
               method: 'POST',
               body: JSON.stringify(items),
+              headers: { Prefer: 'return=minimal' },
+            })
+          }
+        }
+
+        // Auto-create content plan atoms once per interview (idempotent).
+        const planExistsRes = await sb(
+          `content_plan_atoms?interview_id=eq.${id}&${wsFilter}&select=id&limit=1`
+        )
+        const planExists = planExistsRes.ok && (await planExistsRes.json()).length > 0
+        if (!planExists) {
+          const planRows = buildPlanRows(id, ws.id)
+          if (planRows.length > 0) {
+            await sb('content_plan_atoms', {
+              method: 'POST',
+              body: JSON.stringify(planRows),
               headers: { Prefer: 'return=minimal' },
             })
           }

@@ -27,6 +27,7 @@ import {
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getCampaignPromptContext } from '@/lib/campaigns'
 import { formatDate } from '@/lib/utils'
+import ContentPlanPanel from '@/components/ContentPlanPanel'
 
 function parseSection(text, startMarker, endMarker) {
   const start = text.indexOf(startMarker)
@@ -226,8 +227,12 @@ export default function InterviewOutput() {
         </div>
       </div>
 
-      <Tabs defaultValue="blog">
-        <TabsList className={`grid w-full ${isPersonal ? 'grid-cols-3' : 'grid-cols-6'}`}>
+      <Tabs defaultValue="plan">
+        <TabsList className={`grid w-full ${isPersonal ? 'grid-cols-4' : 'grid-cols-7'}`}>
+          <TabsTrigger value="plan" className="gap-1.5 text-xs">
+            <Sparkles className="h-3.5 w-3.5" />
+            Plan
+          </TabsTrigger>
           <TabsTrigger value="blog" className="gap-1.5 text-xs">
             <FileText className="h-3.5 w-3.5" />
             Blog
@@ -259,6 +264,16 @@ export default function InterviewOutput() {
             </TabsTrigger>
           )}
         </TabsList>
+
+        {/* ── Content Plan ── */}
+        <TabsContent value="plan">
+          <div className="mt-2">
+            <ContentPlanPanel
+              interviewId={interviewId}
+              interviewCreatedAt={interview.created_at}
+            />
+          </div>
+        </TabsContent>
 
         {/* ── Blog ── */}
         <TabsContent value="blog">
