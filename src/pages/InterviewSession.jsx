@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { fetchSimilarInterviews, updateInterview, cleanupTranscript } from '@/lib/api'
+import { fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscript } from '@/lib/api'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { streamMessage } from '@/lib/claude'
@@ -18,6 +18,26 @@ import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+
+// Concrete noun list for shallow-answer detection (Feature 2)
+const CONCRETE_NOUNS = ['patient', 'person', 'name', 'case', 'example', 'time', 'moment', 'client', 'athlete', 'runner', 'worker']
+
+function isShallowAnswer(text) {
+  const words = text.trim().split(/\s+/)
+  if (words.length >= 15) return false
+  const lower = text.toLowerCase()
+  return !CONCRETE_NOUNS.some((noun) => lower.includes(noun))
+}
+
+// Strip [CONTRAST] marker from AI message text before display
+function stripContrastToken(text) {
+  return text.replace(/\[CONTRAST\]/g, '').trim()
+}
+
+// Detect if AI message was a contrast probe (Feature 1)
+function hasContrastSignal(text) {
+  return text.includes('[CONTRAST]')
+}
 
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
@@ -103,6 +123,10 @@ export default function InterviewSession() {
   // Set after each user message; reset to null after each AI response completes.
   // State is per-exchange — not persistent across the whole session.
   const emotionStateRef = useRef(null)
+  // Feature 2: track which user-message indexes have already triggered a re-probe
+  const reprobedIndexesRef = useRef(new Set())
+  // Feature 5: prior session context for returning clinicians
+  const priorSessionContextRef = useRef(null)
 
   function saveMessages(interviewId, patch, userId) {
     setSaveStatus('saving')
@@ -140,7 +164,28 @@ export default function InterviewSession() {
     fetchSimilarInterviews(interviewData.topic, interviewId)
       .then((past) => { pastInterviewsRef.current = past || [] })
       .catch(() => {})
-  }, [interviewLoading, interviewData, interviewId, navigate])
+
+    // Feature 5: use clinician data (already fetched) to find prior sessions
+    // for returning clinicians. fetchClinician returns interviews with topic+status
+    // but not messages — topic alone is enough for the keyword-overlap check and
+    // the system prompt reference.
+    fetchClinician(clinicianId)
+      .then((clinicianRow) => {
+        const priorInterviews = (clinicianRow?.interviews || [])
+          .filter((iv) => iv.status === 'completed' && iv.id !== interviewId)
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        if (priorInterviews.length === 0) return
+        const prior = priorInterviews[0]
+        if (!prior.topic) return
+        // Simple keyword-overlap check: at least 1 word (>3 chars) in common
+        const topicWords = (interviewData.topic || '').toLowerCase().split(/\W+/).filter((w) => w.length > 3)
+        const priorWords = prior.topic.toLowerCase().split(/\W+/).filter((w) => w.length > 3)
+        const hasOverlap = topicWords.some((w) => priorWords.includes(w))
+        if (!hasOverlap) return
+        priorSessionContextRef.current = { topic: prior.topic }
+      })
+      .catch(() => {})
+  }, [interviewLoading, interviewData, interviewId, navigate, clinicianId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -204,13 +249,45 @@ export default function InterviewSession() {
       l => l.id === interviewRef.current?.location_id
     )
     const overlaidWorkspace = applyLocationOverlay(runtimeWorkspace, interviewLocation)
-    const baseSystemPrompt = getInterviewSystemPrompt(overlaidWorkspace, clinician.name, interviewRef.current.topic, pastInterviewsRef.current, interviewRef.current?.prototype_id)
+
+    // Feature 3: first message = AI introduces itself; subsequent = skip intro
+    const isFirstMessage = currentMessages.length === 0 ||
+      (currentMessages.length === 1 && currentMessages[0].role === 'user' && currentMessages[0].content === 'Please begin the interview.')
+
+    // Feature 2: detect shallow previous answer for re-probe instruction
+    const userMessages = currentMessages.filter((m) => m.role === 'user')
+    const lastUserIdx = userMessages.length - 1
+    const lastUserMsg = userMessages[lastUserIdx]
+    const shouldReprobe = lastUserMsg &&
+      isShallowAnswer(lastUserMsg.content) &&
+      !reprobedIndexesRef.current.has(lastUserIdx)
+    if (shouldReprobe) reprobedIndexesRef.current.add(lastUserIdx)
+
+    const baseSystemPrompt = getInterviewSystemPrompt(
+      overlaidWorkspace,
+      clinician.name,
+      interviewRef.current.topic,
+      pastInterviewsRef.current,
+      interviewRef.current?.prototype_id,
+      {
+        tone: interviewRef.current?.tone || 'smart',
+        isFirstMessage,
+        shallowReprobe: shouldReprobe,
+        priorSessionContext: priorSessionContextRef.current,
+      }
+    )
     // Append per-exchange emotional context if detected, then clear the ref
     // so it doesn't bleed into subsequent turns.
     const emotionInjection = getEmotionPromptInjection(emotionStateRef.current)
     emotionStateRef.current = null
     const systemPrompt = emotionInjection ? baseSystemPrompt + emotionInjection : baseSystemPrompt
-    let apiMessages = currentMessages.map((m) => ({ role: m.role, content: m.content }))
+
+    // Strip [CONTRAST] tokens from messages before sending to API
+    // (the token is for our UI layer, not for the model to see in history)
+    let apiMessages = currentMessages.map((m) => ({
+      role: m.role,
+      content: m.role === 'assistant' ? stripContrastToken(m.content) : m.content,
+    }))
     // Claude API requires at least one message — inject a silent starter for new interviews
     if (apiMessages.length === 0) {
       apiMessages = [{ role: 'user', content: 'Please begin the interview.' }]
@@ -229,6 +306,7 @@ export default function InterviewSession() {
     }
 
     const isComplete = fullText.includes(COMPLETE_TOKEN)
+    // Strip COMPLETE_TOKEN but preserve [CONTRAST] in stored message for UI detection
     const cleanText = fullText.replace(COMPLETE_TOKEN, '').trim()
 
     const aiMessage = { role: 'assistant', content: cleanText }
@@ -245,7 +323,8 @@ export default function InterviewSession() {
     setStreamingText('')
     setIsStreaming(false)
 
-    if (!isComplete) speak(cleanText)
+    // Speak the clean version (without [CONTRAST] token)
+    if (!isComplete) speak(stripContrastToken(cleanText))
   }, [clinician, interviewId, user?.id])
 
   useEffect(() => {
@@ -899,6 +978,8 @@ function InstructionCard({ icon, title, body }) {
 
 function MessageBubble({ message, clinicianName, isStreaming }) {
   const isAI = message.role === 'assistant'
+  const isContrast = isAI && hasContrastSignal(message.content)
+  const displayContent = isAI ? stripContrastToken(message.content) : message.content
   return (
     <div className={`flex items-start gap-3 ${!isAI ? 'flex-row-reverse' : ''}`}>
       {isAI ? (
@@ -910,14 +991,22 @@ function MessageBubble({ message, clinicianName, isStreaming }) {
           {clinicianName[0]}
         </div>
       )}
-      <div
-        className={`max-w-[90%] sm:max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-          isAI
-            ? 'bg-muted rounded-tl-sm'
-            : 'bg-primary text-primary-foreground rounded-tr-sm'
-        } ${isStreaming ? 'animate-pulse' : ''}`}
-      >
-        {message.content}
+      <div className="flex flex-col gap-1 max-w-[90%] sm:max-w-[80%]">
+        {isContrast && (
+          <Badge variant="outline" className="self-start flex items-center gap-1 text-[11px] text-muted-foreground border-muted-foreground/30 px-2 py-0.5">
+            <ArrowLeftRight className="h-3 w-3" aria-hidden="true" />
+            A colleague saw this differently
+          </Badge>
+        )}
+        <div
+          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+            isAI
+              ? 'bg-muted rounded-tl-sm'
+              : 'bg-primary text-primary-foreground rounded-tr-sm'
+          } ${isStreaming ? 'animate-pulse' : ''}`}
+        >
+          {displayContent}
+        </div>
       </div>
     </div>
   )
