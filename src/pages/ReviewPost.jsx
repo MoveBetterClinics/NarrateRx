@@ -564,10 +564,10 @@ export default function ReviewPost() {
         })
       }
 
-      // 3) Strip prior composed slides (have overlay_spec) so re-clicking
-      //    Compose replaces rather than duplicates. Originals stay put.
-      const originals = (item.media_urls || []).filter((m) => !m.overlay_spec)
-      const newMedia  = [...composedSlides, ...originals]
+      // 3) Replace ALL prior media with the newly composed slides. Originals
+      //    are not needed in the final list — each slide's overlay_spec.sourceUrl
+      //    preserves the source reference for re-rendering and customization.
+      const newMedia = [...composedSlides]
       const updated  = await updateContentItem(itemId, { mediaUrls: newMedia })
       setItem(updated)
       invalidateContentCaches(updated)
@@ -829,6 +829,11 @@ export default function ReviewPost() {
                 {item.media_urls.map((m, i) => {
                   const total = item.media_urls.length
                   const imgSrc = m.url || m.thumbnailUrl || null
+                  const SLOT_LABELS = ['HOOK', 'SUB', 'CTA']
+                  // Show slot label for raw originals (pre-compose) and composed slides
+                  const slotLabel = m.overlay_spec
+                    ? (m.overlay_spec.emphasis === 'combined' ? 'ALL' : m.overlay_spec.emphasis?.toUpperCase())
+                    : SLOT_LABELS[i]
                   return (
                     <div key={i} className="relative group shrink-0 w-32 rounded-lg overflow-hidden border bg-muted" style={{ aspectRatio: '1' }}>
                       {/* Thumbnail */}
@@ -844,9 +849,16 @@ export default function ReviewPost() {
                         <img src={imgSrc} alt={m.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" />
                       )}
 
-                      {/* Position badge */}
-                      <div className="absolute top-1 left-1 h-5 w-5 rounded-full bg-black/60 text-white text-[10px] font-bold flex items-center justify-center">
-                        {i + 1}
+                      {/* Position + slot-role badge */}
+                      <div className="absolute top-1 left-1 flex items-center gap-1">
+                        <div className="h-5 w-5 rounded-full bg-black/60 text-white text-[10px] font-bold flex items-center justify-center">
+                          {i + 1}
+                        </div>
+                        {slotLabel && (
+                          <div className="rounded bg-black/60 text-white text-[8px] font-bold px-1 py-0.5 leading-none tracking-wide">
+                            {slotLabel}
+                          </div>
+                        )}
                       </div>
 
                       {/* Reorder + delete controls — visible on hover */}
