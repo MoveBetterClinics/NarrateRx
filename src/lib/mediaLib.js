@@ -35,7 +35,7 @@ async function api(path, init = {}) {
 
 // ── List & detail ────────────────────────────────────────────────────────────
 
-export function listMedia({ kind, status, q, tag, purpose, collectionId, limit, offset } = {}) {
+export function listMedia({ kind, status, q, tag, purpose, collectionId, limit, offset, compact } = {}) {
   const params = new URLSearchParams()
   if (kind)         params.set('kind', kind)
   if (status)       params.set('status', status)
@@ -45,6 +45,7 @@ export function listMedia({ kind, status, q, tag, purpose, collectionId, limit, 
   if (collectionId) params.set('collectionId', collectionId)
   if (limit)        params.set('limit', String(limit))
   if (offset)       params.set('offset', String(offset))
+  if (compact)      params.set('compact', 'true')
   const qs = params.toString()
   return api(`/api/media/list${qs ? `?${qs}` : ''}`)
 }

@@ -21,7 +21,8 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,asset_purpose,speaker_role,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMMON  = 'id,kind,status,source,blob_url,blob_pathname,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,asset_purpose,speaker_role,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMPACT = 'id,kind,status,filename,mime_type,size_bytes,blob_url,rendered_url,thumbnail_url'
 
 async function handler(req, res) {
   if (req.method !== 'GET') {
@@ -44,6 +45,7 @@ async function handler(req, res) {
   const sources     = searchParams.get('sources')      // 'true' → parent_id IS NULL (sources only)
   const parent      = searchParams.get('parent')       // parent_id for variants of one source
   const collectionId = searchParams.get('collectionId')// limit to assets in a given collection
+  const compact     = searchParams.get('compact') === 'true'
   const limit       = Math.min(parseInt(searchParams.get('limit') || '60'), 200)
   const offset      = parseInt(searchParams.get('offset') || '0')
 
@@ -71,7 +73,7 @@ async function handler(req, res) {
     collectionAssetIds = ciRows.map((r) => r.asset_id)
     if (collectionAssetIds.length === 0) return res.status(200).json([])
   }
-  const SELECT = `${scope.column},${SELECT_COMMON}`
+  const SELECT = `${scope.column},${compact ? SELECT_COMPACT : SELECT_COMMON}`
 
   // Always workspace-scoped.
   let qs = `media_assets?select=${SELECT}&${scope.column}=eq.${scope.id}&order=created_at.desc&limit=${limit}&offset=${offset}`

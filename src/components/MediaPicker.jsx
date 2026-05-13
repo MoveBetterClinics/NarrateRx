@@ -10,12 +10,13 @@ import { listCollections } from '@/lib/collectionsLib'
 //   1. Library — the Media Hub (Vercel Blob + media_assets), the canonical home.
 //   2. Upload  — fresh upload that lands in the same library.
 //
-// The previous "Google Drive" tab and its proxy paths were removed when the
-// Drive integration was retired (2026-05-08). The one-shot importer that
-// moved local Drive-mirror files into the Media Hub has also been removed;
-// all migrated files are reachable through the Library tab.
+// Props:
+//   onSelect(asset | asset[]) — when multi=false, called with a single asset
+//                               object; when multi=true, called with an array.
+//   onClose()
+//   multi — enable multi-select (default false)
 
-const PAGE_SIZE = 60
+const PAGE_SIZE = 30
 
 const KIND_OPTIONS = [
   { id: 'all',   label: 'All' },
@@ -23,13 +24,30 @@ const KIND_OPTIONS = [
   { id: 'video', label: 'Videos' },
 ]
 
-export default function MediaPicker({ onSelect, onClose }) {
+function assetToPickerItem(asset) {
+  const isVideo = asset.kind === 'video'
+  const url     = asset.rendered_url || asset.blob_url
+  return {
+    id:           asset.id,
+    name:         asset.filename,
+    mimeType:     asset.mime_type,
+    kind:         isVideo ? 'video' : 'image',
+    type:         isVideo ? 'video' : 'image',
+    thumbnailUrl: asset.thumbnail_url || (isVideo ? null : url),
+    url,
+    size:         asset.size_bytes || undefined,
+    mediaAssetId: asset.id,
+  }
+}
+
+export default function MediaPicker({ onSelect, onClose, multi = false }) {
   const { user } = useUser()
   const [tab, setTab]             = useState('library')
   const [query, setQuery]         = useState('')
   const [kind, setKind]           = useState('all')
   const [collectionId, setCollectionId] = useState('')
-  const [selected, setSelected]   = useState(null)
+  // single mode: null | asset row; multi mode: Map<id, asset row>
+  const [selected, setSelected]   = useState(multi ? new Map() : null)
   const [libraryItems, setLibraryItems] = useState([])
   const [libraryLoading, setLibraryLoading] = useState(false)
   const [libraryError, setLibraryError]   = useState('')
@@ -51,6 +69,7 @@ export default function MediaPicker({ onSelect, onClose }) {
         collectionId: colId || undefined,
         limit:        PAGE_SIZE,
         offset:       pageNum * PAGE_SIZE,
+        compact:      true,
       })
       setLibraryItems(prev => append ? [...prev, ...rows] : rows)
       setHasMore(rows.length === PAGE_SIZE)
@@ -61,20 +80,17 @@ export default function MediaPicker({ onSelect, onClose }) {
     }
   }
 
-  // Load collections once on mount for the filter dropdown.
   useEffect(() => {
     listCollections({ limit: 100 })
       .then(data => setCollections(Array.isArray(data) ? data : (data?.collections ?? [])))
       .catch(() => {})
   }, [])
 
-  // Reload from page 0 when tab, kind, or collection filter changes.
   useEffect(() => {
     if (tab !== 'library') return
-    setSelected(null)
+    setSelected(multi ? new Map() : null)
     setPage(0)
     loadLibrary({ q: query, kindFilter: kind, colId: collectionId, pageNum: 0 })
-    // query is excluded — the input handler debounces it separately.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, kind, collectionId])
 
@@ -84,7 +100,7 @@ export default function MediaPicker({ onSelect, onClose }) {
     clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => {
       if (tab === 'library') {
-        setSelected(null)
+        setSelected(multi ? new Map() : null)
         setPage(0)
         loadLibrary({ q: val, kindFilter: kind, colId: collectionId, pageNum: 0 })
       }
@@ -97,6 +113,32 @@ export default function MediaPicker({ onSelect, onClose }) {
     loadLibrary({ q: query, kindFilter: kind, colId: collectionId, pageNum: next, append: true })
   }
 
+  function toggleAsset(asset) {
+    if (multi) {
+      setSelected(prev => {
+        const next = new Map(prev)
+        if (next.has(asset.id)) next.delete(asset.id)
+        else next.set(asset.id, asset)
+        return next
+      })
+    } else {
+      setSelected(prev => (prev?.id === asset.id ? null : asset))
+    }
+  }
+
+  function isAssetSelected(asset) {
+    return multi ? selected.has(asset.id) : selected?.id === asset.id
+  }
+
+  function handleConfirm() {
+    if (multi) {
+      const items = [...selected.values()].map(assetToPickerItem)
+      if (items.length > 0) onSelect(items)
+    } else {
+      if (selected) onSelect(assetToPickerItem(selected))
+    }
+  }
+
   async function handleUpload(e) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -104,7 +146,7 @@ export default function MediaPicker({ onSelect, onClose }) {
     try {
       const blob    = await uploadMedia(file, { createdBy: user?.id || null })
       const isVideo = (file.type || blob.contentType || '').startsWith('video')
-      onSelect({
+      const item = {
         id:           crypto.randomUUID(),
         name:         file.name,
         mimeType:     file.type || blob.contentType,
@@ -113,7 +155,8 @@ export default function MediaPicker({ onSelect, onClose }) {
         thumbnailUrl: isVideo ? null : blob.url,
         url:          blob.url,
         size:         file.size,
-      })
+      }
+      onSelect(multi ? [item] : item)
     } catch (err) {
       setUploadError(err.message || 'Upload failed')
     } finally {
@@ -121,21 +164,7 @@ export default function MediaPicker({ onSelect, onClose }) {
     }
   }
 
-  function selectLibraryAsset(asset) {
-    const isVideo = asset.kind === 'video'
-    const url     = asset.rendered_url || asset.blob_url
-    onSelect({
-      id:           asset.id,
-      name:         asset.filename,
-      mimeType:     asset.mime_type,
-      kind:         isVideo ? 'video' : 'image',
-      type:         isVideo ? 'video' : 'image',
-      thumbnailUrl: asset.thumbnail_url || (isVideo ? null : url),
-      url,
-      size:         asset.size_bytes || undefined,
-      mediaAssetId: asset.id,
-    })
-  }
+  const selectedCount = multi ? selected.size : (selected ? 1 : 0)
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
@@ -181,7 +210,12 @@ export default function MediaPicker({ onSelect, onClose }) {
                 />
                 {query && (
                   <button
-                    onClick={() => { setQuery(''); setSelected(null); setPage(0); loadLibrary({ kindFilter: kind, colId: collectionId, pageNum: 0 }) }}
+                    onClick={() => {
+                      setQuery('')
+                      setSelected(multi ? new Map() : null)
+                      setPage(0)
+                      loadLibrary({ kindFilter: kind, colId: collectionId, pageNum: 0 })
+                    }}
                     className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground"
                   >
                     <X className="h-4 w-4" />
@@ -191,7 +225,6 @@ export default function MediaPicker({ onSelect, onClose }) {
 
               {/* Filter row */}
               <div className="flex items-center gap-3 flex-wrap">
-                {/* Kind toggle */}
                 <div className="flex gap-1">
                   {KIND_OPTIONS.map(({ id, label }) => (
                     <button
@@ -208,7 +241,6 @@ export default function MediaPicker({ onSelect, onClose }) {
                   ))}
                 </div>
 
-                {/* Collection dropdown — only shown when there are collections */}
                 {collections.length > 0 && (
                   <select
                     value={collectionId}
@@ -223,7 +255,6 @@ export default function MediaPicker({ onSelect, onClose }) {
                   </select>
                 )}
 
-                {/* Active filter summary */}
                 {(kind !== 'all' || collectionId) && (
                   <button
                     onClick={() => { setKind('all'); setCollectionId('') }}
@@ -253,14 +284,14 @@ export default function MediaPicker({ onSelect, onClose }) {
                 <>
                   <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
                     {libraryItems.map((a) => {
-                      const isSelected = selected?.id === a.id
+                      const sel = isAssetSelected(a)
                       const previewSrc = a.thumbnail_url || (a.kind === 'photo' ? (a.rendered_url || a.blob_url) : null)
                       return (
                         <button
                           key={a.id}
-                          onClick={() => setSelected(isSelected ? null : a)}
+                          onClick={() => toggleAsset(a)}
                           className={`relative rounded-lg overflow-hidden border-2 aspect-square transition-all ${
-                            isSelected ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'
+                            sel ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'
                           }`}
                         >
                           {a.kind === 'video' ? (
@@ -293,7 +324,7 @@ export default function MediaPicker({ onSelect, onClose }) {
                             </span>
                           ) : null}
 
-                          {isSelected && (
+                          {sel && (
                             <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
                               <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
                                 <Check className="h-3.5 w-3.5 text-white" />
@@ -305,7 +336,6 @@ export default function MediaPicker({ onSelect, onClose }) {
                     })}
                   </div>
 
-                  {/* Load more */}
                   {hasMore && (
                     <div className="pt-4 pb-1 flex justify-center">
                       <Button
@@ -327,17 +357,21 @@ export default function MediaPicker({ onSelect, onClose }) {
 
             {/* Footer */}
             <div className="px-5 py-3 border-t flex items-center justify-between shrink-0">
-              <p className="text-xs text-muted-foreground truncate max-w-[55%]" title={selected ? selected.filename || selected.name : ''}>
-                {selected ? `Selected: ${selected.filename || selected.name}` : 'Pick a file from your library'}
+              <p className="text-xs text-muted-foreground truncate max-w-[55%]">
+                {selectedCount === 0
+                  ? (multi ? 'Click to select files' : 'Pick a file from your library')
+                  : `${selectedCount} file${selectedCount !== 1 ? 's' : ''} selected`}
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
                 <Button
                   size="sm"
-                  onClick={() => selected && selectLibraryAsset(selected)}
-                  disabled={!selected}
+                  onClick={handleConfirm}
+                  disabled={selectedCount === 0}
                 >
-                  Use This File
+                  {multi
+                    ? selectedCount > 0 ? `Add ${selectedCount} File${selectedCount !== 1 ? 's' : ''}` : 'Add Files'
+                    : 'Use This File'}
                 </Button>
               </div>
             </div>

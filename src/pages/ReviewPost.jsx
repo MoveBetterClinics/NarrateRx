@@ -685,8 +685,9 @@ export default function ReviewPost() {
     invalidateContentCaches(updated)
   }
 
-  async function addMedia(file) {
-    const urls = [...(item.media_urls || []), file]
+  async function addMedia(fileOrFiles) {
+    const incoming = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles]
+    const urls = [...(item.media_urls || []), ...incoming]
     const updated = await updateContentItem(itemId, { mediaUrls: urls })
     setItem(updated)
     invalidateContentCaches(updated)
@@ -1380,7 +1381,7 @@ export default function ReviewPost() {
         <MediaPicker
           onSelect={addMedia}
           onClose={() => setShowPicker(false)}
-          topic={item.topic}
+          multi
         />
       )}
     </div>
