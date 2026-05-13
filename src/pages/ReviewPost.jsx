@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack, suggestHashtags } from '@/lib/publish'
-import { fetchInterview, fetchClinician, createContentItemComment, listContentItemComments } from '@/lib/api'
+import { fetchInterview, fetchClinician, createContentItemComment, listContentItemComments, createContentItemDraft } from '@/lib/api'
 import { useUserRole } from '@/lib/useUserRole'
 import { generateContent } from '@/lib/claude'
 import { toast } from '@/lib/toast'
@@ -26,6 +26,7 @@ import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
+import DraftDiffView from '@/components/DraftDiffView'
 import { uploadMedia } from '@/lib/mediaLib'
 import { renderSlide, getCompatibleTemplates, TEMPLATE_LABELS } from '@/lib/overlayTemplates'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
@@ -131,6 +132,13 @@ export default function ReviewPost() {
   // Aborts the in-flight regenerate fetch if the user navigates away mid-call.
   const regenAbortRef                 = useRef(null)
   useEffect(() => () => regenAbortRef.current?.abort(), [])
+
+  // Diff-view state. When a regenerate completes, we DON'T overwrite the
+  // textarea — instead we hold the proposed body here and open the diff
+  // modal. The editor accepts/rejects per change before any persistence.
+  // diffProposal carries both bodies so the modal stays in sync if the
+  // user reopens it after closing.
+  const [diffProposal, setDiffProposal] = useState(null) // { previous, proposed } | null
   const [publishing, setPublishing]     = useState(false)
   const [regenerating, setRegenerating] = useState(false)
   const [copied, setCopied]             = useState(false)
@@ -451,39 +459,22 @@ export default function ReviewPost() {
       const newContent = extractSection(generated, startMarker, endMarker)
       if (!newContent) throw new Error('Could not parse content from the generated output.')
 
-      const updated = await updateContentItem(itemId, { content: newContent, status: 'in_review', updatedAt: new Date().toISOString() })
-      setItem(updated)
-      setContent(newContent)
-      setShowPreview(false)
-      invalidateContentCaches(updated)
-      setSuccess('Content regenerated!')
-      setTimeout(() => setSuccess(''), 3000)
-
-      // Offer one-click revert if the user didn't want the new version.
-      // The toast persists for 12s — long enough to read the new copy and
-      // decide. Restoring writes the stashed text back via the same
-      // updateContentItem path and refreshes local state.
-      if (prevContent && prevContent !== newContent) {
-        toast.success('Content regenerated', {
-          duration: 12_000,
-          action: {
-            label: 'Undo',
-            onClick: async () => {
-              try {
-                const reverted = await updateContentItem(itemId, {
-                  content: prevContent,
-                  updatedAt: new Date().toISOString(),
-                })
-                setItem(reverted)
-                setContent(prevContent)
-                invalidateContentCaches(reverted)
-                toast.success('Restored previous version')
-              } catch (e) {
-                toast.error('Could not undo', { description: e.message })
-              }
-            },
-          },
-        })
+      // Don't persist or overwrite the textarea — hand the proposal to
+      // the diff modal so the editor can accept or reject each change
+      // individually. The actual write happens in handleApplyDiff once
+      // the editor clicks Apply.
+      if (!prevContent || prevContent === newContent) {
+        // No prior body to diff against, or the model produced an
+        // identical body — just apply directly to skip an empty modal.
+        const updated = await updateContentItem(itemId, { content: newContent, status: 'in_review', updatedAt: new Date().toISOString() })
+        setItem(updated)
+        setContent(newContent)
+        setShowPreview(false)
+        invalidateContentCaches(updated)
+        setSuccess(prevContent === newContent ? 'No changes from regeneration' : 'Content regenerated!')
+        setTimeout(() => setSuccess(''), 3000)
+      } else {
+        setDiffProposal({ previous: prevContent, proposed: newContent })
       }
     } catch (e) {
       // Cancelled by unmount — component is gone, no point updating state.
@@ -492,6 +483,53 @@ export default function ReviewPost() {
     } finally {
       if (regenAbortRef.current === ctrl) regenAbortRef.current = null
       setRegenerating(false)
+    }
+  }
+
+  // Editor applied the merged result from the diff modal. Snapshot the
+  // previous body into draft history (best-effort) so it stays revertable,
+  // then write the merged content as the new canonical body.
+  async function handleApplyDiff(mergedBody) {
+    if (!diffProposal) return
+    const prevContent = diffProposal.previous
+    setDiffProposal(null)
+    try {
+      // Best-effort history snapshot — never block the apply if it fails.
+      createContentItemDraft(itemId, prevContent, false).catch(() => {})
+      const updated = await updateContentItem(itemId, {
+        content: mergedBody,
+        status: 'in_review',
+        updatedAt: new Date().toISOString(),
+      })
+      setItem(updated)
+      setContent(mergedBody)
+      setShowPreview(false)
+      invalidateContentCaches(updated)
+      setSuccess('Changes applied')
+      setTimeout(() => setSuccess(''), 3000)
+
+      toast.success('Redraft applied', {
+        duration: 12_000,
+        action: {
+          label: 'Undo',
+          onClick: async () => {
+            try {
+              const reverted = await updateContentItem(itemId, {
+                content: prevContent,
+                updatedAt: new Date().toISOString(),
+              })
+              setItem(reverted)
+              setContent(prevContent)
+              invalidateContentCaches(reverted)
+              toast.success('Restored previous version')
+            } catch (e) {
+              toast.error('Could not undo', { description: e.message })
+            }
+          },
+        },
+      })
+    } catch (e) {
+      setError(`Apply failed: ${e.message}`)
     }
   }
 
@@ -707,6 +745,13 @@ export default function ReviewPost() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <DraftDiffView
+        open={!!diffProposal}
+        previous={diffProposal?.previous || ''}
+        proposed={diffProposal?.proposed || ''}
+        onCancel={() => setDiffProposal(null)}
+        onApply={handleApplyDiff}
+      />
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild>
