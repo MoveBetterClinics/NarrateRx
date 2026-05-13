@@ -13,6 +13,9 @@ import { Badge } from '@/components/ui/badge'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import SharedEmptyState from '@/components/EmptyState'
 import { useContentItems, useUpdateContentItem, useDeleteContentItem } from '@/lib/queries'
+import PipelineKanban from '@/components/PipelineKanban'
+import { publishAndTrack } from '@/lib/publish'
+import { useUser } from '@clerk/clerk-react'
 import { formatRelativeDate } from '@/lib/utils'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
@@ -61,6 +64,8 @@ export default function ContentHub() {
   const [activeStatus, setStatus] = useState('all')
   const [platform, setPlatform]   = useState('all')
   const [topicFilter, setTopicFilter] = useState('all')
+  const [viewMode, setViewMode]       = useState('list') // 'list' | 'pipeline'
+  const { user } = useUser()
 
   // useContentItems re-runs whenever the filters object changes (query key
   // includes the filter args). Refetch on demand via refetch() — wired to
@@ -106,6 +111,42 @@ export default function ContentHub() {
     ? items
     : items.filter((i) => (i.topic || '').toLowerCase() === topicFilter.toLowerCase())
 
+  const updateForKanban = useUpdateContentItem()
+
+  // Drag-and-drop status transition from the Pipeline view. We patch the
+  // status directly. Dropping onto Published is special: the kanban
+  // confirmation dialog has already gated it, so here we fire the real
+  // publish path (which posts to the live destination) — the same code
+  // the manual Publish button uses. Other transitions are reversible
+  // metadata changes.
+  async function handleKanbanStatusChange(item, toStatus) {
+    if (toStatus === 'published') {
+      try {
+        await publishAndTrack(
+          { ...item, mediaUrls: item.media_urls || [], scheduledAt: null },
+          user?.primaryEmailAddress?.emailAddress,
+        )
+        toast.success('Published')
+        load()
+      } catch (e) {
+        toast.error('Publish failed', { description: e.message })
+      }
+      return
+    }
+    const patch = { status: toStatus }
+    if (toStatus === 'approved') {
+      patch.approvedBy = user?.primaryEmailAddress?.emailAddress
+      patch.approvedAt = new Date().toISOString()
+    }
+    updateForKanban.mutate(
+      { id: item.id, patch },
+      {
+        onSuccess: () => toast.success(`Moved to ${toStatus.replace('_', ' ')}`),
+        onError: (e) => toast.error('Move failed', { description: e?.message }),
+      },
+    )
+  }
+
   const counts = filteredItems.reduce((acc, i) => {
     acc[i.status] = (acc[i.status] || 0) + 1
     return acc
@@ -128,6 +169,22 @@ export default function ContentHub() {
           </p>
         </div>
         <div className="flex gap-2">
+          <div className="flex items-center bg-muted rounded-md p-0.5 mr-1">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-2 py-1 text-xs rounded ${viewMode === 'list' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              List
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('pipeline')}
+              className={`px-2 py-1 text-xs rounded ${viewMode === 'pipeline' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              Pipeline
+            </button>
+          </div>
           <Button variant="outline" size="sm" asChild>
             <Link to="/review-queue"><Clock className="h-4 w-4 mr-1.5" />Review queue</Link>
           </Button>
@@ -232,6 +289,19 @@ export default function ContentHub() {
         </div>
       )}
 
+      {viewMode === 'pipeline' && !isArchivedView ? (
+        loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
+          </div>
+        ) : (
+          <PipelineKanban
+            items={filteredItems.filter((i) => i.status !== 'archived')}
+            onStatusChange={handleKanbanStatusChange}
+          />
+        )
+      ) : (
+      <>
       {/* Status tabs */}
       <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
         {STATUS_TABS.map((s) => (
@@ -267,6 +337,8 @@ export default function ContentHub() {
         <div className="space-y-2">
           {filteredItems.map((item) => <ContentRow key={item.id} item={item} archivedView={isArchivedView} />)}
         </div>
+      )}
+      </>
       )}
     </div>
   )
