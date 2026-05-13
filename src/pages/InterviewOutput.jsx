@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { fetchCampaign, updateInterview } from '@/lib/api'
+import { fetchCampaign, updateInterview, suggestPullQuotes } from '@/lib/api'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { fetchContentItemsByInterview, createContentItems, publishBlogToWebsite, updateContentItem } from '@/lib/publish'
@@ -215,6 +215,12 @@ export default function InterviewOutput() {
         </div>
       </div>
 
+      <PullQuotesPanel
+        interview={interview}
+        userId={user?.id}
+        onUpdate={(patch) => setInterview((prev) => ({ ...prev, ...patch }))}
+      />
+
       <Tabs defaultValue="plan">
         <TabsList className={`grid w-full ${isPersonal ? 'grid-cols-3' : 'grid-cols-7'}`}>
           <TabsTrigger value="plan" className="gap-1.5 text-xs">
@@ -366,6 +372,131 @@ export default function InterviewOutput() {
           </TabsContent>
         )}
       </Tabs>
+    </div>
+  )
+}
+
+// Verbatim pull-quote candidates extracted from the interview transcript.
+// Editor picks one; the selection is round-tripped onto the interview row so
+// downstream surfaces (social overlay text, pull-quote email blocks, pinned
+// comments) can pick it up. Server-side validation guarantees each shown
+// candidate is an exact substring of the transcript — no invented quotes.
+function PullQuotesPanel({ interview, userId, onUpdate }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(null)
+
+  const candidates = Array.isArray(interview.pull_quote_candidates) ? interview.pull_quote_candidates : []
+  const selectedId = interview.pull_quote_selected_id || null
+
+  async function handleSuggest() {
+    setLoading(true)
+    setError('')
+    try {
+      const result = await suggestPullQuotes(interview.id)
+      onUpdate({ pull_quote_candidates: result.candidates })
+    } catch (e) {
+      setError(e?.message || 'Pull-quote extraction failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleSelect(id) {
+    const next = selectedId === id ? null : id
+    onUpdate({ pull_quote_selected_id: next })
+    try {
+      await updateInterview(interview.id, { pullQuoteSelectedId: next }, userId)
+    } catch (e) {
+      setError(e?.message || 'Could not save selection')
+    }
+  }
+
+  async function handleCopy(quote, id) {
+    try {
+      await navigator.clipboard.writeText(quote)
+      setCopied(id)
+      setTimeout(() => setCopied(null), 1500)
+    } catch { /* clipboard blocked — ignore */ }
+  }
+
+  if (candidates.length === 0 && !loading && !error) {
+    return (
+      <div className="mb-4 rounded-xl border bg-card p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">Pull quotes</p>
+            <p className="text-xs text-muted-foreground mt-0.5 max-w-prose">
+              Extract 3-5 verbatim sentences from the transcript that work as shareable pull quotes. Pick one to flow into social overlays, email blocks, or pinned comments.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleSuggest} disabled={loading}>
+            <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+            Extract quotes
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mb-4 rounded-xl border bg-card p-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-medium">Pull quotes</p>
+          <Badge className="text-xs bg-slate-100 text-slate-500 border-0">Verbatim</Badge>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleSuggest} disabled={loading}>
+          {loading
+            ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Extracting…</>
+            : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Re-extract</>
+          }
+        </Button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-destructive mb-2 flex items-center gap-1.5">
+          <AlertCircle className="h-3 w-3" />
+          {error}
+        </p>
+      )}
+
+      <div className="space-y-2">
+        {candidates.map((c) => {
+          const isSelected = selectedId === c.id
+          return (
+            <div
+              key={c.id}
+              className={`flex items-start gap-2 rounded-lg border p-3 transition-colors ${
+                isSelected ? 'border-primary bg-primary/5' : 'border-border bg-background'
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => handleSelect(c.id)}
+                className={`mt-0.5 h-4 w-4 rounded-full border-2 shrink-0 transition-colors ${
+                  isSelected ? 'border-primary bg-primary' : 'border-muted-foreground/40 hover:border-primary/50'
+                }`}
+                aria-label={isSelected ? 'Deselect pull quote' : 'Select pull quote'}
+              />
+              <p className="flex-1 text-sm italic leading-relaxed text-foreground/90">
+                {'“'}{c.quote}{'”'}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => handleCopy(c.quote, c.id)}
+                className="shrink-0 -mr-1 -mt-1"
+              >
+                {copied === c.id
+                  ? <><Check className="h-3.5 w-3.5 mr-1 text-green-600" />Copied</>
+                  : <><Copy className="h-3.5 w-3.5 mr-1" />Copy</>
+                }
+              </Button>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
