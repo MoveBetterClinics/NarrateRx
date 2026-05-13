@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Copy, Check, FileText, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscript } from '@/lib/api'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
@@ -81,6 +82,11 @@ export default function InterviewSession() {
   const { clinicianId, interviewId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
+  // Detect if the user landed directly on the /output sub-path (e.g. via
+  // bookmark or page refresh). If so, auto-open the inline panel once data loads.
+  const mountedOnOutputPath = useRef(
+    typeof window !== 'undefined' && window.location.pathname.endsWith('/output')
+  )
   const runtimeWorkspace = useWorkspace()
   const VOICE_MODES = getVoiceModes(runtimeWorkspace)
   const PATIENT_PROTOTYPES_UI = getPatientPrototypesUi(runtimeWorkspace)
@@ -167,6 +173,12 @@ export default function InterviewSession() {
       // Resuming an existing interview — skip instructions and mic check
       setShowInstructions(false)
       setMicCheckPassed(true)
+    }
+
+    // Auto-open output panel when landing directly on /…/output (e.g. bookmark)
+    if (mountedOnOutputPath.current && interviewData.outputs?.blogPost) {
+      setOutputData(interviewData.outputs)
+      setShowOutput(true)
     }
 
     fetchSimilarInterviews(interviewData.topic, interviewId)
@@ -448,6 +460,12 @@ export default function InterviewSession() {
   // (paused for a moment, then leaving) stays one click.
   const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
 
+  // Inline output panel: slides in from the right when content generation
+  // completes so the user sees transcript + output side-by-side without a
+  // full page navigation.
+  const [showOutput, setShowOutput] = useState(false)
+  const [outputData, setOutputData] = useState(null)
+
   function leaveInterview() {
     window.speechSynthesis?.cancel()
     recognitionRef.current?.abort()
@@ -597,7 +615,12 @@ export default function InterviewSession() {
       qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
       qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
-      navigate(`/output/${clinicianId}/${interviewId}`)
+      // Slide the output panel in-place — no full page transition.
+      // Update the URL so the user can bookmark/share the output link,
+      // but stay on this page with the transcript still visible on the left.
+      setOutputData(outputs)
+      setShowOutput(true)
+      navigate(`/interview/${clinicianId}/${interviewId}/output`, { replace: true })
     } catch (err) {
       setError(`Failed to generate content: ${err.message}`)
       setIsGenerating(false)
@@ -680,7 +703,9 @@ export default function InterviewSession() {
     : null
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-7rem)]">
+    <div className={`flex h-[calc(100vh-7rem)] ${showOutput ? 'gap-0 overflow-hidden' : 'max-w-2xl mx-auto'}`}>
+      {/* ── Left: interview transcript pane ── */}
+      <div className={`flex flex-col min-w-0 transition-all duration-300 ease-out ${showOutput ? 'w-1/2 pr-4' : 'flex-1'}`}>
       <div className="flex items-center gap-3 pb-4 shrink-0">
         <Button variant="ghost" size="icon" asChild>
           <Link to={`/clinician/${clinicianId}`}>
@@ -809,13 +834,19 @@ export default function InterviewSession() {
               <p className="text-sm text-emerald-800/80 leading-relaxed">
                 Your story is being turned into content.
               </p>
-              <Button
-                size="sm"
-                className="self-start bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
-                onClick={() => navigate(`/output/${clinicianId}/${interviewId}`)}
-              >
-                See your content →
-              </Button>
+              {interview?.outputs?.blogPost && (
+                <Button
+                  size="sm"
+                  className="self-start bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
+                  onClick={() => {
+                    setOutputData(interview.outputs)
+                    setShowOutput(true)
+                    navigate(`/interview/${clinicianId}/${interviewId}/output`, { replace: true })
+                  }}
+                >
+                  See your content →
+                </Button>
+              )}
             </div>
           )}
 
@@ -960,6 +991,109 @@ export default function InterviewSession() {
         destructive={false}
         onConfirm={leaveInterview}
       />
+      </div>{/* end left pane */}
+
+      {/* ── Right: inline output panel (slides in on generation complete) ── */}
+      <div
+        className={`flex-shrink-0 w-1/2 border-l bg-background overflow-hidden transition-transform duration-300 ease-out ${
+          showOutput ? 'translate-x-0' : 'translate-x-full hidden'
+        }`}
+      >
+        <InlineOutputPanel
+          clinicianId={clinicianId}
+          interviewId={interviewId}
+          clinician={clinician}
+          interview={interview}
+          outputs={outputData}
+          onViewFull={() => navigate(`/output/${clinicianId}/${interviewId}`)}
+        />
+      </div>
+    </div>
+  )
+}
+
+// Inline output panel rendered as the right half of the split view after
+// content generation completes. Receives already-fetched data as props so
+// there's no duplicate network fetch. The full standalone output page at
+// /output/:clinicianId/:interviewId is unchanged.
+function InlineOutputPanel({ clinicianId, interviewId, clinician, interview, outputs, onViewFull }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    if (!outputs?.blogPost) return
+    navigator.clipboard.writeText(outputs.blogPost)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 3000)
+  }
+
+  if (!outputs) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Panel header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b bg-muted/30 shrink-0">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+          <p className="font-semibold text-sm">Content ready</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onViewFull} className="gap-1.5 text-xs">
+          <ExternalLink className="h-3.5 w-3.5" />
+          Full output page
+        </Button>
+      </div>
+
+      {/* Content area */}
+      <div className="flex-1 overflow-hidden p-4">
+        <Tabs defaultValue="blog" className="h-full flex flex-col">
+          <TabsList className="grid grid-cols-1 w-full mb-3 shrink-0">
+            <TabsTrigger value="blog" className="gap-1.5 text-xs">
+              <FileText className="h-3.5 w-3.5" />
+              Blog Post
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="blog" className="flex-1 overflow-hidden mt-0">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted-foreground">Markdown — copy or open in full editor</p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={handleCopy} className="text-xs h-7 px-2.5">
+                  {copied ? (
+                    <><Check className="h-3 w-3 mr-1 text-green-600" />Copied</>
+                  ) : (
+                    <><Copy className="h-3 w-3 mr-1" />Copy</>
+                  )}
+                </Button>
+              </div>
+            </div>
+            <ScrollArea className="h-[calc(100%-2rem)]">
+              <pre className="text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground p-1">
+                {outputs.blogPost}
+              </pre>
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Footer: link to full output page for social, video, marketing tabs */}
+      <div className="px-5 py-3 border-t bg-muted/20 shrink-0">
+        <p className="text-xs text-muted-foreground">
+          Social, video, and marketing content available on the{' '}
+          <button
+            type="button"
+            onClick={onViewFull}
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            full output page
+          </button>
+          .
+        </p>
+      </div>
     </div>
   )
 }

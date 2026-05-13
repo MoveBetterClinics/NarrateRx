@@ -203,6 +203,7 @@ function AppRoutes() {
             <Route path="/" element={guarded(<Dashboard />)} />
             <Route path="/new" element={guarded(<NewInterview />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
+            <Route path="/interview/:clinicianId/:interviewId/output" element={guarded(<InterviewSession />)} />
             <Route path="/output/:clinicianId/:interviewId" element={guarded(<InterviewOutput />)} />
             <Route path="/clinician/:clinicianId" element={guarded(<ClinicianProfile />)} />
             <Route path="/strategy" element={guarded(<Strategy />)} />
