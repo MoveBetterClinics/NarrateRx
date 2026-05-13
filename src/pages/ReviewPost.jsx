@@ -40,6 +40,22 @@ const BUFFER_PLATFORMS  = [
 // image/video can't be published (or will look broken in feed).
 const NEEDS_MEDIA       = ['instagram', 'facebook', 'gbp', 'pinterest', 'tiktok', 'youtube_short']
 
+// Per-platform engagement-optimal length range and hard ceiling. The "optimal"
+// pair represents where research consistently shows engagement peaks (not max).
+// Used by CharacterMeter to show ambient feedback while the editor types —
+// never a rewrite prompt, just a soft signal.
+const PLATFORM_LENGTH_PREFS = {
+  instagram:    { optimal: [138, 300], max: 2200 },
+  facebook:     { optimal: [80, 150],  max: 63206 },
+  linkedin:     { optimal: [150, 300], max: 3000 },
+  twitter:      { optimal: [71, 100],  max: 280 },
+  tiktok:       { optimal: [100, 150], max: 2200 },
+  threads:      { optimal: [80, 150],  max: 500 },
+  pinterest:    { optimal: [100, 200], max: 500 },
+  youtube_short:{ optimal: [40, 70],   max: 100 },
+  gbp:          { optimal: [100, 300], max: 1500 },
+}
+
 // Platform-specific preferred posting days (0=Sun…6=Sat) and hours (local time)
 const PLATFORM_SCHEDULE_PREFS = {
   instagram:    { days: [2, 3, 4, 5],    hours: [11, 14, 18] },
@@ -718,7 +734,8 @@ export default function ReviewPost() {
                   className="font-mono text-sm resize-none"
                   disabled={isPublished}
                 />
-                <p className="text-xs text-muted-foreground mt-1.5">{content.length} characters · {content.split(/\s+/).filter(Boolean).length} words</p>
+                <CharacterMeter platform={item.platform} text={content} />
+                <p className="text-xs text-muted-foreground mt-0.5">{content.split(/\s+/).filter(Boolean).length} words</p>
               </>
             )}
           </div>
@@ -1242,6 +1259,33 @@ export default function ReviewPost() {
 //                    No manual refresh — the daily cron pulls these (interactive
 //                    refresh would require a per-call GA4 API round-trip whose
 //                    cost isn't justified for one-off editor curiosity).
+// Ambient length feedback. Shows `N / max` plus a one-line hint when the
+// post is outside the engagement-optimal range. No reds, no popups — the
+// editor decides. Falls back to a plain count for platforms without a preset
+// (blog, email, ads, landing pages).
+function CharacterMeter({ platform, text }) {
+  const len = text.length
+  const prefs = PLATFORM_LENGTH_PREFS[platform]
+  if (!prefs) {
+    return <p className="text-xs text-muted-foreground mt-1.5">{len} characters</p>
+  }
+  const [low, high] = prefs.optimal
+  let hint = null
+  if (len > 0 && len < low) {
+    hint = `Engagement peaks around ${low}–${high} characters`
+  } else if (len > high && len <= prefs.max) {
+    hint = `Engagement peaks under ${high} characters`
+  } else if (len > prefs.max) {
+    hint = `Over the ${prefs.max.toLocaleString()} character limit`
+  }
+  return (
+    <p className="text-xs text-muted-foreground mt-1.5">
+      {len.toLocaleString()} / {prefs.max.toLocaleString()}
+      {hint && <span className="ml-2 text-muted-foreground/70">· {hint}</span>}
+    </p>
+  )
+}
+
 function EngagementPanel({ itemId, platform: _platform }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
