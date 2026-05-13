@@ -95,6 +95,18 @@ export function cleanupTranscript(interviewId) {
   })
 }
 
+export function listContentItemDrafts(itemId) {
+  return apiFetch(`/api/content-item-drafts?itemId=${encodeURIComponent(itemId)}`)
+}
+
+export function createContentItemDraft(itemId, body, aiGenerated = false) {
+  return apiFetch('/api/content-item-drafts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemId, body, aiGenerated }),
+  })
+}
+
 export function deleteInterview(id, userId) {
   return apiFetch(`/api/db/interviews?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
