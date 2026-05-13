@@ -221,7 +221,7 @@ export function getInterviewSystemPrompt(workspace, clinicianName, condition, pa
     priorSessionContext = null,
   } = opts
 
-  const interviewerName = workspace?.interviewer_name || 'Alex'
+  const interviewerName = workspace?.interviewer_name || 'Bernard'
 
   let pastContext = ''
   if (pastInterviews.length > 0) {
