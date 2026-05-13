@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, FileText, Share2, Globe, Video, Mail, Zap } 
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { CampaignWidget, useCampaign } from '@/components/CampaignWidget'
+import TopicBacklogPanel from '@/components/TopicBacklogPanel'
 import { workspace } from '@/lib/workspace'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
@@ -117,6 +118,9 @@ export default function Strategy() {
         onModeChange={handleModeChange}
         onNotesChange={handleNotesChange}
       />
+
+      {/* Topic Backlog — strategic queue of what to interview about next */}
+      <TopicBacklogPanel />
 
       {/* Overview */}
       <div className="rounded-xl border bg-card p-5 space-y-4">

@@ -43,6 +43,7 @@ import {
   updateBrandStyle,
 } from './brandKitLib'
 import { fetchContentPlanAtoms, updateAtomStatus, draftAtom } from './contentPlan'
+import { fetchTopicBacklog, createTopic, updateTopic, deleteTopic, suggestTopics } from './topicBacklog'
 
 export const queryKeys = {
   clinicians: {
@@ -62,6 +63,10 @@ export const queryKeys = {
   contentPlan: {
     all:              ['contentPlan'],
     atoms: (ivId) => ['contentPlan', 'atoms', ivId],
+  },
+  topicBacklog: {
+    all:               ['topicBacklog'],
+    list: (status) => ['topicBacklog', 'list', status || 'all'],
   },
   workspace: {
     all: ['workspace'],
@@ -299,5 +304,47 @@ export function useSkipAtom() {
     onSuccess: (_data, { interviewId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.contentPlan.atoms(interviewId) })
     },
+  })
+}
+
+// ── Topic backlog ──────────────────────────────────────────────────────────
+
+export function useTopicBacklog(status, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.topicBacklog.list(status),
+    queryFn: () => fetchTopicBacklog(status),
+    ...options,
+  })
+}
+
+export function useCreateTopic() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (payload) => createTopic(payload),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
+  })
+}
+
+export function useUpdateTopic() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }) => updateTopic(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
+  })
+}
+
+export function useDeleteTopic() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id) => deleteTopic(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
+  })
+}
+
+export function useSuggestTopics() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (count) => suggestTopics(count),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
   })
 }
