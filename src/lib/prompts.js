@@ -13,24 +13,28 @@ export const TONES = [
     label: 'Smart Default',
     emoji: '✨',
     description: 'AI picks what best connects patients with this condition',
+    probe_goal: 'Always try to get one concrete patient story or before/after moment per topic before moving on.',
   },
   {
     id: 'active',
     label: 'Active & Driven',
     emoji: '⚡',
     description: 'Athletes and high performers — direct, sport-specific, efficient',
+    probe_goal: 'Always probe for a specific performance metric or training moment before moving on.',
   },
   {
     id: 'clinical',
     label: 'Clinical & In-Depth',
     emoji: '🔬',
     description: 'Educated patients who want the full picture — precise, research-backed',
+    probe_goal: 'Always probe for the mechanism or evidence behind each clinical claim before moving on.',
   },
   {
     id: 'warm',
     label: 'Warm & Reassuring',
     emoji: '🤝',
     description: 'Anxious or overwhelmed patients — empathetic, gentle, hopeful',
+    probe_goal: 'Always probe for the emotional moment or turning point in the patient\'s experience before moving on.',
   },
 ]
 
@@ -209,7 +213,16 @@ Brand attribution still applies: end the piece with a signature line on its own 
 This content is branded for ${workspace.display_name} as a clinic — NOT for the individual clinician. The subject is always "we at ${workspace.display_name}" or "our team" or "our approach." Even if the clinician used "I" or "me" in the interview, convert it to clinic voice in the output (e.g., "I see this in patients" → "We see this in patients at ${workspace.display_name}"). ${clinicianMention}`
 }
 
-export function getInterviewSystemPrompt(workspace, clinicianName, condition, pastInterviews = [], prototypeId = null) {
+export function getInterviewSystemPrompt(workspace, clinicianName, condition, pastInterviews = [], prototypeId = null, opts = {}) {
+  const {
+    tone = 'smart',
+    isFirstMessage = false,
+    shallowReprobe = false,
+    priorSessionContext = null,
+  } = opts
+
+  const interviewerName = workspace?.interviewer_name || 'Alex'
+
   let pastContext = ''
   if (pastInterviews.length > 0) {
     const formatted = pastInterviews.map((pi) => {
@@ -219,24 +232,49 @@ export function getInterviewSystemPrompt(workspace, clinicianName, condition, pa
         .slice(0, 6)
         .map((m) => `- ${m.content}`)
         .join('\n')
-      return `[${who}]\n${responses}`
+      // Mark each cross-staff block with [CONTRAST] so the UI can detect it
+      return `[CONTRAST][${who}]\n${responses}`
     }).join('\n\n')
 
     pastContext = `
 
-PRIOR COVERAGE — ${condition} has already been interviewed at ${workspace.display_name}:
+CROSS-STAFF PERSPECTIVES — colleagues at ${workspace.display_name} have covered ${condition} before:
 ${formatted}
 
-Skip anything already covered in depth above unless ${clinicianName}'s answer clearly differs. If there's a difference in approach or philosophy, ask directly: "How does your approach differ from that?"
+When a colleague's perspective meaningfully differs from what ${clinicianName} is saying, surface it as a gentle contrast probe — frame it as: "A colleague mentioned [X] — does that match what you see, or do you experience it differently?" Never frame it as contradiction or disagreement. Skip anything that is already aligned; only probe on genuine differences.
 `
   }
 
-  return `You are a content facilitator helping ${clinicianName} at ${workspace.display_name} think out loud about how they treat ${condition}. Your job is to pull out their clinical perspective efficiently so it can be turned into patient-facing content branded for ${workspace.display_name} as a whole.
+  // Probe depth goal from tone definition
+  const toneObj = TONES.find((t) => t.id === tone) ?? TONES[0]
+  const probeGoal = toneObj.probe_goal
+    ? `\nPROBE DEPTH GOAL (${toneObj.label} tone): ${toneObj.probe_goal}`
+    : ''
+
+  // Re-probe instruction injected when the previous answer was too shallow
+  const reprobeInstruction = shallowReprobe
+    ? `\nSHALLOW ANSWER DETECTED: The previous answer was brief and lacked a specific example. Before moving to the next topic, ask for a concrete example or patient moment. Do not repeat the question — probe for concreteness. Only do this once on this topic.\n`
+    : ''
+
+  // Prior session reference (Feature 5)
+  const priorSessionBlock = priorSessionContext
+    ? `\nPRIOR SESSION CONTEXT: This staff member has been interviewed before. In their last session they discussed "${priorSessionContext.topic}". You may reference this naturally once early in the interview if it connects to today's topic: "Last time we talked about ${priorSessionContext.topic} — I'm curious if your thinking has evolved." Only use this if it genuinely connects to today's topic.\n`
+    : ''
+
+  // Persona intro — only on the very first AI message
+  const personaIntro = isFirstMessage
+    ? `Your name is ${interviewerName}. Introduce yourself briefly in your very first message only — one short sentence (e.g. "I'm ${interviewerName}, and I'll be interviewing you today.") then go straight into your first question.`
+    : `Your name is ${interviewerName}. Do NOT introduce yourself again — you already did at the start.`
+
+  return `You are ${interviewerName}, a content facilitator helping ${clinicianName} at ${workspace.display_name} think out loud about how they treat ${condition}. Your job is to pull out their clinical perspective efficiently so it can be turned into patient-facing content branded for ${workspace.display_name} as a whole.
+
+${personaIntro}
 ${formatInterviewContextForPrompt(workspace, condition)}${pastContext}
 ${workspace.display_name} context: ${workspace.clinic_context}
 
 ${formatPatientContextForPrompt(workspace, prototypeId)}
-
+${probeGoal}
+${reprobeInstruction}${priorSessionBlock}
 CONTENT YOU NEED TO COLLECT — each area below produces specific downstream content. Ask about them in any order that flows naturally, but DO NOT move on from an area until the answer is specific and concrete enough to write from. Vague answers get follow-ups.
 
 1. CLINICAL PHILOSOPHY — How they approach ${condition} and the underlying principle that makes their approach different. The "why" behind their method, not just the "what." Press for the principle, not just the procedure.
@@ -266,7 +304,7 @@ RULES — be direct and efficient:
 ENDING THE INTERVIEW:
 - Only add INTERVIEW_COMPLETE on its own line when the clinician clearly signals they want to stop — listen for phrases like "I think that covers it," "that's everything I have," "I'm done," "let's generate," or similar. Do not end the interview on your own. Keep asking questions until the clinician wraps it up.
 
-Start immediately with your first question. No greeting, no introduction.`
+${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
 export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '') {
