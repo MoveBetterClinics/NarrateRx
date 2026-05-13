@@ -12,7 +12,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack, suggestHashtags } from '@/lib/publish'
-import { fetchInterview, fetchClinician } from '@/lib/api'
+import { fetchInterview, fetchClinician, createContentItemComment, listContentItemComments } from '@/lib/api'
+import { useUserRole } from '@/lib/useUserRole'
 import { generateContent } from '@/lib/claude'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -102,6 +103,14 @@ export default function ReviewPost() {
   const { user }     = useUser()
   const workspace    = useWorkspace()
   const qc           = useQueryClient()
+  const { canReview, canPublish } = useUserRole()
+  const skipReview   = !!workspace?.skip_review
+
+  // Approval comments thread state. Loaded once per item; appended in-place
+  // when the user posts a comment or requests changes.
+  const [comments, setComments]         = useState([])
+  const [commentDraft, setCommentDraft] = useState('')
+  const [postingComment, setPostingComment] = useState(false)
 
   // Centralize the cache-invalidation hook so every updateContentItem
   // call site in this component picks up the same cross-component
@@ -219,11 +228,11 @@ export default function ReviewPost() {
           setScheduleIsCustom(true)
         }
         isFirstLoad.current = false
-        if (i?.status === 'draft') {
-          updateContentItem(itemId, { status: 'in_review' })
-            .then((updated) => { if (!cancelled) { setItem(updated); invalidateContentCaches(updated) } })
-            .catch(() => {})
-        }
+        // Comments thread for the approval workflow — load alongside the
+        // item. Failure is non-fatal; an empty thread simply renders nothing.
+        listContentItemComments(itemId)
+          .then((rows) => { if (!cancelled) setComments(Array.isArray(rows) ? rows : []) })
+          .catch(() => {})
         // GBP location picker is hydrated from workspace.locations in a
         // separate effect that waits for workspace to load — the picker now
         // shows workspace_locations rows (UUIDs), not Google location IDs.
@@ -287,13 +296,39 @@ export default function ReviewPost() {
   }
 
   async function approve() {
-    const updated = await save({ status: 'approved', reviewedBy: user?.primaryEmailAddress?.emailAddress })
+    const updated = await save({
+      status: 'approved',
+      reviewedBy: user?.primaryEmailAddress?.emailAddress,
+      approvedBy: user?.primaryEmailAddress?.emailAddress,
+      approvedAt: new Date().toISOString(),
+    })
     if (updated) setSuccess('Approved! Ready to schedule or publish.')
   }
 
   async function unapprove() {
-    const updated = await save({ status: 'in_review' })
+    const updated = await save({ status: 'in_review', approvedAt: null })
     if (updated) setSuccess('Approval removed. Back in review.')
+  }
+
+  async function sendForReview() {
+    const updated = await save({ status: 'in_review' })
+    if (updated) setSuccess('Sent for review.')
+  }
+
+  async function requestChanges(commentBody) {
+    if (!commentBody?.trim()) return
+    try {
+      await createContentItemComment(itemId, {
+        body: commentBody,
+        kind: 'change_request',
+        userId: user?.id,
+        userEmail: user?.primaryEmailAddress?.emailAddress,
+      })
+      const updated = await save({ status: 'draft' })
+      if (updated) setSuccess('Changes requested — back to draft.')
+    } catch (e) {
+      setError(`Request changes failed: ${e.message}`)
+    }
   }
 
   async function handlePublish() {
@@ -1115,16 +1150,103 @@ export default function ReviewPost() {
 
               <Separator />
 
-              {/* Approve / Remove approval */}
-              {item.status === 'draft' || item.status === 'in_review' ? (
+              {/* Approval workflow actions.
+                  - draft + !skipReview → "Send for review" (any user)
+                  - in_review + canReview → Approve / Request Changes
+                  - approved + canReview → Remove approval
+                  - skipReview workspaces collapse the chain: a single "Approve"
+                    button transitions draft → approved directly. */}
+              {item.status === 'draft' && skipReview && (
                 <Button variant="outline" size="sm" className="w-full border-blue-200 text-blue-700 hover:bg-blue-50" onClick={approve} disabled={saving}>
                   <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Approve
                 </Button>
-              ) : item.status === 'approved' ? (
+              )}
+              {item.status === 'draft' && !skipReview && (
+                <Button variant="outline" size="sm" className="w-full border-blue-200 text-blue-700 hover:bg-blue-50" onClick={sendForReview} disabled={saving}>
+                  <Send className="h-3.5 w-3.5 mr-1.5" />Send for review
+                </Button>
+              )}
+              {item.status === 'in_review' && canReview && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="flex-1 border-blue-200 text-blue-700 hover:bg-blue-50" onClick={approve} disabled={saving}>
+                    <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Approve
+                  </Button>
+                  <Button variant="outline" size="sm" className="flex-1 border-amber-200 text-amber-700 hover:bg-amber-50" onClick={() => {
+                    const note = window.prompt('Describe the changes you want:')
+                    if (note) requestChanges(note)
+                  }} disabled={saving}>
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />Request changes
+                  </Button>
+                </div>
+              )}
+              {item.status === 'in_review' && !canReview && (
+                <p className="text-xs text-muted-foreground text-center px-2">
+                  Awaiting reviewer approval. You can edit the draft above while it&apos;s in review.
+                </p>
+              )}
+              {item.status === 'approved' && canReview && (
                 <Button variant="outline" size="sm" className="w-full border-amber-200 text-amber-700 hover:bg-amber-50" onClick={unapprove} disabled={saving}>
                   <RotateCcw className="h-3.5 w-3.5 mr-1.5" />Remove approval
                 </Button>
-              ) : null}
+              )}
+
+              {/* Comments thread — visible whenever there's history or the user
+                  is in a state where they can add to it. Acts as the change-
+                  request inbox during in_review. */}
+              {(comments.length > 0 || canReview || item.status === 'in_review') && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-xs font-medium text-muted-foreground">Review comments</p>
+                  {comments.length === 0 && (
+                    <p className="text-xs text-muted-foreground italic">No comments yet.</p>
+                  )}
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                    {comments.map((c) => (
+                      <div key={c.id} className={`rounded-md border p-2 text-xs ${c.kind === 'change_request' ? 'border-amber-200 bg-amber-50/40' : 'border-border bg-background'}`}>
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className="font-medium text-foreground/80 truncate">{c.user_email || c.user_id}</span>
+                          <span className="text-muted-foreground shrink-0">{formatRelativeDate(c.created_at)}</span>
+                        </div>
+                        <p className="whitespace-pre-wrap text-foreground/90">{c.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      value={commentDraft}
+                      onChange={(e) => setCommentDraft(e.target.value)}
+                      placeholder="Add a comment…"
+                      className="flex-1 text-xs rounded-md border bg-background px-2 py-1.5"
+                      disabled={postingComment}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        if (!commentDraft.trim()) return
+                        setPostingComment(true)
+                        try {
+                          const created = await createContentItemComment(itemId, {
+                            body: commentDraft,
+                            kind: 'comment',
+                            userId: user?.id,
+                            userEmail: user?.primaryEmailAddress?.emailAddress,
+                          })
+                          setComments((prev) => [...prev, created])
+                          setCommentDraft('')
+                        } catch (e) {
+                          toast.error('Could not post comment', { description: e.message })
+                        } finally {
+                          setPostingComment(false)
+                        }
+                      }}
+                      disabled={postingComment || !commentDraft.trim()}
+                    >
+                      Post
+                    </Button>
+                  </div>
+                </div>
+              )}
 
               {/* GBP location picker — only locations with a Buffer GBP channel ID are listed. */}
               {item.platform === 'gbp' && gbpLocations.length === 0 && (
@@ -1156,7 +1278,9 @@ export default function ReviewPost() {
                 </div>
               )}
 
-              {/* Publish */}
+              {/* Publish — only reviewers can publish, unless the workspace has
+                  the skip_review escape hatch on (single-user workspaces). */}
+              {(canPublish || skipReview) && (
               <Button
                 size="sm"
                 className="w-full"
@@ -1175,6 +1299,7 @@ export default function ReviewPost() {
                     ? 'Schedule Post'
                     : 'Publish Now'}
               </Button>
+              )}
 
               {needsMedia && !hasMedia && (
                 <p className="text-xs text-amber-600 text-center">Add a photo or video to publish to {pm.label}</p>
