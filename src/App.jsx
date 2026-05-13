@@ -20,6 +20,7 @@ const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
 const Strategy = lazy(() => import('@/pages/Strategy'))
 const ContentHub = lazy(() => import('@/pages/ContentHub'))
 const ReviewPost = lazy(() => import('@/pages/ReviewPost'))
+const ReviewQueue = lazy(() => import('@/pages/ReviewQueue'))
 const ContentCalendar = lazy(() => import('@/pages/ContentCalendar'))
 const MediaHub = lazy(() => import('@/pages/MediaHub'))
 const Integrations = lazy(() => import('@/pages/Integrations'))
@@ -207,6 +208,7 @@ function AppRoutes() {
             <Route path="/strategy" element={guarded(<Strategy />)} />
             <Route path="/hub" element={guarded(<ContentHub />)} />
             <Route path="/review/:itemId" element={guarded(<ReviewPost />)} />
+            <Route path="/review-queue" element={guarded(<ReviewQueue />)} />
             <Route path="/calendar" element={guarded(<ContentCalendar />)} />
             <Route path="/media" element={guarded(<MediaHub />)} />
             <Route path="/settings/integrations" element={guarded(<Integrations />)} />

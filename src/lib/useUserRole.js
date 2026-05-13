@@ -35,5 +35,13 @@ export function useUserRole() {
     canArchive: role === 'admin' || role === 'editor',
     canRestore: role === 'admin' || role === 'editor',
     canPurge:   role === 'admin',
+    // Approval workflow gates. canReview = the user is allowed to approve
+    // or request changes on a content item that's in_review. canPublish
+    // mirrors the "Publish" button visibility: only reviewers can publish
+    // from in_review or approved states. Clinicians can still publish
+    // from a draft when the workspace.skip_review escape hatch is on
+    // (the consumer applies that override on top of this hook's value).
+    canReview:  role === 'admin' || role === 'editor',
+    canPublish: role === 'admin' || role === 'editor',
   }
 }

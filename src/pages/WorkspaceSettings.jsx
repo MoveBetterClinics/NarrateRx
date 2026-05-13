@@ -58,6 +58,7 @@ function formFromWorkspace(ws) {
     patient_context_json:    JSON.stringify(ws.patient_context   ?? {}, null, 2),
     interview_context_json:  JSON.stringify(ws.interview_context ?? {}, null, 2),
     topic_suggestions_json:  JSON.stringify(ws.topic_suggestions ?? [], null, 2),
+    skip_review:             !!ws.skip_review,
   }
 }
 
@@ -123,6 +124,7 @@ function formToPatch(form) {
     patient_context:   form._parsed_patient_context,
     interview_context: form._parsed_interview_context,
     topic_suggestions: form._parsed_topic_suggestions,
+    skip_review:       !!form.skip_review,
   }
 }
 
@@ -447,6 +449,28 @@ export default function WorkspaceSettings() {
             )
           })}
         </div>
+      </Section>
+
+      <Separator />
+
+      <Section
+        title="Approval workflow"
+        description="When off, drafts route through a reviewer (Send for review → Approve → Publish). Turn this on for single-user workspaces so the editor can publish directly without a second pair of eyes."
+      >
+        <label className="flex items-start gap-2.5 rounded-md border border-input p-2.5 cursor-pointer hover:bg-accent/30">
+          <input
+            type="checkbox"
+            checked={!!form.skip_review}
+            onChange={(e) => setForm((f) => ({ ...f, skip_review: e.target.checked }))}
+            className="mt-0.5"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium leading-tight">Skip review step</div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">
+              Editors can publish directly from a draft. No reviewer approval required.
+            </div>
+          </div>
+        </label>
       </Section>
 
       <Separator />

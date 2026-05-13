@@ -75,6 +75,18 @@ export function suggestPullQuotes(interviewId) {
   })
 }
 
+export function listContentItemComments(itemId) {
+  return apiFetch(`/api/content-item-comments?itemId=${encodeURIComponent(itemId)}`)
+}
+
+export function createContentItemComment(itemId, { body, kind, userId, userEmail }) {
+  return apiFetch('/api/content-item-comments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ itemId, body, kind, userId, userEmail }),
+  })
+}
+
 export function cleanupTranscript(interviewId) {
   return apiFetch('/api/interviews/cleanup-transcript', {
     method: 'POST',

@@ -28,6 +28,7 @@ const PATCHABLE_FIELDS = new Set([
   'interview_context',
   'topic_suggestions',
   'publish_topics',
+  'skip_review',
 ])
 
 const TOPIC_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/

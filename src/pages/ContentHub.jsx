@@ -129,6 +129,9 @@ export default function ContentHub() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" asChild>
+            <Link to="/review-queue"><Clock className="h-4 w-4 mr-1.5" />Review queue</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
             <Link to="/calendar"><CalendarDays className="h-4 w-4 mr-1.5" />Calendar</Link>
           </Button>
           <Button variant="ghost" size="icon" onClick={load}>
