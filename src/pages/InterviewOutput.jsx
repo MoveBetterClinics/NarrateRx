@@ -96,13 +96,15 @@ export default function InterviewOutput() {
       const campaignContext = getCampaignPromptContext(campaign)
       let updates = {}
 
+      const voiceNotes = clinician.voice_notes || ''
+
       if (group === 'video') {
-        const result = await generateContent(blogInput, getVideoScriptBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone, voiceMode), { signal })
+        const result = await generateContent(blogInput, getVideoScriptBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone, voiceMode, null, voiceNotes), { signal })
         updates = {
           youtubeScript: parseSection(result, '---YOUTUBE SCRIPT---', null),
         }
       } else if (group === 'marketing') {
-        const result = await generateContent(blogInput, getMarketingBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone), { signal })
+        const result = await generateContent(blogInput, getMarketingBatchSystemPrompt(runtimeWorkspace, clinician.name, interview.topic, campaignContext, tone, null, voiceNotes), { signal })
         updates = {
           emailNewsletter: parseSection(result, '---EMAIL NEWSLETTER---', '---LANDING PAGE---'),
           landingPage: parseSection(result, '---LANDING PAGE---', '---GOOGLE ADS---'),
@@ -145,6 +147,8 @@ export default function InterviewOutput() {
           topic: interview.topic,
           platform,
           content: updates[key],
+          // Voice-memory snapshot — captured at insert, never overwritten
+          ai_original_content: updates[key],
           status: 'draft',
         }))
       if (toCreate.length > 0) {

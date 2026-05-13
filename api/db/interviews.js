@@ -174,6 +174,8 @@ export default async function handler(req, res) {
               topic:          topic ?? '',
               platform,
               content:        o[key],
+              // Voice-memory snapshot — never overwritten on edit
+              ai_original_content: o[key],
               status:         'draft',
               media_urls:     [],
               location_id:    location_id ?? null,

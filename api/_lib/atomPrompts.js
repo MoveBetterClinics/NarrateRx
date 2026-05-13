@@ -2,7 +2,7 @@
 // content — one platform, one angle, generated from the full blog post.
 // Returns null for unknown platform/angle combos so callers can bail early.
 
-export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart') {
+export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '') {
   const firstName = clinicianName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
   const toneNote = tone === 'smart'
@@ -142,11 +142,16 @@ CAPTION:
   const instruction = instructions[platform]?.[angle]
   if (!instruction) return null
 
+  const voiceNotesTrimmed = (voiceNotes || '').trim()
+  const voiceBlock = voiceNotesTrimmed
+    ? `\n\nCLINICIAN VOICE PATTERNS — apply these consistently. They were learned from how this clinician edits drafts, so respecting them up-front saves a round of revisions:\n${voiceNotesTrimmed}\n`
+    : ''
+
   return `You are a content strategist helping ${workspace.display_name} create platform-specific content derived from a longer blog post about ${condition}.
 
 Your job: extract the most compelling angle and write ONE focused piece of content following the exact instructions below. Do NOT include section markers, headers, labels, or meta-commentary. Output ONLY the final content, ready to copy and use.
 
 ${instruction}
 
-${toneNote}`
+${toneNote}${voiceBlock}`
 }

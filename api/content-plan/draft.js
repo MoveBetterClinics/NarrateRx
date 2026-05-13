@@ -71,12 +71,14 @@ export default async function handler(req, res) {
 
     // Fetch clinician name
     let clinicianName = ''
+    let voiceNotes = ''
     const clinRes = await sb(
-      `clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name`
+      `clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name,voice_notes`
     )
     if (clinRes.ok) {
       const clinRows = await clinRes.json()
       clinicianName = clinRows[0]?.name ?? ''
+      voiceNotes    = clinRows[0]?.voice_notes ?? ''
     }
 
     // Build the focused atom prompt
@@ -88,6 +90,7 @@ export default async function handler(req, res) {
       atom.angle,
       interview.voice_mode || 'practice',
       interview.tone || 'smart',
+      voiceNotes,
     )
     if (!systemPrompt) throw new Error(`No prompt defined for ${atom.platform}/${atom.angle}`)
 
@@ -113,6 +116,8 @@ export default async function handler(req, res) {
       topic:          interview.topic,
       platform:       atom.platform,
       content:        text.trim(),
+      // Snapshot the AI's output so future edits can be diffed for voice memory
+      ai_original_content: text.trim(),
       status:         'draft',
       scheduled_at:   suggestedScheduledAt(interview.created_at, atom.slot),
       media_urls:     [],

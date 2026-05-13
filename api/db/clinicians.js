@@ -51,13 +51,13 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (id) {
       // Single clinician with full interview list
-      const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
+      const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,interviews(${INTERVIEW_FIELDS})`)
       if (!r.ok) return dbErr(res, r)
       const data = await r.json()
       return ok(res, data[0] ?? null)
     }
     // All clinicians with interview summaries
-    const r = await sb(`clinicians?${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
+    const r = await sb(`clinicians?${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
     if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }
@@ -70,7 +70,7 @@ export default async function handler(req, res) {
     if (!createdById) return err(res, 'Unauthorized', 401)
 
     // Find existing by name (case-insensitive) within this workspace
-    const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
+    const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,interviews(${INTERVIEW_FIELDS})`)
     if (!findRes.ok) return dbErr(res, findRes)
     const found = await findRes.json()
     if (found.length > 0) return ok(res, found[0])

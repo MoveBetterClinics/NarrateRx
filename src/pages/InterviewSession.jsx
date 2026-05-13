@@ -368,6 +368,7 @@ export default function InterviewSession() {
       ]
       const systemPrompt = getBlogPostSystemPrompt(
         overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
+        clinician.voice_notes || '',
       )
 
       let chunks = 0

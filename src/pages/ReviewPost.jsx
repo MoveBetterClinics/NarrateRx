@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack } from '@/lib/publish'
-import { fetchInterview } from '@/lib/api'
+import { fetchInterview, fetchClinician } from '@/lib/api'
 import { generateContent } from '@/lib/claude'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -316,6 +316,16 @@ export default function ReviewPost() {
       const condition     = item.topic
       const platform      = item.platform
 
+      // Pull the clinician's distilled voice notes so regeneration respects
+      // their edit patterns. Falls back to empty string when not loaded yet.
+      let voiceNotes = ''
+      try {
+        if (item.clinician_id) {
+          const clin = await fetchClinician(item.clinician_id)
+          voiceNotes = clin?.voice_notes || ''
+        }
+      } catch { /* non-fatal — proceed without voice notes */ }
+
       let systemPrompt, inputMessages
       const blogPost = outputs?.blogPost || ''
 
@@ -327,17 +337,17 @@ export default function ReviewPost() {
       const ws = applyLocationOverlay(workspace, itemLocation)
 
       if (platform === 'blog') {
-        systemPrompt  = getBlogPostSystemPrompt(ws, clinicianName, condition, tone, voiceMode, prototypeId)
+        systemPrompt  = getBlogPostSystemPrompt(ws, clinicianName, condition, tone, voiceMode, prototypeId, voiceNotes)
         inputMessages = messages?.length ? messages : [{ role: 'user', content: 'Please write the blog post.' }]
       } else {
         if (!blogPost) throw new Error('The blog post for this interview must be generated first before regenerating other content.')
         inputMessages = [{ role: 'user', content: blogPost }]
         if (['instagram', 'facebook', 'gbp', 'linkedin'].includes(platform)) {
-          systemPrompt = getSocialBatchSystemPrompt(ws, clinicianName, condition, '', tone, voiceMode, prototypeId)
+          systemPrompt = getSocialBatchSystemPrompt(ws, clinicianName, condition, '', tone, voiceMode, prototypeId, voiceNotes)
         } else if (['youtube', 'tiktok'].includes(platform)) {
-          systemPrompt = getVideoScriptBatchSystemPrompt(ws, clinicianName, condition, '', tone, voiceMode, prototypeId)
+          systemPrompt = getVideoScriptBatchSystemPrompt(ws, clinicianName, condition, '', tone, voiceMode, prototypeId, voiceNotes)
         } else {
-          systemPrompt = getMarketingBatchSystemPrompt(ws, clinicianName, condition, '', tone, prototypeId)
+          systemPrompt = getMarketingBatchSystemPrompt(ws, clinicianName, condition, '', tone, prototypeId, voiceNotes)
         }
       }
 

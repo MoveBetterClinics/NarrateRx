@@ -180,6 +180,18 @@ function getToneModifier(tone, workspace) {
   return renderToneTemplate(tones[key] ?? '', workspace)
 }
 
+// Per-clinician voice notes block. Built from observed edit patterns by
+// /api/clinicians/refresh-voice-notes. Empty string when no notes yet.
+// Exported because the server-side atom prompts also use it.
+export function voiceNotesBlock(voiceNotes) {
+  const trimmed = (voiceNotes || '').trim()
+  if (!trimmed) return ''
+  return `
+CLINICIAN VOICE PATTERNS — apply these consistently. They were learned from how this clinician edits drafts, so respecting them up-front saves a round of revisions:
+${trimmed}
+`
+}
+
 // Returns the framing-rule block injected into each generation prompt.
 // In practice mode: scrub first-person → clinic voice (existing behavior).
 // In personal mode: preserve first-person voice, append a brand-attribution signature.
@@ -257,12 +269,12 @@ ENDING THE INTERVIEW:
 Start immediately with your first question. No greeting, no introduction.`
 }
 
-export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null) {
+export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '') {
   const isPersonal = voiceMode === 'personal'
   return `You are a content writer for ${workspace.display_name} in ${workspace.location}. Based on the interview transcript below with ${clinicianName} about treating ${condition}, write an engaging, on-brand blog post targeted at ${workspace.region} readers.
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
-
+${voiceNotesBlock(voiceNotes)}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}
 
@@ -322,13 +334,13 @@ TARGET LENGTH: 700–950 words. Write like a human who genuinely cares about hel
 ${getToneModifier(tone, workspace)}`
 }
 
-export function getSocialBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null) {
+export function getSocialBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '') {
   const isPersonal = voiceMode === 'personal'
   const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
   return `Based on the blog post provided, generate social media content for ${workspace.display_name}. The post is about ${condition}.
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'social' })}
-${patientContext ? `\n${patientContext}\n` : ''}
+${voiceNotesBlock(voiceNotes)}${patientContext ? `\n${patientContext}\n` : ''}
 ${workspace.display_name}'s audience: ${workspace.audience_description}
 
 Output each section separated by the exact markers below. Include the marker line itself.
@@ -382,14 +394,14 @@ BOARD: (${workspace.pinterest_boards})${campaignContext}
 ${getToneModifier(tone, workspace)}`
 }
 
-export function getVideoScriptBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null) {
+export function getVideoScriptBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '') {
   const firstName = clinicianName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
   const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
   return `Based on the blog post provided, write a YouTube video script for ${workspace.display_name} about ${condition}.
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'video' })}
-${patientContext ? `\n${patientContext}\n` : ''}
+${voiceNotesBlock(voiceNotes)}${patientContext ? `\n${patientContext}\n` : ''}
 ${workspace.display_name}'s audience: ${workspace.audience_short}
 
 Output each section separated by the exact markers below.
@@ -429,12 +441,12 @@ Write a complete YouTube description (200–300 words):
 ${getToneModifier(tone, workspace)}`
 }
 
-export function getMarketingBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', prototypeId = null) {
+export function getMarketingBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', prototypeId = null, voiceNotes = '') {
   const firstName = clinicianName.split(' ')[0]
   const conditionSlug = condition.toLowerCase().replace(/\s+/g, '-').slice(0, 20)
   const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
   return `Based on the blog post provided, generate three marketing assets for ${workspace.display_name} about ${condition}. Use the blog post as your source of truth.
-${patientContext ? `\n${patientContext}\n` : ''}
+${patientContext ? `\n${patientContext}\n` : ''}${voiceNotesBlock(voiceNotes)}
 CRITICAL FRAMING RULE:
 All assets are branded for ${workspace.display_name} as a clinic. The clinician's expertise informs the content but ${workspace.display_name} is always the subject. Use "we," "our team," and "${workspace.display_name}" throughout. The clinician's name (${firstName}) may appear once in the email as a credibility signal but should not appear in headlines, page titles, or ad copy.
 

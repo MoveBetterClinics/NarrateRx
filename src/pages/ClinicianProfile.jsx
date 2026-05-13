@@ -11,6 +11,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { useClinician, useDeleteClinician, useDeleteInterview } from '@/lib/queries'
+import VoiceNotesPanel from '@/components/VoiceNotesPanel'
 import { getInitials, formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -115,6 +116,10 @@ export default function ClinicianProfile() {
       </div>
 
       <Separator />
+
+      {/* Voice Memory — distilled edit patterns. Only shown to the owner so
+          analyzing edits of other people's work is opt-in via their own page. */}
+      {isMyClinicianProfile && <VoiceNotesPanel clinician={clinician} />}
 
       {interviews.length === 0 ? (
         <div className="text-center py-16">
