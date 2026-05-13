@@ -99,10 +99,29 @@ export default async function handler(req, res) {
       model: 'anthropic/claude-sonnet-4-6',
       system: systemPrompt,
       messages: [{ role: 'user', content: blogPost }],
-      maxTokens: 800,
+      maxTokens: 1000,
     })
 
     if (!text?.trim()) throw new Error('AI returned empty content')
+
+    // Split overlay block from caption. Instagram prompts append a
+    // ---OVERLAY--- section; other platforms don't, so this is a no-op for them.
+    const [captionRaw, overlayRaw] = text.trim().split('---OVERLAY---')
+    const caption = captionRaw.trim()
+
+    let overlay_text = null
+    if (overlayRaw) {
+      const hookMatch    = overlayRaw.match(/^HOOK:\s*(.+)$/m)
+      const subheadMatch = overlayRaw.match(/^SUBHEAD:\s*(.+)$/m)
+      const ctaMatch     = overlayRaw.match(/^CTA:\s*(.+)$/m)
+      if (hookMatch || subheadMatch || ctaMatch) {
+        overlay_text = {
+          hook:    hookMatch?.[1]?.trim()    ?? '',
+          subhead: subheadMatch?.[1]?.trim() ?? '',
+          cta:     ctaMatch?.[1]?.trim()     ?? '',
+        }
+      }
+    }
 
     // Create the content_item. Auto-anchor the suggested publish date based on
     // the atom's slot (interview.created_at + (slot - 1) weeks) so drafted
@@ -115,9 +134,10 @@ export default async function handler(req, res) {
       clinician_name: clinicianName,
       topic:          interview.topic,
       platform:       atom.platform,
-      content:        text.trim(),
+      content:        caption,
       // Snapshot the AI's output so future edits can be diffed for voice memory
-      ai_original_content: text.trim(),
+      ai_original_content: caption,
+      overlay_text,
       status:         'draft',
       scheduled_at:   suggestedScheduledAt(interview.created_at, atom.slot),
       media_urls:     [],

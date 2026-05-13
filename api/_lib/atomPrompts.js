@@ -11,6 +11,18 @@ export function getAtomSystemPrompt(workspace, clinicianName, condition, platfor
     ? 'Write in a precise, evidence-informed clinical voice. Accessible but authoritative.'
     : 'Write in a warm, encouraging, community-first voice. Plain language. No clinical distance.'
 
+  // Appended to every Instagram prompt. Instructs the AI to output a
+  // machine-parseable overlay block after the caption so draft.js can split
+  // the two pieces without regex-ing through the caption body.
+  const instagramOverlayInstructions = `
+
+After the caption and hashtags, add this separator on its own line:
+---OVERLAY---
+Then provide exactly three lines (no other text):
+HOOK: [Bold scroll-stopping statement, 5–7 words, ALL CAPS, derived from the caption's opening hook]
+SUBHEAD: [Supporting benefit or context, 8–12 words, Title Case]
+CTA: [Button action phrase, 3–5 words, Title Case, e.g. "Book Your Free Assessment"]`
+
   const instructions = {
     instagram: {
       hook: `Write a single Instagram caption (~175 words) for ${workspace.display_name} about ${condition}.
@@ -18,28 +30,28 @@ ANGLE: Open with the most scroll-stopping hook from the blog post — a myth-bus
 ${isPersonal ? `Write in ${firstName}'s first-person voice.` : `Use "we" and "our team" language.`}
 Close with: "Full article at the link in bio 👆"
 Add a blank line, then 8–10 hashtags: condition-specific, movement, ${workspace.location_hashtag ?? '#physicaltherapy'}, ${workspace.brand_hashtag ?? ''}.
-Do NOT include any URLs in the caption body.`,
+Do NOT include any URLs in the caption body.${instagramOverlayInstructions}`,
 
       patient_scenario: `Write a single Instagram caption (~175 words) for ${workspace.display_name} about ${condition}.
 ANGLE: Lead with an anonymized patient scenario that shows the before/after transformation. Make it feel real and specific — describe symptoms, daily limitations, and the outcome.
 ${isPersonal ? `Write in ${firstName}'s first-person voice — I treated this patient.` : `Frame as a patient the team worked with.`}
 Close with: "Read the full story — link in bio"
 Add a blank line, then 8–10 hashtags: condition-specific, movement, ${workspace.location_hashtag ?? '#physicaltherapy'}, ${workspace.brand_hashtag ?? ''}.
-Do NOT include any URLs in the caption body.`,
+Do NOT include any URLs in the caption body.${instagramOverlayInstructions}`,
 
       clinical_insight: `Write a single Instagram caption (~175 words) for ${workspace.display_name} about ${condition}.
 ANGLE: Lead with "The one thing most people get wrong about ${condition} is…" and deliver the key clinical insight from the blog post.
 ${isPersonal ? `Write in ${firstName}'s first-person voice.` : `Use "we" and "our team" language.`}
 Close with: "Full breakdown at the link in bio 👆"
 Add a blank line, then 8–10 hashtags: condition-specific, movement, ${workspace.location_hashtag ?? '#physicaltherapy'}, ${workspace.brand_hashtag ?? ''}.
-Do NOT include any URLs in the caption body.`,
+Do NOT include any URLs in the caption body.${instagramOverlayInstructions}`,
 
       cta: `Write a single Instagram caption (~125 words) for ${workspace.display_name} about ${condition}.
 ANGLE: Direct invitation to book. Lead with a one-line condition-specific hook ("Still dealing with ${condition}?"), briefly describe what the assessment includes, then a clear CTA.
 ${isPersonal ? `Write in ${firstName}'s first-person voice.` : `Use "we" and "our team" language.`}
 End with: "Book your assessment — link in bio 👆"
 Add a blank line, then 5–6 targeted local hashtags: ${workspace.location_hashtag ?? '#physicaltherapy'}, ${workspace.brand_hashtag ?? ''}, plus condition tags.
-Do NOT include any URLs in the caption body.`,
+Do NOT include any URLs in the caption body.${instagramOverlayInstructions}`,
     },
 
     linkedin: {
