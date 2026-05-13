@@ -354,6 +354,26 @@ export const TEMPLATE_DESCRIPTIONS = {
   centered_dramatic: 'All three elements centered vertically, heavier photo dim, accent-color CTA pill. High-impact "stop scrolling" combined layout.',
 }
 
+// Human-readable labels for the customize panel dropdown.
+export const TEMPLATE_LABELS = {
+  bold_centered:     'Bold centered',
+  split_block:       'Split block',
+  minimal_corner:    'Minimal corner',
+  cta_pill:          'CTA pill',
+  bottom_stack:      'Bottom stack',
+  centered_dramatic: 'Centered dramatic',
+}
+
+// Returns template ids compatible with a given emphasis (one of
+// 'hook' | 'subhead' | 'cta' | 'combined'). Used by the customize panel
+// to populate the template dropdown for each composed slide.
+export function getCompatibleTemplates(emphasis) {
+  const isCombined = emphasis === 'combined'
+  return Object.entries(TEMPLATES)
+    .filter(([, t]) => t.combined === isCombined && t.supports.includes(emphasis))
+    .map(([id]) => id)
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export async function loadImage(url) {

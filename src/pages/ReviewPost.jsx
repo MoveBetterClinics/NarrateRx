@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react'
 import {
   ArrowLeft, Send, CalendarDays, CheckCircle2, Loader2, Copy, Check,
   AlertCircle, Image, Trash2, ExternalLink, Eye, Pencil,
-  ChevronLeft, ChevronRight, Play, RefreshCw, RotateCcw, ThumbsUp, Wand2, Layers,
+  ChevronLeft, ChevronRight, Play, RefreshCw, RotateCcw, ThumbsUp, Wand2, Layers, Settings2, Sparkles,
 } from 'lucide-react'
 import PostPreview from '@/components/PostPreview'
 import { Button } from '@/components/ui/button'
@@ -26,7 +26,7 @@ import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
 import { uploadMedia } from '@/lib/mediaLib'
-import { renderSlide } from '@/lib/overlayTemplates'
+import { renderSlide, getCompatibleTemplates, TEMPLATE_LABELS } from '@/lib/overlayTemplates'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 
 // All distribution surfaces route through Buffer as of 2026-05-11. GBP is
@@ -113,6 +113,7 @@ export default function ReviewPost() {
   // undefined = not yet loaded (prevents spurious auto-save before fetch).
   const [overlayText, setOverlayText]     = useState(undefined)
   const [composing, setComposing]         = useState(false)
+  const [customizeIdx, setCustomizeIdx]   = useState(null)
   const overlayAutoSaveTimer              = useRef(null)
   const [scheduledAt, setScheduledAt]         = useState('')
   const [scheduleSuggestion, setScheduleSuggestion] = useState(null) // Date | null
@@ -490,12 +491,28 @@ export default function ReviewPost() {
         const uploaded = await uploadMedia(file, {
           createdBy: user?.primaryEmailAddress?.emailAddress || null,
         })
-        composedSlides.push({ url: uploaded.url, type: 'image', name: file.name, thumbnailUrl: uploaded.url })
+        composedSlides.push({
+          url: uploaded.url,
+          type: 'image',
+          name: file.name,
+          thumbnailUrl: uploaded.url,
+          // overlay_spec lets the customize panel and regenerate buttons
+          // replay/tweak this slide later without re-running the picker.
+          overlay_spec: {
+            template:    slide.template,
+            emphasis:    slide.emphasis,
+            colorChoice: slide.colorChoice,
+            photoDim:    slide.photoDim,
+            sourceUrl:   slide.sourceUrl,
+            mode,
+          },
+        })
       }
 
-      // 3) Prepend composed images so they become slide 1 onward; originals
-      //    remain underneath so the user can reorder or delete as needed.
-      const newMedia = [...composedSlides, ...(item.media_urls || [])]
+      // 3) Strip prior composed slides (have overlay_spec) so re-clicking
+      //    Compose replaces rather than duplicates. Originals stay put.
+      const originals = (item.media_urls || []).filter((m) => !m.overlay_spec)
+      const newMedia  = [...composedSlides, ...originals]
       const updated  = await updateContentItem(itemId, { mediaUrls: newMedia })
       setItem(updated)
       invalidateContentCaches(updated)
@@ -517,6 +534,84 @@ export default function ReviewPost() {
     }
   }
 
+  // Re-render a single composed slide with a new spec, swap it in place in
+  // media_urls. Caller passes the index in media_urls and the partial spec
+  // override (template / colorChoice / photoDim — emphasis and sourceUrl
+  // stick because they're tied to which overlay element this slide renders).
+  async function rerenderSlide(index, specOverride) {
+    const current = (item.media_urls || [])[index]
+    if (!current?.overlay_spec) return
+    const newSpec = { ...current.overlay_spec, ...specOverride }
+    const emphasis = newSpec.emphasis
+    const text = emphasis === 'combined' ? overlayText : (overlayText?.[emphasis] || '')
+    if (!text || (typeof text === 'object' && !Object.values(text).some(Boolean))) {
+      return toast.error('No overlay text to render')
+    }
+
+    setComposing(true)
+    try {
+      const blob = await renderSlide({
+        sourceUrl:  newSpec.sourceUrl,
+        spec: {
+          template:    newSpec.template,
+          emphasis,
+          colorChoice: newSpec.colorChoice,
+          photoDim:    newSpec.photoDim,
+          text,
+        },
+        brandStyle: workspace?.brand_style || {},
+      })
+      const file     = new File([blob], `ig-${emphasis}-${Date.now()}.png`, { type: 'image/png' })
+      const uploaded = await uploadMedia(file, {
+        createdBy: user?.primaryEmailAddress?.emailAddress || null,
+      })
+
+      const urls = [...(item.media_urls || [])]
+      urls[index] = {
+        url: uploaded.url,
+        type: 'image',
+        name: file.name,
+        thumbnailUrl: uploaded.url,
+        overlay_spec: newSpec,
+      }
+      const updated = await updateContentItem(itemId, { mediaUrls: urls })
+      setItem(updated)
+      invalidateContentCaches(updated)
+    } catch (e) {
+      toast.error('Re-render failed', { description: e?.message || 'Unknown error' })
+    } finally {
+      setComposing(false)
+    }
+  }
+
+  // Per-slide regenerate — picks a random different template + color from the
+  // compatible set for this slide's emphasis, re-renders. No AI call; this is
+  // the "I don't like this one, try another" escape hatch.
+  async function regenerateSlide(index) {
+    const current = (item.media_urls || [])[index]
+    if (!current?.overlay_spec) return
+    const { emphasis, template, colorChoice } = current.overlay_spec
+    const compatible = getCompatibleTemplates(emphasis).filter((t) => t !== template)
+    const nextTemplate = compatible.length
+      ? compatible[Math.floor(Math.random() * compatible.length)]
+      : template
+    const nextColor = colorChoice === 'accent' ? 'white' : 'accent'
+    const nextDim   = 0.35 + Math.random() * 0.4 // 0.35–0.75
+    await rerenderSlide(index, {
+      template:    nextTemplate,
+      colorChoice: nextColor,
+      photoDim:    Math.round(nextDim * 100) / 100,
+    })
+  }
+
+  // Top-level Regenerate — re-runs the picker for the existing composed set.
+  // Detects mode from the first composed slide (carousel slides have
+  // non-combined emphasis; single mode has combined).
+  async function regenerateAll() {
+    const firstComposed = (item.media_urls || []).find((m) => m.overlay_spec)
+    const mode = firstComposed?.overlay_spec?.mode || 'carousel'
+    await composeWithDesigner(mode)
+  }
 
   async function removeMedia(index) {
     const urls = [...(item.media_urls || [])]
@@ -700,6 +795,25 @@ export default function ReviewPost() {
                           >
                             <ChevronLeft className="h-3.5 w-3.5" />
                           </button>
+                          {m.overlay_spec && (
+                            <>
+                              <button
+                                onClick={() => regenerateSlide(i)}
+                                disabled={composing}
+                                className="h-6 w-6 rounded bg-black/50 text-white flex items-center justify-center hover:bg-black/80 disabled:opacity-50 transition-colors"
+                                title="Try another design"
+                              >
+                                <Sparkles className="h-3 w-3" />
+                              </button>
+                              <button
+                                onClick={() => setCustomizeIdx(customizeIdx === i ? null : i)}
+                                className="h-6 w-6 rounded bg-black/50 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                                title="Customize design"
+                              >
+                                <Settings2 className="h-3 w-3" />
+                              </button>
+                            </>
+                          )}
                           <button
                             onClick={() => removeMedia(i)}
                             className="h-6 w-6 rounded bg-red-600/80 text-white flex items-center justify-center hover:bg-red-600 transition-colors"
@@ -723,6 +837,66 @@ export default function ReviewPost() {
                 })}
               </div>
             )}
+
+            {/* Customize panel — shown below the strip when a composed slide
+                has its Settings2 button toggled. Lets the clinician tweak
+                template / color / dim without re-running the AI picker. */}
+            {customizeIdx !== null && item.media_urls?.[customizeIdx]?.overlay_spec && (() => {
+              const slide = item.media_urls[customizeIdx]
+              const spec = slide.overlay_spec
+              const compatible = getCompatibleTemplates(spec.emphasis)
+              return (
+                <div className="mt-3 rounded-lg border bg-muted/40 p-3 flex flex-wrap items-center gap-x-5 gap-y-2">
+                  <div className="text-xs font-medium text-muted-foreground shrink-0">
+                    Slide {customizeIdx + 1} <span className="text-muted-foreground/60">·</span> {spec.emphasis === 'combined' ? 'combined' : spec.emphasis}
+                  </div>
+                  <label className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Template</span>
+                    <select
+                      value={spec.template}
+                      disabled={composing}
+                      onChange={(e) => rerenderSlide(customizeIdx, { template: e.target.value })}
+                      className="h-7 rounded border bg-background px-2 text-xs"
+                    >
+                      {compatible.map((t) => (
+                        <option key={t} value={t}>{TEMPLATE_LABELS[t] || t}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Color</span>
+                    <select
+                      value={spec.colorChoice || 'accent'}
+                      disabled={composing}
+                      onChange={(e) => rerenderSlide(customizeIdx, { colorChoice: e.target.value })}
+                      className="h-7 rounded border bg-background px-2 text-xs"
+                    >
+                      <option value="accent">Brand accent</option>
+                      <option value="white">White</option>
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 text-xs">
+                    <span className="text-muted-foreground">Photo dim</span>
+                    <input
+                      type="range"
+                      min="0" max="1" step="0.05"
+                      value={spec.photoDim ?? 0.5}
+                      disabled={composing}
+                      onChange={(e) => rerenderSlide(customizeIdx, { photoDim: parseFloat(e.target.value) })}
+                      className="w-24"
+                    />
+                    <span className="tabular-nums text-muted-foreground w-8">{Math.round((spec.photoDim ?? 0.5) * 100)}%</span>
+                  </label>
+                  <Button
+                    variant="ghost" size="sm"
+                    onClick={() => setCustomizeIdx(null)}
+                    className="ml-auto h-7 text-xs"
+                  >
+                    Done
+                  </Button>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Instagram image overlay editor */}
@@ -754,6 +928,17 @@ export default function ReviewPost() {
                       <Wand2 className="h-3.5 w-3.5 mr-1.5" />
                       Single image
                     </Button>
+                    {(item.media_urls || []).some((m) => m.overlay_spec) && (
+                      <Button
+                        variant="ghost" size="sm"
+                        onClick={regenerateAll}
+                        disabled={composing}
+                        title="Re-run the AI picker for all composed slides"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                        Regenerate
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
