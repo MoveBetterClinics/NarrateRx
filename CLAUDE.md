@@ -95,6 +95,8 @@ If the column is missing, paste the relevant `ALTER TABLE ... ADD COLUMN IF NOT 
 
 Local migration runs require an unredacted `MULTITENANT_DATABASE_URL` in `.env.local`. `vercel env pull` replaces Sensitive vars with `*****REDACTED*****`, which silently breaks the apply script (`TypeError: Invalid URL`). After any `vercel env pull`, restore `MULTITENANT_DATABASE_URL` from 1Password (NarrateRx vault) before running migrations locally.
 
+**GitHub Actions secret format:** `MULTITENANT_DATABASE_URL` in repo secrets must use the **Transaction pooler URI** (Supabase dashboard → Project Settings → Database → Connection pooling → Transaction mode → URI tab). The host is `aws-1-us-west-1.pooler.supabase.com:6543`. Do NOT use the Direct connection URI (`db.wrqfrjhevkbbheymzezy.supabase.co:5432`) — GitHub Actions runners can't reach it via IPv6 and will fail with `ENETUNREACH`. After any Supabase password rotation, update the Actions secret with `gh secret set MULTITENANT_DATABASE_URL --repo Move-Better/NarrateRx` and paste the pooler URI.
+
 ## GitHub
 Use the GitHub CLI (`gh`) for GitHub-specific interactions — PRs, issues, releases, repo management. `gh` is configured as the git credential helper, so plain `git push` / `git fetch` are fine for ref operations (they authenticate through `gh` under the hood). Do not set up separate HTTPS basic auth or raw SSH credentials.
 
