@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { fetchSimilarInterviews, updateInterview } from '@/lib/api'
+import { fetchSimilarInterviews, updateInterview, cleanupTranscript } from '@/lib/api'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { streamMessage } from '@/lib/claude'
@@ -435,6 +435,14 @@ export default function InterviewSession() {
     blogStreamingTextRef.current = ''
     setBlogStreamingTokens(0)
     window.speechSynthesis?.cancel()
+    // Kick off the transcript cleanup pass in parallel with the blog draft.
+    // It writes cleaned_messages on the interview row independently, so
+    // failure is non-fatal — the editor falls back to the raw transcript on
+    // the Output page. We don't await: the blog generator uses the raw
+    // messages by design (cleanup is a verification tool, not a rewrite).
+    cleanupTranscript(interviewId).catch((e) => {
+      console.warn('[interview] transcript cleanup failed:', e?.message)
+    })
     try {
       const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }))
       const tone = interview.tone || 'smart'

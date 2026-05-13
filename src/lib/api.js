@@ -75,6 +75,14 @@ export function suggestPullQuotes(interviewId) {
   })
 }
 
+export function cleanupTranscript(interviewId) {
+  return apiFetch('/api/interviews/cleanup-transcript', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ interviewId }),
+  })
+}
+
 export function deleteInterview(id, userId) {
   return apiFetch(`/api/db/interviews?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
