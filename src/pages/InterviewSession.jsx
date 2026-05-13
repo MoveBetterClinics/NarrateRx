@@ -20,6 +20,13 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
+// Target question range for the step-indicator. The interview prompt covers
+// 7 numbered content areas; in practice 5–8 questions is the sweet spot once
+// the AI skips areas already answered and adds follow-ups for vague answers.
+// Used to set expectations on time commitment without forcing a hard stop.
+const QUESTION_TARGET_MIN = 5
+const QUESTION_TARGET_MAX = 8
+
 const STOP_PHRASES = [
   "that's all",
   "that's it",
@@ -525,6 +532,13 @@ export default function InterviewSession() {
         )}
       </div>
 
+      {!interviewComplete && (
+        <StepIndicator
+          questionsAnswered={userMessageCount}
+          assistantAsking={isStreaming || (messages[messages.length - 1]?.role === 'assistant')}
+        />
+      )}
+
       <ScrollArea className="flex-1 pr-4 -mr-4">
         <div className="space-y-4 pb-4">
           {displayMessages.map((msg, i) => (
@@ -671,6 +685,40 @@ export default function InterviewSession() {
         destructive={false}
         onConfirm={leaveInterview}
       />
+    </div>
+  )
+}
+
+function StepIndicator({ questionsAnswered, assistantAsking }) {
+  // Question N = whichever question the clinician is currently working on.
+  // If the assistant has just asked a new question (and it's not yet answered),
+  // the clinician is on question (answered + 1). Otherwise we display the
+  // most recent answered question number so the count doesn't jump back.
+  const currentQuestion = Math.max(1, questionsAnswered + (assistantAsking ? 1 : 0))
+  const progress = Math.min(1, currentQuestion / QUESTION_TARGET_MAX)
+  const overflow = currentQuestion > QUESTION_TARGET_MAX
+
+  let caption
+  if (overflow) {
+    caption = 'Wrap up whenever you feel done.'
+  } else {
+    caption = `most interviews run ${QUESTION_TARGET_MIN}–${QUESTION_TARGET_MAX} questions`
+  }
+
+  return (
+    <div className="pb-3 shrink-0" aria-label="Interview progress">
+      <div className="flex items-baseline justify-between gap-2 mb-1.5">
+        <span className="text-[11px] font-medium text-muted-foreground">
+          Question {currentQuestion}
+        </span>
+        <span className="text-[11px] text-muted-foreground/70">{caption}</span>
+      </div>
+      <div className="h-1 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className="h-full bg-primary/60 transition-all duration-500 ease-out"
+          style={{ width: `${progress * 100}%` }}
+        />
+      </div>
     </div>
   )
 }
