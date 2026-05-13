@@ -67,6 +67,14 @@ export function updateInterview(id, patch, userId) {
   })
 }
 
+export function suggestPullQuotes(interviewId) {
+  return apiFetch('/api/interviews/pull-quotes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ interviewId }),
+  })
+}
+
 export function deleteInterview(id, userId) {
   return apiFetch(`/api/db/interviews?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
