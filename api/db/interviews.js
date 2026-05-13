@@ -194,7 +194,7 @@ export default async function handler(req, res) {
         )
         const planExists = planExistsRes.ok && (await planExistsRes.json()).length > 0
         if (!planExists) {
-          const planRows = buildPlanRows(id, ws.id)
+          const planRows = buildPlanRows(id, ws.id, ws.enabled_outputs ?? [])
           if (planRows.length > 0) {
             await sb('content_plan_atoms', {
               method: 'POST',

@@ -115,9 +115,18 @@ export function suggestedScheduledAt(anchorIso, slot) {
 
 // Build the flat list of atom rows to insert for a new interview plan.
 // Called once when the blog post is first saved.
-export function buildPlanRows(interviewId, workspaceId) {
+//
+// enabledOutputs — the workspace's enabled_outputs array (from workspaces row).
+// When provided, only platforms present in that array are seeded. Platforms
+// that map one-to-one with atom platform keys (instagram, facebook, linkedin,
+// gbp, pinterest, tiktok) are filtered; platforms absent from enabled_outputs
+// are silently skipped so the Plan tab never shows atoms for disabled channels.
+// Pass null/undefined to include all platforms (e.g. for backfill scripts).
+export function buildPlanRows(interviewId, workspaceId, enabledOutputs) {
   const rows = []
   for (const [platform, atoms] of Object.entries(ATOM_DEFINITIONS)) {
+    // Skip platforms the workspace hasn't enabled, when a filter is provided.
+    if (enabledOutputs && !enabledOutputs.includes(platform)) continue
     for (const { slot, angle, label, description } of atoms) {
       rows.push({
         interview_id:      interviewId,
