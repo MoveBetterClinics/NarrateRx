@@ -49,6 +49,14 @@ export function createContentItems(items) {
   })
 }
 
+export function suggestHashtags(contentItemId) {
+  return apiFetch('/api/content/suggest-hashtags', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentItemId }),
+  })
+}
+
 // ── Publishing ────────────────────────────────────────────────────────────────
 
 // Buffer is the universal distribution path. As of 2026-05-11 every social +

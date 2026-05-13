@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack } from '@/lib/publish'
+import { fetchContentItem, fetchContentItems, updateContentItem, publishAndTrack, suggestHashtags } from '@/lib/publish'
 import { fetchInterview, fetchClinician } from '@/lib/api'
 import { generateContent } from '@/lib/claude'
 import { toast } from '@/lib/toast'
@@ -55,6 +55,10 @@ const PLATFORM_LENGTH_PREFS = {
   youtube_short:{ optimal: [40, 70],   max: 100 },
   gbp:          { optimal: [100, 300], max: 1500 },
 }
+
+// Platforms where hashtags meaningfully affect discoverability. Skip blog
+// (long-form, hashtags read as junk), email, GBP, ads, landing pages.
+const HASHTAG_PLATFORMS = ['instagram', 'tiktok', 'twitter', 'threads', 'pinterest', 'linkedin', 'youtube_short', 'bluesky', 'mastodon']
 
 // Platform-specific preferred posting days (0=Sun…6=Sat) and hours (local time)
 const PLATFORM_SCHEDULE_PREFS = {
@@ -740,6 +744,15 @@ export default function ReviewPost() {
             )}
           </div>
 
+          {HASHTAG_PLATFORMS.includes(item.platform) && !isPublished && (
+            <HashtagPanel
+              item={item}
+              content={content}
+              setContent={setContent}
+              onItemUpdate={(patch) => setItem((prev) => ({ ...prev, ...patch }))}
+            />
+          )}
+
           {/* Media */}
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -1283,6 +1296,98 @@ function CharacterMeter({ platform, text }) {
       {len.toLocaleString()} / {prefs.max.toLocaleString()}
       {hint && <span className="ml-2 text-muted-foreground/70">· {hint}</span>}
     </p>
+  )
+}
+
+// AI-suggested hashtags, all derivable from the actual transcript or
+// workspace metadata (validated server-side). Editor clicks a chip to
+// append it to the post; clicking again removes it. No "boost-reach"
+// invented tags — the human always decides what makes the cut.
+function HashtagPanel({ item, content, setContent, onItemUpdate }) {
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const suggestions = Array.isArray(item.hashtag_suggestions) ? item.hashtag_suggestions : []
+
+  function isInContent(tag) {
+    const lc = content.toLowerCase()
+    return lc.includes(tag.toLowerCase())
+  }
+
+  function toggleTag(tag) {
+    if (isInContent(tag)) {
+      const re = new RegExp(`\\s*${tag.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\b`, 'gi')
+      setContent(content.replace(re, '').replace(/\s{2,}/g, ' ').trim())
+    } else {
+      const sep = content.endsWith('\n') || content.length === 0 ? '' : '\n'
+      setContent(`${content}${sep}${tag}`)
+    }
+  }
+
+  async function handleSuggest() {
+    setLoading(true)
+    setError('')
+    try {
+      const result = await suggestHashtags(item.id)
+      onItemUpdate({ hashtag_suggestions: result.suggestions })
+    } catch (e) {
+      setError(e?.message || 'Hashtag suggestion failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">Hashtag suggestions</label>
+          <Badge className="text-xs bg-slate-100 text-slate-500 border-0">From your interview</Badge>
+        </div>
+        <Button variant="outline" size="sm" onClick={handleSuggest} disabled={loading}>
+          {loading
+            ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Suggesting…</>
+            : <><Sparkles className="h-3.5 w-3.5 mr-1.5" />{suggestions.length > 0 ? 'Re-suggest' : 'Suggest hashtags'}</>
+          }
+        </Button>
+      </div>
+
+      {error && (
+        <p className="text-xs text-destructive mb-2 flex items-center gap-1.5">
+          <AlertCircle className="h-3 w-3" />
+          {error}
+        </p>
+      )}
+
+      {suggestions.length === 0 && !loading && !error && (
+        <p className="text-xs text-muted-foreground">
+          Click {'“'}Suggest hashtags{'”'} to pull candidates from this interview{'’'}s transcript and your workspace. Every tag traces back to something the clinician actually said or to your clinic profile — no invented broad-appeal tags.
+        </p>
+      )}
+
+      {suggestions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {suggestions.map((s) => {
+            const active = isInContent(s.tag)
+            return (
+              <button
+                key={s.tag}
+                type="button"
+                onClick={() => toggleTag(s.tag)}
+                title={s.source === 'workspace' ? 'From your workspace settings' : 'From the interview transcript'}
+                className={`text-xs rounded-full px-2.5 py-1 border transition-colors ${
+                  active
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-background text-foreground/80 border-border hover:bg-accent'
+                }`}
+              >
+                {s.tag}
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
