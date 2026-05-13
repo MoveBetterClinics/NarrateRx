@@ -51,6 +51,19 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
+// Carousel mode: emphasis and photo_idx are determined by slot position
+// (slot 0→hook, slot 1→subhead, slot 2→cta). Claude only picks visual params.
+const slideDesignSchema = z.object({
+  template:     z.string(),
+  colorChoice:  z.enum(['accent', 'white']).optional(),
+  photoDim:     z.number().min(0).max(1).optional(),
+})
+
+const carouselDesignSchema = z.object({
+  slides: z.array(slideDesignSchema).min(1).max(3),
+  reasoning: z.string().optional(),
+})
+
 const slideSchema = z.object({
   photo_idx:    z.number().int().min(0),
   template:     z.string(),
@@ -102,13 +115,12 @@ export default async function handler(req, res) {
   const allowedTemplates = mode === 'carousel' ? SOLO_TEMPLATES : COMBINED_TEMPLATES
   const templateBlock = allowedTemplates.map((t) => `- ${t}: ${TEMPLATE_DESCRIPTIONS[t]}`).join('\n')
 
-  const carouselGuidance = `You are picking ONE slide per filled overlay element. Output one slide for each of: ${filled.join(', ')}.
-For each slide, choose:
-  - photo_idx: which photo (0-indexed) best fits this element. Distribute photos thoughtfully if you have multiple. If only one photo is available, reuse it.
-  - template: one of [${allowedTemplates.join(', ')}]. Use cta_pill for cta slides when a photo works well as backdrop. Use split_block when subject is in the top half. Use minimal_corner when the photo is striking and text should support it.
-  - emphasis: the element name (${filled.join(' | ')}).
-  - colorChoice: 'accent' for branded color, 'white' for clean look. Pick based on what reads well on the chosen photo.
-  - photoDim: 0.3 (light) to 0.7 (heavy). Brighter photos need more dim; already-dark photos need less.`
+  // Carousel: slot positions are fixed — photo 1→hook, photo 2→subhead, photo 3→cta.
+  // Claude only decides template/colorChoice/photoDim per slide.
+  const SLOT_EMPHASIS = ['hook', 'subhead', 'cta']
+  const slots = SLOT_EMPHASIS
+    .map((emphasis, i) => ({ emphasis, photo_idx: i, photo: photos[i] || photos[0] }))
+    .filter(({ emphasis }) => overlay[emphasis]?.trim())
 
   const singleGuidance = `You are picking ONE combined slide that renders all filled overlay elements together. Output exactly one slide.
   - photo_idx: pick the strongest single photo (usually 0).
@@ -117,8 +129,15 @@ For each slide, choose:
   - colorChoice: 'accent' or 'white' depending on what reads well on the photo.
   - photoDim: 0.5–0.8 for legibility behind stacked text.`
 
-  const systemPrompt = `You are a design director choosing layout for an Instagram post for ${ws.display_name}.
-Pick the layout(s) that will perform best given the photos provided and the overlay text. Be decisive — don't pad with explanation. The "reasoning" field is one short sentence max.
+  const carouselGuidance = `Slot assignments are fixed: ${slots.map((s, i) => `slot ${i + 1} (Photo ${s.photo_idx}) = ${s.emphasis.toUpperCase()}`).join(', ')}.
+Output exactly ${slots.length} slide design(s), one per slot in that order.
+For each, choose ONLY:
+  - template: one of [${allowedTemplates.join(', ')}]. Use cta_pill for the CTA slot. Use split_block when subject is in the top half. Use minimal_corner when photo is striking and text supports it.
+  - colorChoice: 'accent' for branded color, 'white' for clean look. Based on what reads well on that slot's photo.
+  - photoDim: 0.3 (light) to 0.7 (heavy). Brighter photos need more dim; dark photos need less.`
+
+  const systemPrompt = `You are a design director choosing visual layouts for an Instagram post for ${ws.display_name}.
+Be decisive — don't pad with explanation. The "reasoning" field is one short sentence max.
 
 Brand style:
   - Accent color: ${brandStyle.accent_color || '(none set, defaults will be used)'}
@@ -134,6 +153,45 @@ ${templateBlock}
 ${mode === 'carousel' ? carouselGuidance : singleGuidance}`
 
   try {
+    if (mode === 'carousel') {
+      // Fixed-slot carousel: Claude only picks visual params; we supply emphasis+photo.
+      const { object } = await generateObject({
+        model: MODEL,
+        schema: carouselDesignSchema,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: [
+          { type: 'text', text: `Here are the ${slots.length} slot photo(s) in order. Pick template, colorChoice, and photoDim for each:` },
+          ...slots.flatMap(({ emphasis, photo_idx }, i) => [
+            { type: 'text', text: `Slot ${i + 1} — ${emphasis.toUpperCase()} (Photo ${photo_idx}):` },
+            { type: 'file', data: (photos[photo_idx] || photos[0]).url, mediaType: (photos[photo_idx] || photos[0]).mime_type || 'image/jpeg' },
+          ]),
+        ] }],
+        temperature: 0.3,
+      })
+
+      const designs = object.slides || []
+      const slides = slots.map((slot, i) => {
+        const design = designs[i] || {}
+        const template = allowedTemplates.includes(design.template) ? design.template : allowedTemplates[0]
+        const photo = photos[slot.photo_idx] || photos[0]
+        return {
+          photo_idx:   slot.photo_idx,
+          template,
+          emphasis:    slot.emphasis,
+          colorChoice: design.colorChoice || 'accent',
+          photoDim:    design.photoDim ?? 0.5,
+          text:        overlay[slot.emphasis],
+          sourceUrl:   photo.url,
+        }
+      }).filter((s) => s.text?.trim())
+
+      if (slides.length === 0) {
+        return err(res, 'No slides could be built — check that overlay text is filled', 502)
+      }
+      return ok(res, { slides, reasoning: object.reasoning || '' })
+    }
+
+    // Single / combined mode — unchanged: Claude picks everything.
     const { object } = await generateObject({
       model: MODEL,
       schema: designSchema,
@@ -145,8 +203,6 @@ ${mode === 'carousel' ? carouselGuidance : singleGuidance}`
       temperature: 0.3,
     })
 
-    // Validate templates are in the allowed set; clamp photo_idx to available
-    // photos. Defensive — the schema lets through any string for template name.
     const slides = object.slides
       .filter((s) => allowedTemplates.includes(s.template))
       .map((s) => ({
@@ -163,7 +219,6 @@ ${mode === 'carousel' ? carouselGuidance : singleGuidance}`
     if (slides.length === 0) {
       return err(res, 'Picker returned no usable slides — try again or check your overlay text', 502)
     }
-
     return ok(res, { slides, reasoning: object.reasoning || '' })
   } catch (e) {
     console.error('[pick-overlay-design]', e?.message || e)
