@@ -26,6 +26,7 @@ import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
 import { uploadMedia } from '@/lib/mediaLib'
+import { renderSlide } from '@/lib/overlayTemplates'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 
 // All distribution surfaces route through Buffer as of 2026-05-11. GBP is
@@ -444,270 +445,69 @@ export default function ReviewPost() {
     setTimeout(() => setCopied(false), 3000)
   }
 
-  async function composeImage() {
-    const firstImage = (item.media_urls || []).find((m) => m.type !== 'video')
-    if (!firstImage?.url) return toast.error('Add a photo first.')
+  // Compose driver — single entry point for both single-image and carousel
+  // modes. Asks the design picker (Claude with vision over the source photos)
+  // which template/color/dim to use per slide, then renders each via the
+  // shared overlayTemplates library and uploads to Vercel Blob.
+  async function composeWithDesigner(mode) {
+    const sources = (item.media_urls || []).filter((m) => m.type !== 'video' && m.url)
+    if (sources.length === 0) return toast.error('Add at least one photo first.')
     if (!overlayText?.hook && !overlayText?.subhead && !overlayText?.cta) {
       return toast.error('Add overlay text before composing.')
     }
-    setComposing(true)
-    try {
-      const SIZE = 1080
-      const canvas = document.createElement('canvas')
-      canvas.width  = SIZE
-      canvas.height = SIZE
-      const ctx = canvas.getContext('2d')
-
-      // Draw source image object-cover into the square canvas
-      await new Promise((resolve, reject) => {
-        const img = new window.Image()
-        img.crossOrigin = 'anonymous'
-        img.onload = () => {
-          const scale = Math.max(SIZE / img.width, SIZE / img.height)
-          const w = img.width  * scale
-          const h = img.height * scale
-          ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h)
-          resolve()
-        }
-        img.onerror = reject
-        img.src = firstImage.url
-      })
-
-      // Bottom-up gradient (transparent → near-black)
-      const grad = ctx.createLinearGradient(0, SIZE * 0.45, 0, SIZE)
-      grad.addColorStop(0, 'rgba(0,0,0,0)')
-      grad.addColorStop(1, 'rgba(0,0,0,0.80)')
-      ctx.fillStyle = grad
-      ctx.fillRect(0, 0, SIZE, SIZE)
-
-      const PAD = 72
-      const maxW = SIZE - PAD * 2
-
-      // Word-wrap helper — returns array of wrapped lines
-      function wrapLines(text, maxLines) {
-        const words = text.split(' ')
-        const lines = []
-        let line = ''
-        for (const w of words) {
-          const test = line ? `${line} ${w}` : w
-          if (ctx.measureText(test).width > maxW && line) {
-            lines.push(line)
-            if (lines.length >= maxLines) { line = ''; break }
-            line = w
-          } else {
-            line = test
-          }
-        }
-        if (line) lines.push(line)
-        return lines.slice(0, maxLines)
-      }
-
-      // Build layout bottom-up
-      let bottomY = SIZE - PAD
-
-      // CTA pill
-      if (overlayText?.cta) {
-        ctx.font = 'bold 34px "Inter", "Helvetica Neue", Arial, sans-serif'
-        ctx.textBaseline = 'middle'
-        const pillW = Math.min(ctx.measureText(overlayText.cta).width + 64, maxW)
-        const pillH = 54
-        const pillY = bottomY - pillH
-        ctx.fillStyle   = 'rgba(255,255,255,0.18)'
-        ctx.strokeStyle = 'rgba(255,255,255,0.45)'
-        ctx.lineWidth   = 2
-        const r = pillH / 2
-        ctx.beginPath()
-        ctx.moveTo(PAD + r, pillY)
-        ctx.lineTo(PAD + pillW - r, pillY)
-        ctx.arc(PAD + pillW - r, pillY + r, r, -Math.PI / 2, Math.PI / 2)
-        ctx.lineTo(PAD + r, pillY + pillH)
-        ctx.arc(PAD + r, pillY + r, r, Math.PI / 2, (3 * Math.PI) / 2)
-        ctx.closePath()
-        ctx.fill()
-        ctx.stroke()
-        ctx.fillStyle = 'white'
-        ctx.fillText(overlayText.cta, PAD + 32, pillY + r)
-        bottomY = pillY - 28
-      }
-
-      // Subhead
-      if (overlayText?.subhead) {
-        ctx.font = '400 38px "Inter", "Helvetica Neue", Arial, sans-serif'
-        ctx.textBaseline = 'alphabetic'
-        ctx.fillStyle = 'rgba(255,255,255,0.88)'
-        const lines = wrapLines(overlayText.subhead, 2)
-        const lineH = 52
-        bottomY -= lines.length * lineH
-        let y = bottomY
-        for (const l of lines) { ctx.fillText(l, PAD, y); y += lineH }
-        bottomY -= 24
-      }
-
-      // Hook (ALL CAPS, bold)
-      if (overlayText?.hook) {
-        ctx.font = 'bold 68px "Inter", "Helvetica Neue", Arial, sans-serif'
-        ctx.textBaseline = 'alphabetic'
-        ctx.fillStyle = 'white'
-        const lines = wrapLines(overlayText.hook.toUpperCase(), 2)
-        const lineH = 84
-        bottomY -= lines.length * lineH
-        let y = bottomY
-        for (const l of lines) { ctx.fillText(l, PAD, y); y += lineH }
-      }
-
-      // Export PNG → upload → prepend to media_urls
-      const blob = await new Promise((res, rej) =>
-        canvas.toBlob((b) => (b ? res(b) : rej(new Error('Canvas export failed'))), 'image/png', 0.92)
-      )
-      const file     = new File([blob], `ig-overlay-${Date.now()}.png`, { type: 'image/png' })
-      const uploaded = await uploadMedia(file, {
-        createdBy: user?.primaryEmailAddress?.emailAddress || null,
-      })
-
-      const composed = { url: uploaded.url, type: 'image', name: file.name, thumbnailUrl: uploaded.url }
-      const newMedia = [composed, ...(item.media_urls || [])]
-      const updated  = await updateContentItem(itemId, { mediaUrls: newMedia })
-      setItem(updated)
-      invalidateContentCaches(updated)
-      toast.success('Composed image added as slide 1')
-    } catch (e) {
-      const isCors = e?.message?.toLowerCase().includes('cross') || e?.message?.toLowerCase().includes('taint')
-      toast.error('Compose failed', {
-        description: isCors
-          ? 'The photo could not be read — download it and re-upload directly to fix this.'
-          : e?.message || 'Unknown error',
-      })
-    } finally {
-      setComposing(false)
-    }
-  }
-
-  // Carousel mode — one slide per overlay element. Cycles through source
-  // photos if there are fewer photos than elements. Each slide uses a
-  // centered "solo" layout (darken + large text) so the single element reads
-  // clearly without the bottom-gradient stack used in composeImage.
-  async function composeCarousel() {
-    const sources = (item.media_urls || []).filter((m) => m.type !== 'video' && m.url)
-    if (sources.length === 0) return toast.error('Add at least one photo first.')
-
-    const elements = [
-      { kind: 'hook',    text: overlayText?.hook    },
-      { kind: 'subhead', text: overlayText?.subhead },
-      { kind: 'cta',     text: overlayText?.cta     },
-    ].filter((e) => e.text)
-    if (elements.length === 0) return toast.error('Add overlay text before composing.')
 
     setComposing(true)
     try {
-      const SIZE = 1080
+      // 1) Ask the picker for design choices
+      const pickRes = await fetch('/api/content-plan/pick-overlay-design', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ item_id: itemId, mode }),
+      })
+      const pick = await pickRes.json().catch(() => ({}))
+      if (!pickRes.ok) throw new Error(pick?.error || 'Design picker failed')
+      const slides = pick.slides || []
+      if (slides.length === 0) throw new Error('Picker returned no slides')
+
+      // 2) Render each slide via the canvas template library and upload.
+      //    Templates run sequentially (canvas is per-call cheap; uploads are
+      //    serialized to avoid Vercel Blob rate-limit thrash).
       const composedSlides = []
-
-      for (let i = 0; i < elements.length; i++) {
-        const { kind, text } = elements[i]
-        const source = sources[i % sources.length]
-
-        const canvas = document.createElement('canvas')
-        canvas.width  = SIZE
-        canvas.height = SIZE
-        const ctx = canvas.getContext('2d')
-
-        await new Promise((resolve, reject) => {
-          const img = new window.Image()
-          img.crossOrigin = 'anonymous'
-          img.onload = () => {
-            const scale = Math.max(SIZE / img.width, SIZE / img.height)
-            const w = img.width  * scale
-            const h = img.height * scale
-            ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h)
-            resolve()
-          }
-          img.onerror = reject
-          img.src = source.url
+      for (const slide of slides) {
+        const blob = await renderSlide({
+          sourceUrl:  slide.sourceUrl,
+          spec: {
+            template:    slide.template,
+            emphasis:    slide.emphasis,
+            colorChoice: slide.colorChoice,
+            photoDim:    slide.photoDim,
+            text:        slide.text,
+          },
+          brandStyle: workspace?.brand_style || {},
         })
-
-        // Dim the photo so the single overlay element reads cleanly
-        ctx.fillStyle = 'rgba(0,0,0,0.48)'
-        ctx.fillRect(0, 0, SIZE, SIZE)
-
-        const PAD  = 80
-        const maxW = SIZE - PAD * 2
-
-        function wrapLines(str, maxLines) {
-          const words = str.split(' ')
-          const lines = []
-          let line = ''
-          for (const w of words) {
-            const test = line ? `${line} ${w}` : w
-            if (ctx.measureText(test).width > maxW && line) {
-              lines.push(line)
-              if (lines.length >= maxLines) { line = ''; break }
-              line = w
-            } else {
-              line = test
-            }
-          }
-          if (line) lines.push(line)
-          return lines.slice(0, maxLines)
-        }
-
-        ctx.textAlign    = 'center'
-        ctx.textBaseline = 'alphabetic'
-
-        if (kind === 'hook') {
-          ctx.font      = 'bold 96px "Inter", "Helvetica Neue", Arial, sans-serif'
-          ctx.fillStyle = 'white'
-          const lines = wrapLines(text.toUpperCase(), 4)
-          const lineH = 110
-          let y = (SIZE - lines.length * lineH) / 2 + lineH * 0.75
-          for (const l of lines) { ctx.fillText(l, SIZE / 2, y); y += lineH }
-        } else if (kind === 'subhead') {
-          ctx.font      = '500 56px "Inter", "Helvetica Neue", Arial, sans-serif'
-          ctx.fillStyle = 'white'
-          const lines = wrapLines(text, 6)
-          const lineH = 72
-          let y = (SIZE - lines.length * lineH) / 2 + lineH * 0.75
-          for (const l of lines) { ctx.fillText(l, SIZE / 2, y); y += lineH }
-        } else if (kind === 'cta') {
-          ctx.font = 'bold 56px "Inter", "Helvetica Neue", Arial, sans-serif'
-          const textW = ctx.measureText(text).width
-          const pillW = Math.min(textW + 96, maxW)
-          const pillH = 96
-          const pillX = (SIZE - pillW) / 2
-          const pillY = (SIZE - pillH) / 2
-          ctx.fillStyle = 'white'
-          const r = pillH / 2
-          ctx.beginPath()
-          ctx.moveTo(pillX + r, pillY)
-          ctx.lineTo(pillX + pillW - r, pillY)
-          ctx.arc(pillX + pillW - r, pillY + r, r, -Math.PI / 2, Math.PI / 2)
-          ctx.lineTo(pillX + r, pillY + pillH)
-          ctx.arc(pillX + r, pillY + r, r, Math.PI / 2, (3 * Math.PI) / 2)
-          ctx.closePath()
-          ctx.fill()
-          ctx.fillStyle    = 'black'
-          ctx.textBaseline = 'middle'
-          ctx.fillText(text, SIZE / 2, pillY + r)
-        }
-        ctx.textAlign = 'start' // reset for any later draws
-
-        const blob = await new Promise((res, rej) =>
-          canvas.toBlob((b) => (b ? res(b) : rej(new Error('Canvas export failed'))), 'image/png', 0.92)
-        )
-        const file     = new File([blob], `ig-${kind}-${Date.now()}.png`, { type: 'image/png' })
+        const tag      = slide.emphasis === 'combined' ? 'combined' : slide.emphasis
+        const file     = new File([blob], `ig-${tag}-${Date.now()}.png`, { type: 'image/png' })
         const uploaded = await uploadMedia(file, {
           createdBy: user?.primaryEmailAddress?.emailAddress || null,
         })
         composedSlides.push({ url: uploaded.url, type: 'image', name: file.name, thumbnailUrl: uploaded.url })
       }
 
+      // 3) Prepend composed images so they become slide 1 onward; originals
+      //    remain underneath so the user can reorder or delete as needed.
       const newMedia = [...composedSlides, ...(item.media_urls || [])]
       const updated  = await updateContentItem(itemId, { mediaUrls: newMedia })
       setItem(updated)
       invalidateContentCaches(updated)
-      toast.success(`${composedSlides.length} carousel slide${composedSlides.length === 1 ? '' : 's'} added`)
+      toast.success(
+        mode === 'carousel'
+          ? `${composedSlides.length} carousel slide${composedSlides.length === 1 ? '' : 's'} added`
+          : 'Composed image added as slide 1',
+      )
     } catch (e) {
-      const isCors = e?.message?.toLowerCase().includes('cross') || e?.message?.toLowerCase().includes('taint')
-      toast.error('Carousel compose failed', {
+      const msg = e?.message?.toLowerCase() || ''
+      const isCors = msg.includes('cross') || msg.includes('taint')
+      toast.error('Compose failed', {
         description: isCors
           ? 'A photo could not be read — download it and re-upload directly to fix this.'
           : e?.message || 'Unknown error',
@@ -716,6 +516,7 @@ export default function ReviewPost() {
       setComposing(false)
     }
   }
+
 
   async function removeMedia(index) {
     const urls = [...(item.media_urls || [])]
@@ -930,13 +731,13 @@ export default function ReviewPost() {
               <div className="flex items-start justify-between mb-2 gap-3">
                 <div>
                   <label className="text-sm font-medium">Image overlay text</label>
-                  <p className="text-xs text-muted-foreground mt-0.5">Carousel splits hook, subhead, and CTA across separate slides (one per source photo). Single image stacks all three on one photo.</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Claude picks layout, color, and photo treatment from your brand kit based on each photo. Carousel: one slide per element. Single: all elements on one photo.</p>
                 </div>
                 {(item.media_urls || []).some((m) => m.type !== 'video') && (
                   <div className="flex flex-col gap-1.5 shrink-0">
                     <Button
                       size="sm"
-                      onClick={composeCarousel}
+                      onClick={() => composeWithDesigner('carousel')}
                       disabled={composing}
                     >
                       {composing
@@ -947,7 +748,7 @@ export default function ReviewPost() {
                     </Button>
                     <Button
                       variant="outline" size="sm"
-                      onClick={composeImage}
+                      onClick={() => composeWithDesigner('single')}
                       disabled={composing}
                     >
                       <Wand2 className="h-3.5 w-3.5 mr-1.5" />
