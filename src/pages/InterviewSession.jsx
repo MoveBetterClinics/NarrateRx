@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -10,7 +10,7 @@ import { fetchSimilarInterviews, updateInterview } from '@/lib/api'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { streamMessage } from '@/lib/claude'
-import { getInterviewSystemPrompt, getBlogPostSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
+import { getInterviewSystemPrompt, getBlogPostSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi, buildVerbatimBlock } from '@/lib/prompts'
 import { getInitials } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -81,6 +81,11 @@ export default function InterviewSession() {
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [showInstructions, setShowInstructions] = useState(true)
   const [saveStatus, setSaveStatus] = useState('') // '' | 'saving' | 'saved' | 'error'
+  // Verbatim-flag UX state. selectionTip = { text, top, left } when the user has
+  // selected a chunk of clinician text inside the conversation log that's a
+  // valid substring of the user-message transcript; otherwise null.
+  const [selectionTip, setSelectionTip] = useState(null)
+  const conversationRef = useRef(null)
 
   const bottomRef = useRef(null)
   const hasStarted = useRef(false)
@@ -335,6 +340,79 @@ export default function InterviewSession() {
     navigate(`/clinician/${clinicianId}`)
   }
 
+  // Verbatim flag helpers. The transcript-substring check guarantees flagged
+  // text is something the clinician actually said — selecting an assistant
+  // question or a sentence that spans multiple bubbles fails validation and
+  // the tip never appears. We intentionally only consider user-role
+  // messages so the verbatim guarantee in the prompt is honest.
+  function getUserTranscript() {
+    return (interview?.messages || [])
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content || '')
+      .join('\n\n')
+  }
+
+  function handleSelectionUp() {
+    const sel = window.getSelection?.()
+    if (!sel || sel.isCollapsed) { setSelectionTip(null); return }
+    const text = sel.toString().trim()
+    if (text.length < 10) { setSelectionTip(null); return }
+    if (!conversationRef.current) return
+    // Selection must be entirely inside the conversation log.
+    const range = sel.getRangeAt(0)
+    if (!conversationRef.current.contains(range.commonAncestorContainer)) {
+      setSelectionTip(null); return
+    }
+    if (!getUserTranscript().includes(text)) { setSelectionTip(null); return }
+    const rect = range.getBoundingClientRect()
+    const containerRect = conversationRef.current.getBoundingClientRect()
+    setSelectionTip({
+      text,
+      top: rect.top - containerRect.top - 36,
+      left: rect.left - containerRect.left + rect.width / 2,
+    })
+  }
+
+  async function addVerbatimFlag() {
+    if (!selectionTip?.text || !interview) return
+    const text = selectionTip.text
+    const transcript = getUserTranscript()
+    const idx = transcript.indexOf(text)
+    if (idx === -1) { setSelectionTip(null); return }
+    const existing = Array.isArray(interview.verbatim_flags) ? interview.verbatim_flags : []
+    if (existing.some((f) => f.text === text)) { setSelectionTip(null); return }
+    const next = [
+      ...existing,
+      {
+        id: crypto.randomUUID(),
+        text,
+        start_offset: idx,
+        end_offset: idx + text.length,
+        created_at: new Date().toISOString(),
+      },
+    ]
+    setInterview((prev) => prev ? { ...prev, verbatim_flags: next } : prev)
+    setSelectionTip(null)
+    window.getSelection?.()?.removeAllRanges()
+    try {
+      await updateInterview(interviewId, { verbatimFlags: next }, user.id)
+    } catch {
+      setError('Could not save verbatim flag — try again.')
+    }
+  }
+
+  async function removeVerbatimFlag(id) {
+    if (!interview) return
+    const existing = Array.isArray(interview.verbatim_flags) ? interview.verbatim_flags : []
+    const next = existing.filter((f) => f.id !== id)
+    setInterview((prev) => prev ? { ...prev, verbatim_flags: next } : prev)
+    try {
+      await updateInterview(interviewId, { verbatimFlags: next }, user.id)
+    } catch {
+      setError('Could not remove verbatim flag — try again.')
+    }
+  }
+
   function handlePause() {
     const inFlight = isListening || isSpeaking || isStreaming || transcriptRef.current?.trim()
     if (inFlight) {
@@ -376,7 +454,7 @@ export default function InterviewSession() {
       const systemPrompt = getBlogPostSystemPrompt(
         overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
         clinician.voice_notes || '',
-      )
+      ) + buildVerbatimBlock(interview.verbatim_flags)
 
       let chunks = 0
       for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7' })) {
@@ -539,8 +617,25 @@ export default function InterviewSession() {
         />
       )}
 
-      <ScrollArea className="flex-1 pr-4 -mr-4">
-        <div className="space-y-4 pb-4">
+      <div
+        ref={conversationRef}
+        onMouseUp={handleSelectionUp}
+        onTouchEnd={handleSelectionUp}
+        className="flex-1 relative pr-4 -mr-4 overflow-hidden"
+      >
+        {selectionTip && (
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); addVerbatimFlag() }}
+            style={{ top: Math.max(0, selectionTip.top), left: selectionTip.left, transform: 'translateX(-50%)' }}
+            className="absolute z-10 bg-foreground text-background text-xs rounded-md shadow-lg px-2.5 py-1.5 flex items-center gap-1.5 hover:bg-foreground/90"
+          >
+            <Quote className="h-3 w-3" />
+            Use verbatim
+          </button>
+        )}
+        <ScrollArea className="h-full pr-4 -mr-4">
+          <div className="space-y-4 pb-4">
           {displayMessages.map((msg, i) => (
             <MessageBubble key={i} message={msg} clinicianName={firstNameOnly} />
           ))}
@@ -577,7 +672,38 @@ export default function InterviewSession() {
 
           <div ref={bottomRef} />
         </div>
-      </ScrollArea>
+        </ScrollArea>
+      </div>
+
+      {Array.isArray(interview.verbatim_flags) && interview.verbatim_flags.length > 0 && (
+        <div className="py-2 shrink-0 border-t">
+          <p className="text-[11px] text-muted-foreground mb-1.5 flex items-center gap-1">
+            <Quote className="h-3 w-3" />
+            Verbatim — these phrases will appear word-for-word in every draft
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {interview.verbatim_flags.map((f) => (
+              <span key={f.id} className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-900 border border-amber-200 rounded-full pl-2.5 pr-1 py-0.5 max-w-md">
+                <span className="truncate italic">{'“'}{f.text}{'”'}</span>
+                <button
+                  type="button"
+                  onClick={() => removeVerbatimFlag(f.id)}
+                  aria-label="Remove verbatim flag"
+                  className="shrink-0 rounded-full hover:bg-amber-200 p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {interviewComplete && !isGenerating && isOwner && (
+        <p className="text-[11px] text-muted-foreground py-1 shrink-0">
+          Tip: highlight a sentence above to flag it as verbatim — it will be preserved word-for-word in every draft.
+        </p>
+      )}
 
       {interviewComplete && !isGenerating && isOwner && (
         <div className="py-3 shrink-0">

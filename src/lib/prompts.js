@@ -579,6 +579,21 @@ ${getToneModifier(tone, workspace)}`
 //   const exemplars = await fetchTopExemplars({ platform })
 //   const prompt = base + getExemplarsBlock(exemplars)
 //
+// Verbatim-preservation constraint. When the editor has flagged specific
+// passages from the transcript as "use exactly," append this block to the
+// system prompt so every draft + redraft is bound to preserve the phrases
+// word-for-word. Returns an empty string when there are no flags, which
+// keeps it safe to concatenate unconditionally at every call site.
+export function buildVerbatimBlock(flags) {
+  if (!Array.isArray(flags) || flags.length === 0) return ""
+  const lines = flags
+    .map((f, i) => `${i + 1}. "${(f.text || '').trim()}"`)
+    .filter((s) => s.length > 4)
+    .join('\n')
+  if (!lines) return ""
+  return `\n\n---VERBATIM PASSAGES (CRITICAL)---\nMUST preserve these exact phrases verbatim in every draft — do not paraphrase, summarize, or rearrange the words. If a passage doesn't fit naturally where you were going to put it, find a place where it does. These are the clinician's own words and must appear in the output exactly as written:\n${lines}\n`
+}
+
 // Kept terse on purpose — verbose "STYLE GUIDE" framing makes models mimic
 // surface phrases. We want them to absorb voice, not parrot.
 export function getExemplarsBlock(exemplars) {

@@ -19,7 +19,7 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/queries'
-import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt, getExemplarsBlock } from '@/lib/prompts'
+import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatchSystemPrompt, getMarketingBatchSystemPrompt, getExemplarsBlock, buildVerbatimBlock } from '@/lib/prompts'
 import { fetchTopExemplars } from '@/lib/exemplars'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
@@ -403,7 +403,7 @@ export default function ReviewPost() {
       // helper returns an empty string when the pool is empty so this is a
       // no-op until the signal exists.
       const exemplars = await fetchTopExemplars({ platform })
-      systemPrompt = systemPrompt + getExemplarsBlock(exemplars)
+      systemPrompt = systemPrompt + getExemplarsBlock(exemplars) + buildVerbatimBlock(interview.verbatim_flags)
 
       const generated = await generateContent(
         inputMessages,
