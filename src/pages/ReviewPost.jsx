@@ -4,7 +4,7 @@ import { useUser } from '@clerk/clerk-react'
 import {
   ArrowLeft, Send, CalendarDays, CheckCircle2, Loader2, Copy, Check,
   AlertCircle, Image, Trash2, ExternalLink, Eye, Pencil,
-  ChevronLeft, ChevronRight, Play, RefreshCw, RotateCcw, ThumbsUp,
+  ChevronLeft, ChevronRight, Play, RefreshCw, RotateCcw, ThumbsUp, Wand2,
 } from 'lucide-react'
 import PostPreview from '@/components/PostPreview'
 import { Button } from '@/components/ui/button'
@@ -25,6 +25,7 @@ import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { PLATFORM_META, STATUS_META } from './ContentHub'
 import MediaPicker from '@/components/MediaPicker'
+import { uploadMedia } from '@/lib/mediaLib'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 
 // All distribution surfaces route through Buffer as of 2026-05-11. GBP is
@@ -107,6 +108,11 @@ export default function ReviewPost() {
   const [success, setSuccess]           = useState('')
   const [showPicker, setShowPicker]       = useState(false)
   const [showPreview, setShowPreview]     = useState(false)
+  // overlay_text is { hook, subhead, cta } for Instagram image overlay.
+  // undefined = not yet loaded (prevents spurious auto-save before fetch).
+  const [overlayText, setOverlayText]     = useState(undefined)
+  const [composing, setComposing]         = useState(false)
+  const overlayAutoSaveTimer              = useRef(null)
   const [scheduledAt, setScheduledAt]         = useState('')
   const [scheduleSuggestion, setScheduleSuggestion] = useState(null) // Date | null
   const [scheduleIsCustom, setScheduleIsCustom]     = useState(false)
@@ -140,6 +146,24 @@ export default function ReviewPost() {
     return () => clearTimeout(autoSaveTimer.current)
   }, [content])
 
+  // Auto-save overlay text 2s after edits (Instagram only).
+  // overlayText === undefined means "not yet loaded from server" — skip those.
+  useEffect(() => {
+    if (overlayText === undefined) return
+    if (!item || item.status === 'published') return
+    clearTimeout(overlayAutoSaveTimer.current)
+    overlayAutoSaveTimer.current = setTimeout(async () => {
+      try {
+        await updateContentItem(itemId, { overlayText })
+      } catch (e) {
+        toast.error('Overlay save failed', { description: e?.message })
+      }
+    }, 2000)
+    return () => clearTimeout(overlayAutoSaveTimer.current)
+  // item and itemId are stable after load; omitting avoids timer resets on every save.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [overlayText])
+
   // ⌘S flushes the autosave debounce immediately — saves what's currently
   // typed without waiting the 2s. Useful when the user wants confirmation
   // that a fresh edit is persisted before navigating away. Skips when the
@@ -167,6 +191,7 @@ export default function ReviewPost() {
         if (cancelled) return
         setItem(i)
         setContent(i?.content || '')
+        setOverlayText(i?.overlay_text ?? null)
         if (i?.scheduled_at) {
           setScheduledAt(i.scheduled_at.slice(0, 16))
           setScheduleIsCustom(true)
@@ -419,6 +444,144 @@ export default function ReviewPost() {
     setTimeout(() => setCopied(false), 3000)
   }
 
+  async function composeImage() {
+    const firstImage = (item.media_urls || []).find((m) => m.type !== 'video')
+    if (!firstImage?.url) return toast.error('Add a photo first.')
+    if (!overlayText?.hook && !overlayText?.subhead && !overlayText?.cta) {
+      return toast.error('Add overlay text before composing.')
+    }
+    setComposing(true)
+    try {
+      const SIZE = 1080
+      const canvas = document.createElement('canvas')
+      canvas.width  = SIZE
+      canvas.height = SIZE
+      const ctx = canvas.getContext('2d')
+
+      // Draw source image object-cover into the square canvas
+      await new Promise((resolve, reject) => {
+        const img = new window.Image()
+        img.crossOrigin = 'anonymous'
+        img.onload = () => {
+          const scale = Math.max(SIZE / img.width, SIZE / img.height)
+          const w = img.width  * scale
+          const h = img.height * scale
+          ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h)
+          resolve()
+        }
+        img.onerror = reject
+        img.src = firstImage.url
+      })
+
+      // Bottom-up gradient (transparent → near-black)
+      const grad = ctx.createLinearGradient(0, SIZE * 0.45, 0, SIZE)
+      grad.addColorStop(0, 'rgba(0,0,0,0)')
+      grad.addColorStop(1, 'rgba(0,0,0,0.80)')
+      ctx.fillStyle = grad
+      ctx.fillRect(0, 0, SIZE, SIZE)
+
+      const PAD = 72
+      const maxW = SIZE - PAD * 2
+
+      // Word-wrap helper — returns array of wrapped lines
+      function wrapLines(text, maxLines) {
+        const words = text.split(' ')
+        const lines = []
+        let line = ''
+        for (const w of words) {
+          const test = line ? `${line} ${w}` : w
+          if (ctx.measureText(test).width > maxW && line) {
+            lines.push(line)
+            if (lines.length >= maxLines) { line = ''; break }
+            line = w
+          } else {
+            line = test
+          }
+        }
+        if (line) lines.push(line)
+        return lines.slice(0, maxLines)
+      }
+
+      // Build layout bottom-up
+      let bottomY = SIZE - PAD
+
+      // CTA pill
+      if (overlayText?.cta) {
+        ctx.font = 'bold 34px "Inter", "Helvetica Neue", Arial, sans-serif'
+        ctx.textBaseline = 'middle'
+        const pillW = Math.min(ctx.measureText(overlayText.cta).width + 64, maxW)
+        const pillH = 54
+        const pillY = bottomY - pillH
+        ctx.fillStyle   = 'rgba(255,255,255,0.18)'
+        ctx.strokeStyle = 'rgba(255,255,255,0.45)'
+        ctx.lineWidth   = 2
+        const r = pillH / 2
+        ctx.beginPath()
+        ctx.moveTo(PAD + r, pillY)
+        ctx.lineTo(PAD + pillW - r, pillY)
+        ctx.arc(PAD + pillW - r, pillY + r, r, -Math.PI / 2, Math.PI / 2)
+        ctx.lineTo(PAD + r, pillY + pillH)
+        ctx.arc(PAD + r, pillY + r, r, Math.PI / 2, (3 * Math.PI) / 2)
+        ctx.closePath()
+        ctx.fill()
+        ctx.stroke()
+        ctx.fillStyle = 'white'
+        ctx.fillText(overlayText.cta, PAD + 32, pillY + r)
+        bottomY = pillY - 28
+      }
+
+      // Subhead
+      if (overlayText?.subhead) {
+        ctx.font = '400 38px "Inter", "Helvetica Neue", Arial, sans-serif'
+        ctx.textBaseline = 'alphabetic'
+        ctx.fillStyle = 'rgba(255,255,255,0.88)'
+        const lines = wrapLines(overlayText.subhead, 2)
+        const lineH = 52
+        bottomY -= lines.length * lineH
+        let y = bottomY
+        for (const l of lines) { ctx.fillText(l, PAD, y); y += lineH }
+        bottomY -= 24
+      }
+
+      // Hook (ALL CAPS, bold)
+      if (overlayText?.hook) {
+        ctx.font = 'bold 68px "Inter", "Helvetica Neue", Arial, sans-serif'
+        ctx.textBaseline = 'alphabetic'
+        ctx.fillStyle = 'white'
+        const lines = wrapLines(overlayText.hook.toUpperCase(), 2)
+        const lineH = 84
+        bottomY -= lines.length * lineH
+        let y = bottomY
+        for (const l of lines) { ctx.fillText(l, PAD, y); y += lineH }
+      }
+
+      // Export PNG → upload → prepend to media_urls
+      const blob = await new Promise((res, rej) =>
+        canvas.toBlob((b) => (b ? res(b) : rej(new Error('Canvas export failed'))), 'image/png', 0.92)
+      )
+      const file     = new File([blob], `ig-overlay-${Date.now()}.png`, { type: 'image/png' })
+      const uploaded = await uploadMedia(file, {
+        createdBy: user?.primaryEmailAddress?.emailAddress || null,
+      })
+
+      const composed = { url: uploaded.url, type: 'image', name: file.name, thumbnailUrl: uploaded.url }
+      const newMedia = [composed, ...(item.media_urls || [])]
+      const updated  = await updateContentItem(itemId, { mediaUrls: newMedia })
+      setItem(updated)
+      invalidateContentCaches(updated)
+      toast.success('Composed image added as slide 1')
+    } catch (e) {
+      const isCors = e?.message?.toLowerCase().includes('cross') || e?.message?.toLowerCase().includes('taint')
+      toast.error('Compose failed', {
+        description: isCors
+          ? 'The photo could not be read — download it and re-upload directly to fix this.'
+          : e?.message || 'Unknown error',
+      })
+    } finally {
+      setComposing(false)
+    }
+  }
+
   async function removeMedia(index) {
     const urls = [...(item.media_urls || [])]
     urls.splice(index, 1)
@@ -513,7 +676,7 @@ export default function ReviewPost() {
 
             {showPreview ? (
               <div className="min-h-[400px] rounded-xl border bg-slate-50 p-4 overflow-auto">
-                <PostPreview platform={item.platform} content={content} mediaUrls={item.media_urls || []} />
+                <PostPreview platform={item.platform} content={content} mediaUrls={item.media_urls || []} overlayText={overlayText} />
               </div>
             ) : (
               <>
@@ -625,6 +788,69 @@ export default function ReviewPost() {
               </div>
             )}
           </div>
+
+          {/* Instagram image overlay editor */}
+          {item.platform === 'instagram' && !isPublished && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <label className="text-sm font-medium">Image overlay text</label>
+                  <p className="text-xs text-muted-foreground mt-0.5">Hook, subhead, and CTA baked onto the photo. Edit then hit Compose to generate the image.</p>
+                </div>
+                {(item.media_urls || []).some((m) => m.type !== 'video') && (
+                  <Button
+                    variant="outline" size="sm"
+                    onClick={composeImage}
+                    disabled={composing}
+                    className="shrink-0 ml-3"
+                  >
+                    {composing
+                      ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                      : <Wand2 className="h-3.5 w-3.5 mr-1.5" />
+                    }
+                    {composing ? 'Composing…' : 'Compose image'}
+                  </Button>
+                )}
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Hook</label>
+                  <input
+                    type="text"
+                    value={overlayText?.hook ?? ''}
+                    onChange={(e) => setOverlayText((prev) => ({ ...(prev || {}), hook: e.target.value }))}
+                    placeholder="Bold 5–7 word statement (auto-uppercased on image)"
+                    className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Subheadline</label>
+                  <input
+                    type="text"
+                    value={overlayText?.subhead ?? ''}
+                    onChange={(e) => setOverlayText((prev) => ({ ...(prev || {}), subhead: e.target.value }))}
+                    placeholder="Supporting context, 8–12 words"
+                    className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">CTA button</label>
+                  <input
+                    type="text"
+                    value={overlayText?.cta ?? ''}
+                    onChange={(e) => setOverlayText((prev) => ({ ...(prev || {}), cta: e.target.value }))}
+                    placeholder="Book Your Free Assessment"
+                    className="mt-1 w-full rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  />
+                </div>
+                {!(item.media_urls || []).some((m) => m.type !== 'video') && (
+                  <p className="text-xs text-amber-600 bg-amber-50 rounded-md px-3 py-2">
+                    Add a photo above to enable Compose.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Right: actions */}
