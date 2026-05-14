@@ -37,7 +37,7 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,overlay_text,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,notes,reviewed_by,approved_by,approved_at,performed_well,archived_at,hashtag_suggestions,created_at,updated_at'
+const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,overlay_text,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,notes,reviewed_by,approved_by,approved_at,performed_well,archived_at,hashtag_suggestions,buffer_metrics,buffer_metrics_fetched_at,created_at,updated_at'
 
 export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
@@ -140,10 +140,12 @@ export default async function handler(req, res) {
       reviewed_by:     patch.reviewedBy,
       approved_by:     patch.approvedBy,
       approved_at:     patch.approvedAt,
-      performed_well:  patch.performedWell,
-      archived_at:     patch.archivedAt,
-      notes:           patch.notes,
-      updated_at:      patch.updatedAt,
+      performed_well:         patch.performedWell,
+      archived_at:            patch.archivedAt,
+      notes:                  patch.notes,
+      buffer_metrics:         patch.bufferMetrics,
+      buffer_metrics_fetched_at: patch.bufferMetricsFetchedAt,
+      updated_at:             patch.updatedAt,
     }
     const body = Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined))
 

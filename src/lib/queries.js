@@ -90,6 +90,7 @@ export const queryKeys = {
     list: (contentItemId) => ['comments', contentItemId],
   },
   topicSuggestions: ['topic-suggestions'],
+  bufferMetrics: (contentItemId) => ['buffer-metrics', contentItemId],
 }
 
 // ── Brand Kit ───────────────────────────────────────────────────────────────
@@ -486,5 +487,21 @@ export function useUpdateContentItemStatus() {
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
     },
+  })
+}
+
+// ── Buffer Analytics ─────────────────────────────────────────────────────────
+
+export function useBufferMetrics(contentItemId, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.bufferMetrics(contentItemId),
+    queryFn: async () => {
+      const r = await fetch(`/api/buffer-analytics?contentItemId=${contentItemId}`, { credentials: 'include' })
+      if (!r.ok) return null
+      return r.json()
+    },
+    enabled: !!contentItemId,
+    staleTime: 1000 * 60 * 30, // 30min — Buffer stats don't update by the second
+    ...options,
   })
 }

@@ -15,6 +15,7 @@ import {
   useUpdateContentItemStatus,
 } from '@/lib/queries'
 import { publishAndTrack } from '@/lib/publish'
+import BufferMetricsRow from './BufferMetricsRow'
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -372,6 +373,11 @@ export default function AssetsPane({ story }) {
           </div>
         ) : (
           <p className="text-xs text-muted-foreground italic">No draft content yet.</p>
+        )}
+
+        {/* Buffer performance metrics — shown for published pieces with a buffer_update_id */}
+        {active?.status === 'published' && active?.buffer_update_id && (
+          <BufferMetricsRow contentItemId={active.id} />
         )}
 
         <div className="flex items-center gap-2 pt-1">
