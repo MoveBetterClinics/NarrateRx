@@ -99,10 +99,13 @@ async function handler(req, res) {
           })
         }
         if (cls.extracted_style && Object.keys(cls.extracted_style).length > 0) {
-          await sb(`brand_style?workspace_id=eq.${scope.id}`, {
+          const wsRow = await sb(`workspaces?id=eq.${scope.id}&select=brand_style`)
+          const currentStyle = wsRow.ok ? ((await wsRow.json())?.[0]?.brand_style || {}) : {}
+          const nextStyle = { ...currentStyle, ...cls.extracted_style }
+          await sb(`workspaces?id=eq.${scope.id}`, {
             method: 'PATCH',
             headers: { Prefer: 'return=minimal' },
-            body: JSON.stringify(cls.extracted_style),
+            body: JSON.stringify({ brand_style: nextStyle }),
           })
         }
       }

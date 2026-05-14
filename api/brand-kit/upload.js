@@ -225,12 +225,17 @@ async function handler(req, res) {
                 body: JSON.stringify({ brand_guidelines: guidelines }),
               })
               if (!ws.ok) console.error('workspace brand_guidelines sync failed:', ws.status, await ws.text())
-              // Write extracted colors/fonts to brand_style if found.
+              // Merge extracted colors/fonts into workspaces.brand_style (JSONB).
+              // Re-fetch current value first so we don't overwrite existing manual entries.
               if (Object.keys(stylePatch).length > 0) {
-                const styleUpd = await sb(
-                  `brand_style?workspace_id=eq.${scopeId}`,
-                  { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify(stylePatch) }
-                )
+                const wsRow = await sb(`workspaces?id=eq.${scopeId}&select=brand_style`)
+                const currentStyle = wsRow.ok ? ((await wsRow.json())?.[0]?.brand_style || {}) : {}
+                const nextStyle = { ...currentStyle, ...stylePatch }
+                const styleUpd = await sb(`workspaces?id=eq.${scopeId}`, {
+                  method: 'PATCH',
+                  headers: { Prefer: 'return=minimal' },
+                  body: JSON.stringify({ brand_style: nextStyle }),
+                })
                 if (!styleUpd.ok) console.error('brand_style patch failed:', styleUpd.status, await styleUpd.text())
               }
             }).catch((e) => console.error('brand guideline extraction failed:', e?.message))

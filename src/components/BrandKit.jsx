@@ -367,22 +367,26 @@ function useLiveDataSource() {
       setUploadRows(rows)
       setUploadActive(true)
       let succeeded = 0
+      const CONCURRENCY = 4
       try {
-        for (let i = 0; i < files.length; i++) {
-          const file = files[i]
-          setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'uploading', percent: 0 } : r))
-          try {
-            await uploadBrandAsset(file, {}, {
-              onProgress: (e) => {
-                setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, percent: e.percentage ?? 0 } : r))
-              },
-            })
-            setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'done', percent: 100 } : r))
-            succeeded++
-          } catch (e) {
-            const msg = e.message || 'upload failed'
-            setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'error', error: msg } : r))
-          }
+        // Upload in batches of CONCURRENCY so the library doesn't serialize 59 files
+        for (let start = 0; start < files.length; start += CONCURRENCY) {
+          const batch = files.slice(start, start + CONCURRENCY)
+          await Promise.all(batch.map(async (file, batchIdx) => {
+            const i = start + batchIdx
+            setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'uploading', percent: 0 } : r))
+            try {
+              await uploadBrandAsset(file, {}, {
+                onProgress: (e) => {
+                  setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, percent: e.percentage ?? 0 } : r))
+                },
+              })
+              setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'done', percent: 100 } : r))
+              succeeded++
+            } catch (e) {
+              setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'error', error: e.message || 'upload failed' } : r))
+            }
+          }))
         }
       } finally {
         setUploadActive(false)
