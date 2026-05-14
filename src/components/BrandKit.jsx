@@ -380,6 +380,44 @@ function useLiveDataSource() {
   }
 }
 
+// Recursively collects File objects from a DataTransferItemList. Handles
+// both plain files and folder drops (using webkitGetAsEntry). Skips macOS
+// metadata files (.__*) and hidden dot-files that designers' folders often
+// include but should never be uploaded as brand assets.
+function readDirectoryEntries(reader) {
+  return new Promise((resolve) => {
+    const out = []
+    function read() {
+      reader.readEntries((entries) => {
+        if (!entries.length) return resolve(out)
+        out.push(...entries)
+        read()
+      }, () => resolve(out))
+    }
+    read()
+  })
+}
+async function entryToFiles(entry) {
+  if (!entry) return []
+  if (entry.isFile) {
+    return new Promise((resolve) => entry.file((f) => resolve([f]), () => resolve([])))
+  }
+  if (entry.isDirectory) {
+    const reader = entry.createReader()
+    const children = await readDirectoryEntries(reader)
+    const nested = await Promise.all(children.map(entryToFiles))
+    return nested.flat()
+  }
+  return []
+}
+async function collectFilesFromItems(items) {
+  const entries = items.map((item) => item.webkitGetAsEntry?.()).filter(Boolean)
+  const nested  = await Promise.all(entries.map(entryToFiles))
+  return nested.flat().filter((f) =>
+    f.size > 0 && !f.name.startsWith('.') && !f.name.startsWith('.__')
+  )
+}
+
 export default function BrandKit({ variant = 'settings', mockup = false, onAdvance }) {
   const isOnboarding = variant === 'onboarding'
   // Both hooks are declared so React's hook order stays consistent across
@@ -475,9 +513,14 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
     if (!files.length) return
     ds.uploadFiles(files)
   }
-  function handleDrop(e) {
+  async function handleDrop(e) {
     e.preventDefault()
-    handleFiles(e.dataTransfer?.files)
+    // Use DataTransferItem + webkitGetAsEntry to recurse into dropped folders.
+    // e.dataTransfer.files only gives a stub for directories (size 0, no type).
+    const items = Array.from(e.dataTransfer?.items || [])
+    if (!items.length) return
+    const files = await collectFilesFromItems(items)
+    if (files.length) ds.uploadFiles(files)
   }
 
   const filledRoles = Object.keys(roleAssignments).length
