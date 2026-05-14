@@ -3,22 +3,8 @@ import { useStories } from '@/lib/queries'
 import StoriesViewToggle from '@/components/stories/StoriesViewToggle'
 import StoriesFilters from '@/components/stories/StoriesFilters'
 import StoriesCardsView from '@/components/stories/StoriesCardsView'
-
-function PipelinePlaceholder() {
-  return (
-    <div className="p-8 text-center text-gray-500">
-      Pipeline view — coming in the next update
-    </div>
-  )
-}
-
-function CalendarPlaceholder() {
-  return (
-    <div className="p-8 text-center text-gray-500">
-      Calendar view — coming in the next update
-    </div>
-  )
-}
+import StoriesPipelineView from '@/components/stories/StoriesPipelineView'
+import StoriesCalendarView from '@/components/stories/StoriesCalendarView'
 
 /**
  * Stories page — top-level IA surface.
@@ -46,9 +32,9 @@ export default function Stories() {
 
       {/* View dispatch */}
       {view === 'pipeline' ? (
-        <PipelinePlaceholder />
+        <StoriesPipelineView stories={stories} isLoading={isLoading} />
       ) : view === 'calendar' ? (
-        <CalendarPlaceholder />
+        <StoriesCalendarView stories={stories} isLoading={isLoading} />
       ) : (
         <StoriesCardsView stories={stories} isLoading={isLoading} />
       )}

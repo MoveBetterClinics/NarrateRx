@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import {
   ClerkProvider,
   SignedIn,
@@ -15,13 +15,8 @@ import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
 const NewInterview = lazy(() => import('@/pages/NewInterview'))
 const InterviewSession = lazy(() => import('@/pages/InterviewSession'))
-const InterviewOutput = lazy(() => import('@/pages/InterviewOutput'))
 const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
-const Strategy = lazy(() => import('@/pages/Strategy'))
-const ContentHub = lazy(() => import('@/pages/ContentHub'))
 const ReviewPost = lazy(() => import('@/pages/ReviewPost'))
-const ReviewQueue = lazy(() => import('@/pages/ReviewQueue'))
-const ContentCalendar = lazy(() => import('@/pages/ContentCalendar'))
 const MediaHub = lazy(() => import('@/pages/MediaHub'))
 const Integrations = lazy(() => import('@/pages/Integrations'))
 const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
@@ -32,6 +27,7 @@ const Members = lazy(() => import('@/pages/Members'))
 const Account = lazy(() => import('@/pages/Account'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
 const Stories = lazy(() => import('@/pages/Stories'))
+const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -177,6 +173,13 @@ function guarded(node) {
   return <RouteErrorBoundary>{node}</RouteErrorBoundary>
 }
 
+// Legacy redirect: /output/:clinicianId/:interviewId → /stories/:interviewId
+// The InterviewOutput page still exists; this route replaces the old path mapping.
+function LegacyOutputRedirect() {
+  const { interviewId } = useParams()
+  return <Navigate to={`/stories/${interviewId}`} replace />
+}
+
 // Routes shared between org-gated and domain-gated modes.
 function AppRoutes() {
   const location = useLocation()
@@ -205,16 +208,19 @@ function AppRoutes() {
             <Route path="/new" element={guarded(<NewInterview />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
             <Route path="/interview/:clinicianId/:interviewId/output" element={guarded(<InterviewSession />)} />
-            <Route path="/output/:clinicianId/:interviewId" element={guarded(<InterviewOutput />)} />
+            {/* /output legacy path → StoryDetail (interviewId is the anchor) */}
+            <Route path="/output/:clinicianId/:interviewId" element={<LegacyOutputRedirect />} />
             <Route path="/clinician/:clinicianId" element={guarded(<ClinicianProfile />)} />
-            <Route path="/strategy" element={guarded(<Strategy />)} />
-            <Route path="/hub" element={guarded(<ContentHub />)} />
             <Route path="/stories" element={guarded(<Stories />)} />
-            <Route path="/stories/:id" element={guarded(<Stories />)} />
+            <Route path="/stories/:storyId" element={guarded(<StoryDetail />)} />
+            <Route path="/library" element={guarded(<MediaHub />)} />
             <Route path="/review/:itemId" element={guarded(<ReviewPost />)} />
-            <Route path="/review-queue" element={guarded(<ReviewQueue />)} />
-            <Route path="/calendar" element={guarded(<ContentCalendar />)} />
-            <Route path="/media" element={guarded(<MediaHub />)} />
+            <Route path="/review-queue" element={guarded(<Navigate to="/?bucket=review" replace />)} />
+            {/* Legacy redirects — bookmark safety */}
+            <Route path="/hub" element={<Navigate to="/stories" replace />} />
+            <Route path="/calendar" element={<Navigate to="/stories?view=calendar" replace />} />
+            <Route path="/strategy" element={<Navigate to="/" replace />} />
+            <Route path="/media" element={<Navigate to="/library" replace />} />
             <Route path="/settings/integrations" element={guarded(<Integrations />)} />
             <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
             <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
