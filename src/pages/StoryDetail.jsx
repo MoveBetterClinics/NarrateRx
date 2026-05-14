@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { useStory } from '@/lib/queries'
 import TranscriptPane from '@/components/story-detail/TranscriptPane'
 import AssetsPane from '@/components/story-detail/AssetsPane'
+import TranscriptExport from '@/components/story-detail/TranscriptExport'
 
 // Stage badge colours mirror the StoryCard conventions from StoriesCardsView.
 const STAGE_META = {
@@ -74,9 +75,12 @@ export default function StoryDetail() {
               <p className="text-sm text-muted-foreground">{story.clinician_name}</p>
             )}
           </div>
-          <Badge className={`shrink-0 text-xs border-0 ${stageMeta.color}`}>
-            {stageMeta.label}
-          </Badge>
+          <div className="flex items-center gap-3 shrink-0">
+            <TranscriptExport story={story} />
+            <Badge className={`text-xs border-0 ${stageMeta.color}`}>
+              {stageMeta.label}
+            </Badge>
+          </div>
         </div>
       </div>
 
