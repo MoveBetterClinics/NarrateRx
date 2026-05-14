@@ -353,7 +353,7 @@ export default function MediaHub() {
             </DialogHeader>
             <MediaUploader
               createdBy={user?.id}
-              onUploaded={() => { refresh(); setUploadOpen(false) }}
+              onUploaded={refresh}
             />
           </DialogContent>
         </Dialog>

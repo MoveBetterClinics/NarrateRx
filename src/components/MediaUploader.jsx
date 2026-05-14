@@ -5,7 +5,24 @@ import {
   Mic, Film, Image as ImageIcon, Sparkles,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { uploadMedia } from '@/lib/mediaLib'
+import { uploadMedia, listMedia } from '@/lib/mediaLib'
+
+// Vercel Blob's onUploadCompleted webhook (which writes the media_assets row)
+// runs platform→server, separate from the client's upload(). We poll listMedia
+// after the client upload resolves so the "done" state means "row is queryable",
+// not just "bytes are in Blob storage." Without this gate, the library grid
+// refreshes against a DB that doesn't yet contain the new asset.
+async function waitForAssetIndexed(blobUrl, { timeoutMs = 8000, intervalMs = 500 } = {}) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const rows = await listMedia({ limit: 20, compact: true })
+      if (Array.isArray(rows) && rows.some((r) => r.blob_url === blobUrl)) return true
+    } catch { /* keep polling */ }
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+  return false
+}
 
 // Asset purpose is the primary fork — it decides which downstream pipeline
 // the upload feeds. We render the choice as deliberate cards (not a dropdown)
@@ -142,12 +159,12 @@ export default function MediaUploader({ onUploaded, createdBy }) {
     })
     setUploads((prev) => [...newRows, ...prev])
 
-    await Promise.all(files.map(async (file, i) => {
+    const results = await Promise.all(files.map(async (file, i) => {
       const row = newRows[i]
-      if (row.status === 'error') return
+      if (row.status === 'error') return { ok: false }
       const rowId = row.id
       try {
-        await uploadMedia(
+        const blob = await uploadMedia(
           file,
           {
             createdBy: createdBy || null,
@@ -173,13 +190,23 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             },
           },
         )
-        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'done', progress: 100, transcoding: false } : r))
+        // Client upload done → flip to a transitional "indexing" state while
+        // we wait for the completion webhook to write the media_assets row.
+        // Without this, callers (e.g. the library grid) refresh against a DB
+        // that doesn't yet contain the asset.
+        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'indexing', progress: 100, transcoding: false } : r))
+        const indexed = await waitForAssetIndexed(blob.url)
+        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'done', slowIndex: !indexed } : r))
+        return { ok: true }
       } catch (e) {
         setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'error', error: e.message, transcoding: false } : r))
+        return { ok: false }
       }
     }))
 
-    onUploaded?.()
+    // Only refresh the library if at least one file actually succeeded —
+    // otherwise we trigger a re-query for nothing.
+    if (results.some((r) => r.ok)) onUploaded?.()
   }
 
   function handleDrop(e) {
@@ -336,7 +363,8 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           {uploads.map((r) => (
             <div key={r.id} className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-md bg-muted/40">
               {r.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
-              {r.status === 'done'      && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
+              {r.status === 'indexing'  && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
+              {r.status === 'done'      && <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${r.slowIndex ? 'text-amber-600' : 'text-emerald-600'}`} />}
               {r.status === 'error'     && <AlertCircle  className="h-3.5 w-3.5 text-destructive shrink-0" />}
               <span className="truncate flex-1" title={r.name}>{r.name}</span>
               {r.status === 'uploading' && (
@@ -357,6 +385,12 @@ export default function MediaUploader({ onUploaded, createdBy }) {
                     </>
                   )}
                 </>
+              )}
+              {r.status === 'indexing' && (
+                <span className="text-[10px] text-muted-foreground shrink-0">Adding to library…</span>
+              )}
+              {r.status === 'done' && r.slowIndex && (
+                <span className="text-[10px] text-amber-700 shrink-0" title="The asset is still being indexed; it should appear in the library shortly.">Still processing</span>
               )}
               {r.status === 'error' && <span className="text-destructive truncate max-w-[40%]" title={r.error}>{r.error}</span>}
             </div>
