@@ -16,6 +16,7 @@ import {
 } from '@/lib/queries'
 import { publishAndTrack } from '@/lib/publish'
 import BufferMetricsRow from './BufferMetricsRow'
+import ContentPlanPanel from '@/components/ContentPlanPanel'
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -309,11 +310,59 @@ function ApprovalPanel({ piece }) {
 export default function AssetsPane({ story }) {
   const pieces = story?.pieces ?? []
   const [activeIdx, setActiveIdx] = useState(0)
+  const [view, setView] = useState('plan')
+
+  const handleSelectPiece = (pieceId) => {
+    const idx = pieces.findIndex((p) => p.id === pieceId)
+    if (idx >= 0) setActiveIdx(idx)
+    setView('edit')
+  }
+
+  const ViewToggle = (
+    <div className="inline-flex rounded-md border bg-muted/30 p-0.5 text-xs">
+      <button
+        type="button"
+        onClick={() => setView('plan')}
+        className={`px-2.5 py-1 rounded ${view === 'plan' ? 'bg-card shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+      >
+        Plan
+      </button>
+      <button
+        type="button"
+        onClick={() => setView('edit')}
+        className={`px-2.5 py-1 rounded ${view === 'edit' ? 'bg-card shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+        disabled={pieces.length === 0}
+      >
+        Edit
+      </button>
+    </div>
+  )
+
+  if (view === 'plan') {
+    return (
+      <div className="rounded-xl border bg-card p-4 space-y-4">
+        <div className="flex items-center justify-end">{ViewToggle}</div>
+        <ContentPlanPanel
+          interviewId={story?.id}
+          interviewCreatedAt={story?.created_at}
+          onSelectPiece={handleSelectPiece}
+        />
+        {pieces.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            No content pieces yet. Generate content from the interview to populate the plan.
+          </p>
+        )}
+      </div>
+    )
+  }
 
   if (pieces.length === 0) {
     return (
-      <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
-        No content pieces yet. Generate content from the interview to see it here.
+      <div className="rounded-xl border bg-card p-4 space-y-3">
+        <div className="flex items-center justify-end">{ViewToggle}</div>
+        <p className="text-sm text-muted-foreground">
+          No content pieces yet. Generate content from the interview to see it here.
+        </p>
       </div>
     )
   }
@@ -324,6 +373,7 @@ export default function AssetsPane({ story }) {
 
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
+      <div className="flex items-center justify-end px-3 pt-3">{ViewToggle}</div>
       {/* Tab row */}
       <div className="flex gap-1 px-3 pt-3 pb-0 overflow-x-auto border-b">
         {pieces.map((piece, i) => {

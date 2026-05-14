@@ -9,7 +9,7 @@ import { ATOM_DEFINITIONS, PLATFORM_UI, SLOT_LABELS, formatSlotDate } from '@/li
 // ContentPlanPanel renders the full 4-week content plan for an interview.
 // Atoms are grouped by platform; each shows its angle, suggested week, and
 // current status. "Draft this" calls the AI on demand; "Skip" dismisses it.
-export default function ContentPlanPanel({ interviewId, interviewCreatedAt }) {
+export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSelectPiece }) {
   const { data: atoms = [], isLoading } = useContentPlanAtoms(interviewId)
   const draftMutation  = useDraftAtom()
   const skipMutation   = useSkipAtom()
@@ -134,6 +134,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt }) {
                       onDraft={() => handleDraft(atom)}
                       onSkip={() => handleSkip(atom)}
                       onReset={() => handleReset(atom)}
+                      onSelectPiece={onSelectPiece}
                     />
                   )
                 })}
@@ -146,7 +147,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt }) {
   )
 }
 
-function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip, onReset }) {
+function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip, onReset, onSelectPiece }) {
   const isSkipped = atom.status === 'skipped'
   const isDrafted = atom.status === 'drafted'
 
@@ -170,12 +171,23 @@ function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip
 
       <div className="flex items-center gap-1.5 shrink-0">
         {isDrafted ? (
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" asChild>
-            <Link to={`/review/${atom.content_piece_id}`}>
+          onSelectPiece ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs gap-1"
+              onClick={() => onSelectPiece(atom.content_piece_id)}
+            >
               View draft
-              <ExternalLink className="h-3 w-3" />
-            </Link>
-          </Button>
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" asChild>
+              <Link to={`/review/${atom.content_piece_id}`}>
+                View draft
+                <ExternalLink className="h-3 w-3" />
+              </Link>
+            </Button>
+          )
         ) : isSkipped ? (
           <Button
             variant="ghost"
