@@ -1,17 +1,15 @@
 import { useState, useEffect } from 'react'
-import { Navigate, useSearchParams } from 'react-router-dom'
+import { Navigate, Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Trash2, Plus, Star, Upload, Image as ImageIcon } from 'lucide-react'
-import CredentialForm from '@/components/CredentialForm'
+import { Loader2, CheckCircle2, AlertCircle, ChevronDown, ChevronRight, Trash2, Plus, Star, Upload, Image as ImageIcon, ArrowRight } from 'lucide-react'
 import MediaPicker from '@/components/MediaPicker'
 import PricingCards from '@/components/billing/PricingCards'
 import { useUserRole } from '@/lib/useUserRole'
-import { OUTPUT_CHANNELS } from '@/lib/outputChannels'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -30,12 +28,6 @@ function formFromWorkspace(ws) {
     link_preview_blurb:      ws.link_preview_blurb      ?? '',
     social_instagram:        ws.social?.instagram       ?? '',
     social_facebook:         ws.social?.facebook        ?? '',
-    clinic_context:          ws.clinic_context          ?? '',
-    audience_short:          ws.audience_short          ?? '',
-    audience_description:    ws.audience_description    ?? '',
-    activity_context:        ws.activity_context        ?? '',
-    brand_voice:             ws.brand_voice             ?? '',
-    booking_url:             ws.booking_url             ?? '',
     internal_links_markdown: ws.internal_links_markdown ?? '',
     signature_system_name:   ws.signature_system_name   ?? '',
     signature_system_url:    ws.signature_system_url    ?? '',
@@ -44,7 +36,6 @@ function formFromWorkspace(ws) {
     location_hashtag:        ws.location_hashtag        ?? '',
     brand_hashtag:           ws.brand_hashtag           ?? '',
     spoken_url:              ws.spoken_url              ?? '',
-    enabled_outputs:         Array.isArray(ws.enabled_outputs) ? ws.enabled_outputs : [],
     logo_main:               ws.logo?.main              ?? '',
     logo_icon:               ws.logo?.icon              ?? '',
     color_primary:           ws.colors?.primary         ?? '',
@@ -52,10 +43,6 @@ function formFromWorkspace(ws) {
     color_accent:            ws.colors?.accent          ?? '',
     brandbook_url:           ws.brandbook?.url          ?? '',
     brandbook_notes:         ws.brandbook?.notes        ?? '',
-    tone_active:             ws.tone_modifiers?.active   ?? '',
-    tone_clinical:           ws.tone_modifiers?.clinical ?? '',
-    tone_warm:               ws.tone_modifiers?.warm     ?? '',
-    tone_smart:              ws.tone_modifiers?.smart    ?? '',
     patient_context_json:    JSON.stringify(ws.patient_context   ?? {}, null, 2),
     interview_context_json:  JSON.stringify(ws.interview_context ?? {}, null, 2),
     topic_suggestions_json:  JSON.stringify(ws.topic_suggestions ?? [], null, 2),
@@ -88,12 +75,6 @@ function formToPatch(form) {
       instagram: form.social_instagram,
       facebook:  form.social_facebook,
     },
-    clinic_context:          form.clinic_context,
-    audience_short:          form.audience_short,
-    audience_description:    form.audience_description,
-    activity_context:        form.activity_context,
-    brand_voice:             form.brand_voice,
-    booking_url:             form.booking_url,
     internal_links_markdown: form.internal_links_markdown,
     signature_system_name:   form.signature_system_name || null,
     signature_system_url:    form.signature_system_url  || null,
@@ -102,7 +83,6 @@ function formToPatch(form) {
     location_hashtag:        form.location_hashtag,
     brand_hashtag:           form.brand_hashtag,
     spoken_url:              form.spoken_url,
-    enabled_outputs:         form.enabled_outputs ?? [],
     logo: {
       main: form.logo_main || null,
       icon: form.logo_icon || null,
@@ -116,26 +96,11 @@ function formToPatch(form) {
       url:   form.brandbook_url   || null,
       notes: form.brandbook_notes || null,
     },
-    tone_modifiers: {
-      active:   form.tone_active   ?? '',
-      clinical: form.tone_clinical ?? '',
-      warm:     form.tone_warm     ?? '',
-      smart:    form.tone_smart    ?? '',
-    },
     patient_context:   form._parsed_patient_context,
     interview_context: form._parsed_interview_context,
     topic_suggestions: form._parsed_topic_suggestions,
     skip_review:       !!form.skip_review,
   }
-}
-
-// True if any first-party publish capability flag is set on this workspace.
-// External (founding) workspaces have capabilities={} and the credentials
-// section is hidden — direct-publish integrations are first-party only per
-// the export-first scope decision.
-function hasPublishCapability(ws) {
-  const caps = ws?.capabilities || {}
-  return Object.entries(caps).some(([k, v]) => k.endsWith('Publish') && Boolean(v))
 }
 
 export default function WorkspaceSettings() {
@@ -388,86 +353,21 @@ export default function WorkspaceSettings() {
 
       <Separator />
 
-      <Section
-        title="AI voice context"
-        description="Injected into AI prompts. Write these as if briefing a copywriter."
-      >
-        <Textarea2 label="Clinic context"
-          value={form.clinic_context} onChange={set('clinic_context')} rows={3} />
-        <Field label="Audience (short)"
-          value={form.audience_short} onChange={set('audience_short')} />
-        <Textarea2 label="Audience (long form)"
-          value={form.audience_description} onChange={set('audience_description')}
-          rows={4}
-          hint="Full description of who you're writing for" />
-        <Field label="Activity context"
-          value={form.activity_context} onChange={set('activity_context')}
-          hint="Sport / discipline / lifestyle vocabulary used in 'active' tone" />
-        <Textarea2 label="Brand voice"
-          value={form.brand_voice} onChange={set('brand_voice')} rows={6} />
-        <Field label="Booking URL"
-          value={form.booking_url} onChange={set('booking_url')} placeholder="https://..." type="url" autoComplete="off" />
-      </Section>
+      {/* Voice context and tone modifiers moved to the Bernard & voice sub-page */}
+      <SubpageLink
+        to="/settings/workspace/voice"
+        title="Bernard & voice"
+        description="AI voice context, brand voice, audience, booking URL, and per-tone prompt modifiers."
+      />
 
       <Separator />
 
-      <Section
-        title="AI tone modifiers"
-        description="Per-tone prompt fragments injected when generating content. Use {display_name} and {activity_context} as placeholders — they'll be replaced with this workspace's values at render time. Leave a tone blank to skip its modifier entirely."
-      >
-        <Textarea2 label="Active & Driven"
-          value={form.tone_active} onChange={set('tone_active')} rows={6}
-          hint="Used when the author picks the 'Active & Driven' tone." />
-        <Textarea2 label="Clinical & In-Depth"
-          value={form.tone_clinical} onChange={set('tone_clinical')} rows={6}
-          hint="Used when the author picks the 'Clinical & In-Depth' tone." />
-        <Textarea2 label="Warm & Reassuring"
-          value={form.tone_warm} onChange={set('tone_warm')} rows={6}
-          hint="Used when the author picks the 'Warm & Reassuring' tone." />
-        <Textarea2 label="Smart Default"
-          value={form.tone_smart} onChange={set('tone_smart')} rows={6}
-          hint="Used when the author picks 'Smart Default' or no tone." />
-      </Section>
-
-      <Separator />
-
-      <Section
+      {/* Output channels and credentials moved to the Channels sub-page */}
+      <SubpageLink
+        to="/settings/workspace/channels"
         title="Output channels"
-        description="Choose which output channels this workspace generates. Each interview lets you pick a subset of these for that piece."
-      >
-        <div className="space-y-2">
-          {Object.values(OUTPUT_CHANNELS).map((channel) => {
-            const checked = form.enabled_outputs.includes(channel.id)
-            return (
-              <label
-                key={channel.id}
-                className="flex items-start gap-2.5 rounded-md border border-input p-2.5 cursor-pointer hover:bg-accent/30"
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  onChange={(e) => {
-                    setForm((f) => {
-                      const cur = Array.isArray(f.enabled_outputs) ? f.enabled_outputs : []
-                      const next = e.target.checked
-                        ? (cur.includes(channel.id) ? cur : [...cur, channel.id])
-                        : cur.filter((id) => id !== channel.id)
-                      return { ...f, enabled_outputs: next }
-                    })
-                  }}
-                  className="mt-0.5"
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium leading-tight">{channel.label}</div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">
-                    {channel.exportShape}
-                  </div>
-                </div>
-              </label>
-            )
-          })}
-        </div>
-      </Section>
+        description="Choose which channels this workspace generates content for, and manage publishing credentials."
+      />
 
       <Separator />
 
@@ -552,13 +452,6 @@ export default function WorkspaceSettings() {
           onChange={set('topic_suggestions_json')}
         />
       </Section>
-
-      {hasPublishCapability(ws) && (
-        <>
-          <Separator />
-          <CredentialsSection getToken={getToken} />
-        </>
-      )}
 
       <Separator />
 
@@ -706,6 +599,23 @@ function DangerZone({ workspace, getToken }) {
         Rename, transfer ownership, and hard delete are not available in-app yet — each requires substantial server work (Vercel domain re-register, Clerk org-ownership swap, cross-table cascade + blob cleanup). Contact the platform team (drq@narraterx.ai) for any of these.
       </p>
     </Section>
+  )
+}
+
+// Card-style link to a settings sub-page. Replaces the sections that have
+// been extracted to dedicated routes (Bernard & voice, Output channels).
+function SubpageLink({ to, title, description }) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center justify-between gap-4 rounded-lg border border-input px-4 py-3 hover:bg-accent/30 transition-colors group"
+    >
+      <div>
+        <p className="text-sm font-semibold">{title}</p>
+        {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+      </div>
+      <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+    </Link>
   )
 }
 
@@ -900,139 +810,6 @@ function Textarea2({ label, value, onChange, rows = 4, hint }) {
         className="text-sm font-mono resize-y"
       />
       {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
-    </div>
-  )
-}
-
-// ── Publishing credentials ────────────────────────────────────────────────────
-
-const CREDENTIAL_SERVICES = [
-  {
-    id: 'buffer',
-    label: 'Buffer',
-    description: 'Buffer access token — the universal social path. Routes posts to every connected channel in your Buffer org (Instagram, Facebook, LinkedIn, X/Twitter, Pinterest, TikTok, YouTube Shorts, Threads, Bluesky, Mastodon).',
-    secretLabel: 'Access token',
-    fields: [],
-  },
-  // Facebook moved to Buffer 2026-05-10 and GBP followed 2026-05-11 — no
-  // separate credential cards. Connect each FB Page / GBP listing as a Channel
-  // in your Buffer organization; the existing Buffer token gains posting
-  // permission automatically. Per-location Buffer GBP channel IDs live on
-  // workspace_locations rows (Locations panel above).
-  {
-    id: 'wordpress',
-    label: 'WordPress',
-    description: 'WordPress REST publishing (equine). site_url must include /wp-json/.',
-    secretLabel: 'Application password',
-    fields: [
-      { key: 'site_url', label: 'Site URL (must include /wp-json/)', placeholder: 'https://example.com/wp-json/wp/v2/posts' },
-      { key: 'user', label: 'WordPress username', placeholder: 'editor' },
-    ],
-  },
-  {
-    id: 'astro_github',
-    label: 'Astro + GitHub website',
-    description: 'Webhook publishing to an Astro site that commits markdown to GitHub.',
-    secretLabel: 'Shared bearer secret',
-    fields: [
-      { key: 'url', label: 'Publish webhook URL', placeholder: 'https://example.com/api/publish' },
-    ],
-  },
-]
-
-function CredentialsSection({ getToken }) {
-  const [services, setServices] = useState(null) // null=loading, array of configured rows
-  const [error, setError] = useState(null)
-
-  const reload = async () => {
-    try {
-      const r = await fetch('/api/workspace/credentials', {
-        headers: { Authorization: `Bearer ${await getToken({ skipCache: true })}` },
-      })
-      if (!r.ok) {
-        setServices([])
-        setError(r.status === 403 ? 'forbidden' : `load-failed (${r.status})`)
-        return
-      }
-      const data = await r.json()
-      setServices(Array.isArray(data?.services) ? data.services : [])
-      setError(null)
-    } catch {
-      setServices([])
-      setError('network-error')
-    }
-  }
-
-  useEffect(() => { reload()   }, [])
-
-  return (
-    <Section
-      title="Publishing credentials"
-      description="These tokens are stored encrypted (AES-256-GCM) and decrypted only at publish time. Each value applies to this workspace only. Secrets are write-only — they never come back on read."
-    >
-      {error && (
-        <div className="text-xs text-destructive flex items-center gap-1">
-          <AlertCircle className="h-3.5 w-3.5" />{error}
-        </div>
-      )}
-      <div className="space-y-2">
-        {CREDENTIAL_SERVICES.map((svc) => {
-          const row = services?.find?.((s) => s.service === svc.id) || null
-          return (
-            <CredentialCard
-              key={svc.id}
-              service={svc}
-              row={row}
-              loading={services === null}
-              onChange={reload}
-              getToken={getToken}
-            />
-          )
-        })}
-      </div>
-    </Section>
-  )
-}
-
-function CredentialCard({ service, row, loading, onChange, getToken }) {
-  const [open, setOpen] = useState(false)
-  const configured = Boolean(row)
-
-  return (
-    <div className="rounded-md border border-input">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-accent/30"
-      >
-        <div className="flex items-center gap-2 min-w-0">
-          {open ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
-          <div className="text-sm font-medium">{service.label}</div>
-          {configured && (
-            <span className="text-[10px] uppercase tracking-wide bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 px-1.5 py-0.5 rounded">
-              Configured
-            </span>
-          )}
-          {!loading && !configured && (
-            <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
-              Not set
-            </span>
-          )}
-        </div>
-        <div className="text-[11px] text-muted-foreground truncate">{service.description}</div>
-      </button>
-      {open && (
-        <div className="border-t border-input p-3">
-          <CredentialForm
-            service={service}
-            row={row}
-            getToken={getToken}
-            tokenOpts={{ skipCache: true }}
-            onChange={onChange}
-            removeIcon
-          />
-        </div>
-      )}
     </div>
   )
 }

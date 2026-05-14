@@ -19,8 +19,11 @@ const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
 const MediaHub = lazy(() => import('@/pages/MediaHub'))
 const Integrations = lazy(() => import('@/pages/Integrations'))
 const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
+const VoiceSettings = lazy(() => import('@/pages/settings/VoiceSettings'))
+const ChannelsSettings = lazy(() => import('@/pages/settings/ChannelsSettings'))
 const BrandKitPreview = lazy(() => import('@/pages/BrandKitPreview'))
 const BrandKitSettings = lazy(() => import('@/pages/BrandKitSettings'))
+import SettingsLayout from '@/components/SettingsLayout'
 const OnboardingBrandKit = lazy(() => import('@/pages/OnboardingBrandKit'))
 const Members = lazy(() => import('@/pages/Members'))
 const Account = lazy(() => import('@/pages/Account'))
@@ -226,13 +229,17 @@ function AppRoutes() {
             <Route path="/calendar" element={<Navigate to="/stories?view=calendar" replace />} />
             <Route path="/strategy" element={<Navigate to="/" replace />} />
             <Route path="/media" element={<Navigate to="/library" replace />} />
-            <Route path="/settings/integrations" element={guarded(<Integrations />)} />
-            <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
-            <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
-            <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />
-            {/* Both Clerk-mounted pages use routing="path" so deep links to
-                Clerk's own sub-routes resolve under the same base. */}
-            <Route path="/settings/members/*" element={guarded(<Members />)} />
+            {/* Settings sub-pages share SettingsLayout (sidebar nav). */}
+            <Route element={<SettingsLayout />}>
+              <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
+              <Route path="/settings/workspace/voice" element={guarded(<VoiceSettings />)} />
+              <Route path="/settings/workspace/channels" element={guarded(<ChannelsSettings />)} />
+              <Route path="/settings/integrations" element={guarded(<Integrations />)} />
+              <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
+              <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />
+              {/* Clerk-mounted pages use routing="path" so their deep links resolve. */}
+              <Route path="/settings/members/*" element={guarded(<Members />)} />
+            </Route>
             <Route path="/account/*" element={guarded(<Account />)} />
           </Routes>
         </Suspense>
@@ -286,9 +293,9 @@ function ProtectedApp() {
       </SignedIn>
 
       <SignedOut>
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="w-full max-w-md">
-            <div className="text-center mb-6">
+        <div className="min-h-screen flex items-start sm:items-center justify-center bg-background px-4 py-8">
+          <div className="w-full flex flex-col items-center">
+            <div className="text-center mb-6 max-w-md">
               <h1 className="text-xl font-bold">{signInName}</h1>
               <p className="text-sm text-muted-foreground">{signInBlurb}</p>
             </div>
@@ -296,8 +303,8 @@ function ProtectedApp() {
             <SignIn
               appearance={{
                 elements: {
-                  rootBox: 'mx-auto',
-                  card: 'shadow-sm border',
+                  rootBox: 'mx-auto w-full',
+                  card: 'shadow-sm border w-full',
                 },
               }}
             />
