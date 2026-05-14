@@ -29,7 +29,7 @@ BRAND VOICE: [2-4 adjectives or short phrases describing the brand's voice/perso
 TONE: [1-2 sentences describing the desired writing tone and emotional register]
 KEY MESSAGES: [3-5 core brand messages or beliefs, separated by " | "]
 AVOID: [3-5 things to never say or write, separated by " | "]
-ACCENT COLOR: [the primary brand hex color code, e.g. #FF6B2B — output only the hex, or "Not specified"]
+BRAND COLORS: [all brand hex color codes found in the document, primary colors first then secondary, up to 12 total, comma-separated — e.g. #FF6B2B, #1A1A2E, #F5F5F0. Output hex codes only, or "Not specified"]
 HEADING FONT: [the primary heading/display typeface name, or "Not specified"]
 BODY FONT: [the body copy typeface name, or "Not specified"]
 
@@ -79,17 +79,26 @@ export async function extractBrandGuidelines(pdfBlobUrl) {
     }
 
     // Parse optional style fields for the brand_style row
-    const accentMatch  = trimmed.match(/^ACCENT COLOR:\s*(.+)$/m)
+    const colorsMatch  = trimmed.match(/^BRAND COLORS:\s*(.+)$/m)
     const headingMatch = trimmed.match(/^HEADING FONT:\s*(.+)$/m)
     const bodyMatch    = trimmed.match(/^BODY FONT:\s*(.+)$/m)
 
-    const accentRaw  = accentMatch?.[1]?.trim()
+    const colorsRaw  = colorsMatch?.[1]?.trim()
     const headingRaw = headingMatch?.[1]?.trim()
     const bodyRaw    = bodyMatch?.[1]?.trim()
 
+    // Extract all valid hex codes from the colors line — model may include
+    // surrounding text or names alongside the hex values.
+    const HEX_RE = /#[0-9a-f]{3,6}/gi
+    const suggestedPalette = colorsRaw && colorsRaw !== 'Not specified'
+      ? [...colorsRaw.matchAll(HEX_RE)].map((m) => m[0].toUpperCase())
+      : []
+
     const stylePatch = {}
-    if (accentRaw && accentRaw !== 'Not specified' && /^#[0-9a-f]{3,6}$/i.test(accentRaw)) {
-      stylePatch.accent_color = accentRaw
+    if (suggestedPalette.length > 0) {
+      stylePatch.suggested_palette = suggestedPalette
+      // First color in the palette is the primary/accent color.
+      stylePatch.accent_color = suggestedPalette[0]
     }
     if (headingRaw && headingRaw !== 'Not specified') stylePatch.heading_font = headingRaw
     if (bodyRaw    && bodyRaw    !== 'Not specified') stylePatch.body_font    = bodyRaw

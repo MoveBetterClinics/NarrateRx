@@ -493,6 +493,8 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
   const [confirmStrip, setConfirmStrip]   = useState(null)  // onboarding auto-assign confirmation
   const [adjusting, setAdjusting]         = useState(false)  // onboarding "Let me adjust" expanded view
   const [autoAssigning, setAutoAssigning] = useState(false)
+  const [customColorDraft, setCustomColorDraft] = useState('')
+  const [addingCustomColor, setAddingCustomColor] = useState(false)
 
   const filtered = useMemo(() => {
     return assets.filter((a) => {
@@ -852,9 +854,34 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                   <Input value={style.accent_color || ''} onChange={(e) => setStyle((s) => ({ ...s, accent_color: e.target.value }))} className="h-8 text-xs font-mono" placeholder="#0a7f3f" />
                 </div>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <Label className="text-xs">Secondary colors</Label>
-                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {/* Palette suggested by brand book — swatches not yet added */}
+                {(() => {
+                  const added = new Set((style.secondary_colors || []).map((c) => c.toUpperCase()))
+                  const accent = (style.accent_color || '').toUpperCase()
+                  const suggestions = (style.suggested_palette || [])
+                    .filter((c) => c.toUpperCase() !== accent && !added.has(c.toUpperCase()))
+                  if (!suggestions.length) return null
+                  return (
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className="text-[10px] text-muted-foreground shrink-0">From brand book:</span>
+                      {suggestions.map((c) => (
+                        <button
+                          key={c}
+                          title={`Add ${c}`}
+                          onClick={() => setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), c] }))}
+                          className="flex items-center gap-1 rounded-md border px-1.5 py-0.5 hover:border-primary/60 hover:bg-accent/30 transition-colors text-[11px] font-mono"
+                        >
+                          <div className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ background: c }} />
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
+                {/* Added colors */}
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   {(style.secondary_colors || []).map((c, i) => (
                     <div key={i} className="flex items-center gap-1 rounded-md border px-1.5 py-0.5">
                       <div className="w-4 h-4 rounded" style={{ background: c }} />
@@ -865,9 +892,35 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                       ><X className="h-3 w-3" /></button>
                     </div>
                   ))}
-                  <Button size="sm" variant="ghost" className="h-6 text-[11px]"
-                    onClick={() => setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), '#888888'] }))}
-                  >+ Add</Button>
+                  {addingCustomColor ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={customColorDraft || '#888888'}
+                        onChange={(e) => setCustomColorDraft(e.target.value)}
+                        className="h-7 w-10 rounded border cursor-pointer"
+                      />
+                      <Input
+                        value={customColorDraft}
+                        onChange={(e) => setCustomColorDraft(e.target.value)}
+                        className="h-7 w-24 text-xs font-mono"
+                        placeholder="#000000"
+                      />
+                      <Button size="sm" className="h-7 text-[11px]" onClick={() => {
+                        const hex = customColorDraft.trim()
+                        if (/^#[0-9a-f]{3,6}$/i.test(hex)) {
+                          setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), hex.toUpperCase()] }))
+                        }
+                        setAddingCustomColor(false)
+                        setCustomColorDraft('')
+                      }}>Add</Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => { setAddingCustomColor(false); setCustomColorDraft('') }}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="ghost" className="h-6 text-[11px]"
+                      onClick={() => { setCustomColorDraft(''); setAddingCustomColor(true) }}
+                    >+ Add custom</Button>
+                  )}
                 </div>
               </div>
               <div>
