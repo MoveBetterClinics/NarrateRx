@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
-  Settings, Building2, Mic2, Radio, Puzzle, Palette, Users, CreditCard,
+  Settings, Mic2, Radio, Puzzle, Palette, Users, CreditCard,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 

@@ -1,9 +1,8 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import {
-  ExternalLink, FileText, CheckCircle2, XCircle, Send, Loader2,
-  ChevronDown, MessageSquare,
+  FileText, CheckCircle2, XCircle, Send, Loader2,
+  ChevronDown, MessageSquare, Eye, EyeOff,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -17,6 +16,9 @@ import {
 import { publishAndTrack } from '@/lib/publish'
 import BufferMetricsRow from './BufferMetricsRow'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
+import MediaAttachmentPanel from './MediaAttachmentPanel'
+import OverlayTextEditor from './OverlayTextEditor'
+import PostPreview from '@/components/PostPreview'
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
   const mins = Math.floor(diff / 60000)
@@ -311,6 +313,8 @@ export default function AssetsPane({ story }) {
   const pieces = story?.pieces ?? []
   const [activeIdx, setActiveIdx] = useState(0)
   const [view, setView] = useState('plan')
+  // Preview visibility is per-piece so toggling on one tab doesn't bleed to others.
+  const [previewOpen, setPreviewOpen] = useState({})
 
   const handleSelectPiece = (pieceId) => {
     const idx = pieces.findIndex((p) => p.id === pieceId)
@@ -370,6 +374,7 @@ export default function AssetsPane({ story }) {
   const active = pieces[activeIdx] ?? pieces[0]
   const pm = PLATFORM_META[active?.platform] || { label: active?.platform || 'Unknown', icon: FileText, color: 'text-slate-600', bg: 'bg-slate-100' }
   const PlatformIcon = pm.icon
+  const showPreview = previewOpen[active?.id] ?? false
 
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
@@ -415,30 +420,53 @@ export default function AssetsPane({ story }) {
         {active?.content ? (
           <div className="rounded-md border bg-muted/30 p-3 max-h-64 overflow-y-auto">
             <pre className="text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground/90 break-words">
-              {typeof active.content === 'string' ? active.content.slice(0, 600) : JSON.stringify(active.content, null, 2).slice(0, 600)}
-              {(typeof active.content === 'string' ? active.content : JSON.stringify(active.content)).length > 600
-                ? '\n…'
-                : ''}
+              {typeof active.content === 'string' ? active.content : JSON.stringify(active.content, null, 2)}
             </pre>
           </div>
         ) : (
           <p className="text-xs text-muted-foreground italic">No draft content yet.</p>
         )}
 
+        {/* Media + overlay editors — attach photos/videos and tune the on-screen
+            text overlay without leaving the Story screen. */}
+        {active && <MediaAttachmentPanel piece={active} />}
+        {active && <OverlayTextEditor piece={active} />}
+
+        {/* Live channel preview */}
+        {active && (
+          <div className="rounded-md border bg-card">
+            <button
+              type="button"
+              onClick={() =>
+                setPreviewOpen((prev) => ({ ...prev, [active.id]: !showPreview }))
+              }
+              className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showPreview ? 'Hide' : 'Show'} preview
+              </span>
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${showPreview ? 'rotate-180' : ''}`}
+              />
+            </button>
+            {showPreview && (
+              <div className="border-t bg-muted/20 p-3">
+                <PostPreview
+                  platform={active.platform}
+                  content={typeof active.content === 'string' ? active.content : JSON.stringify(active.content)}
+                  mediaUrls={Array.isArray(active.media_urls) ? active.media_urls : []}
+                  overlayText={active.overlay_text || null}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Buffer performance metrics — shown for published pieces with a buffer_update_id */}
         {active?.status === 'published' && active?.buffer_update_id && (
           <BufferMetricsRow contentItemId={active.id} />
         )}
-
-        <div className="flex items-center gap-2 pt-1">
-          <Link
-            to={`/review/${active?.id}`}
-            className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline font-medium"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-            Open for editing
-          </Link>
-        </div>
 
         {/* Approval panel */}
         {active && <ApprovalPanel key={active.id} piece={active} />}
