@@ -166,7 +166,34 @@ async function handler(req, res) {
         }
 
         const inserted = (await ins.json())?.[0]
-        const isBrandBook = ai_classification.role_candidates?.[0]?.role === 'brand_book'
+        const topCandidate = ai_classification.role_candidates?.[0]
+        const isBrandBook = topCandidate?.role === 'brand_book'
+
+        // Auto-assign the highest-confidence role to brand_kit_roles when the
+        // slot is empty. Never overwrites an existing manual assignment.
+        const AUTO_ASSIGN_MIN_CONFIDENCE = 0.75
+        if (inserted?.id && topCandidate && topCandidate.confidence >= AUTO_ASSIGN_MIN_CONFIDENCE) {
+          const existingRes = await sb(
+            `brand_kit_roles?workspace_id=eq.${encodeURIComponent(scopeId)}&role=eq.${encodeURIComponent(topCandidate.role)}&select=id&limit=1`
+          )
+          const existingRows = existingRes.ok ? await existingRes.json() : []
+          if (existingRows.length === 0) {
+            const assignRes = await sb(`brand_kit_roles?on_conflict=workspace_id,role`, {
+              method: 'POST',
+              headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+              body: JSON.stringify({
+                workspace_id: scopeId,
+                role: topCandidate.role,
+                asset_id: inserted.id,
+                assigned_by: null,
+                assigned_at: new Date().toISOString(),
+              }),
+            })
+            if (!assignRes.ok) {
+              console.error('brand-kit auto-assign failed:', assignRes.status, await assignRes.text())
+            }
+          }
+        }
 
         // For brand book PDFs, extract guidelines asynchronously — text parsing
         // and an AI call can take 10–30s, so we hand it off to waitUntil so the
