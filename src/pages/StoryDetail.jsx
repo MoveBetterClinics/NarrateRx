@@ -26,7 +26,7 @@ const STAGE_META = {
  */
 export default function StoryDetail() {
   const { storyId } = useParams()
-  const { data: story, isLoading, isError } = useStory(storyId)
+  const { data: story, isLoading, isError, isPlaceholderData } = useStory(storyId)
 
   if (isLoading) {
     return (
@@ -86,7 +86,7 @@ export default function StoryDetail() {
 
       {/* Two-column body */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        <TranscriptPane story={story} />
+        <TranscriptPane story={story} isLoadingTranscript={isPlaceholderData} />
         <AssetsPane story={story} />
       </div>
     </div>

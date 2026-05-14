@@ -392,13 +392,18 @@ export function useSuggestTopics() {
 // buildStories(). useStories fetches both upstream lists in parallel and
 // merges them client-side so there's a single cache entry for the full list.
 
+// Slim list query — uses ?view=card on both endpoints so the payload only
+// carries columns the Cards / Pipeline / Calendar / Themes views actually
+// read (drops `messages`, `content`, `media_urls`, `buffer_metrics`, etc.).
+// staleTime 5min — list rarely changes outside of explicit user actions, and
+// every relevant mutation invalidates queryKeys.stories.all.
 export function useStories(filters = {}, options = {}) {
   return useQuery({
     queryKey: queryKeys.stories.list(filters),
     queryFn: async () => {
       const [cliniciansRes, contentRes] = await Promise.all([
-        fetch('/api/db/clinicians', { credentials: 'include' }),
-        fetch('/api/db/content?limit=500', { credentials: 'include' }),
+        fetch('/api/db/clinicians?view=card', { credentials: 'include' }),
+        fetch('/api/db/content?view=card&limit=500', { credentials: 'include' }),
       ])
       if (!cliniciansRes.ok) throw new Error('Failed to fetch clinicians')
       if (!contentRes.ok) throw new Error('Failed to fetch content')
@@ -406,12 +411,17 @@ export function useStories(filters = {}, options = {}) {
       const contentItems = await contentRes.json()
       return buildStories(clinicians, contentItems)
     },
-    staleTime: 30_000,
+    staleTime: 5 * 60_000,
     ...options,
   })
 }
 
+// Detail query. Seeds placeholderData from the cached Stories list (if any)
+// so the header + tabs render instantly on navigation; the network round-trip
+// only blocks the transcript pane filling in. Without this, the page sits on
+// a spinner for the full interview+content fetch.
 export function useStory(interviewId, options = {}) {
+  const qc = useQueryClient()
   return useQuery({
     queryKey: queryKeys.stories.detail(interviewId),
     queryFn: async () => {
@@ -439,6 +449,19 @@ export function useStory(interviewId, options = {}) {
     },
     enabled: !!interviewId,
     staleTime: 30_000,
+    placeholderData: () => {
+      // Find the matching story in any cached Stories list. Returns the slim
+      // story shape (no transcript yet) — enough to render the header, badge,
+      // pieces tabs, and approval panel. The real query then fills in
+      // messages/cleaned_messages for the transcript pane.
+      const lists = qc.getQueriesData({ queryKey: queryKeys.stories.all })
+      for (const [, data] of lists) {
+        if (!Array.isArray(data)) continue
+        const hit = data.find((s) => s?.id === interviewId)
+        if (hit) return hit
+      }
+      return undefined
+    },
     ...options,
   })
 }

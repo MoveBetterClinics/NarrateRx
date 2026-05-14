@@ -39,9 +39,16 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
 
 const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email,verbatim_flags,messages,session_state,location_id,prototype_id'
 
+// Slim shape for the Stories list. Drops the heavy `messages` and `session_state`
+// JSON columns (full transcript per interview) which the list views never render —
+// they are fetched separately by useStory() when a detail page opens.
+const INTERVIEW_FIELDS_CARD = 'id,workspace_id,topic,status,created_at,updated_at,owner_id,owner_email,location_id,prototype_id'
+const CLINICIAN_FIELDS_CARD = 'id,workspace_id,name,created_at'
+
 export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
+  const view = searchParams.get('view')   // 'card' = slim shape for Stories list
   const userId = req.headers['x-user-id'] ?? null
 
   const ws = await workspaceContext(req)
@@ -57,7 +64,9 @@ export default async function handler(req, res) {
       return ok(res, data[0] ?? null)
     }
     // All clinicians with interview summaries
-    const r = await sb(`clinicians?${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
+    const clinicianSel = view === 'card' ? CLINICIAN_FIELDS_CARD : 'id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed'
+    const interviewSel = view === 'card' ? INTERVIEW_FIELDS_CARD : INTERVIEW_FIELDS
+    const r = await sb(`clinicians?${wsFilter}&select=${clinicianSel},interviews(${interviewSel})&order=name.asc`)
     if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }

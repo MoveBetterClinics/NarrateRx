@@ -10,7 +10,7 @@ import TranscriptHighlighter from './TranscriptHighlighter'
  * Wrapped in TranscriptHighlighter so the user can select any span of text
  * and instantly route it to Social, GBP, or Verbatim Quote formats.
  */
-export default function TranscriptPane({ story }) {
+export default function TranscriptPane({ story, isLoadingTranscript = false }) {
   if (!story) return null
 
   const status = story.status
@@ -18,6 +18,24 @@ export default function TranscriptPane({ story }) {
     return (
       <div className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
         Interview in progress — transcript will appear here when the session is complete.
+      </div>
+    )
+  }
+
+  // While useStory is hydrating from list-cache placeholder data, the slim
+  // shape has no messages yet. Show a skeleton instead of "no transcript".
+  if (isLoadingTranscript) {
+    return (
+      <div className="rounded-xl border bg-card overflow-hidden">
+        <div className="px-4 py-3 border-b bg-muted/30">
+          <p className="text-sm font-medium">Transcript</p>
+        </div>
+        <div className="p-4 space-y-3 animate-pulse">
+          <div className="h-3 bg-gray-200 rounded w-3/4" />
+          <div className="h-3 bg-gray-200 rounded w-full" />
+          <div className="h-3 bg-gray-200 rounded w-5/6" />
+          <div className="h-3 bg-gray-200 rounded w-2/3" />
+        </div>
       </div>
     )
   }
