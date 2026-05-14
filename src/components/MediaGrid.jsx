@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Video, Image as ImageIcon, Play, Check, Download, Link2 } from 'lucide-react'
 import { toast } from '@/lib/toast'
 
@@ -125,12 +126,14 @@ async function quickCopyLink(e, asset) {
 // Individual grid cell with hover overlay, badges, and checkbox.
 function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, buttonRef }) {
   const [hovered, setHovered] = useState(false)
+  const navigate = useNavigate()
   const statusMeta = STATUS_LABEL[asset.status] || STATUS_LABEL.raw
 
   // Usage count from the content_item_ids array stored on the asset row.
   // This is populated server-side when a content piece is linked to a source
   // asset; for new uploads it's null/empty so we show ×0.
   const usageCount = Array.isArray(asset.content_item_ids) ? asset.content_item_ids.length : 0
+  const firstStoryId = usageCount > 0 ? asset.content_item_ids[0] : null
 
   // Clinician initial badge. created_by is a Clerk user ID string.
   // We show "?" when it's a raw Clerk ID because we don't resolve names
@@ -192,11 +195,24 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
         </div>
       )}
 
-      {/* Usage count badge — bottom right */}
+      {/* Usage count badge — bottom right. Clickable when used in ≥1 story. */}
       <div className="absolute bottom-6 right-1.5 z-10">
-        <span className="text-[9px] bg-black/50 text-white px-1.5 py-0.5 rounded-full leading-none">
-          ×{usageCount}
-        </span>
+        {firstStoryId ? (
+          <button
+            className="text-[9px] bg-emerald-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-emerald-600 transition-colors"
+            title={usageCount === 1 ? 'Used in 1 story — click to open' : `Used in ${usageCount} stories — click to open the first`}
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/stories/${firstStoryId}`)
+            }}
+          >
+            used ×{usageCount}
+          </button>
+        ) : (
+          <span className="text-[9px] bg-black/40 text-white/70 px-1.5 py-0.5 rounded-full leading-none">
+            ×0
+          </span>
+        )}
       </div>
 
       {/* Selected overlay */}
