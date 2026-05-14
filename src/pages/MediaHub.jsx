@@ -21,19 +21,28 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 const PAGE_SIZE = 120
 
-const KIND_FILTERS   = [{ id: '', label: 'All' }, { id: 'video', label: 'Video' }, { id: 'photo', label: 'Photo' }]
-// Purpose is the primary library lens — a clinic's media is mostly
-// non-interview content (B-roll, facility shots, brand assets), and the
-// interview-only default of the original Media Hub buried that diversity.
-// 'All' keeps the prior behavior; the rest are the four valid asset_purpose
-// values (see migration 024 + MediaUploader for the source of truth).
-const PURPOSE_FILTERS = [
-  { id: '',          label: 'All purposes' },
-  { id: 'interview', label: 'Interviews' },
-  { id: 'broll',     label: 'B-roll' },
-  { id: 'photo',     label: 'Photos' },
-  { id: 'brand',     label: 'Brand' },
-]
+// Bucket assets into three date bands. Called inside useMemo so it only
+// recomputes when the filtered asset list changes.
+function groupByDate(assets) {
+  const now = Date.now()
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  const recent = []
+  const thisMonth = []
+  const older = []
+
+  for (const asset of assets) {
+    const ts = asset.created_at ? new Date(asset.created_at).getTime() : 0
+    if (ts >= now - sevenDaysMs) recent.push(asset)
+    else if (ts >= startOfMonth.getTime()) thisMonth.push(asset)
+    else older.push(asset)
+  }
+  return { recent, thisMonth, older }
+}
+
 // Default ('Any active') excludes archived rows server-side. The explicit
 // 'Archived' option opts in to viewing the trash bin.
 const STATUS_FILTERS = [
@@ -120,6 +129,29 @@ export default function MediaHub() {
     () => clinicianFilter ? allAssets.filter((a) => a.created_by === clinicianFilter) : allAssets,
     [clinicianFilter, allAssets]
   )
+
+  // Date-grouped buckets for section headers. Recomputes whenever the filtered
+  // list changes (new page loaded, filter applied, etc.).
+  const dateGroups = useMemo(() => groupByDate(assets), [assets])
+
+  // Per-type counts derived from the loaded (unfiltered-by-clinician) pages.
+  // When hasMore is true these are partial; the filter chips show a + suffix.
+  const counts = useMemo(() => {
+    const base = allAssets
+    return {
+      total:     base.length,
+      video:     base.filter((a) => a.kind === 'video').length,
+      photo:     base.filter((a) => a.kind === 'photo').length,
+      interview: base.filter((a) => a.asset_purpose === 'interview').length,
+      broll:     base.filter((a) => a.asset_purpose === 'broll').length,
+      photo_p:   base.filter((a) => a.asset_purpose === 'photo').length,
+      brand:     base.filter((a) => a.asset_purpose === 'brand').length,
+    }
+  }, [allAssets])
+
+  function countLabel(n) {
+    return hasMore ? `${n}+` : `${n}`
+  }
 
   // Unique uploaders visible in the current (unfiltered) page set, for the
   // clinician chip row. We use allAssets so changing the clinician chip
@@ -382,10 +414,16 @@ export default function MediaHub() {
           )}
         </div>
 
-        {/* Row 2: purpose + kind filter chips */}
+        {/* Row 2: purpose + kind filter chips with live counts */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
           <div className="flex items-center gap-1.5">
-            {PURPOSE_FILTERS.map((p) => (
+            {[
+              { id: '',          label: 'All',        count: counts.total },
+              { id: 'interview', label: 'Interviews', count: counts.interview },
+              { id: 'broll',     label: 'B-roll',     count: counts.broll },
+              { id: 'photo',     label: 'Photos',     count: counts.photo_p },
+              { id: 'brand',     label: 'Brand',      count: counts.brand },
+            ].map((p) => (
               <button
                 key={p.id || 'all-purpose'}
                 onClick={() => setPurpose(p.id)}
@@ -394,11 +432,16 @@ export default function MediaHub() {
                 }`}
               >
                 {p.label}
+                {!loading && <span className="ml-1 opacity-70">· {countLabel(p.count)}</span>}
               </button>
             ))}
           </div>
           <div className="flex items-center gap-1.5">
-            {KIND_FILTERS.map((k) => (
+            {[
+              { id: '',      label: 'All kinds', count: counts.total },
+              { id: 'video', label: 'Video',     count: counts.video },
+              { id: 'photo', label: 'Photo',     count: counts.photo },
+            ].map((k) => (
               <button
                 key={k.id || 'all-kind'}
                 onClick={() => setKind(k.id)}
@@ -407,6 +450,7 @@ export default function MediaHub() {
                 }`}
               >
                 {k.label}
+                {!loading && <span className="ml-1 opacity-70">· {countLabel(k.count)}</span>}
               </button>
             ))}
           </div>
@@ -525,13 +569,26 @@ export default function MediaHub() {
         })()
       ) : (
         <>
-          <MediaGrid
-            assets={assets}
-            selectedId={selected?.id}
-            onSelect={multiSelectMode ? toggleSelected : openDetail}
-            multiSelect={multiSelectMode}
-            selectedIds={selectedIds}
-          />
+          {[
+            { label: 'Recent · last 7 days', assets: dateGroups.recent },
+            { label: 'This month', assets: dateGroups.thisMonth },
+            { label: 'Earlier', assets: dateGroups.older },
+          ]
+            .filter((g) => g.assets.length > 0)
+            .map((group, i) => (
+              <div key={group.label} className={i > 0 ? 'mt-8' : undefined}>
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-3">
+                  {group.label}
+                </p>
+                <MediaGrid
+                  assets={group.assets}
+                  selectedId={selected?.id}
+                  onSelect={multiSelectMode ? toggleSelected : openDetail}
+                  multiSelect={multiSelectMode}
+                  selectedIds={selectedIds}
+                />
+              </div>
+            ))}
           {hasMore && (
             <div ref={sentinelRef} className="flex items-center justify-center py-6">
               {loadingMore ? (
