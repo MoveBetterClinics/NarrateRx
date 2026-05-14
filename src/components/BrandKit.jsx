@@ -284,7 +284,7 @@ function useMockupDataSource() {
     roleAssignments,
     style,
     uploading: false,
-    uploadProgress: null,
+    uploadRows: [],
     assignRole: (role, assetId) => {
       setRoleAssignments((prev) => {
         const n = { ...prev }
@@ -310,8 +310,9 @@ function useLiveDataSource() {
   const clearMut   = useClearBrandRole()
   const styleMut   = useUpdateBrandStyle()
   const deleteMut  = useDeleteBrandAsset()
-  // { done, total, name } while uploading; null when idle.
-  const [uploadProgress, setUploadProgress] = useState(null)
+  // [{ name, status: 'uploading'|'done'|'error', percent, error }]
+  const [uploadRows, setUploadRows]     = useState([])
+  const [uploadActive, setUploadActive] = useState(false)
   const qc = useQueryClient()
 
   // The DB column is `original_filename`; the view (and fixtures) read
@@ -330,8 +331,8 @@ function useLiveDataSource() {
     assets,
     roleAssignments,
     style,
-    uploading: !!uploadProgress,
-    uploadProgress,
+    uploading: uploadActive,
+    uploadRows,
     assignRole: async (role, assetId) => {
       try {
         if (assetId == null) await clearMut.mutateAsync({ role })
@@ -362,30 +363,37 @@ function useLiveDataSource() {
     },
     uploadFiles: async (files) => {
       if (!files.length) return
-      setUploadProgress({ done: 0, total: files.length, name: files[0].name })
+      const rows = files.map((f) => ({ name: f.name, status: 'pending', percent: 0, error: null }))
+      setUploadRows(rows)
+      setUploadActive(true)
       let succeeded = 0
       try {
         for (let i = 0; i < files.length; i++) {
           const file = files[i]
-          setUploadProgress({ done: i, total: files.length, name: file.name })
+          setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'uploading', percent: 0 } : r))
           try {
-            await uploadBrandAsset(file)
+            await uploadBrandAsset(file, {}, {
+              onProgress: (e) => {
+                setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, percent: e.percentage ?? 0 } : r))
+              },
+            })
+            setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'done', percent: 100 } : r))
             succeeded++
           } catch (e) {
-            toast.error(`${file.name}: ${e.message || 'upload failed'}`)
+            const msg = e.message || 'upload failed'
+            setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'error', error: msg } : r))
           }
         }
       } finally {
-        setUploadProgress(null)
-        if (succeeded > 0) {
-          qc.invalidateQueries({ queryKey: ['brandKit'] })
-        }
+        setUploadActive(false)
+        if (succeeded > 0) qc.invalidateQueries({ queryKey: ['brandKit'] })
       }
     },
     deleteAsset: async (id) => {
       try { await deleteMut.mutateAsync({ id }) }
       catch (e) { toast.error(e.message || 'Failed to delete asset') }
     },
+    clearUploadRows: () => setUploadRows([]),
   }
 }
 
@@ -435,7 +443,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
   const liveSource   = useLiveDataSource()
   const mockSource   = useMockupDataSource()
   const ds           = mockup ? mockSource : liveSource
-  const { assets, roleAssignments, style, isLoading, error, uploading, uploadProgress } = ds
+  const { assets, roleAssignments, style, isLoading, error, uploading, uploadRows } = ds
   // Keep the original local-state aliases used below as setters → forward to
   // the data source so the rest of the component code stays the same.
   const setRoleAssignments = (next) => {
@@ -661,17 +669,11 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
             <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
           )}
           <p className="text-sm font-medium mb-0.5">
-            {uploadProgress
-              ? `Uploading ${uploadProgress.done + 1} of ${uploadProgress.total}…`
+            {uploading
+              ? `Uploading ${uploadRows.filter(r => r.status === 'done').length} of ${uploadRows.length}…`
               : 'Drop logo files, a whole folder, or click to browse'}
           </p>
-          {uploadProgress ? (
-            <p className="text-xs text-muted-foreground truncate max-w-xs mx-auto" title={uploadProgress.name}>
-              {uploadProgress.name}
-            </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">SVG, PNG, JPG, WebP, PDF · uploads stay private to your workspace</p>
-          )}
+          <p className="text-xs text-muted-foreground">SVG, PNG, JPG, WebP, PDF · uploads stay private to your workspace</p>
         </div>
         <input
           ref={fileInputRef}
@@ -681,6 +683,46 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
         />
+
+        {/* Persistent upload status — stays visible until user dismisses or starts a new upload */}
+        {uploadRows.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {uploadRows.filter(r => r.status === 'done').length} of {uploadRows.length} uploaded
+                {uploadRows.some(r => r.status === 'error') && ` · ${uploadRows.filter(r => r.status === 'error').length} failed`}
+              </span>
+              {!uploading && (
+                <button
+                  type="button"
+                  onClick={() => liveSource.clearUploadRows?.()}
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >Dismiss</button>
+              )}
+            </div>
+            {uploadRows.map((row, i) => (
+              <div key={i} className="rounded-lg border bg-card px-3 py-2 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs truncate flex-1" title={row.name}>{row.name}</span>
+                  {row.status === 'uploading' && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
+                  {row.status === 'done'      && <Check className="h-3 w-3 text-emerald-500 shrink-0" />}
+                  {row.status === 'error'     && <AlertCircle className="h-3 w-3 text-destructive shrink-0" />}
+                </div>
+                {row.status === 'uploading' && (
+                  <div className="h-1 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-200"
+                      style={{ width: `${row.percent}%` }}
+                    />
+                  </div>
+                )}
+                {row.status === 'error' && (
+                  <p className="text-[11px] text-destructive">{row.error}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Filter bar */}
         {!isOnboarding && (
