@@ -40,3 +40,40 @@ export function getSuggestedTopics(workspace, existingTopics = [], selectedProto
     return a.interviewCount - b.interviewCount
   })
 }
+
+/**
+ * Derive the set of archetype ids a story serves, by matching its topic
+ * against the workspace's topic_suggestions[] keyword aliases (the same
+ * matcher used by getSuggestedTopics). Returns the union of `prototypes`
+ * from every matching suggestion.
+ *
+ * Returns an empty array when:
+ *   - the workspace has no topic_suggestions,
+ *   - the story's topic matches no suggestion (custom topics), or
+ *   - matching suggestions exist but none carry a `prototypes` tag.
+ *
+ * Callers should treat `[]` as "untagged" — neither universal nor
+ * filtered-out, but explicitly unknown. The Themes view surfaces this
+ * as an "untagged N" pill on each card's archetype-mix row.
+ *
+ * Intentionally does NOT consult interviews.prototype_id today. That
+ * field exists on the row but isn't projected onto the Story shape by
+ * buildStories(), so reading it would require a schema/builder change.
+ * If/when buildStories starts copying prototype_id, this helper should
+ * accept the story object (not just the topic string) and prefer the
+ * explicit value over the derived one.
+ */
+export function getStoryArchetypes(storyTopic, workspace) {
+  const list = Array.isArray(workspace?.topic_suggestions) ? workspace.topic_suggestions : []
+  if (list.length === 0 || !storyTopic) return []
+  const lc = String(storyTopic).toLowerCase()
+  const ids = new Set()
+  for (const s of list) {
+    const keywords = Array.isArray(s.keywords) ? s.keywords : []
+    const matches = keywords.some((k) => lc.includes(String(k).toLowerCase()))
+    if (!matches) continue
+    const tags = Array.isArray(s.prototypes) ? s.prototypes : []
+    for (const id of tags) ids.add(id)
+  }
+  return [...ids]
+}
