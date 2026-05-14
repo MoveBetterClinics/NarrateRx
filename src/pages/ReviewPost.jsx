@@ -24,7 +24,8 @@ import { getBlogPostSystemPrompt, getSocialBatchSystemPrompt, getVideoScriptBatc
 import { fetchTopExemplars } from '@/lib/exemplars'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
-import { PLATFORM_META, STATUS_META } from './ContentHub'
+import { PLATFORM_META, STATUS_META } from '@/lib/contentMeta'
+import { PLATFORM_SCHEDULE_PREFS, MIN_GAP_MS } from '@/lib/scheduleHeuristics'
 import MediaPicker from '@/components/MediaPicker'
 import DraftDiffView from '@/components/DraftDiffView'
 import { uploadMedia } from '@/lib/mediaLib'
@@ -62,25 +63,15 @@ const PLATFORM_LENGTH_PREFS = {
 // (long-form, hashtags read as junk), email, GBP, ads, landing pages.
 const HASHTAG_PLATFORMS = ['instagram', 'tiktok', 'twitter', 'threads', 'pinterest', 'linkedin', 'youtube_short', 'bluesky', 'mastodon']
 
-// Platform-specific preferred posting days (0=Sun…6=Sat) and hours (local time)
-const PLATFORM_SCHEDULE_PREFS = {
-  instagram:    { days: [2, 3, 4, 5],    hours: [11, 14, 18] },
-  facebook:     { days: [2, 3, 4],       hours: [12, 15] },
-  linkedin:     { days: [2, 3, 4],       hours: [8, 10] },
-  blog:         { days: [1, 2, 3],       hours: [8, 10] },
-  email:        { days: [2, 4],          hours: [10, 11] },
-  youtube:      { days: [5, 6],          hours: [17, 19] },
-  tiktok:       { days: [2, 3, 5],       hours: [19, 20] },
-  gbp:          { days: [1, 2, 3, 4, 5], hours: [9, 10] },
-  google_ads:   { days: [1, 2, 3],       hours: [9] },
-  instagram_ads:{ days: [1, 2, 3],       hours: [9] },
-  landing_page: { days: [1, 2, 3],       hours: [9] },
-}
-
+// suggestScheduleTime here intentionally diverges from the shared helper in
+// scheduleHeuristics.js: this version walks d=1..60 (skips today) and uses
+// the per-post scheduler's d=1 anchor, while the canvas helper allows d=0
+// for inline-rescheduling within the visible week. PLATFORM_SCHEDULE_PREFS
+// and MIN_GAP_MS are shared from the lib so the two surfaces stay in sync
+// on the underlying optimal-windows table.
 function suggestScheduleTime(platform, scheduledItems) {
   const { days, hours } = PLATFORM_SCHEDULE_PREFS[platform] || { days: [1, 2, 3, 4, 5], hours: [9, 14] }
   const busy = scheduledItems.map((i) => new Date(i.scheduled_at).getTime()).filter(Boolean)
-  const MIN_GAP_MS = 2 * 60 * 60 * 1000 // no two posts within 2 hours of each other
   const now = new Date()
 
   for (let d = 1; d <= 60; d++) {

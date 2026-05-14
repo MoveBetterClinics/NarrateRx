@@ -10,7 +10,7 @@ import { useUser } from '@clerk/clerk-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { formatRelativeDate } from '@/lib/utils'
-import { PLATFORM_META } from './ContentHub'
+import { PLATFORM_META } from '@/lib/contentMeta'
 import { toast } from '@/lib/toast'
 
 // Review queue surface. Lists every content_item currently in_review across

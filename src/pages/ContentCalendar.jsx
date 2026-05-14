@@ -5,27 +5,15 @@ import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/EmptyState'
 import { useContentItems } from '@/lib/queries'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
-import { PLATFORM_META } from './ContentHub'
+import { PLATFORM_META } from '@/lib/contentMeta'
+import {
+  PLATFORM_SCHEDULE_PREFS, MIN_GAP_MS,
+  suggestScheduleTime, isOptimalSlot, isOptimalDay,
+} from '@/lib/scheduleHeuristics'
 import { updateContentItem } from '@/lib/publish'
 import { toast } from '@/lib/toast'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/queries'
-
-// Platform-specific preferred posting days (0=Sun…6=Sat) and hours (local time).
-// Mirrors the table in ReviewPost.jsx — kept in sync so the calendar heatmap
-// visualizes the same optimal windows the suggest-time logic uses.
-const PLATFORM_SCHEDULE_PREFS = {
-  instagram:    { days: [2, 3, 4, 5],    hours: [11, 14, 18] },
-  facebook:     { days: [2, 3, 4],       hours: [12, 15] },
-  linkedin:     { days: [2, 3, 4],       hours: [8, 10] },
-  blog:         { days: [1, 2, 3],       hours: [8, 10] },
-  email:        { days: [2, 4],          hours: [10, 11] },
-  youtube:      { days: [5, 6],          hours: [17, 19] },
-  tiktok:       { days: [2, 3, 5],       hours: [19, 20] },
-  gbp:          { days: [1, 2, 3, 4, 5], hours: [9, 10] },
-}
-
-const MIN_GAP_MS = 2 * 60 * 60 * 1000 // 2-hour buffer between posts
 
 function isoDate(date) { return date.toISOString().slice(0, 10) }
 function startOfMonth(date) { return new Date(date.getFullYear(), date.getMonth(), 1) }
@@ -40,45 +28,6 @@ function startOfWeek(date) {
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const DAY_NAMES   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-
-// Picks the next available slot for `platform` given currently-scheduled items.
-// Mirrors the rule used in ReviewPost.suggestScheduleTime so both surfaces
-// agree on where new posts ought to land.
-function suggestScheduleTime(platform, scheduledItems, fromDate) {
-  const prefs = PLATFORM_SCHEDULE_PREFS[platform] || { days: [1, 2, 3, 4, 5], hours: [9, 14] }
-  const busy = scheduledItems.map((i) => new Date(i.scheduled_at).getTime()).filter(Boolean)
-  const now = fromDate || new Date()
-  for (let d = 0; d <= 60; d++) {
-    const candidate = new Date(now)
-    candidate.setDate(candidate.getDate() + d)
-    if (!prefs.days.includes(candidate.getDay())) continue
-    for (const h of prefs.hours) {
-      candidate.setHours(h, 0, 0, 0)
-      if (candidate <= now) continue
-      const conflict = busy.some((t) => Math.abs(t - candidate.getTime()) < MIN_GAP_MS)
-      if (!conflict) return new Date(candidate)
-    }
-  }
-  return null
-}
-
-// True if any platform's optimal-window prefs include this (day, hour) slot.
-// Used to drive the subtle heatmap tinting in the week view.
-function isOptimalSlot(day, hour) {
-  for (const prefs of Object.values(PLATFORM_SCHEDULE_PREFS)) {
-    if (prefs.days.includes(day) && prefs.hours.includes(hour)) return true
-  }
-  return false
-}
-
-// True if any platform's optimal-day list contains this day — used for the
-// month-view heatmap (one tint per day rather than per-hour).
-function isOptimalDay(day) {
-  for (const prefs of Object.values(PLATFORM_SCHEDULE_PREFS)) {
-    if (prefs.days.includes(day)) return true
-  }
-  return false
-}
 
 export default function ContentCalendar() {
   useDocumentTitle('Calendar')

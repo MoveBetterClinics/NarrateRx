@@ -4,7 +4,7 @@ import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSe
 import { FileText, Clock, CheckCircle2, CalendarDays, Send, Image as ImageIcon, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { formatRelativeDate } from '@/lib/utils'
-import { PLATFORM_META } from '@/pages/ContentHub'
+import { PLATFORM_META } from '@/lib/contentMeta'
 
 // Five lanes in workflow order. Archived items are intentionally excluded —
 // they don't belong on the active pipeline. Published items DO render here
