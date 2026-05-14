@@ -45,7 +45,7 @@ const STATUS_FILTERS = [
 ]
 
 export default function MediaHub() {
-  useDocumentTitle('Media')
+  useDocumentTitle('Library')
   const { user } = useUser()
   const { canUpload, canEdit, role } = useUserRole()
   const qc = useQueryClient()
