@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom'
 import { useSearchParams } from 'react-router-dom'
 import { Users, ArrowRight, Layers, MapPin } from 'lucide-react'
 import { useLocations } from '@/lib/queries'
+import { useWorkspace } from '@/lib/WorkspaceContext'
+import { getStoryArchetypes } from '@/lib/topicSuggestions'
 
 // ── Stage dot colours ────────────────────────────────────────────────────────
 
@@ -88,10 +90,63 @@ function SkeletonThemeCard() {
   )
 }
 
+// ── Archetype helpers ───────────────────────────────────────────────────────
+
+/**
+ * Build the per-card archetype-mix summary: how many stories in this theme
+ * matched each archetype defined on the workspace, plus a count of stories
+ * whose topic didn't match any tagged suggestion (the "untagged" bucket).
+ *
+ * Returns an array of { id, label, emoji, count } for archetypes with
+ * count > 0, plus an `untagged` count. Order follows the workspace's
+ * patient_context.prototypes[] order so cards line up visually.
+ *
+ * Stories can match multiple archetypes (when the topic's keywords match
+ * suggestions tagged with different prototypes). Each match increments
+ * that archetype's bucket; a story tagged for two archetypes contributes
+ * to both totals. This is the right semantics for "archetype mix" — it
+ * answers "how many stories in this theme speak to archetype X" rather
+ * than partitioning stories into exclusive buckets.
+ */
+function archetypeMix(stories, workspace) {
+  const prototypes = Array.isArray(workspace?.patient_context?.prototypes)
+    ? workspace.patient_context.prototypes
+    : []
+  if (prototypes.length === 0) return { byArchetype: [], untagged: 0 }
+
+  const counts = new Map()
+  for (const p of prototypes) counts.set(p.id, 0)
+  let untagged = 0
+
+  for (const s of stories) {
+    const ids = getStoryArchetypes(s.topic, workspace)
+    if (ids.length === 0) {
+      untagged += 1
+      continue
+    }
+    for (const id of ids) {
+      if (counts.has(id)) counts.set(id, counts.get(id) + 1)
+    }
+  }
+
+  const byArchetype = prototypes
+    .map((p) => ({
+      id: p.id,
+      label: p.shortLabel || p.label || p.id,
+      emoji: p.emoji || '',
+      count: counts.get(p.id) || 0,
+    }))
+    .filter((row) => row.count > 0)
+
+  return { byArchetype, untagged }
+}
+
 // ── ThemeCard ─────────────────────────────────────────────────────────────────
 
-function ThemeCard({ topic, stories }) {
+function ThemeCard({ topic, stories, workspace }) {
   const navigate = useNavigate()
+  const { byArchetype, untagged } = archetypeMix(stories, workspace)
+  const showMix = byArchetype.length > 0 || untagged > 0
 
   // Clinician initials — deduplicated by clinician_id
   const seen = new Set()
@@ -128,6 +183,32 @@ function ThemeCard({ topic, stories }) {
           {clinicians.length} {clinicians.length === 1 ? 'clinician' : 'clinicians'}
         </span>
       </div>
+
+      {/* Archetype mix — surfaces the cross-archetype distribution for
+          this theme without requiring a filter. Hidden when the workspace
+          has no patient_context.prototypes[]. */}
+      {showMix && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wide text-gray-400 mr-1">Archetypes</span>
+          {byArchetype.map((row) => (
+            <span
+              key={row.id}
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200"
+            >
+              {row.emoji && <span>{row.emoji}</span>}
+              {row.count} {row.label.toLowerCase()}
+            </span>
+          ))}
+          {untagged > 0 && (
+            <span
+              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200"
+              title="Story topics that didn't match any tagged topic_suggestions[] keyword"
+            >
+              untagged {untagged}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Clinician chips */}
       <div className="flex flex-wrap gap-1.5">
@@ -231,7 +312,9 @@ function ThemesEmptyState() {
 export default function StoriesThemesView({ stories = [], isLoading = false }) {
   const [searchParams] = useSearchParams()
   const activeLocation = searchParams.get('location') || ''
+  const activeArchetype = searchParams.get('archetype') || ''
   const { data: locations = [] } = useLocations()
+  const workspace = useWorkspace()
 
   if (isLoading) {
     return (
@@ -243,13 +326,25 @@ export default function StoriesThemesView({ stories = [], isLoading = false }) {
     )
   }
 
+  // Apply the archetype filter at the story level before any grouping, so a
+  // theme that loses every member to the filter falls out of "shared theme"
+  // (≥2 stories) naturally rather than rendering as an empty card. The mix
+  // row on surviving cards still shows the full per-archetype counts (it
+  // recomputes from the filtered story slice, so a "Reconnect" filter
+  // shows reconnect-only counts — consistent with what the user selected).
+  const archetypeFiltered = activeArchetype
+    ? stories.filter((s) =>
+        getStoryArchetypes(s.topic, workspace).includes(activeArchetype)
+      )
+    : stories
+
   // When a location filter is active, show "This location" header then themes
   // filtered to that location. When no filter, show all shared themes as before.
   if (activeLocation) {
     const locationLabel = locations.find((l) => l.id === activeLocation)?.label
       || locations.find((l) => l.id === activeLocation)?.city
       || 'This location'
-    const locationStories = stories.filter((s) => s.location_id === activeLocation)
+    const locationStories = archetypeFiltered.filter((s) => s.location_id === activeLocation)
     const groups = groupByTopic(locationStories)
     const sharedThemes = groups.filter((g) => g.stories.length >= 2)
 
@@ -265,7 +360,7 @@ export default function StoriesThemesView({ stories = [], isLoading = false }) {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {sharedThemes.map((g) => (
-              <ThemeCard key={g.topic} topic={g.topic} stories={g.stories} />
+              <ThemeCard key={g.topic} topic={g.topic} stories={g.stories} workspace={workspace} />
             ))}
           </div>
         )}
@@ -273,7 +368,7 @@ export default function StoriesThemesView({ stories = [], isLoading = false }) {
     )
   }
 
-  const groups = groupByTopic(stories)
+  const groups = groupByTopic(archetypeFiltered)
   const sharedThemes = groups.filter((g) => g.stories.length >= 2)
 
   if (sharedThemes.length === 0) {
@@ -283,7 +378,7 @@ export default function StoriesThemesView({ stories = [], isLoading = false }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
       {sharedThemes.map((g) => (
-        <ThemeCard key={g.topic} topic={g.topic} stories={g.stories} />
+        <ThemeCard key={g.topic} topic={g.topic} stories={g.stories} workspace={workspace} />
       ))}
     </div>
   )
