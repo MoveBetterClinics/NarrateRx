@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUser } from '@clerk/clerk-react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -49,9 +50,28 @@ export default function MediaHub() {
   const { user } = useUser()
   const { canUpload, canEdit, role } = useUserRole()
   const qc = useQueryClient()
-  const [kind, setKind]         = useState('')
-  const [purpose, setPurpose]   = useState('')
-  const [status, setStatus]     = useState('')
+
+  // URL-persisted filters so the library position survives navigation.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const kind    = searchParams.get('kind')    || ''
+  const purpose = searchParams.get('purpose') || ''
+  const status  = searchParams.get('status')  || ''
+  const clinicianFilter = searchParams.get('clinician') || ''
+
+  function setParam(key, value) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set(key, value)
+      else next.delete(key)
+      return next
+    }, { replace: true })
+  }
+
+  const setKind      = (v) => setParam('kind', v)
+  const setPurpose   = (v) => setParam('purpose', v)
+  const setStatus    = (v) => setParam('status', v)
+  const setClinicianFilter = (v) => setParam('clinician', v)
+
   const [search, setSearch]     = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [collectionId, setCollectionId] = useState(null)
@@ -69,14 +89,19 @@ export default function MediaHub() {
 
   // Centralized filter object for the media query — every place that needs
   // to read the same library page (here + SelectAll below) uses this so a
-  // filter change produces a single cache key per state.
-  const mediaFilters = {
+  // filter change produces a single cache key per state. Memoized to give
+  // a stable object reference so downstream useCallbacks don't churn on
+  // every render (react-hooks/exhaustive-deps).
+  const mediaFilters = useMemo(() => ({
     kind:         kind || undefined,
     purpose:      purpose || undefined,
     status:       status || undefined,
     q:            debouncedSearch || undefined,
     collectionId: collectionId || undefined,
-  }
+  }), [kind, purpose, status, debouncedSearch, collectionId])
+  // clinicianFilter is a client-side filter (created_by value) — it isn't
+  // sent to the server since the server only accepts workspace-scoped filter
+  // params. We post-filter the flat asset array below after fetching.
 
   const {
     data:           mediaData,
@@ -89,7 +114,25 @@ export default function MediaHub() {
   } = useMediaInfinite(mediaFilters, { pageSize: PAGE_SIZE })
   const error = queryError?.message || ''
   // Flatten pages → flat asset array for the existing grid/select code.
-  const assets = mediaData?.pages?.flat() ?? []
+  const allAssets = useMemo(() => mediaData?.pages?.flat() ?? [], [mediaData])
+  // Client-side clinician filter (created_by is the Clerk user ID string).
+  const assets = useMemo(
+    () => clinicianFilter ? allAssets.filter((a) => a.created_by === clinicianFilter) : allAssets,
+    [clinicianFilter, allAssets]
+  )
+
+  // Unique uploaders visible in the current (unfiltered) page set, for the
+  // clinician chip row. We use allAssets so changing the clinician chip
+  // doesn't hide the other chips.
+  const clinicianOptions = useMemo(() => {
+    const seen = new Map()
+    for (const a of allAssets) {
+      if (a.created_by && !seen.has(a.created_by)) {
+        seen.set(a.created_by, a.created_by)
+      }
+    }
+    return [...seen.values()]
+  }, [allAssets])
 
   // Stable callback name so the existing IntersectionObserver effect keeps
   // working without churn.
@@ -276,92 +319,129 @@ export default function MediaHub() {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search filename, notes, condition, patient…"
-            className="pl-8 pr-8 h-8 text-sm"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground">
-              <X className="h-4 w-4" />
-            </button>
+      <div className="space-y-2">
+        {/* Row 1: search + status dropdown + action buttons */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search filename, notes, condition, patient…"
+              className="pl-8 pr-8 h-8 text-sm"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              aria-label="Filter by status"
+              className="text-[11px] h-7 px-2 rounded-md border border-border bg-background text-foreground"
+            >
+              {STATUS_FILTERS.map((s) => (
+                <option key={s.id || 'all-status'} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {canEdit && (
+            <Button
+              size="sm"
+              variant={multiSelectMode ? 'default' : 'outline'}
+              onClick={() => {
+                if (multiSelectMode) exitMultiSelect()
+                else setMultiSelectMode(true)
+              }}
+              className="h-7 gap-1.5 text-[11px] rounded-full"
+              title="Select multiple media for bulk actions"
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              {multiSelectMode ? 'Exit select' : 'Select'}
+            </Button>
+          )}
+
+          {role === 'admin' && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onBackfillThumbnails}
+              disabled={backfilling}
+              className="h-7 gap-1.5 text-[11px] rounded-full"
+              title="Generate missing thumbnails for older videos"
+            >
+              {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
+              {backfilling ? 'Backfilling…' : 'Backfill video thumbnails'}
+            </Button>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {PURPOSE_FILTERS.map((p) => (
-            <button
-              key={p.id || 'all-purpose'}
-              onClick={() => setPurpose(p.id)}
-              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                purpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          {KIND_FILTERS.map((k) => (
-            <button
-              key={k.id || 'all-kind'}
-              onClick={() => setKind(k.id)}
-              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                kind === k.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-              }`}
-            >
-              {k.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            aria-label="Filter by status"
-            className="text-[11px] h-7 px-2 rounded-md border border-border bg-background text-foreground"
-          >
-            {STATUS_FILTERS.map((s) => (
-              <option key={s.id || 'all-status'} value={s.id}>{s.label}</option>
+        {/* Row 2: purpose + kind filter chips */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <div className="flex items-center gap-1.5">
+            {PURPOSE_FILTERS.map((p) => (
+              <button
+                key={p.id || 'all-purpose'}
+                onClick={() => setPurpose(p.id)}
+                className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                  purpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                }`}
+              >
+                {p.label}
+              </button>
             ))}
-          </select>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {KIND_FILTERS.map((k) => (
+              <button
+                key={k.id || 'all-kind'}
+                onClick={() => setKind(k.id)}
+                className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                  kind === k.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                }`}
+              >
+                {k.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {canEdit && (
-          <Button
-            size="sm"
-            variant={multiSelectMode ? 'default' : 'outline'}
-            onClick={() => {
-              if (multiSelectMode) exitMultiSelect()
-              else setMultiSelectMode(true)
-            }}
-            className="h-7 gap-1.5 text-[11px] rounded-full"
-            title="Select multiple media for bulk actions"
-          >
-            <CheckSquare className="h-3.5 w-3.5" />
-            {multiSelectMode ? 'Exit select' : 'Select'}
-          </Button>
-        )}
-
-        {role === 'admin' && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onBackfillThumbnails}
-            disabled={backfilling}
-            className="h-7 gap-1.5 text-[11px] rounded-full"
-            title="Generate missing thumbnails for older videos"
-          >
-            {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
-            {backfilling ? 'Backfilling…' : 'Backfill video thumbnails'}
-          </Button>
+        {/* Row 3: clinician chips — shown only when there are multiple uploaders */}
+        {clinicianOptions.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground mr-0.5">Clinician:</span>
+            <button
+              onClick={() => setClinicianFilter('')}
+              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                !clinicianFilter ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+              }`}
+            >
+              All
+            </button>
+            {clinicianOptions.map((uid) => {
+              // Show last 6 chars of Clerk user ID as an identifier since we
+              // don't resolve names in the list query. Tooltip shows full ID.
+              const label = uid.startsWith('user_') ? uid.slice(-6) : uid.slice(0, 8)
+              return (
+                <button
+                  key={uid}
+                  onClick={() => setClinicianFilter(uid === clinicianFilter ? '' : uid)}
+                  title={uid}
+                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-mono ${
+                    clinicianFilter === uid ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-muted text-muted-foreground border-border hover:border-indigo-400'
+                  }`}
+                >
+                  …{label}
+                </button>
+              )
+            })}
+          </div>
         )}
       </div>
 
@@ -397,7 +477,7 @@ export default function MediaHub() {
         // the coaching matches the situation. hasActiveFilter is true whenever
         // any narrowing control is active.
         (() => {
-          const hasActiveFilter = !!(debouncedSearch || kind || purpose || status || collectionId)
+          const hasActiveFilter = !!(debouncedSearch || kind || purpose || status || collectionId || clinicianFilter)
           if (hasActiveFilter) {
             return (
               <EmptyState
@@ -413,6 +493,7 @@ export default function MediaHub() {
                       setKind('')
                       setPurpose('')
                       setStatus('')
+                      setClinicianFilter('')
                       setCollectionId(null)
                     }}
                   >
