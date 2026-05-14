@@ -13,12 +13,8 @@
 // If extraction fails for any reason (bad PDF, model error, timeout) this
 // returns null so the caller can skip the DB write rather than storing garbage.
 
-import { createRequire } from 'node:module'
 import { generateText } from 'ai'
-
-// pdf-parse is CommonJS-only; use createRequire to load it from an ESM context.
-const require = createRequire(import.meta.url)
-const pdfParse = require('pdf-parse')
+import { getDocumentProxy, extractText } from 'unpdf'
 
 // Rough character budget to keep the Claude call within token limits.
 // A 20-page brand book runs ~30k chars of extracted text; we take the first
@@ -47,9 +43,10 @@ export async function extractBrandGuidelines(pdfBlobUrl) {
   try {
     const res = await fetch(pdfBlobUrl)
     if (!res.ok) throw new Error(`PDF fetch failed: ${res.status}`)
-    const buf = Buffer.from(await res.arrayBuffer())
-    const parsed = await pdfParse(buf)
-    pdfText = (parsed.text || '').slice(0, MAX_PDF_CHARS).trim()
+    const buf = new Uint8Array(await res.arrayBuffer())
+    const pdf = await getDocumentProxy(buf)
+    const { text: rawText } = await extractText(pdf, { mergePages: true })
+    pdfText = (rawText || '').slice(0, MAX_PDF_CHARS).trim()
   } catch (e) {
     console.error('brandGuidelinesExtractor: PDF parse failed:', e?.message)
     return null
