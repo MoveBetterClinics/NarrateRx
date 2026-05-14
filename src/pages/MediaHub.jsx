@@ -4,6 +4,9 @@ import { useSearchParams } from 'react-router-dom'
 import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog'
 import EmptyState from '@/components/EmptyState'
 import MediaUploader from '@/components/MediaUploader'
 import MediaGrid from '@/components/MediaGrid'
@@ -89,6 +92,7 @@ export default function MediaHub() {
   const [briefRefreshKey, setBriefRefreshKey] = useState(0)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
+  const [uploadOpen, setUploadOpen] = useState(false)
 
   // Debounce search input.
   useEffect(() => {
@@ -337,8 +341,23 @@ export default function MediaHub() {
         <MediaHubHelp />
       </div>
 
-      {/* Uploader — surfaced to every role per HANDOFF role table */}
-      {canUpload && <MediaUploader createdBy={user?.id} onUploaded={refresh} />}
+      {/* Upload modal — triggered from the Upload button in the filter row */}
+      {canUpload && (
+        <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Upload media</DialogTitle>
+              <DialogDescription>
+                Pick the asset kind, then drop your files. Interview clips feed the editor brief queue; everything else is tagged for search and reuse.
+              </DialogDescription>
+            </DialogHeader>
+            <MediaUploader
+              createdBy={user?.id}
+              onUploaded={() => { refresh(); setUploadOpen(false) }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Edit briefs (AI suggestions + manual overrides) */}
       <ContentBriefList refreshKey={briefRefreshKey} />
@@ -382,6 +401,17 @@ export default function MediaHub() {
               ))}
             </select>
           </div>
+
+          {canUpload && (
+            <Button
+              size="sm"
+              onClick={() => setUploadOpen(true)}
+              className="h-7 gap-1.5 text-[11px] rounded-full"
+            >
+              <UploadIcon className="h-3.5 w-3.5" />
+              Upload
+            </Button>
+          )}
 
           {canEdit && (
             <Button
@@ -553,12 +583,12 @@ export default function MediaHub() {
               title="Your media library is empty"
               description={
                 canUpload
-                  ? 'Pick an asset purpose above (interview, B-roll, photo, or brand) and drop your first file. AI tags every upload for search.'
+                  ? 'Click Upload to pick an asset kind (interview, B-roll, photo, or brand) and drop your first file. AI tags every upload for search.'
                   : 'Once your team uploads photos and videos, they will appear here. Ask an admin or editor for upload access.'
               }
               action={
                 canUpload
-                  ? <Button size="sm" onClick={() => document.querySelector('input[type=file]')?.click()}>
+                  ? <Button size="sm" onClick={() => setUploadOpen(true)}>
                       <UploadIcon className="h-4 w-4 mr-1.5" />
                       Upload your first asset
                     </Button>
