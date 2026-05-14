@@ -10,7 +10,8 @@ import {
   useSession,
 } from '@clerk/clerk-react'
 import Layout from '@/components/Layout'
-import Dashboard from '@/pages/Dashboard'
+import Dashboard from '@/pages/Dashboard' // eslint-disable-line no-unused-vars -- PR 5 removes this
+import Home from '@/pages/Home'
 import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
 const NewInterview = lazy(() => import('@/pages/NewInterview'))
@@ -204,7 +205,7 @@ function AppRoutes() {
       <Layout>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={guarded(<Dashboard />)} />
+            <Route path="/" element={guarded(<Home />)} />
             <Route path="/new" element={guarded(<NewInterview />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
             <Route path="/interview/:clinicianId/:interviewId/output" element={guarded(<InterviewSession />)} />

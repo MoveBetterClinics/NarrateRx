@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
-import { Plus, Settings, Building2, Menu, Palette } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Images } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
@@ -10,18 +10,13 @@ import { CampaignModeChip } from '@/components/CampaignWidget'
 import { workspace } from '@/lib/workspace'
 import { useUserRole } from '@/lib/useUserRole'
 
-// Match() handles the multi-prefix Content Hub case — /hub, /review, /calendar
-// all light up the same nav item since they're a single publishing surface.
 const NAV_ITEMS = [
-  { to: '/',         label: 'Interviews',  match: (p) => p === '/' },
-  { to: '/hub',      label: 'Content Hub', match: (p) => p.startsWith('/hub') || p.startsWith('/review') || p.startsWith('/calendar') },
-  { to: '/media',    label: 'Media',       match: (p) => p.startsWith('/media') },
-  { to: '/strategy', label: 'Strategy',    match: (p) => p === '/strategy' },
+  { to: '/',        label: 'Home',    match: (p) => p === '/' },
+  { to: '/stories', label: 'Stories', match: (p) => p.startsWith('/stories') },
 ]
 
 export default function Layout({ children }) {
   const location = useLocation()
-  const isHome = location.pathname === '/'
   const { role } = useUserRole()
   const [mobileOpen, setMobileOpen] = useState(false)
 
@@ -52,6 +47,9 @@ export default function Layout({ children }) {
           </nav>
           <div className="hidden md:flex items-center gap-3">
             <CampaignModeChip />
+            <Link to="/library" title="Media library" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors">
+              <Images className="h-4 w-4" />
+            </Link>
             {role === 'admin' && (
               <Link to="/settings/workspace" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors" title="Workspace settings">
                 <Building2 className="h-4 w-4" />
@@ -62,17 +60,14 @@ export default function Layout({ children }) {
             </Link>
           </div>
 
-          {/* New Interview is the primary action — visible on every breakpoint
-              when we're on Dashboard. Collapses to an icon-only button below sm. */}
-          {isHome && (
-            <Button asChild size="sm">
-              <Link to="/new">
-                <Plus className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">New Interview</span>
-                <span className="sr-only sm:hidden">New Interview</span>
-              </Link>
-            </Button>
-          )}
+          {/* New Interview — primary action, visible on every page */}
+          <Button asChild size="sm">
+            <Link to="/new">
+              <Plus className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">New Interview</span>
+              <span className="sr-only sm:hidden">New Interview</span>
+            </Link>
+          </Button>
 
           <UserButton afterSignOutUrl="/" />
 
@@ -107,6 +102,11 @@ export default function Layout({ children }) {
             ))}
           </div>
           <div className="pt-3 border-t space-y-1">
+            <DialogClose asChild>
+              <Link to="/library" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+                <Images className="h-4 w-4" /> Media library
+              </Link>
+            </DialogClose>
             {role === 'admin' && (
               <DialogClose asChild>
                 <Link to="/settings/workspace" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
