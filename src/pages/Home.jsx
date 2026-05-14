@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { FileText, Eye, Clock, Loader2, RefreshCw, ChevronRight } from 'lucide-react'
@@ -7,6 +7,7 @@ import { useStories, useClinicians } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
+import { getPatientPrototypesUi } from '@/lib/prompts'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { greetingFor } from '@/components/home/helpers'
 import GettingStarted from '@/components/home/GettingStarted'
@@ -68,12 +69,32 @@ export default function Home() {
     [allInterviews]
   )
 
-  const topicGaps = useMemo(
+  // Archetype filter for PlanNextInterview. null = no filter. Workspaces
+  // with no patient_context.prototypes don't render the chip strip, so
+  // this stays null and the gap list behaves exactly as before.
+  const [topicFilterPrototype, setTopicFilterPrototype] = useState(null)
+  const prototypesUi = useMemo(
+    () => getPatientPrototypesUi(runtimeWorkspace),
+    [runtimeWorkspace]
+  )
+  // The unfiltered gap baseline drives whether to render PlanNextInterview
+  // at all. If the workspace has gaps overall but an archetype filter zeros
+  // them out, we still render the card (with empty-state copy + chips) so
+  // the user can clear the filter — otherwise it disappears and the filter
+  // becomes unreachable.
+  const unfilteredGaps = useMemo(
     () =>
       getSuggestedTopics(runtimeWorkspace, existingTopics)
         .filter((t) => t.interviewCount === 0 && t.priority !== 'low')
         .slice(0, 8),
     [existingTopics, runtimeWorkspace]
+  )
+  const topicGaps = useMemo(
+    () =>
+      getSuggestedTopics(runtimeWorkspace, existingTopics, topicFilterPrototype)
+        .filter((t) => t.interviewCount === 0 && t.priority !== 'low')
+        .slice(0, 8),
+    [existingTopics, runtimeWorkspace, topicFilterPrototype]
   )
 
   // ── Task bucket 1: Ready for content ───────────────────────────────────────
@@ -245,9 +266,17 @@ export default function Home() {
         <ResumeStrip interviews={resumeInterviews} currentUserId={user?.id} />
       )}
 
-      {/* Plan next interview — high-search topic gaps */}
-      {topicGaps.length > 0 && (
-        <PlanNextInterview gaps={topicGaps} isEmpty={allInterviews.length === 0} />
+      {/* Plan next interview — high-search topic gaps. Rendered whenever
+          the workspace has unfiltered gaps; the archetype filter may zero
+          the visible list but the card stays so the filter can be cleared. */}
+      {unfilteredGaps.length > 0 && (
+        <PlanNextInterview
+          gaps={topicGaps}
+          isEmpty={allInterviews.length === 0}
+          prototypes={prototypesUi}
+          activePrototypeId={topicFilterPrototype}
+          onPrototypeChange={setTopicFilterPrototype}
+        />
       )}
     </div>
   )
