@@ -1,5 +1,7 @@
-import { Link } from 'react-router-dom'
-import { CalendarClock, Sparkles, Bot } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { CalendarClock, Sparkles, Bot, RefreshCw } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useTopicSuggestions, queryKeys } from '@/lib/queries'
 
 const PLATFORM_LABELS = {
   facebook: 'Facebook',
@@ -17,10 +19,27 @@ function formatScheduled(iso) {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
+// Skeleton loader — 5 shimmer rows while suggestions are fetching.
+function SuggestionSkeleton() {
+  return (
+    <ul className="divide-y">
+      {[...Array(5)].map((_, i) => (
+        <li key={i} className="px-4 py-2.5">
+          <div className="h-3.5 bg-muted rounded animate-pulse w-4/5" />
+        </li>
+      ))}
+    </ul>
+  )
+}
+
 // Right rail for the Home page.
 // Props:
 //   stories — array from useStories() — we filter to upcoming scheduled pieces
 export default function HomeRightRail({ stories = [] }) {
+  const navigate = useNavigate()
+  const qc = useQueryClient()
+  const { data, isLoading, isFetching } = useTopicSuggestions()
+
   const now = Date.now()
   const in7Days = now + 7 * 24 * 60 * 60 * 1000
 
@@ -37,6 +56,21 @@ export default function HomeRightRail({ stories = [] }) {
     )
     .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
     .slice(0, 8)
+
+  const suggestions = data?.suggestions ?? []
+
+  function handleSuggestionClick(topic) {
+    navigate(`/new?topic=${encodeURIComponent(topic)}`)
+  }
+
+  async function handleRefresh() {
+    // Invalidate client cache and hit the server with ?refresh=true to bust
+    // the 7-day server-side cache. The query refetch will call the normal
+    // endpoint; we separately ping the refresh URL so the next cache write
+    // gets fresh data without blocking the UI.
+    await fetch('/api/topic-suggestions?refresh=true', { credentials: 'include' })
+    qc.invalidateQueries({ queryKey: queryKeys.topicSuggestions })
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -72,15 +106,43 @@ export default function HomeRightRail({ stories = [] }) {
         )}
       </div>
 
-      {/* Topic suggestions — stub */}
+      {/* Topic suggestions — AI-generated patient questions */}
       <div className="rounded-xl border bg-white shadow-sm">
         <div className="flex items-center gap-2 px-4 py-3 border-b">
           <Sparkles className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold flex-1">Topic suggestions</h2>
+          <h2 className="text-sm font-semibold flex-1">Questions patients are asking</h2>
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isLoading || isFetching}
+            title="Refresh suggestions"
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors disabled:opacity-40"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+          </button>
         </div>
-        <p className="px-4 py-4 text-sm text-muted-foreground">
-          Coming soon — Bernard will suggest topics based on your top posts.
-        </p>
+
+        {isLoading ? (
+          <SuggestionSkeleton />
+        ) : suggestions.length === 0 ? (
+          <p className="px-4 py-4 text-sm text-muted-foreground">
+            No suggestions yet — click refresh to generate.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {suggestions.map((topic, i) => (
+              <li key={i}>
+                <button
+                  type="button"
+                  onClick={() => handleSuggestionClick(topic)}
+                  className="w-full text-left px-4 py-2.5 text-xs text-foreground hover:bg-accent/20 transition-colors leading-snug"
+                >
+                  {topic}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       {/* Bernard nudge — stub */}

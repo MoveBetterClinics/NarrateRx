@@ -89,6 +89,7 @@ export const queryKeys = {
   comments: {
     list: (contentItemId) => ['comments', contentItemId],
   },
+  topicSuggestions: ['topic-suggestions'],
 }
 
 // ── Brand Kit ───────────────────────────────────────────────────────────────
@@ -447,6 +448,24 @@ export function useAddComment(contentItemId) {
       return r.json()
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.comments.list(contentItemId) }),
+  })
+}
+
+// ── Topic suggestions (geo-local AI) ──────────────────────────────────────
+//
+// Fetches 5 AI-generated patient questions for the current workspace.
+// The server caches results for 7 days; the client caches for 6 hours.
+// Pass ?refresh=true to bust the server-side cache.
+
+export function useTopicSuggestions() {
+  return useQuery({
+    queryKey: queryKeys.topicSuggestions,
+    queryFn: async () => {
+      const r = await fetch('/api/topic-suggestions', { credentials: 'include' })
+      if (!r.ok) return { suggestions: [] }
+      return r.json()
+    },
+    staleTime: 1000 * 60 * 60 * 6, // 6h client-side cache
   })
 }
 
