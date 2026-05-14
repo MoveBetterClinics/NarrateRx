@@ -44,6 +44,7 @@ import {
 } from './brandKitLib'
 import { fetchContentPlanAtoms, updateAtomStatus, draftAtom } from './contentPlan'
 import { fetchTopicBacklog, createTopic, updateTopic, deleteTopic, suggestTopics } from './topicBacklog'
+import { buildStories, deriveStoryStage } from './stories'
 
 export const queryKeys = {
   clinicians: {
@@ -79,6 +80,11 @@ export const queryKeys = {
   brandKit: {
     all: ['brandKit'],
     me:  ['brandKit', 'me'],
+  },
+  stories: {
+    all:    ['stories'],
+    list:   (filters = {}) => ['stories', 'list', filters],
+    detail: (id) => ['stories', 'detail', id],
   },
 }
 
@@ -194,6 +200,7 @@ export function useUpdateInterview() {
       // Auto-create of content_items on completion (see api/db/interviews.js)
       // means we should also flush the content list.
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.stories.all })
     },
   })
 }
@@ -238,6 +245,7 @@ export function useUpdateContentItem() {
       // get the new value immediately (no extra network round-trip).
       if (data) qc.setQueryData(queryKeys.contentItems.detail(id), data)
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.stories.all })
     },
   })
 }
@@ -346,5 +354,63 @@ export function useSuggestTopics() {
   return useMutation({
     mutationFn: (count) => suggestTopics(count),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
+  })
+}
+
+// ── Stories ────────────────────────────────────────────────────────────────
+//
+// Stories anchor on interviews with content_items rolled up. Both views
+// (Cards + Pipeline) and the Story Detail page consume the same shape from
+// buildStories(). useStories fetches both upstream lists in parallel and
+// merges them client-side so there's a single cache entry for the full list.
+
+export function useStories(filters = {}, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.stories.list(filters),
+    queryFn: async () => {
+      const [cliniciansRes, contentRes] = await Promise.all([
+        fetch('/api/db/clinicians', { credentials: 'include' }),
+        fetch('/api/db/content?limit=500', { credentials: 'include' }),
+      ])
+      if (!cliniciansRes.ok) throw new Error('Failed to fetch clinicians')
+      if (!contentRes.ok) throw new Error('Failed to fetch content')
+      const clinicians = await cliniciansRes.json()
+      const contentItems = await contentRes.json()
+      return buildStories(clinicians, contentItems)
+    },
+    staleTime: 30_000,
+    ...options,
+  })
+}
+
+export function useStory(interviewId, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.stories.detail(interviewId),
+    queryFn: async () => {
+      const [intRes, contentRes] = await Promise.all([
+        fetch(`/api/db/interviews?id=${interviewId}`, { credentials: 'include' }),
+        fetch(`/api/db/content?interviewId=${interviewId}`, { credentials: 'include' }),
+      ])
+      if (!intRes.ok) throw new Error('Failed to fetch interview')
+      if (!contentRes.ok) throw new Error('Failed to fetch content')
+      const interviews = await intRes.json()
+      const contentItems = await contentRes.json()
+      const interview = Array.isArray(interviews) ? interviews[0] : interviews
+      if (!interview) return null
+      const pieces = Array.isArray(contentItems) ? contentItems : []
+      return {
+        ...interview,
+        pieces,
+        pieces_count: pieces.length,
+        story_stage: deriveStoryStage(interview, pieces),
+        last_activity_at: pieces.reduce(
+          (acc, p) => (p.updated_at > acc ? p.updated_at : acc),
+          interview.updated_at,
+        ),
+      }
+    },
+    enabled: !!interviewId,
+    staleTime: 30_000,
+    ...options,
   })
 }

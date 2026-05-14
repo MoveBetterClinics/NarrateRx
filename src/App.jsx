@@ -31,6 +31,7 @@ const OnboardingBrandKit = lazy(() => import('@/pages/OnboardingBrandKit'))
 const Members = lazy(() => import('@/pages/Members'))
 const Account = lazy(() => import('@/pages/Account'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
+const Stories = lazy(() => import('@/pages/Stories'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import ErrorBoundary from '@/components/ErrorBoundary'
@@ -208,6 +209,8 @@ function AppRoutes() {
             <Route path="/clinician/:clinicianId" element={guarded(<ClinicianProfile />)} />
             <Route path="/strategy" element={guarded(<Strategy />)} />
             <Route path="/hub" element={guarded(<ContentHub />)} />
+            <Route path="/stories" element={guarded(<Stories />)} />
+            <Route path="/stories/:id" element={guarded(<Stories />)} />
             <Route path="/review/:itemId" element={guarded(<ReviewPost />)} />
             <Route path="/review-queue" element={guarded(<ReviewQueue />)} />
             <Route path="/calendar" element={guarded(<ContentCalendar />)} />
