@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, useCallback } from 'react'
 import {
   Upload, Search, Filter, Check, X, Sparkles, AlertCircle,
-  FileText, Image as ImageIcon, Tag as TagIcon, RotateCcw, Loader2, Trash2,
+  FileText, Image as ImageIcon, Tag as TagIcon, RotateCcw, Loader2, Trash2, RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -618,9 +618,31 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
       {/* ===== LIBRARY PANEL ================================================ */}
       <section className="space-y-3">
         {!isOnboarding && (
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Library</h2>
-            <span className="text-xs text-muted-foreground">{filtered.length} of {assets.length} assets</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{filtered.length} of {assets.length} assets</span>
+              <Button
+                size="sm" variant="ghost" className="text-xs h-7 text-muted-foreground"
+                onClick={async () => {
+                  const token = await window.Clerk?.session?.getToken?.()
+                  const r = await fetch('/api/brand-kit/reclassify', {
+                    method: 'POST',
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                  })
+                  const data = await r.json()
+                  if (r.ok) {
+                    toast.success(`Re-tagged ${data.updated} of ${data.total} assets`)
+                    qc.invalidateQueries({ queryKey: ['brandKit'] })
+                  } else {
+                    toast.error(data.error || 'Re-classify failed')
+                  }
+                }}
+                title="Re-run AI classifier on all assets"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" /> Re-tag
+              </Button>
+            </div>
           </div>
         )}
 
