@@ -10,14 +10,12 @@ import {
   useSession,
 } from '@clerk/clerk-react'
 import Layout from '@/components/Layout'
-import Dashboard from '@/pages/Dashboard' // eslint-disable-line no-unused-vars -- PR 5 removes this
 import Home from '@/pages/Home'
 import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
 const NewInterview = lazy(() => import('@/pages/NewInterview'))
 const InterviewSession = lazy(() => import('@/pages/InterviewSession'))
 const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
-const ReviewPost = lazy(() => import('@/pages/ReviewPost'))
 const MediaHub = lazy(() => import('@/pages/MediaHub'))
 const Integrations = lazy(() => import('@/pages/Integrations'))
 const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
@@ -175,10 +173,15 @@ function guarded(node) {
 }
 
 // Legacy redirect: /output/:clinicianId/:interviewId → /stories/:interviewId
-// The InterviewOutput page still exists; this route replaces the old path mapping.
 function LegacyOutputRedirect() {
   const { interviewId } = useParams()
   return <Navigate to={`/stories/${interviewId}`} replace />
+}
+
+// Legacy redirect: /review/:itemId → /stories/:itemId
+function LegacyReviewRedirect() {
+  const { itemId } = useParams()
+  return <Navigate to={`/stories/${itemId}`} replace />
 }
 
 // Routes shared between org-gated and domain-gated modes.
@@ -215,8 +218,9 @@ function AppRoutes() {
             <Route path="/stories" element={guarded(<Stories />)} />
             <Route path="/stories/:storyId" element={guarded(<StoryDetail />)} />
             <Route path="/library" element={guarded(<MediaHub />)} />
-            <Route path="/review/:itemId" element={guarded(<ReviewPost />)} />
-            <Route path="/review-queue" element={guarded(<Navigate to="/?bucket=review" replace />)} />
+            {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}
+            <Route path="/review/:itemId" element={<LegacyReviewRedirect />} />
+            <Route path="/review-queue" element={<Navigate to="/?bucket=review" replace />} />
             {/* Legacy redirects — bookmark safety */}
             <Route path="/hub" element={<Navigate to="/stories" replace />} />
             <Route path="/calendar" element={<Navigate to="/stories?view=calendar" replace />} />
