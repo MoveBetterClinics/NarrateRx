@@ -5,6 +5,7 @@ import StoriesFilters from '@/components/stories/StoriesFilters'
 import StoriesCardsView from '@/components/stories/StoriesCardsView'
 import StoriesPipelineView from '@/components/stories/StoriesPipelineView'
 import StoriesCalendarView from '@/components/stories/StoriesCalendarView'
+import StoriesThemesView from '@/components/stories/StoriesThemesView'
 
 /**
  * Stories page — top-level IA surface.
@@ -35,6 +36,8 @@ export default function Stories() {
         <StoriesPipelineView stories={stories} isLoading={isLoading} />
       ) : view === 'calendar' ? (
         <StoriesCalendarView stories={stories} isLoading={isLoading} />
+      ) : view === 'themes' ? (
+        <StoriesThemesView stories={stories} isLoading={isLoading} />
       ) : (
         <StoriesCardsView stories={stories} isLoading={isLoading} />
       )}
