@@ -83,6 +83,24 @@ async function handler(req, res) {
       return res.status(500).json({ error: 'Database error (upsert)', detail: text })
     }
     const row = await upRes.json()
+
+    // When the brand book is assigned, sync its extracted guidelines to the
+    // workspace row so prompts can read them without a separate brand-kit query.
+    if (role === 'brand_book') {
+      const assetRes = await sb(`brand_assets?select=ai_classification&id=eq.${encodeURIComponent(assetId)}&limit=1`)
+      if (assetRes.ok) {
+        const assetRows = await assetRes.json()
+        const guidelines = assetRows?.[0]?.ai_classification?.extracted_guidelines
+        if (guidelines) {
+          await sb(`workspaces?id=eq.${scope.id}`, {
+            method: 'PATCH',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ brand_guidelines: guidelines }),
+          })
+        }
+      }
+    }
+
     return res.status(200).json({ ok: true, row: row?.[0] || null })
   }
 

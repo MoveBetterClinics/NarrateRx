@@ -91,6 +91,7 @@ export default async function handler(req, res) {
       interview.voice_mode || 'practice',
       interview.tone || 'smart',
       voiceNotes,
+      ws.brand_guidelines || '',
     )
     if (!systemPrompt) throw new Error(`No prompt defined for ${atom.platform}/${atom.angle}`)
 

@@ -10,6 +10,7 @@ import {
   scoreRoleCandidates,
   inferImageAttributes,
 } from '../_lib/brandKitClassifier.js'
+import { extractBrandGuidelines } from '../_lib/brandGuidelinesExtractor.js'
 
 // Brand-asset upload — same two-phase Vercel Blob pattern as /api/media/upload
 // (handshake at body.type='blob.generate-client-token', server-side insert at
@@ -160,14 +161,44 @@ async function handler(req, res) {
           // would retry the webhook and we'd end up with N stale blobs for one
           // failed row.
           console.error('brand_assets insert failed:', ins.status, await ins.text())
+          waitUntil(Promise.resolve())
+          return
         }
 
-        // No follow-up pipeline (no AI tagging, no segmentation). The classifier
-        // is synchronous and its output already lives on the row. The waitUntil
-        // is retained as a no-op extension point for the future re-classify
-        // path (e.g. user-overridden background, "re-score against latest
-        // heuristic"). Cheap to keep; expensive to add later.
-        waitUntil(Promise.resolve())
+        const inserted = (await ins.json())?.[0]
+        const isBrandBook = ai_classification.role_candidates?.[0]?.role === 'brand_book'
+
+        // For brand book PDFs, extract guidelines asynchronously — text parsing
+        // and an AI call can take 10–30s, so we hand it off to waitUntil so the
+        // webhook returns 200 immediately and Vercel continues it in the background.
+        if (isBrandBook && inserted?.id && blob.contentType === 'application/pdf') {
+          waitUntil(
+            extractBrandGuidelines(blob.url).then(async (guidelines) => {
+              if (!guidelines) return
+              // Store extracted text in ai_classification so it travels with the asset.
+              const updatedClassification = { ...ai_classification, extracted_guidelines: guidelines }
+              const upd = await sb(`brand_assets?id=eq.${inserted.id}`, {
+                method: 'PATCH',
+                headers: { Prefer: 'return=minimal' },
+                body: JSON.stringify({ ai_classification: updatedClassification }),
+              })
+              if (!upd.ok) {
+                console.error('brand_assets guideline patch failed:', upd.status, await upd.text())
+                return
+              }
+              // Sync to workspace so prompts can read brand_guidelines from the
+              // workspace row without an extra brand-kit query.
+              const ws = await sb(`workspaces?id=eq.${scopeId}`, {
+                method: 'PATCH',
+                headers: { Prefer: 'return=minimal' },
+                body: JSON.stringify({ brand_guidelines: guidelines }),
+              })
+              if (!ws.ok) console.error('workspace brand_guidelines sync failed:', ws.status, await ws.text())
+            }).catch((e) => console.error('brand guideline extraction failed:', e?.message))
+          )
+        } else {
+          waitUntil(Promise.resolve())
+        }
       },
     })
 

@@ -86,13 +86,17 @@ function buildPrompt(ws, topPerformers = []) {
     ? '- Build on the angles that are already resonating — generate follow-up topics or adjacent questions that would appeal to the same audience'
     : ''
 
+  const brandBlock = ws.brand_guidelines
+    ? `BRAND GUIDELINES:\n${ws.brand_guidelines}\n`
+    : ''
+
   return `You are helping a healthcare practice generate interview topics for their clinician content marketing.
 
 PRACTICE: ${ws.display_name}
 LOCATION: ${location}
 PRACTICE CONTEXT: ${practiceType}
 AUDIENCE: ${audience}
-${performersBlock}
+${brandBlock}${performersBlock}
 Generate exactly 5 specific, patient-focused questions that patients at this practice are likely asking this month.
 
 Requirements:
