@@ -1,10 +1,14 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
+import TranscriptHighlighter from './TranscriptHighlighter'
 
 /**
  * TranscriptPane — displays the interview transcript for a story.
  *
  * Renders cleaned_messages if available, falls back to messages.
  * Each message is labeled Clinician / Interviewer per its role.
+ *
+ * Wrapped in TranscriptHighlighter so the user can select any span of text
+ * and instantly route it to Social, GBP, or Verbatim Quote formats.
  */
 export default function TranscriptPane({ story }) {
   if (!story) return null
@@ -38,19 +42,24 @@ export default function TranscriptPane({ story }) {
         {cleaned.length > 0 && (
           <p className="text-xs text-muted-foreground mt-0.5">Showing cleaned version</p>
         )}
+        <p className="text-xs text-muted-foreground mt-0.5 italic">
+          Select any text to route it to a content format
+        </p>
       </div>
-      <ScrollArea className="h-[520px]">
-        <div className="p-4 space-y-3">
-          {display.map((m, i) => (
-            <div key={i} className="text-xs leading-relaxed">
-              <span className={`font-medium ${m.role === 'user' ? 'text-primary' : 'text-muted-foreground'}`}>
-                {m.role === 'user' ? 'Clinician: ' : 'Interviewer: '}
-              </span>
-              <span className="text-foreground/90">{m.content}</span>
-            </div>
-          ))}
-        </div>
-      </ScrollArea>
+      <TranscriptHighlighter story={story}>
+        <ScrollArea className="h-[520px]">
+          <div className="p-4 space-y-3">
+            {display.map((m, i) => (
+              <div key={i} className="text-xs leading-relaxed">
+                <span className={`font-medium ${m.role === 'user' ? 'text-primary' : 'text-muted-foreground'}`}>
+                  {m.role === 'user' ? 'Clinician: ' : 'Interviewer: '}
+                </span>
+                <span className="text-foreground/90">{m.content}</span>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+      </TranscriptHighlighter>
     </div>
   )
 }
