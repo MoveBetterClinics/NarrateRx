@@ -4,6 +4,7 @@ const VIEWS = [
   { key: 'cards',    label: 'Cards' },
   { key: 'pipeline', label: 'Pipeline' },
   { key: 'calendar', label: 'Calendar' },
+  { key: 'themes',   label: 'Themes' },
 ]
 
 /**
@@ -41,14 +42,6 @@ export default function StoriesViewToggle() {
           </button>
         )
       })}
-      <button
-        type="button"
-        disabled
-        className="px-3 py-1.5 text-sm text-gray-300 rounded-md cursor-not-allowed"
-        title="Coming soon"
-      >
-        Themes
-      </button>
     </div>
   )
 }
