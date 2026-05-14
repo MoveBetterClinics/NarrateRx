@@ -1,5 +1,5 @@
 # NarrateRx — Development Roadmap
-_Created 2026-05-13. Source: competitive landscape + UI research synthesis._
+_Created 2026-05-13. Updated 2026-05-14 — Phases 1–3 + Billing complete._
 
 ## North Star
 The only end-to-end staff storytelling → clinical content pipeline. Not a general content tool. Not a research tool. The specific intersection of structured prompted capture + voice-faithful AI drafting + vertical context depth — for healthcare and professional clinical settings.
@@ -23,178 +23,198 @@ The only end-to-end staff storytelling → clinical content pipeline. Not a gene
 
 ---
 
-## Phase 1 — Revenue Foundation (5–7 weeks)
-**Thesis:** You can't validate a SaaS without charging for it. Ship the prerequisites for real commercial relationships first.
+## Phase 1 — Revenue Foundation ✅ COMPLETE (2026-05-14)
 
-### Billing
-- Stripe integration with 2–3 tiers (solo clinician, small practice, multi-location)
-- Self-serve upgrade/downgrade from workspace settings
-- Usage gates that nudge rather than hard-block
-- Seat-based expansion built in — approval workflow creates natural pressure for a second seat
+### IA Refactor (PRs #370–376)
+- ✅ 2-item nav (Home / Stories) + Library + Settings as header icons
+- ✅ Home = task queue (Ready for content / Awaiting review / Hasn't interviewed in a while) + right rail
+- ✅ Stories = unified surface with Cards / Pipeline / Calendar / Themes view toggles
+- ✅ Story Detail = consolidated transcript + every derived asset + ask-Bernard panel
+- ✅ All legacy routes redirect cleanly; lint ratchet lowered 79 → 60
 
-### Content Approval Workflow
-- Role-split views: staff see "my drafts"; approvers see "needs review" and "scheduled"
-- Two-click approve, one-click reject with optional comment
-- Approved posts route directly to Buffer queue, no extra step
-- Lightweight audit trail: who approved what and when
+### Content Approval Workflow (PR #377)
+- ✅ Role-split: staff submit for review, admin/editor approve or request changes
+- ✅ Two-click approve, one-click reject with inline comment thread
+- ✅ Approved posts route to Buffer queue
+- ✅ Audit trail: approved_by + approved_at on every piece
+- ✅ `content_item_comments` table with kind: comment | change_request
+- ✅ `workspaces.skip_review` escape hatch for single-user workspaces
 
-### UX: Collapse Pre-Interview Config
-- Default everything to "Smart" — tone, voice mode, patient prototype all pre-selected
-- Single "Adjust" disclosure for anyone who wants control
-- Zero-config should be the path for 80% of sessions
-- Pre-interview device/mic check screen before session starts (Strella pattern)
+### UX Improvements (PRs #369, #374)
+- ✅ Smart defaults on New Interview (zero-config path)
+- ✅ Mic check gate before session starts
+- ✅ Completion card + slide output panel at INTERVIEW_COMPLETE
+- ✅ "+ New Interview" CTA persistent across all pages
 
-### UX: Interview → Output Inline Transition
-- When `INTERVIEW_COMPLETE` fires, slide output panel in from the right — no page navigation
-- Conversation stays left; blog/social tabs appear right
-- URL updates (`/interview/:id/output`) without a full page transition
-- Eliminates the hardest context break in the current flow
-
-### UX: New IA — 2-item nav + task-queue Home + Stories surface
-- **Promoted from Phase 2** because it's the chassis Phase 1 approval workflow + billing settings need to live in. Building those into the old Dashboard/Settings means rebuilding them when the IA lands. Ship the chassis once.
-- Primary nav collapses from 4 items (Interviews / Content Hub / Media / Strategy) to 2 (Home / Stories). Library + Settings become header icons. Strategy page deleted; topic backlog surfaces inline on Home.
-- **Home** = task queue ("Ready for content / Awaiting your review / Hasn't interviewed in a while" + right rail with Scheduled / Topic suggestions / Bernard nudges). Replaces the current clinician-list Dashboard.
-- **Stories** = unified surface with view-mode toggle (Cards default · Pipeline · Calendar · Themes later). Same dataset, different lens. Replaces Content Hub, /review/*, /calendar/*.
-- **Story Detail page** consolidates /output/:id and /review/:itemId into a single page (transcript left, every derived asset + ask-Bernard panel right). Supersedes the "drawer-based review" idea from the prior P2 plan — same intent, better surface.
-- Persistent "+ New Interview" CTA in the header.
-
-### UX: Workspace Settings — sidebar-nav refactor
-- Today's `/settings/workspace` is one long form with ~11 sections; the file is becoming unmaintainable and the IA hides what's tenant-editable.
-- Refactor to sidebar nav with sub-routes: **Workspace** (General · Bernard & voice · Locations · Output channels · Integrations · Brand kit) · **People** (Members & roles · Clinicians) · **Account** (Plan & billing · Audit log).
-- Each sub-page owns its own dirty state + save bar — no more single mega-save.
-- Lands with the Phase 1 IA work for the same chassis reason: billing UI and approval-workflow config need a home, and that home should be the new sidebar, not the legacy long-form page.
-- Breadcrumb header (`Settings / Bernard & voice`) replaces the floating top save bar.
-- Mockup reference: `.claude/mockups/media-and-settings.html` Page B.
-
-### Interview Pause/Resume
-- State persists server-side; staff can close the browser and return
-- Clinical settings mean constant interruptions — a session that can't be paused gets abandoned
+### Interview Pause/Resume (PR #378)
+- ✅ Session state persisted to `interviews.session_state` JSONB
+- ✅ Auto-save on message change (debounced 3s)
+- ✅ sendBeacon on tab hide/close for zero-loss saves
+- ✅ "Pause & save" button navigates to Home
+- ✅ ResumeStrip on Home shows genuinely paused sessions
 
 **Success metric:** First external tenant pays and completes ≥2 interviews in 30 days.
 
 ---
 
-## Phase 2 — The Clinical Moat (6–8 weeks)
-**Thesis:** Features that require the vertical context layer or the cross-staff mechanic — neither of which any competitor has. This is what makes NarrateRx impossible to replicate with Castmagic + Buffer.
+## Phase 2 — The Clinical Moat ✅ COMPLETE (2026-05-14)
 
-### Transcript Highlight → Route-to-Format
-- In the interview transcript, select any text span → one-click route to a specific output format
-- Options: "Add to social post / Add to GBP / Flag as verbatim quote"
-- Replaces batch generation from full interview with selective, editorial curation
-- No competitor has this in a live interview context
+### Transcript Highlight → Route-to-Format (PR #380)
+- ✅ Select any transcript text → floating popover → Social / GBP / Verbatim Quote
+- ✅ Creates new content_item draft instantly; AssetsPane refreshes
 
-### Cross-Staff Synthesis — "Themes" view on Stories
-- Aggregate view across sessions: "3 staff mentioned recovery time this month — here are the contrasting perspectives"
-- Builds on the `[CONTRAST]` mechanic but surfaces it at the workspace level, not just mid-interview
-- **Implemented as a 4th view-mode toggle on the Stories page** (Cards · Pipeline · Calendar · Themes) — same dataset, lens-grouped by theme/topic rather than by clinician or time
-- Each theme card shows: the topic, which staff have spoken to it, contrasting views surfaced, and a "Build content from this theme" CTA
-- Makes monthly content planning take 20 minutes instead of 2 hours
+### Transcript Export (PR #379)
+- ✅ PDF export via browser print (no library dependency)
+- ✅ TXT download via Blob API
+- ✅ Disabled with tooltip when transcript not yet available
 
-### Geo-Local Topic Intelligence
-- "Here are 5 questions your local patients are asking this month" rather than generic prompts
-- Requires a data source (Semrush API or DataForSEO); evaluate cost vs. build
-- Closes the gap between topic discovery and interview prompt generation
+### Cross-Staff Synthesis — Themes view (PR #381)
+- ✅ 4th toggle on Stories page (Cards · Pipeline · Calendar · Themes)
+- ✅ Groups stories by shared topic across clinicians
+- ✅ Contrasting perspectives row per theme
+- ✅ Stage-distribution dots; "Build content from this theme →" CTA
 
-### Stories — Pipeline view toggle
-- Second view-mode on the Stories page: horizontal Kanban (Capture → Drafting → Review → Scheduled → Published) showing the same dataset as the default Cards view
-- Best lens for tracking many stories in flight across multiple clinicians
-- Drag cards across stages
+### Geo-Local Topic Intelligence (PR #382)
+- ✅ AI-generated patient questions per workspace specialty (Claude API)
+- ✅ 7-day server-side cache in `workspaces.ai_topics_cache`
+- ✅ Clickable chips navigate to `/new?topic=…`
+- ✅ Refresh button busts server cache
 
-### Stories — Calendar view toggle
-- Third view-mode on Stories: week / month grid with publish slots
-- Drag drafts from an "Unscheduled" rail onto date cells
-- Best lens for cadence planning
+### Media Library Redesign (PR #383)
+- ✅ Visual grid (Apple Photos / Figma feel) — 5-column responsive
+- ✅ Hover overlay with asset name + quick actions
+- ✅ Clinician initial badge (bottom-left per cell)
+- ✅ Filter chips: Type / Clinician / Purpose (URL-persisted)
+- ✅ Bulk selection bar with download + delete
 
-### Bernard & voice — deep settings
-- Persona controls: AI interviewer name (currently hardcoded "Bernard"), greeting tone (Warm & curious / Direct & efficient / Playful), opening-line override.
-- Probe-depth sliders per tone: Quick (5 turns) / Story (8 turns) / Deep (12 turns) — tone choice on the new-interview screen picks one, the slider lets admins tune what each tone means in their workspace.
-- AI-behavior toggles (each is a real prompt/flow change, not just a knob):
-  - Emotional-weight detection (soften follow-ups + flag candidate verbatims)
-  - Cross-staff contrast probe (already partially built — expose the toggle)
-  - Prior-interview surfacing (Bernard references the clinician's earlier interviews)
-  - Mic-check gate before interview
-- New `workspace_settings_bernard` columns or a JSONB extension on `workspaces` — TBD during scoping.
-- This is the largest behavior-change item in P2; size as 1–2 weeks once scoped.
-
-### Media Library redesign
-- Visual grid (Apple Photos / Figma assets feel) replacing the current MediaHub layout
-- Every interview-derived asset shows source clinician + "used ×N" badge linking back to the Story Detail page that consumed it
-- Filter chips for type/purpose/clinician with **inline counts** ("All · 312", "🎬 Video · 47"); bulk selection bar for tagging/deletion
-- **Date-grouped sections** (Recent · last 7 days / Earlier this month / older) replacing flat infinite scroll
-- Media becomes a header-icon utility, not primary nav (already moved in P1 IA refactor — this is the polish pass)
-- Mockup reference: `.claude/mockups/media-and-settings.html` Page A.
-
-### Transcript Export
-- Downloadable PDF/text artifact of any interview
-- Table stakes — every comparable offers this
-
-**Success metric:** External tenants publish ≥4 pieces of content per month; admin retention at 60 days ≥70%.
+**Success metric:** External tenants publish ≥4 pieces/month; admin retention at 60 days ≥70%.
 
 ---
 
-## 60-Day Validation Gate (between Phase 1 and 2)
-Before committing to Phase 2, answer with real data:
+## 60-Day Validation Gate
+Before committing further investment, answer with real data:
 1. Do external tenants complete ≥2 interviews in the first 30 days?
 2. Do they publish content from those interviews?
 3. Do they renew after month 1?
 
-If no to any of these, something earlier in the funnel is the problem — not missing Phase 2 features.
+If no to any of these, something earlier in the funnel is the problem — not missing features.
 
 ---
 
-## Phase 3 — Retention & Expansion (6–8 weeks)
-**Thesis:** The analytics closed loop is the slow-burn churn risk. Admins who can't see whether the content is working will go find that answer somewhere else.
+## Phase 3 — Retention & Expansion ✅ COMPLETE (2026-05-14)
 
-### Buffer Analyze Integration
-- Pull published post performance back into NarrateRx (reach, engagement, clicks)
-- Show it on the content card alongside the post — no separate tab, no separate login
-- Do NOT rebuild this. Integrate Buffer Analyze API.
+### Buffer Analyze Integration (PR #384)
+- ✅ `/api/buffer-analytics` fetches per-item metrics from Buffer API
+- ✅ `buffer_metrics` JSONB cached on content_items (30-min TTL)
+- ✅ BufferMetricsRow shows Reach / Engagement / Clicks inline on Story Detail
+- ✅ Refresh button per piece
 
-### Performance → Topic Suggestions Feedback Loop
-- Posts that perform well feed back into the topic suggestion layer
-- "Your posts about recovery timelines get 3x the engagement — here are 5 more angles"
-- The flywheel: publish → learn → interview → publish better
+### Performance → Topic Feedback Loop (PR #385)
+- ✅ `/api/topic-suggestions` enriched with top-performing posts as Claude context
+- ✅ "What's working" card in Home right rail (top 3 by reach)
+- ✅ New workspaces with zero metrics fall back to generic prompt
 
-### Self-Serve Onboarding + Trial
-- In-context AI coaching on first session (blank canvas shows contextual prompts, not an empty state)
-- 14-day trial with real credit card capture — no free tier
-- Activation checklist on first login: complete profile → run first interview → generate post → publish
-- Checklist completion is the single best predictor of 90-day retention in B2B SaaS
+### Self-Serve Onboarding + 14-Day Trial (PR #386)
+- ✅ Trial columns on workspaces: `trial_started_at`, `trial_ends_at` (14 days), `onboarding_steps_done`, `plan`
+- ✅ 4-step activation checklist (complete profile → interview → generate post → publish)
+- ✅ `/api/onboarding/progress` auto-detects completion from real DB state
+- ✅ TrialBanner: X days remaining, amber when ≤3 days, dismissible per session
+- ✅ In-context empty state coaching on Stories page for new workspaces
 
-### Multi-Location Support
-- Single admin view across multiple clinic locations
-- Per-location cross-staff synthesis
-- The expansion revenue lever — practices that grow don't leave, they upgrade
+### Multi-Location Support (PR #388)
+- ✅ `/api/db/locations` endpoint — workspace-scoped location list
+- ✅ Location filter chips on Stories (URL-persisted `?location=`)
+- ✅ Per-location theme grouping in Themes view
+- ✅ Admin Locations overview card in Home right rail (2+ locations)
 
 **Success metric:** Net Revenue Retention ≥100% (expansion revenue offsets churn).
 
 ---
 
-## Pricing Direction
-| Tier | Price | Who |
-|------|-------|-----|
-| Solo / small practice (1–3 staff) | $149/mo | Single-location, small team |
-| Practice (4–10 staff) | $299/mo | Includes approval workflow + cross-staff synthesis |
-| Multi-location | $499+/mo | Per-location pricing, aggregate dashboard |
+## Billing ✅ COMPLETE (2026-05-14) — PR #391
 
-Outset/Listen Labs are at $3K+/mo for enterprise. NarrateRx isn't competing there yet — but the pricing architecture should leave room to move up.
+### Stripe Integration
+- ✅ 3 tiers: Solo $149/mo (1–3 staff), Practice $299/mo (4–10), Multi-location $499/mo
+- ✅ Self-serve checkout via Stripe hosted checkout (`/api/billing/checkout`)
+- ✅ Stripe Billing Portal for plan changes, card updates, cancellation (`/api/billing/portal`)
+- ✅ Webhook handler with HMAC-SHA256 verification (`/api/billing/webhook`)
+- ✅ PricingCards component in WorkspaceSettings Billing section
+- ✅ UsageGate component — soft upsell nudge for plan-gated features
+- ✅ Themes view gated at Practice plan
+- ✅ `billing=success` toast on return from Stripe checkout
+- ✅ TrialBanner "Upgrade now" links to billing section
+
+### Env vars to configure in Vercel dashboard (not yet set)
+| Var | Sensitivity |
+|-----|-------------|
+| `STRIPE_SECRET_KEY` | **Sensitive** |
+| `STRIPE_WEBHOOK_SECRET` | **Sensitive** |
+| `STRIPE_PRICE_SOLO` | Not sensitive |
+| `STRIPE_PRICE_PRACTICE` | Not sensitive |
+| `STRIPE_PRICE_MULTI` | Not sensitive |
+
+### Stripe webhook to register
+URL: `https://narraterx.ai/api/billing/webhook`
+Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
 
 ---
 
-## Gap Resolution Summary
-| Gap | Phase |
-|-----|-------|
-| No billing/payments | 1 |
-| No content approval workflow | 1 |
-| Fragmented UX (5 page navigations for one content piece) | 1 |
-| No pause/resume mid-session | 1 |
-| No analytics closed loop | 3 |
-| No self-serve trial/onboarding | 3 |
-| Dashboard organized around data not tasks | **1** (promoted — chassis for approval workflow + billing) |
-| Review requires page round-trip | **1** (Story Detail page supersedes drawer review) |
-| No transcript export | 2 |
-| No geo-local topic intelligence | 2 |
-| Stories needs lens variety (Pipeline / Calendar / Themes) | 2 |
-| Media library feels orphaned | 2 |
-| Workspace settings is one unmaintainable long form | **1** (sidebar refactor, lands with IA chassis) |
-| Bernard persona / probe depth / AI behaviors are hardcoded, not tenant-editable | 2 |
+## Exemplar Feedback Loop ✅ SHIPPED (parallel to Phase 3)
+Not in the original May 13 plan but landed alongside Phase 3. A second engagement path that feeds the regenerate prompt rather than the topic-suggestion prompt.
+
+### Tier 1 — Manual exemplar flag (PR #274)
+- ✅ `content_items.performed_well` boolean (migration 020)
+- ✅ Thumbs-up affordance on published items in ContentHub / Story Detail
+- ✅ `fetchTopExemplars` + `getExemplarsBlock` inject flagged rows into ReviewPost regenerate context (PR #281)
+
+### Tier 2 — Buffer-source auto-flagging (PRs #282, #283)
+- ✅ `engagement_snapshots` table (migration 021) — point-in-time stats history, source-pluggable
+- ✅ Manual refresh button + `/api/engagement/refresh` (#282)
+- ✅ Daily `/api/cron/refresh-engagement` (#283) — walks recent Buffer-published items, writes snapshots, auto-flips `performed_well` against a workspace+platform median × 2 with a 5-sample gate
+
+### Tier 3 — GA4 source for website-published content (PR #291)
+- ✅ `content_items.resolved_url` + `workspaces.ga4_property_id` (migration 022)
+- ✅ `workspace_credentials.service='ga4'` carries the service-account JSON
+- ✅ `api/_lib/ga4.js` — dependency-free GA4 Data API client (self-signed JWT → `runReport`)
+- ✅ Cron extended with parallel GA4 walker; separate pageviews-only median + 50-pageview absolute floor
+
+---
+
+## Open technical loose end — Engagement-systems reconciliation
+Two engagement-data paths shipped in parallel and haven't been unified:
+
+| Path | Storage | Surfaces | Use |
+|---|---|---|---|
+| **Exemplar loop** (Tiers 1/2/3) | `engagement_snapshots` + `content_items.performed_well` | (orphaned) `ReviewPost.EngagementPanel` — `ReviewPost` was retired by the IA refactor (#373) | Auto-flagging exemplars for the **regenerate** prompt |
+| **Buffer Analyze** (#384) | `content_items.buffer_metrics` + `buffer_metrics_fetched_at` (denormalized cache) | `BufferMetricsRow` on `StoryDetail` (current canonical UI) | Inline performance + input to **topic-suggestion** feedback (#385) |
+
+The Phase 3 topic-feedback loop reads `buffer_metrics`, not `performed_well`. The GA4 snapshots (Tier 3) write to `engagement_snapshots` but nothing live currently reads from there — so website-published content doesn't participate in "What's working" yet.
+
+**Reconciliation work (probably one PR, not urgent):**
+1. Decide canonical store. Likely `engagement_snapshots` — source-pluggable, multi-row historical, already carries GA4.
+2. Either migrate `BufferMetricsRow` to read from `engagement_snapshots`, or keep `buffer_metrics` as a denormalized cache fed by the snapshot writer.
+3. Have the topic-suggestion enrichment (#385) draw from the same store the exemplar auto-flag does — so the two halves of the loop reinforce each other instead of using divergent signals.
+4. Wire GA4 snapshots into the topic-feedback loop so website-published content participates in "What's working."
+5. Either delete the orphan `ReviewPost.EngagementPanel` or remount its GA4-aware version inside `AssetsPane` on `StoryDetail`.
+
+---
+
+## Pricing
+| Tier | Price | Who |
+|------|-------|-----|
+| Solo | $149/mo | 1–3 staff, single location |
+| Practice | $299/mo | 4–10 staff, approval workflow + cross-staff synthesis + multi-location |
+| Multi-location | $499/mo | Unlimited staff, aggregate dashboard |
+
+Outset/Listen Labs are at $3K+/mo for enterprise. NarrateRx isn't competing there yet — but the pricing architecture leaves room to move up.
+
+---
+
+## What's Next
+The full roadmap is shipped. Priorities from here:
+
+1. **Configure Stripe** — set the 5 env vars + register webhook to make billing live
+2. **First paid tenant** — target a real external practice, walk them through onboarding, validate the 30-day interview completion metric
+3. **60-day validation gate** — before building anything new, answer the three retention questions above with real data
+4. **Engagement-systems reconciliation** — the one remaining technical debt item (see section above). Not urgent — both paths work standalone — but worth doing before more work lands on top of either store.
+5. **Revisit roadmap** — based on what the data says, either double down on retention (onboarding refinements, Bernard coaching) or expansion (more locations, more clinicians per workspace)
