@@ -114,6 +114,7 @@ export async function uploadBrandAsset(file, meta = {}, options = {}) {
     clientPayload: JSON.stringify({
       filename: file.name,
       uploadedBy: meta.uploadedBy || null,
+      fileSize: file.size || null,
     }),
   })
 }

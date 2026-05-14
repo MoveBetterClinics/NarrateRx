@@ -141,7 +141,7 @@ async function handler(req, res) {
           blob_url: blob.url,
           blob_pathname: blob.pathname,
           mime_type: blob.contentType,
-          byte_size: blob.size || null,
+          byte_size: blob.size || meta.fileSize || 0,
           original_filename: filename,
           width: attrs.width,
           height: attrs.height,
