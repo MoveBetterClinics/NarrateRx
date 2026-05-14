@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState, useCallback } from 'react'
 import {
   Upload, Search, Filter, Check, X, Sparkles, AlertCircle,
   FileText, Image as ImageIcon, Tag as TagIcon, RotateCcw, Loader2, Trash2,
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FIXTURE_ASSETS, ROLE_DEFS, FIXTURE_STYLE } from '@/components/brandKitFixtures'
 import { uploadBrandAsset } from '@/lib/brandKitLib'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useBrandKit,
   useAssignBrandRole,
@@ -283,6 +284,7 @@ function useMockupDataSource() {
     roleAssignments,
     style,
     uploading: false,
+    uploadProgress: null,
     assignRole: (role, assetId) => {
       setRoleAssignments((prev) => {
         const n = { ...prev }
@@ -308,7 +310,9 @@ function useLiveDataSource() {
   const clearMut   = useClearBrandRole()
   const styleMut   = useUpdateBrandStyle()
   const deleteMut  = useDeleteBrandAsset()
-  const [uploading, setUploading] = useState(false)
+  // { done, total, name } while uploading; null when idle.
+  const [uploadProgress, setUploadProgress] = useState(null)
+  const qc = useQueryClient()
 
   // The DB column is `original_filename`; the view (and fixtures) read
   // `filename`. Normalize at the data-source boundary so the rest of the
@@ -326,7 +330,8 @@ function useLiveDataSource() {
     assets,
     roleAssignments,
     style,
-    uploading,
+    uploading: !!uploadProgress,
+    uploadProgress,
     assignRole: async (role, assetId) => {
       try {
         if (assetId == null) await clearMut.mutateAsync({ role })
@@ -356,21 +361,25 @@ function useLiveDataSource() {
       } catch (e) { toast.error(e.message || 'Failed to apply suggested roles') }
     },
     uploadFiles: async (files) => {
-      // Sequential upload — Vercel Blob handles each direct, but the server
-      // classifier holds the function alive briefly for sharp analysis.
-      // Sequential keeps the user's "what just uploaded" indicator coherent
-      // and avoids rate-limit blowback on a large folder dump.
-      setUploading(true)
+      if (!files.length) return
+      setUploadProgress({ done: 0, total: files.length, name: files[0].name })
+      let succeeded = 0
       try {
-        for (const file of files) {
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i]
+          setUploadProgress({ done: i, total: files.length, name: file.name })
           try {
             await uploadBrandAsset(file)
+            succeeded++
           } catch (e) {
             toast.error(`${file.name}: ${e.message || 'upload failed'}`)
           }
         }
       } finally {
-        setUploading(false)
+        setUploadProgress(null)
+        if (succeeded > 0) {
+          qc.invalidateQueries({ queryKey: ['brandKit'] })
+        }
       }
     },
     deleteAsset: async (id) => {
@@ -426,7 +435,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
   const liveSource   = useLiveDataSource()
   const mockSource   = useMockupDataSource()
   const ds           = mockup ? mockSource : liveSource
-  const { assets, roleAssignments, style, isLoading, error, uploading } = ds
+  const { assets, roleAssignments, style, isLoading, error, uploading, uploadProgress } = ds
   // Keep the original local-state aliases used below as setters → forward to
   // the data source so the rest of the component code stays the same.
   const setRoleAssignments = (next) => {
@@ -630,9 +639,17 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
             <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
           )}
           <p className="text-sm font-medium mb-0.5">
-            {uploading ? 'Uploading…' : 'Drop logo files, a whole folder, or click to browse'}
+            {uploadProgress
+              ? `Uploading ${uploadProgress.done + 1} of ${uploadProgress.total}…`
+              : 'Drop logo files, a whole folder, or click to browse'}
           </p>
-          <p className="text-xs text-muted-foreground">SVG, PNG, JPG, WebP, PDF · uploads stay private to your workspace</p>
+          {uploadProgress ? (
+            <p className="text-xs text-muted-foreground truncate max-w-xs mx-auto" title={uploadProgress.name}>
+              {uploadProgress.name}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">SVG, PNG, JPG, WebP, PDF · uploads stay private to your workspace</p>
+          )}
         </div>
         <input
           ref={fileInputRef}
