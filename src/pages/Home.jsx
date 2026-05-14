@@ -21,7 +21,7 @@ const RESUME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 export default function Home() {
   useDocumentTitle('Home')
   const { user } = useUser()
-  const { canReview } = useUserRole()
+  const { canReview, role } = useUserRole()
   const runtimeWorkspace = useWorkspace()
   const [searchParams] = useSearchParams()
 
