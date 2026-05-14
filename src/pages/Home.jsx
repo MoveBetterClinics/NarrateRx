@@ -277,7 +277,7 @@ export default function Home() {
 
         {/* Right rail — hidden on smaller viewports */}
         <div className="w-72 flex-shrink-0 hidden lg:block">
-          <HomeRightRail stories={stories} />
+          <HomeRightRail stories={stories} isAdmin={role === 'admin'} />
         </div>
       </div>
 

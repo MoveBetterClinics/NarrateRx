@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { CalendarClock, Sparkles, Bot, RefreshCw } from 'lucide-react'
+import { CalendarClock, Sparkles, Bot, RefreshCw, MapPin } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useTopicSuggestions, queryKeys } from '@/lib/queries'
+import { useTopicSuggestions, useLocations, queryKeys } from '@/lib/queries'
 
 const PLATFORM_LABELS = {
   facebook: 'Facebook',
@@ -34,11 +34,14 @@ function SuggestionSkeleton() {
 
 // Right rail for the Home page.
 // Props:
-//   stories — array from useStories() — we filter to upcoming scheduled pieces
-export default function HomeRightRail({ stories = [] }) {
+//   stories  — array from useStories() — we filter to upcoming scheduled pieces
+//   isAdmin  — boolean; shows the Locations overview card when true
+export default function HomeRightRail({ stories = [], isAdmin = false }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data, isLoading, isFetching } = useTopicSuggestions()
+
+  const { data: locations = [] } = useLocations()
 
   const now = Date.now()
   const in7Days = now + 7 * 24 * 60 * 60 * 1000
@@ -144,6 +147,41 @@ export default function HomeRightRail({ stories = [] }) {
           </ul>
         )}
       </div>
+
+      {/* Locations overview — admin only, 2+ locations */}
+      {isAdmin && locations.length > 1 && (
+        <div className="rounded-xl border bg-white shadow-sm">
+          <div className="flex items-center gap-2 px-4 py-3 border-b">
+            <MapPin className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold flex-1">Locations</h2>
+          </div>
+          <ul className="divide-y">
+            {locations.map((loc) => {
+              const locStories = stories.filter((s) => s.location_id === loc.id)
+              const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+              const thisMonth = locStories.filter(
+                (s) => s.updated_at && new Date(s.updated_at) >= monthStart
+              ).length
+              return (
+                <li key={loc.id} className="flex items-center justify-between gap-2 px-4 py-2.5">
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium truncate">{loc.label || loc.city}</p>
+                    {loc.city && loc.region && (
+                      <p className="text-[10px] text-muted-foreground">{loc.city}, {loc.region}</p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold tabular-nums">{locStories.length}</p>
+                    {thisMonth > 0 && (
+                      <p className="text-[10px] text-muted-foreground">+{thisMonth} mo</p>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
 
       {/* Bernard nudge — stub */}
       <div className="rounded-xl border bg-white shadow-sm">

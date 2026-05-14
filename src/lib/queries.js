@@ -91,6 +91,27 @@ export const queryKeys = {
   },
   topicSuggestions: ['topic-suggestions'],
   bufferMetrics: (contentItemId) => ['buffer-metrics', contentItemId],
+  locations: {
+    all:  ['locations'],
+    list: () => ['locations', 'list'],
+  },
+}
+
+// ── Locations ──────────────────────────────────────────────────────────────
+
+// Returns active workspace_locations ordered by position. Used for location
+// filter chips and the admin Locations overview on the Home page.
+// staleTime 5 min — location list changes rarely (new clinic added by admin).
+export function useLocations() {
+  return useQuery({
+    queryKey: queryKeys.locations.list(),
+    queryFn: async () => {
+      const r = await fetch('/api/db/locations', { credentials: 'include' })
+      if (!r.ok) return []
+      return r.json()
+    },
+    staleTime: 1000 * 60 * 5,
+  })
 }
 
 // ── Brand Kit ───────────────────────────────────────────────────────────────

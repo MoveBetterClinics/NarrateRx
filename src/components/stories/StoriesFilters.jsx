@@ -1,5 +1,6 @@
 import { useSearchParams } from 'react-router-dom'
 import { PLATFORM_META } from '@/lib/contentMeta'
+import { useLocations } from '@/lib/queries'
 
 const PLATFORMS = Object.keys(PLATFORM_META)
 
@@ -29,13 +30,19 @@ function Chip({ active, onClick, children }) {
 }
 
 /**
- * Horizontal filter chip row for platform and stage.
- * Writes to `?platform=` and `?stage=` in the URL.
+ * Horizontal filter chip row for platform, stage, and location.
+ * Writes to `?platform=`, `?stage=`, and `?location=` in the URL.
+ * The Location group only renders when the workspace has 2+ active locations.
  */
 export default function StoriesFilters() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activePlatform = searchParams.get('platform') || ''
   const activeStage = searchParams.get('stage') || ''
+  const activeLocation = searchParams.get('location') || ''
+
+  const { data: locations = [] } = useLocations()
+  // Only show location filter when there are multiple locations
+  const showLocations = locations.length > 1
 
   function setPlatform(key) {
     setSearchParams((prev) => {
@@ -51,6 +58,15 @@ export default function StoriesFilters() {
       const next = new URLSearchParams(prev)
       if (key) next.set('stage', key)
       else next.delete('stage')
+      return next
+    }, { replace: true })
+  }
+
+  function setLocation(id) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (id) next.set('location', id)
+      else next.delete('location')
       return next
     }, { replace: true })
   }
@@ -77,6 +93,19 @@ export default function StoriesFilters() {
           </Chip>
         ))}
       </div>
+
+      {/* Location filter — only when workspace has multiple locations */}
+      {showLocations && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="text-xs text-gray-400 font-medium mr-1">Location</span>
+          <Chip active={activeLocation === ''} onClick={() => setLocation('')}>All locations</Chip>
+          {locations.map((loc) => (
+            <Chip key={loc.id} active={activeLocation === loc.id} onClick={() => setLocation(loc.id)}>
+              {loc.label || loc.city}
+            </Chip>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

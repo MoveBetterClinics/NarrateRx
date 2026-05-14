@@ -41,9 +41,12 @@ export default function StoriesCardsView({ stories = [], isLoading = false }) {
     )
   }
 
+  const locationFilter = searchParams.get('location') || ''
+
   const filtered = stories.filter((s) => {
     if (platformFilter && !s.pieces?.some((p) => p.platform === platformFilter)) return false
     if (stageFilter && s.story_stage !== stageFilter) return false
+    if (locationFilter && s.location_id !== locationFilter) return false
     return true
   })
 

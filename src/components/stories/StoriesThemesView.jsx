@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { Users, ArrowRight, Layers } from 'lucide-react'
+import { useSearchParams } from 'react-router-dom'
+import { Users, ArrowRight, Layers, MapPin } from 'lucide-react'
+import { useLocations } from '@/lib/queries'
 
 // ── Stage dot colours ────────────────────────────────────────────────────────
 
@@ -227,12 +229,46 @@ function ThemesEmptyState() {
  * @param {{ stories: Array, isLoading: boolean }} props
  */
 export default function StoriesThemesView({ stories = [], isLoading = false }) {
+  const [searchParams] = useSearchParams()
+  const activeLocation = searchParams.get('location') || ''
+  const { data: locations = [] } = useLocations()
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <SkeletonThemeCard key={i} />
         ))}
+      </div>
+    )
+  }
+
+  // When a location filter is active, show "This location" header then themes
+  // filtered to that location. When no filter, show all shared themes as before.
+  if (activeLocation) {
+    const locationLabel = locations.find((l) => l.id === activeLocation)?.label
+      || locations.find((l) => l.id === activeLocation)?.city
+      || 'This location'
+    const locationStories = stories.filter((s) => s.location_id === activeLocation)
+    const groups = groupByTopic(locationStories)
+    const sharedThemes = groups.filter((g) => g.stories.length >= 2)
+
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-2">
+          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <h2 className="text-sm font-semibold text-gray-700">{locationLabel}</h2>
+          <span className="text-xs text-gray-400">{locationStories.length} stories</span>
+        </div>
+        {sharedThemes.length === 0 ? (
+          <ThemesEmptyState />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {sharedThemes.map((g) => (
+              <ThemeCard key={g.topic} topic={g.topic} stories={g.stories} />
+            ))}
+          </div>
+        )}
       </div>
     )
   }
