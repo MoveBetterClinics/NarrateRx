@@ -90,6 +90,7 @@ export const queryKeys = {
     list: (contentItemId) => ['comments', contentItemId],
   },
   topicSuggestions: ['topic-suggestions'],
+  topPerformers:    ['top-performers'],
   bufferMetrics: (contentItemId) => ['buffer-metrics', contentItemId],
   locations: {
     all:  ['locations'],
@@ -488,6 +489,29 @@ export function useTopicSuggestions() {
       return r.json()
     },
     staleTime: 1000 * 60 * 60 * 6, // 6h client-side cache
+  })
+}
+
+// ── Top performers ──────────────────────────────────────────────────────────
+//
+// Fetches published content items, filters to those with buffer_metrics, and
+// returns the top 3 by reach for the "What's working" insight panel.
+// Stale time is 1h — metrics settle over hours, not seconds.
+
+export function useTopPerformers() {
+  return useQuery({
+    queryKey: queryKeys.topPerformers,
+    queryFn: async () => {
+      const r = await fetch('/api/db/content?status=published&limit=20', { credentials: 'include' })
+      if (!r.ok) return []
+      const items = await r.json()
+      if (!Array.isArray(items)) return []
+      return items
+        .filter((i) => i.buffer_metrics?.reach || i.buffer_metrics?.engagement)
+        .sort((a, b) => (b.buffer_metrics?.reach || 0) - (a.buffer_metrics?.reach || 0))
+        .slice(0, 3)
+    },
+    staleTime: 1000 * 60 * 60, // 1h
   })
 }
 

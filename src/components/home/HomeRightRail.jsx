@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
-import { CalendarClock, Sparkles, Bot, RefreshCw, MapPin } from 'lucide-react'
+import { CalendarClock, Sparkles, Bot, RefreshCw, MapPin, TrendingUp } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useTopicSuggestions, useLocations, queryKeys } from '@/lib/queries'
+import { useTopicSuggestions, useLocations, useTopPerformers, queryKeys } from '@/lib/queries'
 
 const PLATFORM_LABELS = {
   facebook: 'Facebook',
@@ -40,6 +40,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { data, isLoading, isFetching } = useTopicSuggestions()
+  const { data: topPerformers = [] } = useTopPerformers()
 
   const { data: locations = [] } = useLocations()
 
@@ -108,6 +109,36 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
           </ul>
         )}
       </div>
+
+      {/* What's working — top performers by reach */}
+      {topPerformers.length > 0 && (
+        <div className="rounded-xl border bg-white shadow-sm">
+          <div className="flex items-center gap-2 px-4 py-3 border-b">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold flex-1">What&apos;s working</h2>
+          </div>
+          <ul className="divide-y">
+            {topPerformers.map((item) => (
+              <li key={item.id} className="px-4 py-2.5 flex flex-col gap-0.5">
+                <span className="text-xs font-medium text-foreground truncate leading-snug">
+                  {item.topic || 'Untitled'}
+                </span>
+                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  <span>{PLATFORM_LABELS[item.platform] || item.platform}</span>
+                  {item.buffer_metrics?.reach > 0 && (
+                    <span className="font-medium text-emerald-600">
+                      {item.buffer_metrics.reach.toLocaleString()} reach
+                    </span>
+                  )}
+                  {item.buffer_metrics?.engagement > 0 && (
+                    <span>{item.buffer_metrics.engagement} engagements</span>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Topic suggestions — AI-generated patient questions */}
       <div className="rounded-xl border bg-white shadow-sm">

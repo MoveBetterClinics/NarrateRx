@@ -33,7 +33,44 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
-function buildPrompt(ws) {
+const PLATFORM_LABELS = {
+  facebook:  'Facebook',
+  instagram: 'Instagram',
+  linkedin:  'LinkedIn',
+  twitter:   'Twitter / X',
+  gbp:       'Google Business',
+  wordpress: 'Website',
+  email:     'Email',
+}
+
+// Fetch up to 20 published items that have buffer_metrics, sorted by engagement desc.
+// Returns an array of { topic, platform, reach, engagement } for the top 5 by reach.
+// Returns an empty array if nothing useful is found (new workspace, no metrics yet).
+async function fetchTopPerformers(wsId) {
+  try {
+    const r = await sb(
+      `content_items?workspace_id=eq.${encodeURIComponent(wsId)}&status=eq.published&buffer_metrics=not.is.null&select=topic,platform,buffer_metrics&order=created_at.desc&limit=20`,
+    )
+    if (!r.ok) return []
+    const items = await r.json().catch(() => [])
+    if (!Array.isArray(items) || items.length === 0) return []
+
+    return items
+      .filter((i) => i.buffer_metrics && (i.buffer_metrics.reach > 0 || i.buffer_metrics.engagement > 0))
+      .sort((a, b) => (b.buffer_metrics.reach || 0) - (a.buffer_metrics.reach || 0))
+      .slice(0, 5)
+      .map((i) => ({
+        topic:      i.topic || 'Untitled',
+        platform:   PLATFORM_LABELS[i.platform] || i.platform || 'Unknown',
+        reach:      i.buffer_metrics.reach || 0,
+        engagement: i.buffer_metrics.engagement || 0,
+      }))
+  } catch {
+    return []
+  }
+}
+
+function buildPrompt(ws, topPerformers = []) {
   const practiceType = ws.clinic_context
     || ws.audience_description
     || `${ws.display_name} healthcare practice`
@@ -41,13 +78,21 @@ function buildPrompt(ws) {
   const location = ws.location_keyword || ws.location || 'their local area'
   const audience = ws.audience_description || 'patients seeking healthcare'
 
+  const performersBlock = topPerformers.length > 0
+    ? `\nTop performing recent posts:\n${topPerformers.map((p) => `- "${p.topic}" on ${p.platform}: ${p.reach} reach, ${p.engagement} engagements`).join('\n')}\n`
+    : ''
+
+  const performersInstruction = topPerformers.length > 0
+    ? '- Build on the angles that are already resonating — generate follow-up topics or adjacent questions that would appeal to the same audience'
+    : ''
+
   return `You are helping a healthcare practice generate interview topics for their clinician content marketing.
 
 PRACTICE: ${ws.display_name}
 LOCATION: ${location}
 PRACTICE CONTEXT: ${practiceType}
 AUDIENCE: ${audience}
-
+${performersBlock}
 Generate exactly 5 specific, patient-focused questions that patients at this practice are likely asking this month.
 
 Requirements:
@@ -56,17 +101,18 @@ Requirements:
 - Include 1-2 questions that are seasonally or time-relevant to now (May 2026)
 - Make questions answerable in a short clinician video or article
 - No generic questions like "What should I know about my health?"
+${performersInstruction}
 
 Return ONLY a JSON array of 5 question strings. No explanation, no preamble, no markdown.
 Example format: ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]`
 }
 
-async function generateSuggestions(ws) {
+async function generateSuggestions(ws, topPerformers = []) {
   if (!process.env.AI_GATEWAY_API_KEY) {
     throw new Error('AI_GATEWAY_API_KEY is not set on this deployment')
   }
 
-  const systemPrompt = buildPrompt(ws)
+  const systemPrompt = buildPrompt(ws, topPerformers)
 
   const result = await generateText({
     model: 'anthropic/claude-sonnet-4-6',
@@ -137,9 +183,12 @@ export default async function handler(req, res) {
   }
 
   // Cache miss or forced refresh — call Claude
+  // Fetch top performers in parallel (fire best-effort; never block on failure)
+  const topPerformers = await fetchTopPerformers(ws.id)
+
   let suggestions
   try {
-    suggestions = await generateSuggestions(ws)
+    suggestions = await generateSuggestions(ws, topPerformers)
   } catch (e) {
     console.error('[topic-suggestions] AI call failed:', e.message)
     // Serve stale cache rather than an error if we have anything
@@ -163,7 +212,8 @@ export default async function handler(req, res) {
 
   return ok(res, {
     suggestions,
-    generatedAt: new Date().toISOString(),
-    fromCache:   false,
+    generatedAt:  new Date().toISOString(),
+    fromCache:    false,
+    topPerformers,
   })
 }
