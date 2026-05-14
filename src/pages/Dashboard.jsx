@@ -4,14 +4,14 @@ import { useUser, useAuth } from '@clerk/clerk-react'
 import {
   Plus, MessageSquare, Clock, ChevronRight, Users, Loader2, LayoutGrid, User, Tag,
   AlertCircle, FileText, Image as ImageIcon, Compass, Mic, TrendingUp, PlayCircle,
-  CheckCircle2, Circle, X, Sparkles, Settings, RefreshCw,
+  CheckCircle2, Circle, X, Sparkles, Settings, RefreshCw, MapPin,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { useClinicians } from '@/lib/queries'
+import { useClinicians, useLocations } from '@/lib/queries'
 import { listMedia } from '@/lib/mediaLib'
 import { useUserRole } from '@/lib/useUserRole'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
@@ -45,6 +45,7 @@ export default function Dashboard() {
   const { role } = useUserRole()
   const runtimeWorkspace = useWorkspace()
   const { data: clinicians = [], isLoading: loading, error: cliniciansError, refetch: refetchClinicians, isFetching: isRefetching } = useClinicians()
+  const { data: locations = [] } = useLocations()
   const error = cliniciansError?.message || ''
   const [hasMedia, setHasMedia] = useState(false)
   const [hasCredential, setHasCredential] = useState(false)
@@ -105,6 +106,10 @@ export default function Dashboard() {
   )
   const byTopic = useMemo(
     () => groupBy(allInterviews, (i) => i.topic),
+    [allInterviews]
+  )
+  const byLocation = useMemo(
+    () => groupBy(allInterviews, (i) => i.location_id || '__none__'),
     [allInterviews]
   )
   const existingTopics = useMemo(
@@ -203,6 +208,9 @@ export default function Dashboard() {
         cliniciansCount={clinicians.length}
         interviewsCount={allInterviews.length}
         completedCount={completedCount}
+        locations={locations}
+        allInterviews={allInterviews}
+        isAdmin={role === 'admin'}
       />
 
       {/* Resume strip — in-progress interviews within 14 days */}
@@ -232,6 +240,12 @@ export default function Dashboard() {
               <Tag className="h-3.5 w-3.5" />
               By Topic
             </TabsTrigger>
+            {locations.length > 1 && (
+              <TabsTrigger value="location" className="gap-2">
+                <MapPin className="h-3.5 w-3.5" />
+                By Location
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="clinician">
@@ -261,6 +275,16 @@ export default function Dashboard() {
           <TabsContent value="topic">
             <TopicView byTopic={byTopic} existingTopics={existingTopics} currentUserId={user?.id} workspace={runtimeWorkspace} />
           </TabsContent>
+
+          {locations.length > 1 && (
+            <TabsContent value="location">
+              <LocationView
+                locations={locations}
+                byLocation={byLocation}
+                currentUserId={user?.id}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       )}
     </div>
@@ -384,7 +408,7 @@ function GettingStarted({ cliniciansCount, completedCount, hasMedia = false, has
 
 // ── Launchpad ────────────────────────────────────────────────────────────────
 
-function LaunchpadTiles({ cliniciansCount, interviewsCount, completedCount }) {
+function LaunchpadTiles({ cliniciansCount, interviewsCount, completedCount, locations = [], allInterviews = [], isAdmin = false }) {
   const tiles = [
     {
       to: '/new',
@@ -445,6 +469,9 @@ function LaunchpadTiles({ cliniciansCount, interviewsCount, completedCount }) {
           <StatCard label="Interviews" value={interviewsCount} icon={<MessageSquare className="h-4 w-4" />} />
           <StatCard label="Completed" value={completedCount} icon={<Clock className="h-4 w-4" />} />
         </div>
+      )}
+      {isAdmin && locations.length > 1 && (
+        <LocationsOverview locations={locations} allInterviews={allInterviews} />
       )}
     </div>
   )
@@ -868,6 +895,109 @@ function NewClinicianTile() {
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+// ── Locations overview (admin right-rail) ────────────────────────────────────
+
+// Compact card grid showing each location's interview count this month.
+// Shown to admins when the workspace has 2+ active locations.
+function LocationsOverview({ locations, allInterviews }) {
+  const now = new Date()
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+
+  const stats = locations.map((loc) => {
+    const locInterviews = allInterviews.filter((i) => i.location_id === loc.id)
+    const thisMonth = locInterviews.filter(
+      (i) => i.updated_at && new Date(i.updated_at) >= monthStart
+    )
+    return { loc, total: locInterviews.length, thisMonth: thisMonth.length }
+  })
+
+  return (
+    <div className="mt-4">
+      <div className="flex items-center gap-2 mb-2">
+        <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Locations overview
+        </p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {stats.map(({ loc, total, thisMonth }) => (
+          <div key={loc.id} className="rounded-lg border bg-card p-3 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium truncate">{loc.label || loc.city}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {[loc.city, loc.region].filter(Boolean).join(', ')}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-lg font-bold tabular-nums">{total}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {thisMonth > 0 ? `+${thisMonth} this month` : 'interviews'}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── By Location view ─────────────────────────────────────────────────────────
+
+// Groups interviews by their location_id. Interviews with no location_id are
+// shown under an "Unassigned" group. Each group shows a compact interview list.
+function LocationView({ locations, byLocation, currentUserId }) {
+  // Collect location groups in position order, then "unassigned" at the end
+  const groups = useMemo(() => {
+    const result = []
+    for (const loc of locations) {
+      const interviews = byLocation[loc.id] || []
+      result.push({ id: loc.id, label: loc.label || loc.city, city: loc.city, region: loc.region, interviews })
+    }
+    const unassigned = byLocation['__none__'] || []
+    if (unassigned.length > 0) {
+      result.push({ id: '__none__', label: 'Unassigned', city: null, region: null, interviews: unassigned })
+    }
+    return result
+  }, [locations, byLocation])
+
+  if (groups.every((g) => g.interviews.length === 0)) {
+    return (
+      <div className="text-center py-12 text-sm text-muted-foreground">
+        No interviews have been tagged to a location yet. Select a location when starting an interview.
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8">
+      {groups.map(({ id, label, city, region, interviews }) => {
+        if (interviews.length === 0) return null
+        const completed = interviews.filter((i) => i.status === 'completed').length
+        return (
+          <div key={id}>
+            <div className="flex items-center gap-2 mb-3">
+              <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">{label}</h2>
+              {city && region && id !== '__none__' && (
+                <span className="text-xs text-muted-foreground">{city}, {region}</span>
+              )}
+              <span className="text-xs text-muted-foreground ml-1">
+                {interviews.length} interview{interviews.length !== 1 ? 's' : ''}
+                {completed > 0 && ` · ${completed} completed`}
+              </span>
+            </div>
+            <div className="space-y-2 pl-5">
+              {interviews.map((i) => (
+                <InterviewListRow key={i.id} interview={i} currentUserId={currentUserId} showClinician />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 

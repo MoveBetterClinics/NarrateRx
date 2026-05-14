@@ -46,6 +46,10 @@ import { fetchContentPlanAtoms, updateAtomStatus, draftAtom } from './contentPla
 import { fetchTopicBacklog, createTopic, updateTopic, deleteTopic, suggestTopics } from './topicBacklog'
 
 export const queryKeys = {
+  locations: {
+    all:  ['locations'],
+    list: () => ['locations', 'list'],
+  },
   clinicians: {
     all:    ['clinicians'],
     list:   () => ['clinicians', 'list'],
@@ -80,6 +84,24 @@ export const queryKeys = {
     all: ['brandKit'],
     me:  ['brandKit', 'me'],
   },
+}
+
+// ── Locations ──────────────────────────────────────────────────────────────
+
+// Returns active workspace_locations ordered by position. Used for location
+// filter chips and the admin Locations overview on the Dashboard.
+// staleTime 5 min — location list changes rarely (new clinic added by admin);
+// no need to re-fetch on every navigation.
+export function useLocations() {
+  return useQuery({
+    queryKey: queryKeys.locations.list(),
+    queryFn: async () => {
+      const r = await fetch('/api/db/locations', { credentials: 'include' })
+      if (!r.ok) return []
+      return r.json()
+    },
+    staleTime: 1000 * 60 * 5,
+  })
 }
 
 // ── Brand Kit ───────────────────────────────────────────────────────────────
