@@ -86,6 +86,9 @@ export const queryKeys = {
     list:   (filters = {}) => ['stories', 'list', filters],
     detail: (id) => ['stories', 'detail', id],
   },
+  comments: {
+    list: (contentItemId) => ['comments', contentItemId],
+  },
 }
 
 // ── Brand Kit ───────────────────────────────────────────────────────────────
@@ -412,5 +415,57 @@ export function useStory(interviewId, options = {}) {
     enabled: !!interviewId,
     staleTime: 30_000,
     ...options,
+  })
+}
+
+// ── Comments ───────────────────────────────────────────────────────────────
+
+export function useComments(contentItemId, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.comments.list(contentItemId),
+    queryFn: async () => {
+      const r = await fetch(`/api/db/comments?contentItemId=${contentItemId}`, { credentials: 'include' })
+      if (!r.ok) throw new Error('Failed to fetch comments')
+      return r.json()
+    },
+    enabled: !!contentItemId,
+    ...options,
+  })
+}
+
+export function useAddComment(contentItemId) {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ body, kind = 'comment' }) => {
+      const r = await fetch('/api/db/comments', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contentItemId, body, kind }),
+      })
+      if (!r.ok) throw new Error('Failed to add comment')
+      return r.json()
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.comments.list(contentItemId) }),
+  })
+}
+
+export function useUpdateContentItemStatus() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, status, approvedBy, approvedAt, reviewedBy }) => {
+      const r = await fetch('/api/db/content', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status, approvedBy, approvedAt, reviewedBy }),
+      })
+      if (!r.ok) throw new Error('Failed to update status')
+      return r.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.stories.all })
+    },
   })
 }

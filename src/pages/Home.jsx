@@ -22,7 +22,7 @@ export default function Home() {
   useDocumentTitle('Home')
   const { user } = useUser()
   const { getToken } = useAuth()
-  const { role } = useUserRole()
+  const { role, canReview } = useUserRole()
   const runtimeWorkspace = useWorkspace()
   const [searchParams] = useSearchParams()
 
@@ -118,13 +118,17 @@ export default function Home() {
   )
 
   // ── Task bucket 2: Awaiting review ─────────────────────────────────────────
-  // Stories that have at least one piece with status === 'in_review'
+  // Stories that have at least one piece with status === 'in_review'.
+  // Only shown to users who canReview — staff without review permissions
+  // don't need to see others' queues.
   const awaitingReview = useMemo(
     () =>
-      stories.filter((s) =>
-        (s.pieces || []).some((p) => p.status === 'in_review')
-      ),
-    [stories]
+      canReview
+        ? stories.filter((s) =>
+            (s.pieces || []).some((p) => p.status === 'in_review')
+          )
+        : [],
+    [stories, canReview]
   )
 
   // ── Task bucket 3: Hasn't interviewed in a while ────────────────────────────
