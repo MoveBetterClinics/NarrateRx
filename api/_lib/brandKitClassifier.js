@@ -18,20 +18,34 @@ const KNOWN_TOKENS = new Set([
   'favicon','social','avatar','profile','cover','banner','header',
   'rgb','cmyk','spot','transparent','flat',
   'brand','book','guide','guidelines','style',
+  // Common shorthand in designer exports
+  'horz','vert','fav','std',
 ])
+
+// Aliases map shorthand tokens to their canonical equivalents used in scoring.
+const TOKEN_ALIASES = {
+  horz: 'horizontal',
+  vert: 'vertical',
+  fav:  'favicon',
+  std:  'primary',
+}
 
 export function parseFilenameTokens(filename) {
   if (!filename) return []
   const base = filename.toLowerCase().replace(/\.[^.]+$/, '')
-  const parts = base.split(/[\s_\-.]+/).filter(Boolean)
+  // Split on whitespace, underscores, hyphens, dots, AND ampersands so
+  // "Color&White" yields ["color", "white"] rather than one unrecognised token.
+  const parts = base.split(/[\s_\-.&]+/).filter(Boolean)
   // Dedupe but preserve first-seen order so callers can read the filename's
   // intent left-to-right ("primary-horizontal-rgb").
   const seen = new Set()
   const out = []
   for (const p of parts) {
-    if (!KNOWN_TOKENS.has(p) || seen.has(p)) continue
-    seen.add(p)
-    out.push(p)
+    if (!KNOWN_TOKENS.has(p)) continue
+    const canonical = TOKEN_ALIASES[p] || p
+    if (seen.has(canonical)) continue
+    seen.add(canonical)
+    out.push(canonical)
   }
   return out
 }
@@ -89,13 +103,16 @@ export function colorModeFromStats(mean, saturation) {
 export function scoreRoleCandidates(asset) {
   const out = []
   const tok = asset.filename_tokens || []
-  const isHoriz = asset.shape === 'horizontal'
-  const isIcon  = asset.shape === 'icon' || (asset.shape === 'square' && (asset.width || 256) <= 128)
-  const onLight = asset.background === 'light'
-  const onDark  = asset.background === 'dark'
-  const color   = asset.color_mode === 'color'
-  const monoW   = asset.color_mode === 'mono_white'
-  const monoB   = asset.color_mode === 'mono_black'
+  // For SVGs, shape/background/color_mode are null/unknown — fall back to tokens.
+  const isHoriz = asset.shape === 'horizontal' || tok.includes('horizontal')
+  const isIcon  = asset.shape === 'icon'
+    || (asset.shape === 'square' && (asset.width || 256) <= 128)
+    || (asset.shape == null && tok.some((t) => ['icon', 'favicon', 'mark', 'symbol', 'glyph', 'emblem'].includes(t)))
+  const onLight = asset.background === 'light' || tok.some((t) => ['onlight', 'on-light', 'light'].includes(t))
+  const onDark  = asset.background === 'dark'  || tok.some((t) => ['ondark', 'on-dark', 'dark'].includes(t))
+  const color   = asset.color_mode === 'color'      || tok.includes('color') || tok.includes('colour')
+  const monoW   = asset.color_mode === 'mono_white' || tok.includes('white')
+  const monoB   = asset.color_mode === 'mono_black' || tok.includes('black')
 
   if (asset.mime_type === 'application/pdf') {
     out.push({ role: 'brand_book', confidence: 0.95 })
@@ -105,8 +122,9 @@ export function scoreRoleCandidates(asset) {
   if (isHoriz && onLight && color && tok.includes('primary')) out.push({ role: 'primary_logo', confidence: 0.92 })
   else if (isHoriz && onLight && color)                       out.push({ role: 'primary_logo', confidence: 0.74 })
 
-  if (isIcon)                                                 out.push({ role: 'mark_only', confidence: 0.82 })
-  if (isIcon && (asset.width || 256) <= 64)                   out.push({ role: 'favicon',   confidence: 0.88 })
+  if (isIcon && !tok.includes('favicon'))                     out.push({ role: 'mark_only', confidence: 0.82 })
+  if (tok.includes('favicon') || (isIcon && (asset.width || 256) <= 64))
+                                                              out.push({ role: 'favicon',   confidence: 0.88 })
 
   if (tok.includes('wordmark') && !isIcon)                    out.push({ role: 'wordmark_only', confidence: 0.85 })
 
