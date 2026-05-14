@@ -248,28 +248,6 @@ function AppRoutes() {
   )
 }
 
-// TEMP 2026-05-12: Workaround banner for an open Clerk bug where password
-// sign-in on iOS WebKit (Safari + Chrome) silently stalls after first factor
-// — clerk-js receives `status: "needs_client_trust"` and does nothing.
-// Email-code sign-in bypasses device-trust and works. Remove this component
-// (and its usage in SignedOut) once Clerk ships the fix. See:
-// ~/.claude/projects/-Users-qbook-Claude-Projects-NarrateRx/memory/feedback_mobile_signin_silent_no_advance.md
-function IosSignInHint() {
-  const isIos = typeof navigator !== 'undefined' && (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  )
-  if (!isIos) return null
-  return (
-    <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-      <strong className="font-medium">On iPhone or iPad?</strong>{' '}
-      If tapping <em>Continue</em> doesn&rsquo;t advance, choose{' '}
-      <em>Use another method</em> &rarr; <em>Email verification code</em>{' '}
-      to sign in.
-    </div>
-  )
-}
-
 function ProtectedApp() {
   const { workspace: ws, isLoading } = useWorkspaceState()
   const { user } = useUser()
@@ -299,7 +277,6 @@ function ProtectedApp() {
               <h1 className="text-xl font-bold">{signInName}</h1>
               <p className="text-sm text-muted-foreground">{signInBlurb}</p>
             </div>
-            <IosSignInHint />
             <SignIn
               appearance={{
                 elements: {
