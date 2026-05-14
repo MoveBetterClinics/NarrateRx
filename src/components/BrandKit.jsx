@@ -390,7 +390,14 @@ function useLiveDataSource() {
         }
       } finally {
         setUploadActive(false)
-        if (succeeded > 0) qc.invalidateQueries({ queryKey: ['brandKit'] })
+        if (succeeded > 0) {
+          qc.invalidateQueries({ queryKey: ['brandKit'] })
+          // Brand book PDFs trigger async extraction (waitUntil) that writes
+          // back to the DB seconds after the upload completes. A second
+          // invalidation catches those results without a manual page refresh.
+          const hasPdf = files.some((f) => f.type === 'application/pdf' || f.name.endsWith('.pdf'))
+          if (hasPdf) setTimeout(() => qc.invalidateQueries({ queryKey: ['brandKit'] }), 8000)
+        }
       }
     },
     deleteAsset: async (id) => {
