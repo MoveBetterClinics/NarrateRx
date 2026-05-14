@@ -1,28 +1,10 @@
 import { useRef, useState } from 'react'
 import {
-  Upload, Loader2, AlertCircle, CheckCircle2,
+  Upload, AlertCircle,
   Stethoscope, Briefcase, UserCircle, AlertTriangle,
   Mic, Film, Image as ImageIcon, Sparkles,
 } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { uploadMedia, listMedia } from '@/lib/mediaLib'
-
-// Vercel Blob's onUploadCompleted webhook (which writes the media_assets row)
-// runs platform→server, separate from the client's upload(). We poll listMedia
-// after the client upload resolves so the "done" state means "row is queryable",
-// not just "bytes are in Blob storage." Without this gate, the library grid
-// refreshes against a DB that doesn't yet contain the new asset.
-async function waitForAssetIndexed(blobUrl, { timeoutMs = 8000, intervalMs = 500 } = {}) {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    try {
-      const rows = await listMedia({ limit: 20, compact: true })
-      if (Array.isArray(rows) && rows.some((r) => r.blob_url === blobUrl)) return true
-    } catch { /* keep polling */ }
-    await new Promise((r) => setTimeout(r, intervalMs))
-  }
-  return false
-}
+import { useUploadProgress } from '@/lib/UploadProgressContext'
 
 // Asset purpose is the primary fork — it decides which downstream pipeline
 // the upload feeds. We render the choice as deliberate cards (not a dropdown)
@@ -140,9 +122,12 @@ function checkFile(file, purpose) {
 export default function MediaUploader({ onUploaded, createdBy }) {
   const inputRef = useRef(null)
   const [dragOver, setDragOver]    = useState(false)
-  const [uploads, setUploads]      = useState([])
+  // Pre-upload validation errors only — actual progress lives in the
+  // app-wide UploadProgressContext and is rendered by <UploadTray/>.
+  const [rejected, setRejected]    = useState([])
   const [purpose, setPurpose]      = useState('interview')
   const [speakerRole, setSpeakerRole] = useState('clinician')
+  const { startUpload } = useUploadProgress()
 
   const purposeMeta = PURPOSES.find((p) => p.id === purpose) || PURPOSES[0]
   const showSpeakerRole = purpose === 'interview'
@@ -151,62 +136,30 @@ export default function MediaUploader({ onUploaded, createdBy }) {
     const files = Array.from(fileList || [])
     if (!files.length) return
 
-    const newRows = files.map((f) => {
+    // Split validation errors out so they surface in-modal (the tray only
+    // shows uploads that actually started).
+    const accepted = []
+    const newRejected = []
+    for (const f of files) {
       const error = checkFile(f, purpose)
-      return error
-        ? { id: crypto.randomUUID(), name: f.name, status: 'error', error }
-        : { id: crypto.randomUUID(), name: f.name, status: 'uploading', progress: 0, transcoding: false }
-    })
-    setUploads((prev) => [...newRows, ...prev])
-
-    const results = await Promise.all(files.map(async (file, i) => {
-      const row = newRows[i]
-      if (row.status === 'error') return { ok: false }
-      const rowId = row.id
-      try {
-        const blob = await uploadMedia(
-          file,
-          {
-            createdBy: createdBy || null,
-            assetPurpose: purpose,
-            // mediaLib enforces null speakerRole on non-interview, but pass
-            // explicitly anyway so the wire payload reads cleanly in logs.
-            speakerRole: showSpeakerRole ? speakerRole : null,
-          },
-          {
-            onTranscodeStart: () => setUploads((prev) => prev.map((r) =>
-              r.id === rowId ? { ...r, transcoding: true } : r,
-            )),
-            onTranscodeEnd: () => setUploads((prev) => prev.map((r) =>
-              r.id === rowId ? { ...r, transcoding: false } : r,
-            )),
-            onProgress: (e) => {
-              const pct = typeof e.percentage === 'number'
-                ? Math.round(e.percentage)
-                : (e.total ? Math.round((e.loaded / e.total) * 100) : 0)
-              setUploads((prev) => prev.map((r) =>
-                r.id === rowId && r.progress !== pct ? { ...r, progress: pct } : r,
-              ))
-            },
-          },
-        )
-        // Client upload done → flip to a transitional "indexing" state while
-        // we wait for the completion webhook to write the media_assets row.
-        // Without this, callers (e.g. the library grid) refresh against a DB
-        // that doesn't yet contain the asset.
-        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'indexing', progress: 100, transcoding: false } : r))
-        const indexed = await waitForAssetIndexed(blob.url)
-        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'done', slowIndex: !indexed } : r))
-        return { ok: true }
-      } catch (e) {
-        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'error', error: e.message, transcoding: false } : r))
-        return { ok: false }
+      if (error) {
+        newRejected.push({ id: crypto.randomUUID(), name: f.name, error })
+      } else {
+        accepted.push(f)
       }
-    }))
+    }
+    if (newRejected.length) setRejected((prev) => [...newRejected, ...prev])
+    if (!accepted.length) return
 
-    // Only refresh the library if at least one file actually succeeded —
-    // otherwise we trigger a re-query for nothing.
-    if (results.some((r) => r.ok)) onUploaded?.()
+    const results = await Promise.all(accepted.map((file) => startUpload(file, {
+      createdBy: createdBy || null,
+      assetPurpose: purpose,
+      // mediaLib enforces null speakerRole on non-interview, but pass
+      // explicitly anyway so the wire payload reads cleanly in logs.
+      speakerRole: showSpeakerRole ? speakerRole : null,
+    })))
+
+    if (results.some((r) => r)) onUploaded?.()
   }
 
   function handleDrop(e) {
@@ -358,48 +311,26 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         onChange={(e) => handleFiles(e.target.files)}
       />
 
-      {uploads.length > 0 && (
+      {/* Pre-upload validation errors only. Successful uploads surface in
+          the floating <UploadTray/>, which survives modal close. */}
+      {rejected.length > 0 && (
         <div className="mt-3 space-y-1.5">
-          {uploads.map((r) => (
-            <div key={r.id} className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-md bg-muted/40">
-              {r.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
-              {r.status === 'indexing'  && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
-              {r.status === 'done'      && <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${r.slowIndex ? 'text-amber-600' : 'text-emerald-600'}`} />}
-              {r.status === 'error'     && <AlertCircle  className="h-3.5 w-3.5 text-destructive shrink-0" />}
-              <span className="truncate flex-1" title={r.name}>{r.name}</span>
-              {r.status === 'uploading' && (
-                <>
-                  {r.transcoding ? (
-                    <span className="text-[10px] text-muted-foreground shrink-0">Converting HEIC…</span>
-                  ) : (
-                    <>
-                      <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden shrink-0" role="progressbar" aria-valuenow={r.progress || 0} aria-valuemin="0" aria-valuemax="100">
-                        <div
-                          className="h-full bg-primary transition-[width] duration-200"
-                          style={{ width: `${Math.min(100, Math.max(0, r.progress || 0))}%` }}
-                        />
-                      </div>
-                      <span className="tabular-nums text-[10px] text-muted-foreground w-9 text-right shrink-0">
-                        {r.progress || 0}%
-                      </span>
-                    </>
-                  )}
-                </>
-              )}
-              {r.status === 'indexing' && (
-                <span className="text-[10px] text-muted-foreground shrink-0">Adding to library…</span>
-              )}
-              {r.status === 'done' && r.slowIndex && (
-                <span className="text-[10px] text-amber-700 shrink-0" title="The asset is still being indexed; it should appear in the library shortly.">Still processing</span>
-              )}
-              {r.status === 'error' && <span className="text-destructive truncate max-w-[40%]" title={r.error}>{r.error}</span>}
+          {rejected.map((r) => (
+            <div key={r.id} className="flex items-start gap-2 text-xs px-2.5 py-1.5 rounded-md bg-destructive/5 border border-destructive/20">
+              <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="truncate font-medium" title={r.name}>{r.name}</div>
+                <div className="text-destructive">{r.error}</div>
+              </div>
+              <button
+                type="button"
+                className="text-[10px] text-muted-foreground hover:text-foreground"
+                onClick={() => setRejected((prev) => prev.filter((x) => x.id !== r.id))}
+              >
+                Dismiss
+              </button>
             </div>
           ))}
-          {uploads.some((r) => r.status === 'done') && (
-            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setUploads((prev) => prev.filter((r) => r.status !== 'done'))}>
-              Clear finished
-            </Button>
-          )}
         </div>
       )}
     </div>

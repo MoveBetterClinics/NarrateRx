@@ -21,6 +21,7 @@ import { useMediaInfinite, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { useUploadProgress } from '@/lib/UploadProgressContext'
 
 const PAGE_SIZE = 120
 
@@ -184,6 +185,13 @@ export default function MediaHub() {
     qc.invalidateQueries({ queryKey: queryKeys.media.all })
     refetchMedia()
   }, [qc, refetchMedia])
+
+  // Background uploads (modal closed mid-upload) still need to refresh
+  // this grid when they finish. The UploadProgressContext notifies all
+  // subscribers on each completion; the in-modal `onUploaded={refresh}`
+  // prop covers the modal-open case (idempotent — both are just re-queries).
+  const { subscribe: subscribeToUploads } = useUploadProgress()
+  useEffect(() => subscribeToUploads(refresh), [subscribeToUploads, refresh])
 
   // Admin-only one-click backfill for legacy videos uploaded before the
   // auto-thumbnail path landed (#159). Pages internally until the API

@@ -32,6 +32,8 @@ const Stories = lazy(() => import('@/pages/Stories'))
 const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
+import { UploadProgressProvider } from '@/lib/UploadProgressContext'
+import UploadTray from '@/components/UploadTray'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import RouteErrorBoundary from '@/components/RouteErrorBoundary'
 import { setSentryUser, setSentryWorkspace } from '@/lib/sentry'
@@ -311,7 +313,13 @@ function OnboardingShell() {
 function ProtectedAppWithProvider() {
   return (
     <WorkspaceProvider>
-      <ProtectedApp />
+      <UploadProgressProvider>
+        <ProtectedApp />
+        {/* Floating upload tray — only renders when uploads.length > 0.
+            Lives at the protected-app layer so progress survives modal
+            close and in-app navigation. */}
+        <UploadTray />
+      </UploadProgressProvider>
     </WorkspaceProvider>
   )
 }
