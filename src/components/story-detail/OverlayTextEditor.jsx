@@ -44,12 +44,19 @@ export default function OverlayTextEditor({ piece }) {
   const [subhead, setSubhead] = useState(stored?.subhead || '')
   const [cta, setCta] = useState(stored?.cta || '')
 
-  // Re-sync local state when the piece changes (tab switch, optimistic update).
+  // Re-sync local state when the piece changes (tab switch). Deps are
+  // intentionally [piece?.id] only — listing stored.hook/subhead/cta would
+  // re-fire this effect every time a parent optimistic update or React
+  // Query refetch hands back a new piece reference, clobbering whatever
+  // the user is in the middle of typing. (Same failure pattern as the
+  // InterviewSession lost-interview bug: query-data seeding effects must
+  // be one-shot per route param, not reactive to query refetches.)
   useEffect(() => {
     setHook(stored?.hook || '')
     setSubhead(stored?.subhead || '')
     setCta(stored?.cta || '')
-  }, [piece?.id, stored?.hook, stored?.subhead, stored?.cta])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [piece?.id])
 
   const saveOverlay = (next) =>
     updateItem.mutateAsync({ id: piece.id, patch: { overlayText: next } })

@@ -377,9 +377,14 @@ export default function InterviewSession() {
       setShowOutput(true)
     }
 
+    // These three are AI prompt-context enrichments. Each one failing
+    // degrades the AI's history awareness but does not block the interview,
+    // so they stay non-fatal. We DO log so prod issues are visible in
+    // vercel logs — a previously-silent .catch(() => {}) hid the fact
+    // that these can fail at all.
     fetchSimilarInterviews(interviewData.topic, interviewId)
       .then((past) => { pastInterviewsRef.current = past || [] })
-      .catch(() => {})
+      .catch((err) => console.warn('[InterviewSession] fetchSimilarInterviews failed', err?.status, err?.message))
 
     // Fetch learned practice knowledge for this topic — injected into every
     // system prompt for this session. Fails silently (empty block = graceful noop).
@@ -391,7 +396,7 @@ export default function InterviewSession() {
         agreementBlockRef.current = agreementBlock || ''
         gapBlockRef.current       = gapBlock       || ''
       })
-      .catch(() => {})
+      .catch((err) => console.warn('[InterviewSession] concepts/context failed', err?.status, err?.message))
 
     // Feature 5: use clinician data (already fetched) to find prior sessions
     // for returning clinicians. fetchClinician returns interviews with topic+status
@@ -412,7 +417,7 @@ export default function InterviewSession() {
         if (!hasOverlap) return
         priorSessionContextRef.current = { topic: prior.topic }
       })
-      .catch(() => {})
+      .catch((err) => console.warn('[InterviewSession] prior session fetch failed', err?.status, err?.message))
     // `saveMessages` is a stable scope-level helper; `user.id` doesn't change
     // mid-session (the auth-gated route remounts on user change). Listing
     // them would re-fire this seeding effect and clobber in-progress state.
@@ -844,9 +849,16 @@ export default function InterviewSession() {
       // deltas (see src/lib/claude.js#streamMessage), so we just consume
       // them and accumulate. We update the token counter once every 5
       // chunks to avoid a setState per delta.
-      // Persist style change if the user changed it since the interview loaded (fire-and-forget)
+      // Persist style change if the user changed it since the interview loaded.
+      // If the save fails, log + flip the visible save indicator. The
+      // user's selection still drives this generation; the persistence
+      // just won't survive a reload, so a recoverable warning is the right
+      // posture rather than blocking generation.
       if (generationStyle !== (interview.generation_style || 'blog_post')) {
-        updateInterview(interviewId, { generationStyle }, user.id).catch(() => {})
+        updateInterview(interviewId, { generationStyle }, user.id).catch((err) => {
+          console.error('[InterviewSession] generationStyle save failed', err?.status, err?.message)
+          setSaveStatus('error')
+        })
       }
 
       const isMinimal = generationStyle === 'minimal_edits'
