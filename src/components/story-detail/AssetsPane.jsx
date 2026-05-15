@@ -13,7 +13,7 @@ import {
   useAddComment,
   useUpdateContentItemStatus,
 } from '@/lib/queries'
-import { publishAndTrack } from '@/lib/publish'
+import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
 import BufferMetricsRow from './BufferMetricsRow'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
 import MediaAttachmentPanel from './MediaAttachmentPanel'
@@ -150,16 +150,28 @@ function ApprovalPanel({ piece }) {
     setPublishing(true)
     setPublishError(null)
     try {
-      await publishAndTrack(
-        {
-          id: piece.id,
-          platform: piece.platform,
-          content: typeof piece.content === 'string' ? piece.content : JSON.stringify(piece.content),
-          mediaUrls: piece.media_urls || [],
-          scheduledAt: null,
-        },
-        userEmail,
-      )
+      const markdown = typeof piece.content === 'string' ? piece.content : JSON.stringify(piece.content)
+      if (piece.platform === 'blog') {
+        const lines = markdown.split('\n')
+        const titleLine = lines.find((l) => /^#\s/.test(l))
+        const title = titleLine ? titleLine.replace(/^#+\s+/, '').trim() : (piece.topic || 'Blog Post')
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        const descLine = lines.find((l) => l.trim() && !/^#/.test(l) && !/^!\[/.test(l))
+        const description = descLine?.trim().slice(0, 200) || title
+        const pubDate = new Date().toISOString().slice(0, 10)
+        await publishBlogToWebsite({ slug, title, description, pubDate, markdown })
+      } else {
+        await publishAndTrack(
+          {
+            id: piece.id,
+            platform: piece.platform,
+            content: markdown,
+            mediaUrls: piece.media_urls || [],
+            scheduledAt: null,
+          },
+          userEmail,
+        )
+      }
     } catch (e) {
       setPublishError(e.message || 'Publish failed')
     } finally {
@@ -236,7 +248,7 @@ function ApprovalPanel({ piece }) {
           </Button>
         )}
 
-        {/* Publish to Buffer — reviewer only, approved */}
+        {/* Publish — reviewer only, approved */}
         {piece.status === 'approved' && canReview && (
           <Button
             size="sm"
@@ -249,7 +261,7 @@ function ApprovalPanel({ piece }) {
             ) : (
               <Send className="h-3.5 w-3.5 mr-1.5" />
             )}
-            Publish to Buffer
+            {piece.platform === 'blog' ? 'Publish to Website' : 'Publish to Buffer'}
           </Button>
         )}
       </div>
