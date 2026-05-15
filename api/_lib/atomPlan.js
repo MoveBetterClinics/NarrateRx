@@ -145,20 +145,39 @@ export function suggestedScheduledAt(anchorIso, slot) {
   return d.toISOString()
 }
 
+// Map a workspace enabled_outputs channel id (from src/lib/outputChannels.js)
+// to the ATOM_DEFINITIONS platform key it corresponds to. Most channel ids
+// match an atom platform 1:1 (facebook, linkedin, gbp, pinterest, tiktok,
+// twitter, threads, bluesky, mastodon). Instagram is the exception: the
+// registry splits it into instagram_post and instagram_reel for the settings
+// UI, but the atom plan keys both under `instagram` (they share the same
+// 4-atom angle set today). Either id enables Instagram atoms.
+function atomPlatformsFromEnabledOutputs(enabledOutputs) {
+  if (!enabledOutputs) return null
+  const set = new Set()
+  for (const id of enabledOutputs) {
+    if (id === 'instagram_post' || id === 'instagram_reel') set.add('instagram')
+    else set.add(id)
+  }
+  return set
+}
+
 // Build the flat list of atom rows to insert for a new interview plan.
 // Called once when the blog post is first saved.
 //
 // enabledOutputs — the workspace's enabled_outputs array (from workspaces row).
-// When provided, only platforms present in that array are seeded. Platforms
-// that map one-to-one with atom platform keys (instagram, facebook, linkedin,
-// gbp, pinterest, tiktok) are filtered; platforms absent from enabled_outputs
-// are silently skipped so the Plan tab never shows atoms for disabled channels.
-// Pass null/undefined to include all platforms (e.g. for backfill scripts).
+// When provided, only platforms present in that array are seeded. Channel ids
+// are normalized via atomPlatformsFromEnabledOutputs so instagram_post /
+// instagram_reel both map to the `instagram` atom platform. Platforms absent
+// from enabled_outputs are silently skipped so the Plan tab never shows atoms
+// for disabled channels. Pass null/undefined to include all platforms (e.g.
+// for backfill scripts).
 export function buildPlanRows(interviewId, workspaceId, enabledOutputs) {
   const rows = []
+  const allowed = atomPlatformsFromEnabledOutputs(enabledOutputs)
   for (const [platform, atoms] of Object.entries(ATOM_DEFINITIONS)) {
     // Skip platforms the workspace hasn't enabled, when a filter is provided.
-    if (enabledOutputs && !enabledOutputs.includes(platform)) continue
+    if (allowed && !allowed.has(platform)) continue
     for (const { slot, angle, label, description } of atoms) {
       rows.push({
         interview_id:      interviewId,
