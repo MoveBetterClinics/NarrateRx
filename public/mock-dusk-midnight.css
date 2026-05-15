@@ -1,0 +1,55 @@
+/* ============================================================
+   Mock: Dusk · Midnight variant
+   Loads AFTER mock-dusk.css and overrides only the palette.
+   Layout, type, spacing, and structure are identical to Dusk.
+   Background: deep navy blue. Cool but not cold.
+   Closest comp: Vercel × Stripe.
+   ============================================================ */
+:root {
+  /* Lightened a step — same navy hue, more breathable */
+  --bg:        #243558;
+  --bg-2:      #2c3f68;
+  --bg-3:      #364b78;
+  --bg-card:   #324672;
+  --bg-card-2: #3b5285;
+  --line:      rgba(200,215,255,0.14);
+  --line-2:    rgba(200,215,255,0.22);
+  --line-3:    rgba(200,215,255,0.32);
+
+  --ink:       #f4f7ff;
+  --ink-soft:  #c0cce8;
+  --grey:      #8a96b8;
+  --grey-d:    #6e7a9c;
+
+  /* Coral stays as the warmth anchor against cool navy */
+  --coral:     #ff7a52;
+  --coral-h:   #ffa085;
+
+  /* Sage shifts toward teal so it harmonizes with the navy */
+  --sage:      #6dbfb0;
+  --sage-d:    #4d9a8c;
+
+  --glow:      rgba(255,122,82,0.42);
+}
+
+/* Re-tinted body radial gradients — coral + cool teal instead of coral + warm sage */
+body {
+  background-image:
+    radial-gradient(circle at 85% -5%, rgba(255,122,82,0.14) 0%, transparent 50%),
+    radial-gradient(circle at -10% 45%, rgba(109,191,176,0.09) 0%, transparent 55%),
+    radial-gradient(circle at 50% 110%, rgba(109,191,176,0.06) 0%, transparent 50%);
+}
+
+/* Override hardcoded headline gradients */
+.uhero h1 {
+  background: linear-gradient(180deg, #f4f7ff 0%, #c0cce8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.ucta h2 {
+  background: linear-gradient(180deg, #f4f7ff 0%, #c0cce8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Logo glyph + side panel coral stops stay (intentional warmth accent) */
