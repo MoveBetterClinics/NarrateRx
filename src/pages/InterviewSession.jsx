@@ -49,6 +49,47 @@ function hasGapSignal(text)  { return text.includes('[GAP]') }
 
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
+// Per-interview localStorage key for the messages backup. The DB save can
+// fail silently — network blip, expired Clerk token, iOS WebKit dropping the
+// PATCH on background — and the only previous safety net was React state in
+// memory. A clinician 20 minutes deep who refreshes the tab then sees the AI
+// restart at question 1 because the DB row still has `messages: []`. The
+// local backup is the rescue: on resume, if the DB has fewer messages than
+// the local copy, we restore from local and push it back up.
+function lsKey(interviewId) {
+  return `narraterx:interview:${interviewId}:messages`
+}
+
+function loadLocalMessages(interviewId) {
+  if (typeof window === 'undefined' || !interviewId) return null
+  try {
+    const raw = window.localStorage.getItem(lsKey(interviewId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed?.messages)) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveLocalMessages(interviewId, messages) {
+  if (typeof window === 'undefined' || !interviewId) return
+  try {
+    window.localStorage.setItem(lsKey(interviewId), JSON.stringify({
+      messages,
+      savedAt: new Date().toISOString(),
+    }))
+  } catch {
+    // Quota or private-mode failure — non-fatal
+  }
+}
+
+function clearLocalMessages(interviewId) {
+  if (typeof window === 'undefined' || !interviewId) return
+  try { window.localStorage.removeItem(lsKey(interviewId)) } catch { /* ignore */ }
+}
+
 // Session-end phrases — matched at end of utterance to signal interview completion.
 // "next question" and "move on" are intentionally excluded here: they're opt-out
 // signals handled by emotionDetection (→ 'resistant' state) so the AI transitions
@@ -147,8 +188,28 @@ export default function InterviewSession() {
   const sessionSaveTimerRef = useRef(null)
   const userIdRef = useRef(null)
   const interviewCompleteRef = useRef(false)
+  // Seeding guard: messages restoration runs exactly once per interview-id
+  // mount. Without this, every React Query background refetch (window focus,
+  // network reconnect, post-save invalidation) re-fires the seeding effect
+  // with a stale DB row and clobbers in-flight local state — which is how
+  // clinicians lost 5–6 saved responses mid-session and got bounced back to
+  // question 1.
+  const hasSeededRef = useRef(false)
+  const seededForIdRef = useRef(null)
+  // Reset the guard when the interview id changes so navigating between
+  // interviews still re-seeds the new one correctly. This runs synchronously
+  // during render — that's intentional: by the time the seeding effect
+  // below reads hasSeededRef, the flag must already be cleared for the new id.
+  if (seededForIdRef.current !== interviewId) {
+    seededForIdRef.current = interviewId
+    hasSeededRef.current = false
+  }
 
   function saveMessages(interviewId, patch, userId) {
+    // Always mirror to localStorage FIRST so the data survives even if the
+    // server PATCH never lands (auth blip, network, iOS WebKit kill).
+    if (Array.isArray(patch?.messages)) saveLocalMessages(interviewId, patch.messages)
+
     setSaveStatus('saving')
     updateInterview(interviewId, patch, userId)
       .then((updated) => {
@@ -161,7 +222,10 @@ export default function InterviewSession() {
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus(''), 2000)
       })
-      .catch(() => setSaveStatus('error'))
+      .catch((err) => {
+        console.error('[InterviewSession] save failed', err?.status, err?.message)
+        setSaveStatus('error')
+      })
   }
 
   useEffect(() => { messagesRef.current = messages }, [messages])
@@ -206,16 +270,23 @@ export default function InterviewSession() {
 
   // Debounced auto-save of session_state whenever messages change.
   // Runs 3s after the last message update. Skipped when interview is done
-  // (session_state is cleared on completion instead).
+  // (session_state is cleared on completion instead). Also mirrors to
+  // localStorage immediately on every messages change as a last-line backup.
   useEffect(() => {
-    if (!user?.id || interviewComplete || messages.length === 0) return
+    if (!interviewId || messages.length === 0) return
+    // Local backup runs even before any server save and even if user isn't ready.
+    saveLocalMessages(interviewId, messages)
+    if (!user?.id || interviewComplete) return
     clearTimeout(sessionSaveTimerRef.current)
     sessionSaveTimerRef.current = setTimeout(() => {
       updateInterview(
         interviewId,
         { session_state: buildSessionState(messages), paused_at: new Date().toISOString() },
         user.id,
-      ).catch(() => {})
+      ).catch((err) => {
+        console.error('[InterviewSession] session_state autosave failed', err?.status, err?.message)
+        setSaveStatus('error')
+      })
     }, 3000)
     return () => clearTimeout(sessionSaveTimerRef.current)
   }, [messages, interviewComplete, user?.id, interviewId])
@@ -242,7 +313,12 @@ export default function InterviewSession() {
   useEffect(() => {
     if (interviewLoading) return
     if (!interviewData) { navigate('/'); return }
+    // Always refresh the interview metadata object (topic, status, outputs,
+    // location, owner) — that's safe to track from server. But messages
+    // restoration is one-shot per mount, guarded below.
     setInterview(interviewData)
+    if (hasSeededRef.current) return
+    hasSeededRef.current = true
     setGenerationStyle(interviewData.generation_style || 'blog_post')
 
     // Resume from session_state if available (paused mid-interview).
@@ -250,8 +326,35 @@ export default function InterviewSession() {
     // may be ahead of the DB messages column (which only saves on each
     // user turn, not on every AI response). Prefer session_state so the
     // resumed transcript matches exactly what the clinician saw before pausing.
+    //
+    // The localStorage backup wins over the server when it has MORE messages —
+    // that's the signature of saves having failed silently mid-session. When
+    // we pick the local copy, push it back up so the server catches up.
     const savedState = interviewData.session_state
-    const restoredMessages = savedState?.messages ?? interviewData.messages ?? []
+    const serverMessages = savedState?.messages ?? interviewData.messages ?? []
+    const localBackup = loadLocalMessages(interviewId)
+    const localMessages = Array.isArray(localBackup?.messages) ? localBackup.messages : []
+    const useLocal = localMessages.length > serverMessages.length
+    const restoredMessages = useLocal ? localMessages : serverMessages
+    if (useLocal) {
+      console.warn(
+        '[InterviewSession] Restoring messages from localStorage backup',
+        { local: localMessages.length, server: serverMessages.length, interviewId },
+      )
+      setSaveStatus('recovered')
+      // Push the recovered state back to the server so subsequent loads
+      // don't need the local backup.
+      if (user?.id) {
+        saveMessages(
+          interviewId,
+          {
+            messages: restoredMessages,
+            session_state: { messages: restoredMessages, paused_at: new Date().toISOString() },
+          },
+          user.id,
+        )
+      }
+    }
     setMessages(restoredMessages)
 
     if (restoredMessages.some((m) => m.content?.includes(COMPLETE_TOKEN))) {
@@ -310,6 +413,10 @@ export default function InterviewSession() {
         priorSessionContextRef.current = { topic: prior.topic }
       })
       .catch(() => {})
+    // `saveMessages` is a stable scope-level helper; `user.id` doesn't change
+    // mid-session (the auth-gated route remounts on user change). Listing
+    // them would re-fire this seeding effect and clobber in-progress state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [interviewLoading, interviewData, interviewId, navigate, clinicianId])
 
   useEffect(() => {
@@ -453,6 +560,10 @@ export default function InterviewSession() {
       // is done and the resume banner should not appear on next visit.
       if (isComplete) { patch.session_state = null; patch.paused_at = null }
       saveMessages(interviewId, patch, user.id)
+      // Once the AI declares the interview complete, the local backup has
+      // served its purpose. Drop it so a future load doesn't accidentally
+      // re-hydrate stale messages.
+      if (isComplete) clearLocalMessages(interviewId)
     }
 
     if (isComplete) setInterviewComplete(true)
@@ -604,11 +715,16 @@ export default function InterviewSession() {
     // even if the debounced auto-save hasn't fired yet.
     clearTimeout(sessionSaveTimerRef.current)
     if (user?.id && !interviewComplete && messagesRef.current.length > 0) {
+      // Mirror locally before navigating away so a failed pause save can be
+      // recovered on next load.
+      saveLocalMessages(interviewId, messagesRef.current)
       updateInterview(
         interviewId,
         { session_state: buildSessionState(messagesRef.current), paused_at: new Date().toISOString() },
         user.id,
-      ).catch(() => {})
+      ).catch((err) => {
+        console.error('[InterviewSession] pause save failed', err?.status, err?.message)
+      })
     }
     navigate('/')
   }
@@ -878,8 +994,37 @@ export default function InterviewSession() {
           <p className="text-xs text-muted-foreground mt-0.5 truncate" title={interview.topic}>{interview.topic}</p>
         </div>
         {saveStatus && (
-          <span className={`text-xs shrink-0 ${saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
-            {saveStatus === 'saving' ? '↑ Saving…' : saveStatus === 'saved' ? '✓ Saved' : '⚠ Save failed'}
+          <span
+            className={`text-xs shrink-0 ${saveStatus === 'error' ? 'text-destructive' : saveStatus === 'recovered' ? 'text-amber-600' : 'text-muted-foreground'}`}
+            title={
+              saveStatus === 'error'
+                ? 'Server save failed — your answers are kept locally. Tap to retry.'
+                : saveStatus === 'recovered'
+                ? 'Restored from local backup after a save failure. Re-syncing…'
+                : ''
+            }
+          >
+            {saveStatus === 'saving'
+              ? '↑ Saving…'
+              : saveStatus === 'saved'
+              ? '✓ Saved'
+              : saveStatus === 'recovered'
+              ? '↻ Recovered locally'
+              : (
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  onClick={() => {
+                    if (user?.id) saveMessages(
+                      interviewId,
+                      { messages: messagesRef.current, session_state: buildSessionState(messagesRef.current) },
+                      user.id,
+                    )
+                  }}
+                >
+                  ⚠ Save failed — retry
+                </button>
+              )}
           </span>
         )}
         {interviewComplete
