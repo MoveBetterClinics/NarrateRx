@@ -12,4 +12,7 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  test: {
+    exclude: ['tests/e2e/**', '.claude/**', 'node_modules/**'],
+  },
 })
