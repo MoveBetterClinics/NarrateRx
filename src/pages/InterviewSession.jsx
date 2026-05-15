@@ -41,6 +41,12 @@ function hasContrastSignal(text) {
   return text.includes('[CONTRAST]')
 }
 
+function stripAgreementToken(text) { return text.replace(/\[AGREEMENT\]/g, '').trim() }
+function hasAgreementSignal(text)   { return text.includes('[AGREEMENT]') }
+
+function stripGapToken(text) { return text.replace(/\[GAP\]/g, '').trim() }
+function hasGapSignal(text)  { return text.includes('[GAP]') }
+
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
 // Target question range for the step-indicator. The interview prompt covers
@@ -140,7 +146,9 @@ export default function InterviewSession() {
   // Prior session context for returning clinicians
   const priorSessionContextRef = useRef(null)
   // Learned practice knowledge from concept graph — fetched once at session start
-  const conceptBlockRef = useRef('')
+  const conceptBlockRef   = useRef('')
+  const agreementBlockRef = useRef('')
+  const gapBlockRef       = useRef('')
   // Refs for pause/resume persistence
   const sessionSaveTimerRef = useRef(null)
   const userIdRef = useRef(null)
@@ -277,9 +285,14 @@ export default function InterviewSession() {
 
     // Fetch learned practice knowledge for this topic — injected into every
     // system prompt for this session. Fails silently (empty block = graceful noop).
-    fetch(`/api/concepts/context?topic=${encodeURIComponent(interviewData.topic || '')}`)
-      .then((r) => r.ok ? r.json() : { block: '' })
-      .then(({ block }) => { conceptBlockRef.current = block || '' })
+    const clinicianParam = clinicianId ? `&clinician_id=${encodeURIComponent(clinicianId)}` : ''
+    fetch(`/api/concepts/context?topic=${encodeURIComponent(interviewData.topic || '')}${clinicianParam}`)
+      .then((r) => r.ok ? r.json() : { block: '', agreementBlock: '', gapBlock: '' })
+      .then(({ block, agreementBlock, gapBlock }) => {
+        conceptBlockRef.current   = block          || ''
+        agreementBlockRef.current = agreementBlock || ''
+        gapBlockRef.current       = gapBlock       || ''
+      })
       .catch(() => {})
 
     // Feature 5: use clinician data (already fetched) to find prior sessions
@@ -391,7 +404,9 @@ export default function InterviewSession() {
         isFirstMessage,
         shallowReprobe: shouldReprobe,
         priorSessionContext: priorSessionContextRef.current,
-        conceptBlock: conceptBlockRef.current,
+        conceptBlock:   conceptBlockRef.current,
+        agreementBlock: agreementBlockRef.current,
+        gapBlock:       gapBlockRef.current,
       }
     )
 
@@ -405,7 +420,7 @@ export default function InterviewSession() {
     // (the token is for our UI layer, not for the model to see in history)
     let apiMessages = currentMessages.map((m) => ({
       role: m.role,
-      content: m.role === 'assistant' ? stripContrastToken(m.content) : m.content,
+      content: m.role === 'assistant' ? stripGapToken(stripAgreementToken(stripContrastToken(m.content))) : m.content,
     }))
     // Claude API requires at least one message — inject a silent starter for new interviews
     if (apiMessages.length === 0) {
@@ -445,8 +460,8 @@ export default function InterviewSession() {
     setStreamingText('')
     setIsStreaming(false)
 
-    // Speak the clean version (without [CONTRAST] token)
-    if (!isComplete) speak(stripContrastToken(cleanText))
+    // Speak the clean version (without probe tokens)
+    if (!isComplete) speak(stripGapToken(stripAgreementToken(stripContrastToken(cleanText))))
   }, [clinician, interviewId, user?.id])
 
   useEffect(() => {
@@ -1267,8 +1282,12 @@ function InstructionCard({ icon, title, body }) {
 
 function MessageBubble({ message, clinicianName, isStreaming }) {
   const isAI = message.role === 'assistant'
-  const isContrast = isAI && hasContrastSignal(message.content)
-  const displayContent = isAI ? stripContrastToken(message.content) : message.content
+  const isContrast  = isAI && hasContrastSignal(message.content)
+  const isAgreement = isAI && hasAgreementSignal(message.content)
+  const isGap       = isAI && hasGapSignal(message.content)
+  const displayContent = isAI
+    ? stripGapToken(stripAgreementToken(stripContrastToken(message.content)))
+    : message.content
   return (
     <div className={`flex items-start gap-3 ${!isAI ? 'flex-row-reverse' : ''}`}>
       {isAI ? (
@@ -1285,6 +1304,16 @@ function MessageBubble({ message, clinicianName, isStreaming }) {
           <Badge variant="outline" className="self-start flex items-center gap-1 text-[11px] text-muted-foreground border-muted-foreground/30 px-2 py-0.5">
             <ArrowLeftRight className="h-3 w-3" aria-hidden="true" />
             A colleague saw this differently
+          </Badge>
+        )}
+        {isAgreement && (
+          <Badge variant="outline" className="self-start flex items-center gap-1 text-[11px] text-emerald-700 border-emerald-200 bg-emerald-50 px-2 py-0.5">
+            ≡ Shared perspective at your practice
+          </Badge>
+        )}
+        {isGap && (
+          <Badge variant="outline" className="self-start flex items-center gap-1 text-[11px] text-amber-700 border-amber-200 bg-amber-50 px-2 py-0.5">
+            ○ Your perspective on this not yet captured
           </Badge>
         )}
         <div
