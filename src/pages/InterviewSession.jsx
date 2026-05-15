@@ -11,7 +11,7 @@ import { fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscr
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { streamMessage } from '@/lib/claude'
-import { getInterviewSystemPrompt, getBlogPostSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi, buildVerbatimBlock } from '@/lib/prompts'
+import { getInterviewSystemPrompt, getBlogPostSystemPrompt, getMinimalEditSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi, buildVerbatimBlock } from '@/lib/prompts'
 import { detectEmotionalState, getEmotionPromptInjection } from '@/lib/emotionDetection'
 import { getInitials } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
@@ -111,6 +111,7 @@ export default function InterviewSession() {
   const [streamingText, setStreamingText] = useState('')
   const [interviewComplete, setInterviewComplete] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationStyle, setGenerationStyle] = useState('blog_post')
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
@@ -249,6 +250,7 @@ export default function InterviewSession() {
     if (interviewLoading) return
     if (!interviewData) { navigate('/'); return }
     setInterview(interviewData)
+    setGenerationStyle(interviewData.generation_style || 'blog_post')
 
     // Resume from session_state if available (paused mid-interview).
     // session_state.messages is the authoritative source when present; it
@@ -367,6 +369,10 @@ export default function InterviewSession() {
       const timer = setTimeout(() => startListening(), 400)
       return () => clearTimeout(timer)
     }
+    // `startListening` is a stable function defined in this component scope.
+    // Including it as a dep would re-fire the effect on every render and is
+    // unnecessary — the auto-listen trigger only depends on the three flags.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSpeaking, isStreaming, interviewComplete])
 
   const sendToAI = useCallback(async (currentMessages) => {
@@ -462,6 +468,12 @@ export default function InterviewSession() {
 
     // Speak the clean version (without probe tokens)
     if (!isComplete) speak(stripGapToken(stripAgreementToken(stripContrastToken(cleanText))))
+    // `runtimeWorkspace`, `saveMessages`, and `speak` are stable for the
+    // session: workspace switching reloads the page; saveMessages and speak
+    // are unmemoized helpers re-created each render. Listing them would
+    // defeat useCallback (sendToAI would re-create constantly and re-trigger
+    // every effect that depends on it).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinician, interviewId, user?.id])
 
   useEffect(() => {
@@ -473,6 +485,11 @@ export default function InterviewSession() {
       const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
       if (lastAssistant && !interviewComplete) speak(lastAssistant.content)
     }
+    // Intentional one-shot kickoff effect. hasStarted.current guards against
+    // re-entry — listing `messages`, `interviewComplete`, `sendToAI`, or
+    // `speak` here would either re-trigger on every message (after the
+    // hasStarted guard, harmless but wasteful) or fight the guard pattern.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinician, interview, showInstructions, micCheckPassed])
 
   function startListening() {
@@ -567,6 +584,11 @@ export default function InterviewSession() {
     }
 
     sendToAI(updated)
+    // `saveMessages` is a stable scope-level helper, and `user.id` doesn't
+    // change mid-session (the auth-gated route remounts on user change).
+    // Listing them here would re-create this callback on every render and
+    // churn downstream effects that depend on it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isListening, interviewId, sendToAI])
 
   // Pause = leave the interview mid-flight. Conversation auto-saves on every
@@ -713,17 +735,31 @@ export default function InterviewSession() {
       // deltas (see src/lib/claude.js#streamMessage), so we just consume
       // them and accumulate. We update the token counter once every 5
       // chunks to avoid a setState per delta.
+      // Persist style change if the user changed it since the interview loaded (fire-and-forget)
+      if (generationStyle !== (interview.generation_style || 'blog_post')) {
+        updateInterview(interviewId, { generationStyle }, user.id).catch(() => {})
+      }
+
+      const isMinimal = generationStyle === 'minimal_edits'
+      const systemPrompt = isMinimal
+        ? getMinimalEditSystemPrompt(clinician.name, voiceMode, clinician.voice_notes || '')
+        : getBlogPostSystemPrompt(
+            overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
+            clinician.voice_notes || '',
+          ) + buildVerbatimBlock(interview.verbatim_flags)
+
       const streamMessages = [
         ...apiMessages,
-        { role: 'user', content: 'Please write the blog post now based on our interview.' },
+        {
+          role: 'user',
+          content: isMinimal
+            ? 'Please clean up the transcript now using minimal edits only.'
+            : 'Please write the blog post now based on our interview.',
+        },
       ]
-      const systemPrompt = getBlogPostSystemPrompt(
-        overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
-        clinician.voice_notes || '',
-      ) + buildVerbatimBlock(interview.verbatim_flags)
 
       let chunks = 0
-      for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7' })) {
+      for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7', maxOutputTokens: 4096 })) {
         blogStreamingTextRef.current += delta
         chunks += 1
         if (chunks % 5 === 0) setBlogStreamingTokens(chunks)
@@ -1021,15 +1057,43 @@ export default function InterviewSession() {
 
       {interviewComplete && !isGenerating && isOwner && (
         <div className="py-3 shrink-0">
-          <div className="rounded-xl border bg-primary/5 border-primary/20 p-4 flex items-center justify-between gap-4">
+          <div className="rounded-xl border bg-primary/5 border-primary/20 p-4 flex flex-col gap-3">
             <div>
               <p className="text-sm font-medium">Ready to generate content</p>
-              <p className="text-xs text-muted-foreground">Blog post, social media, video scripts, email newsletter, Google Ads, and more.</p>
+              <p className="text-xs text-muted-foreground">Choose how the AI should handle your transcript.</p>
             </div>
-            <Button onClick={handleGenerateContent} size="sm">
-              <Sparkles className="h-4 w-4 mr-1.5" />
-              Generate
-            </Button>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio" name="generationStyle" value="blog_post"
+                  checked={generationStyle === 'blog_post'}
+                  onChange={() => setGenerationStyle('blog_post')}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs leading-snug">
+                  <span className="font-medium">Full blog post</span>
+                  <span className="text-muted-foreground"> — 7-section structure, links, social content</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio" name="generationStyle" value="minimal_edits"
+                  checked={generationStyle === 'minimal_edits'}
+                  onChange={() => setGenerationStyle('minimal_edits')}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs leading-snug">
+                  <span className="font-medium">Minimal edits</span>
+                  <span className="text-muted-foreground"> — clean prose only, preserves your exact words</span>
+                </span>
+              </label>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleGenerateContent} size="sm">
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                Generate
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -1040,7 +1104,7 @@ export default function InterviewSession() {
             <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" aria-hidden="true" />
             <div className="flex-1">
               <p className="text-sm font-medium">
-                Writing blog post…
+                {generationStyle === 'minimal_edits' ? 'Cleaning transcript…' : 'Writing blog post…'}
                 {blogStreamingTokens > 0 && (
                   <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                     ({blogStreamingTokens} chunks)
@@ -1048,7 +1112,9 @@ export default function InterviewSession() {
                 )}
               </p>
               <p className="text-xs text-muted-foreground">
-                Turning your interview into a full blog post. Social, video, and marketing content will generate on demand.
+                {generationStyle === 'minimal_edits'
+                  ? 'Removing filler words and cleaning up the transcript while preserving your exact words.'
+                  : 'Turning your interview into a full blog post. Social, video, and marketing content will generate on demand.'}
               </p>
             </div>
           </div>
@@ -1063,7 +1129,7 @@ export default function InterviewSession() {
               aria-label="Transcript"
               className="w-full rounded-xl bg-muted px-4 py-3 text-sm text-foreground/80 italic min-h-[44px]"
             >
-              "{transcript}"
+              &quot;{transcript}&quot;
             </div>
           )}
 
@@ -1078,7 +1144,7 @@ export default function InterviewSession() {
               </span>
             ) : isListening ? (
               <span className="flex items-center gap-1.5 text-red-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — say "done" or tap mic to send
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — say &quot;done&quot; or tap mic to send
               </span>
             ) : 'Tap to speak'}
           </p>
@@ -1150,7 +1216,7 @@ export default function InterviewSession() {
 // content generation completes. Receives already-fetched data as props so
 // there's no duplicate network fetch. The full standalone output page at
 // /output/:clinicianId/:interviewId is unchanged.
-function InlineOutputPanel({ clinicianId, interviewId, clinician, interview, outputs, onViewFull }) {
+function InlineOutputPanel({ clinicianId: _clinicianId, interviewId: _interviewId, clinician: _clinician, interview: _interview, outputs, onViewFull }) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {

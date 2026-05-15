@@ -132,7 +132,7 @@ function Card({ item }) {
           {scheduledAt ? scheduledAt.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' }) : formatRelativeDate(item.updated_at)}
         </span>
         <Link
-          to={`/review/${item.id}`}
+          to={item.interview_id ? `/stories/${item.interview_id}` : `/review/${item.id}`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           className="text-primary hover:underline shrink-0 inline-flex items-center gap-0.5"

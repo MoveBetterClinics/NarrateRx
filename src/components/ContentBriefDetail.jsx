@@ -55,9 +55,15 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
     setPlatform(brief.target_platform ?? brief.ai_suggested_platform ?? '')
     setNotes(brief.notes ?? '')
     setError('')
+    // Intentional: reseed local form state ONLY when navigating between briefs
+    // (brief.id change). Re-running on every brief.* field change would clobber
+    // the user's in-progress edits whenever an autosave round-trip refreshes
+    // the upstream object.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brief.id])
 
   // Hydrate the source media row + final asset (if any) for preview.
+  // Re-runs when either asset id changes so freshly-uploaded finals show up.
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -73,7 +79,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
       } catch { /* empty */ }
     })()
     return () => { alive = false }
-  }, [brief.id])
+  }, [brief.source_asset_id, brief.final_asset_id])
 
   async function patch(body) {
     setSaving(true); setError(''); setSaved(false)
@@ -232,7 +238,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
             )}
 
             {brief.ai_reasoning && (
-              <p className="text-xs text-muted-foreground italic">"{brief.ai_reasoning}"</p>
+              <p className="text-xs text-muted-foreground italic">&quot;{brief.ai_reasoning}&quot;</p>
             )}
 
             {/* Editable fields */}
@@ -308,7 +314,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
                   <div>
                     <div className="text-xs font-medium">Publish</div>
                     <div className="text-[11px] text-muted-foreground">
-                      Dispatches via Buffer using this workspace's credentials. The finished file (or source clip) is attached as the post media.
+                      Dispatches via Buffer using this workspace&apos;s credentials. The finished file (or source clip) is attached as the post media.
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">

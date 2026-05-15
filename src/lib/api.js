@@ -1,15 +1,77 @@
+// @ts-check
 import { throwApiError } from '@/lib/apiError'
 
-// Canonical fetch wrapper for our own /api routes. Routes error responses
-// through throwApiError (rich 429 handling + payload.message/error parsing),
-// guards the JSON success path so a 200-but-invalid-JSON body doesn't
-// silently return undefined to callers (FUNC-01, PR #304).
+/**
+ * @typedef {RequestInit & { auth?: boolean }} ApiFetchInit
+ * `auth` (default true) controls whether the Clerk bearer token is injected.
+ * Set to false for public/unauthenticated endpoints (/api/share/*, etc.).
+ */
+
+// Canonical fetch wrapper for our own /api routes. Three jobs:
+//   1. Auto-inject the Clerk bearer token so callers never have to thread it
+//      manually. Eliminates a whole class of "missing Authorization header"
+//      bugs (PRs #424, #427) where the API returns 401 and the UI misreports
+//      it as "admin only." Opt out per-call with `init.auth = false` (for
+//      public endpoints like /api/share/* or /api/embed/*).
+//   2. Default `credentials: 'include'` so Clerk's __session cookie also
+//      reaches the server — the cookie is the fallback when getToken() races
+//      with sign-in (component renders before Clerk hydrates).
+//   3. Route !res.ok through throwApiError (401 toast, 429 toast, ApiError
+//      with status). Guards the JSON success path so a 200-but-invalid-JSON
+//      body doesn't silently return undefined to callers (FUNC-01, PR #304).
+
+/** @returns {Promise<string | null>} */
+async function getClerkToken() {
+  if (typeof window === 'undefined') return null
+  try {
+    return await window.Clerk?.session?.getToken?.() ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * @param {HeadersInit | undefined} headers
+ * @returns {boolean}
+ */
+function hasAuthHeader(headers) {
+  if (!headers) return false
+  if (headers instanceof Headers) {
+    return headers.has('Authorization') || headers.has('authorization')
+  }
+  return Object.keys(/** @type {Record<string, string>} */ (headers))
+    .some((k) => k.toLowerCase() === 'authorization')
+}
+
+/**
+ * Fetch an internal /api route, injecting a Clerk bearer token and
+ * defaulting credentials to 'include'. Throws ApiError on non-2xx.
+ * @param {string} path
+ * @param {ApiFetchInit} [init]
+ * @returns {Promise<Response>}
+ */
 export async function apiFetchResponse(path, init = {}) {
-  const res = await fetch(path, init)
+  const { auth = true, headers, credentials, ...rest } = init
+  const mergedHeaders = /** @type {Record<string, string>} */ ({ ...(headers || {}) })
+  if (auth && !hasAuthHeader(mergedHeaders)) {
+    const token = await getClerkToken()
+    if (token) mergedHeaders.Authorization = `Bearer ${token}`
+  }
+  const res = await fetch(path, {
+    ...rest,
+    credentials: credentials ?? 'include',
+    headers: mergedHeaders,
+  })
   if (!res.ok) await throwApiError(res)
   return res
 }
 
+/**
+ * Fetch an internal /api route and parse the JSON response body.
+ * @param {string} path
+ * @param {ApiFetchInit} [init]
+ * @returns {Promise<unknown>}
+ */
 export async function apiFetch(path, init = {}) {
   const res = await apiFetchResponse(path, init)
   return res.json().catch(() => { throw new Error(`Invalid JSON from ${path}`) })
@@ -17,14 +79,17 @@ export async function apiFetch(path, init = {}) {
 
 // ── Clinicians ──────────────────────────────────────────────────────────────
 
+/** @returns {Promise<unknown[]>} */
 export function fetchClinicians() {
-  return apiFetch('/api/db/clinicians')
+  return /** @type {Promise<unknown[]>} */ (apiFetch('/api/db/clinicians'))
 }
 
+/** @param {string} id @returns {Promise<unknown>} */
 export function fetchClinician(id) {
   return apiFetch(`/api/db/clinicians?id=${encodeURIComponent(id)}`)
 }
 
+/** @param {{ name: string, createdById: string, createdByEmail: string }} opts @returns {Promise<unknown>} */
 export function getOrCreateClinician({ name, createdById, createdByEmail }) {
   return apiFetch('/api/db/clinicians', {
     method: 'POST',
@@ -33,6 +98,7 @@ export function getOrCreateClinician({ name, createdById, createdByEmail }) {
   })
 }
 
+/** @param {string} id @param {string} userId @returns {Promise<unknown>} */
 export function deleteClinician(id, userId) {
   return apiFetch(`/api/db/clinicians?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -42,15 +108,21 @@ export function deleteClinician(id, userId) {
 
 // ── Interviews ───────────────────────────────────────────────────────────────
 
+/** @param {string} id @returns {Promise<unknown>} */
 export function fetchInterview(id) {
   return apiFetch(`/api/db/interviews?id=${encodeURIComponent(id)}`)
 }
 
+/** @param {string} topic @param {string} excludeId @returns {Promise<unknown>} */
 export function fetchSimilarInterviews(topic, excludeId) {
   const params = new URLSearchParams({ topic, excludeId })
   return apiFetch(`/api/db/interviews?${params}`)
 }
 
+/**
+ * @param {{ clinicianId: string, topic: string, ownerId: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string }} opts
+ * @returns {Promise<unknown>}
+ */
 export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId }) {
   return apiFetch('/api/db/interviews', {
     method: 'POST',
@@ -59,6 +131,7 @@ export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone,
   })
 }
 
+/** @param {string} id @param {Record<string, unknown>} patch @param {string} userId @returns {Promise<unknown>} */
 export function updateInterview(id, patch, userId) {
   return apiFetch(`/api/db/interviews?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',
@@ -67,6 +140,7 @@ export function updateInterview(id, patch, userId) {
   })
 }
 
+/** @param {string} interviewId @returns {Promise<unknown>} */
 export function suggestPullQuotes(interviewId) {
   return apiFetch('/api/interviews/pull-quotes', {
     method: 'POST',
@@ -75,10 +149,12 @@ export function suggestPullQuotes(interviewId) {
   })
 }
 
+/** @param {string} itemId @returns {Promise<unknown>} */
 export function listContentItemComments(itemId) {
   return apiFetch(`/api/content-item-comments?itemId=${encodeURIComponent(itemId)}`)
 }
 
+/** @param {string} itemId @param {{ body: string, kind: string, userId: string, userEmail: string }} opts @returns {Promise<unknown>} */
 export function createContentItemComment(itemId, { body, kind, userId, userEmail }) {
   return apiFetch('/api/content-item-comments', {
     method: 'POST',
@@ -87,6 +163,7 @@ export function createContentItemComment(itemId, { body, kind, userId, userEmail
   })
 }
 
+/** @param {string} interviewId @returns {Promise<unknown>} */
 export function cleanupTranscript(interviewId) {
   return apiFetch('/api/interviews/cleanup-transcript', {
     method: 'POST',
@@ -95,10 +172,12 @@ export function cleanupTranscript(interviewId) {
   })
 }
 
+/** @param {string} itemId @returns {Promise<unknown>} */
 export function listContentItemDrafts(itemId) {
   return apiFetch(`/api/content-item-drafts?itemId=${encodeURIComponent(itemId)}`)
 }
 
+/** @param {string} itemId @param {string} body @param {boolean} [aiGenerated] @returns {Promise<unknown>} */
 export function createContentItemDraft(itemId, body, aiGenerated = false) {
   return apiFetch('/api/content-item-drafts', {
     method: 'POST',
@@ -107,6 +186,7 @@ export function createContentItemDraft(itemId, body, aiGenerated = false) {
   })
 }
 
+/** @param {string} id @param {string} userId @returns {Promise<unknown>} */
 export function deleteInterview(id, userId) {
   return apiFetch(`/api/db/interviews?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
@@ -123,11 +203,16 @@ export function deleteInterview(id, userId) {
 //   useClinician) — passed in to avoid a second network request.
 // Published content: fetched from /api/db/content?clinicianId=<id>&status=published
 //   which now accepts clinicianId filtering (api/db/content.js, added 2026-05-13).
+/**
+ * @param {string} clinicianId
+ * @param {any[]} [interviews]
+ * @returns {Promise<{ stats: { interviews: number, posts: number, streak: number }, recentPosts: any[], standoutQuote: { text: string, interviewTopic: string } | null }>}
+ */
 export async function fetchClinicianArc(clinicianId, interviews = []) {
   // Fetch published content items for this clinician
-  const posts = await apiFetch(
+  const posts = /** @type {any[]} */ (await apiFetch(
     `/api/db/content?clinicianId=${encodeURIComponent(clinicianId)}&status=published&limit=100`
-  ).catch(() => [])
+  ).catch(() => /** @type {any[]} */ ([])))
 
   // ── Stats ─────────────────────────────────────────────────────────────────
 
@@ -144,7 +229,7 @@ export async function fetchClinicianArc(clinicianId, interviews = []) {
   // ── Recent posts (newest first, max 5) ────────────────────────────────────
 
   const recentPosts = [...publishedPosts]
-    .sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at))
+    .sort((a, b) => +new Date(b.published_at || b.created_at) - +new Date(a.published_at || a.created_at))
     .slice(0, 5)
 
   // ── Standout quote ────────────────────────────────────────────────────────
@@ -158,12 +243,12 @@ export async function fetchClinicianArc(clinicianId, interviews = []) {
   }
 }
 
-// Compute current week-streak from an array of completed interview objects that
-// each have a `created_at` ISO timestamp. A week is identified by ISO week number
-// (Mon-Sun). The streak counts back from the current week: if there's at least
-// one interview this week → 1, and for each prior consecutive week that also has
-// at least one interview → +1. Returns 0 if there's no interview in the current
-// week.
+/**
+ * Compute current week-streak from an array of completed interview objects.
+ * Each object must have a `created_at` ISO timestamp.
+ * @param {any[]} completedInterviews
+ * @returns {number}
+ */
 function computeWeekStreak(completedInterviews) {
   if (!completedInterviews.length) return 0
 
@@ -188,7 +273,11 @@ function computeWeekStreak(completedInterviews) {
   return streak
 }
 
-// Returns "YYYY-Www" for the ISO week containing the given Date.
+/**
+ * Returns "YYYY-Www" for the ISO week containing the given Date.
+ * @param {Date} date
+ * @returns {string}
+ */
 function isoWeekKey(date) {
   // Copy date as UTC to avoid DST shifts
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()))
@@ -196,26 +285,30 @@ function isoWeekKey(date) {
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7))
   const year = d.getUTCFullYear()
   const week = Math.ceil(
-    ((d - Date.UTC(year, 0, 1)) / 86400000 + 1) / 7
+    (+d - Date.UTC(year, 0, 1)) / 86400000 / 7 + 1
   )
   return `${year}-W${String(week).padStart(2, '0')}`
 }
 
-// Pick the best verbatim quote from completed interviews.
-// Priority: verbatim_flags array → longest user message from most recent interview.
+/**
+ * Pick the best verbatim quote from completed interviews.
+ * Priority: verbatim_flags array → longest user message from most recent interview.
+ * @param {any[]} completedInterviews
+ * @returns {{ text: string, interviewTopic: string } | null}
+ */
 function pickStandoutQuote(completedInterviews) {
   if (!completedInterviews.length) return null
 
   // Try verbatim_flags across all completed interviews (newest first)
   const sorted = [...completedInterviews].sort(
-    (a, b) => new Date(b.created_at) - new Date(a.created_at)
+    (a, b) => +new Date(b.created_at) - +new Date(a.created_at)
   )
 
   for (const iv of sorted) {
     const flags = Array.isArray(iv.verbatim_flags) ? iv.verbatim_flags : []
     if (flags.length > 0) {
       // Pick the longest flagged text if multiple exist
-      const best = flags.reduce((a, b) =>
+      const best = flags.reduce((/** @type {any} */ a, /** @type {any} */ b) =>
         (b.text || '').length > (a.text || '').length ? b : a
       )
       if (best.text?.trim()) {
@@ -227,10 +320,10 @@ function pickStandoutQuote(completedInterviews) {
   // Fallback: longest user message from the most recent completed interview
   const newest = sorted[0]
   const messages = Array.isArray(newest.messages) ? newest.messages : []
-  const userMessages = messages.filter((m) => m.role === 'user' && m.content?.trim())
+  const userMessages = messages.filter((/** @type {any} */ m) => m.role === 'user' && m.content?.trim())
   if (!userMessages.length) return null
 
-  const longest = userMessages.reduce((a, b) =>
+  const longest = userMessages.reduce((/** @type {any} */ a, /** @type {any} */ b) =>
     (b.content || '').length > (a.content || '').length ? b : a
   )
   return longest.content?.trim()
@@ -240,10 +333,12 @@ function pickStandoutQuote(completedInterviews) {
 
 // ── Campaign Settings ────────────────────────────────────────────────────────
 
+/** @returns {Promise<unknown>} */
 export function fetchCampaign() {
   return apiFetch('/api/db/settings')
 }
 
+/** @param {Record<string, unknown>} patch @param {string} userId @returns {Promise<unknown>} */
 export function updateCampaign(patch, userId) {
   return apiFetch('/api/db/settings', {
     method: 'PATCH',

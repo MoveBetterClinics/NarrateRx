@@ -24,7 +24,7 @@ async function handler(req, res) {
 
   if (!(await enforceLimit(req, res, 'ai'))) return
 
-  const { messages, systemPrompt, model } = req.body || {}
+  const { messages, systemPrompt, model, maxOutputTokens } = req.body || {}
 
   if (!messages || !systemPrompt) {
     res.status(400).json({ error: 'Missing messages or systemPrompt' })
@@ -40,13 +40,19 @@ async function handler(req, res) {
   const requested = model || 'claude-sonnet-4-6'
   const gatewayModel = requested.includes('/') ? requested : `anthropic/${requested}`
 
+  // Default keeps short interview turns cheap; blog/long-form callers pass
+  // a higher cap. Clamp to 8192 so a malicious caller can't burn the budget.
+  const cap = Number.isFinite(maxOutputTokens)
+    ? Math.min(Math.max(parseInt(maxOutputTokens, 10) || 1024, 256), 8192)
+    : 1024
+
   let result
   try {
     result = streamText({
       model: gatewayModel,
       system: systemPrompt,
       messages,
-      maxOutputTokens: 1024,
+      maxOutputTokens: cap,
     })
   } catch (e) {
     res.status(500).json({ error: e?.message || 'Stream init failed' })

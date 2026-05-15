@@ -116,6 +116,33 @@ Deploy to prod **only** from the project root (`/Users/qbook/Claude Projects/Nar
 
 If the project root is on another branch (with WIP), do not switch under the user. Either run the deploy from a separate `main`-tracking worktree that's `vercel link`ed to the `narraterx` project (copy `.vercel/project.json` in if needed) or ask the user to free up the project root. Always confirm the resulting deploy is aliased to `narraterx.ai` + `*.narraterx.ai` with `vercel inspect <dpl-id>` before declaring it done — deploys from an unlinked worktree silently create a separate Vercel project and never touch the real prod aliases.
 
+## Definition of Done
+Every PR must satisfy this checklist before merging. The triage on 2026-05-14 traced 12+ bugs to exactly these gaps being skipped.
+
+### Code quality
+- [ ] `npm run typecheck` exits 0 — no new implicit-any or JSDoc contract violations
+- [ ] `npm run lint` exits 0 at or below the current ratchet ceiling — never raises it without an equal offset
+- [ ] `npm run build` exits 0
+
+### Logic
+- [ ] Every new `useMutation` call uses `useAppMutation` (not raw TanStack `useMutation`) — enforced by the `narraterx/no-raw-use-mutation` ESLint rule
+- [ ] Every new `fetch()` to an `/api` route uses `apiFetch` or `apiFetchResponse` — never a raw `fetch()` that could miss the Bearer token
+- [ ] Every new API handler that touches a tenant-scoped table calls `workspaceContext(req)` and filters by `workspace_id`
+- [ ] 401 / 403 branches are handled on `err?.status`, not `err?.message` string matching
+
+### New API routes
+- [ ] The handler shape matches the runtime (`(req, res)` for Node, `(req: Request)` for Edge)
+- [ ] The Supabase table/column exists on prod before the PR is merged (verify with Studio SQL Editor or `scripts/apply-multitenant-migrations.mjs`)
+- [ ] New tables include `GRANT … TO service_role` in the same migration file
+
+### Testing
+- [ ] Feature used in-browser at least once before the PR is opened (the step most often skipped)
+- [ ] For large-surface features: run `npm run e2e` or manually smoke the relevant page on the Vercel preview URL
+
+### Merge hygiene
+- [ ] Branch rebased on current `origin/main` (`git fetch && git rebase origin/main`) immediately before opening the PR
+- [ ] `gh pr merge <num> --auto --squash` set on open so CI gates the merge
+
 ## Email Template
 The email newsletter preview renders the actual TrustDrivenCare (TDC) HTML template via `<iframe srcDoc>`. The template lives at `src/email-template.html` and is imported with Vite's `?raw` loader in `src/components/PostPreview.jsx`.
 

@@ -125,6 +125,10 @@ export default function StoriesSidebar() {
       }
     }
     return { stage: stageCounts, platform: platformCounts, location: locationCounts, archetype: archetypeCounts }
+    // `active` itself is a new object literal each render, so the deps list
+    // tracks the four primitive fields `matches()` actually reads. ESLint
+    // can't see inside `matches` to verify, hence the disable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stories, active.stage, active.platform, active.location, active.archetype])
 
   function setParam(key, value) {

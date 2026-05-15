@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useCallback } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import {
   Upload, Search, Filter, Check, X, Sparkles, AlertCircle,
   FileText, Image as ImageIcon, Tag as TagIcon, RotateCcw, Loader2, Trash2, RefreshCw,
@@ -496,6 +496,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
   const [autoAssigning, setAutoAssigning] = useState(false)
   const [customColorDraft, setCustomColorDraft] = useState('')
   const [addingCustomColor, setAddingCustomColor] = useState(false)
+  const [reclassifying, setReclassifying] = useState(false)
 
   const filtered = useMemo(() => {
     return assets.filter((a) => {
@@ -657,18 +658,26 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
               <span className="text-xs text-muted-foreground">{filtered.length} of {assets.length} assets</span>
               <Button
                 size="sm" variant="ghost" className="text-xs h-7 text-muted-foreground"
+                disabled={reclassifying}
                 onClick={async () => {
-                  const token = await window.Clerk?.session?.getToken?.()
-                  const r = await fetch('/api/brand-kit/reclassify', {
-                    method: 'POST',
-                    headers: token ? { Authorization: `Bearer ${token}` } : {},
-                  })
-                  const data = await r.json()
-                  if (r.ok) {
-                    toast.success(`Re-tagged ${data.updated} of ${data.total} assets`)
-                    qc.invalidateQueries({ queryKey: ['brandKit'] })
-                  } else {
-                    toast.error(data.error || 'Re-classify failed')
+                  setReclassifying(true)
+                  try {
+                    const token = await window.Clerk?.session?.getToken?.()
+                    const r = await fetch('/api/brand-kit/reclassify', {
+                      method: 'POST',
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    })
+                    const data = await r.json()
+                    if (r.ok) {
+                      toast.success(`Re-tagged ${data.updated} of ${data.total} assets`)
+                      qc.invalidateQueries({ queryKey: ['brandKit'] })
+                    } else {
+                      toast.error(data.error || 'Re-classify failed')
+                    }
+                  } catch (err) {
+                    toast.error('Re-classify failed', { description: err.message })
+                  } finally {
+                    setReclassifying(false)
                   }
                 }}
                 title="Re-run AI classifier on all assets"

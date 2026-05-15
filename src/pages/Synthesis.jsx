@@ -10,6 +10,7 @@ import { Separator } from '@/components/ui/separator'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { apiFetch } from '@/lib/api'
 
 // ── Kind metadata ─────────────────────────────────────────────────────────────
 
@@ -162,20 +163,15 @@ export default function Synthesis() {
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    const getToken = async () => {
-      try { return await window.Clerk?.session?.getToken?.() } catch { return null }
-    }
-    getToken()
-      .then(token => fetch('/api/concepts/synthesis', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {}
-      }))
-      .then(r => {
-        if (r.status === 401 || r.status === 403) throw new Error('admin_only')
-        if (!r.ok) throw new Error('fetch_failed')
-        return r.json()
-      })
+    apiFetch('/api/concepts/synthesis')
       .then(setData)
-      .catch(err => setError(err.message))
+      .catch(err => {
+        // 403 = signed in but lacking the admin role (the canonical
+        // "admin only" case). 401 is handled globally in apiError.js
+        // (toasts "Sign in again") so we just surface the generic error.
+        if (err?.status === 403) setError('admin_only')
+        else setError(err?.message || 'fetch_failed')
+      })
       .finally(() => setLoading(false))
   }, [])
 

@@ -1,9 +1,4 @@
-async function apiFetch(path, init = {}) {
-  const res = await fetch(path, init)
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || `Request failed: ${res.status}`)
-  return json
-}
+import { apiFetch } from '@/lib/api'
 
 // ── Content items ────────────────────────────────────────────────────────────
 
@@ -101,20 +96,24 @@ export async function publishItem(item, { scheduledAt } = {}) {
 // upstream_error. The UI keys off `.code` to render the right message
 // (slug-taken in particular needs to highlight the slug input).
 export async function publishBlogToWebsite(post) {
-  const res = await fetch('/api/publish/website', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(post),
-  })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const error = new Error(json.message || `Publish failed (${res.status})`)
-    error.code = json.error || 'upstream_error'
-    error.status = res.status
-    error.details = json
-    throw error
+  try {
+    return await apiFetch('/api/publish/website', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(post),
+    })
+  } catch (err) {
+    // Preserve the {code, status, details} shape callers branch on
+    // (slug-taken UI needs `.code` to highlight the slug input).
+    if (err?.name === 'ApiError') {
+      const wrapped = new Error(err.payload?.message || err.message || `Publish failed (${err.status})`)
+      wrapped.code = err.payload?.error || 'upstream_error'
+      wrapped.status = err.status
+      wrapped.details = err.payload
+      throw wrapped
+    }
+    throw err
   }
-  return json
 }
 
 // Universal Buffer-eligible platform list — exposed so workbench UIs know which

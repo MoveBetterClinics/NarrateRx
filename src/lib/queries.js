@@ -18,8 +18,10 @@
 // "everything clinician-shaped" we want one consistent prefix. Inline keys
 // drift over time and become silent staleness bugs.
 
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import { useAppMutation } from './useAppMutation'
 import {
+  apiFetch,
   fetchClinicians,
   fetchClinician,
   deleteClinician,
@@ -108,11 +110,7 @@ export const queryKeys = {
 export function useLocations() {
   return useQuery({
     queryKey: queryKeys.locations.list(),
-    queryFn: async () => {
-      const r = await fetch('/api/db/locations', { credentials: 'include' })
-      if (!r.ok) return []
-      return r.json()
-    },
+    queryFn: () => apiFetch('/api/db/locations').catch(() => []),
     staleTime: 1000 * 60 * 5,
   })
 }
@@ -134,7 +132,8 @@ export function useBrandKit(options = {}) {
 
 export function useUpdateBrandAsset() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't update brand asset",
     mutationFn: ({ id, patch }) => updateBrandAsset(id, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
   })
@@ -142,7 +141,8 @@ export function useUpdateBrandAsset() {
 
 export function useDeleteBrandAsset() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't delete brand asset",
     mutationFn: ({ id }) => deleteBrandAsset(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
   })
@@ -150,7 +150,8 @@ export function useDeleteBrandAsset() {
 
 export function useAssignBrandRole() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't assign brand role",
     mutationFn: ({ role, assetId }) => assignBrandRole(role, assetId),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
   })
@@ -158,7 +159,8 @@ export function useAssignBrandRole() {
 
 export function useClearBrandRole() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't clear brand role",
     mutationFn: ({ role }) => clearBrandRole(role),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
   })
@@ -166,7 +168,8 @@ export function useClearBrandRole() {
 
 export function useUpdateBrandStyle() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't update brand style",
     mutationFn: (patch) => updateBrandStyle(patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
   })
@@ -193,7 +196,8 @@ export function useClinician(id, options = {}) {
 
 export function useDeleteClinician() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't delete clinician",
     mutationFn: ({ id, userId }) => deleteClinician(id, userId),
     onSuccess: (_data, { id }) => {
       // Wipe the list cache + the specific detail so a re-fetch sees fresh
@@ -219,7 +223,8 @@ export function useInterview(id, options = {}) {
 
 export function useUpdateInterview() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't update interview",
     mutationFn: ({ id, patch, userId }) => updateInterview(id, patch, userId),
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: queryKeys.interviews.detail(id) })
@@ -236,7 +241,8 @@ export function useUpdateInterview() {
 
 export function useDeleteInterview() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't delete interview",
     mutationFn: ({ id, userId }) => deleteInterview(id, userId),
     onSuccess: (_data, { id }) => {
       qc.removeQueries({ queryKey: queryKeys.interviews.detail(id) })
@@ -267,7 +273,8 @@ export function useContentItem(id, options = {}) {
 
 export function useUpdateContentItem() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't update content",
     mutationFn: ({ id, patch }) => updateContentItem(id, patch),
     onSuccess: (data, { id }) => {
       // Write the fresh row straight into the detail cache so subscribers
@@ -281,7 +288,8 @@ export function useUpdateContentItem() {
 
 export function useDeleteContentItem() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't delete content",
     mutationFn: (id) => deleteContentItem(id),
     onSuccess: (_data, id) => {
       qc.removeQueries({ queryKey: queryKeys.contentItems.detail(id) })
@@ -325,7 +333,8 @@ export function useContentPlanAtoms(interviewId, options = {}) {
 
 export function useDraftAtom() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't draft content piece",
     mutationFn: ({ atomId }) => draftAtom(atomId),
     onSuccess: (_data, { interviewId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.contentPlan.atoms(interviewId) })
@@ -336,7 +345,8 @@ export function useDraftAtom() {
 
 export function useSkipAtom() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't update content piece",
     mutationFn: ({ atomId, status }) => updateAtomStatus(atomId, status),
     onSuccess: (_data, { interviewId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.contentPlan.atoms(interviewId) })
@@ -356,7 +366,8 @@ export function useTopicBacklog(status, options = {}) {
 
 export function useCreateTopic() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't create topic",
     mutationFn: (payload) => createTopic(payload),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
   })
@@ -364,7 +375,8 @@ export function useCreateTopic() {
 
 export function useUpdateTopic() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't update topic",
     mutationFn: ({ id, patch }) => updateTopic(id, patch),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
   })
@@ -372,7 +384,8 @@ export function useUpdateTopic() {
 
 export function useDeleteTopic() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't delete topic",
     mutationFn: (id) => deleteTopic(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
   })
@@ -380,7 +393,8 @@ export function useDeleteTopic() {
 
 export function useSuggestTopics() {
   const qc = useQueryClient()
-  return useMutation({
+  return useAppMutation({
+    errorMessage: "Couldn't suggest topics",
     mutationFn: (count) => suggestTopics(count),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.topicBacklog.all }),
   })
@@ -407,14 +421,10 @@ export function useStories(filters = {}, options = {}) {
   return useQuery({
     queryKey: queryKeys.stories.list(filters),
     queryFn: async () => {
-      const [cliniciansRes, contentRes] = await Promise.all([
-        fetch('/api/db/clinicians?view=card', { credentials: 'include' }),
-        fetch('/api/db/content?view=card&limit=500', { credentials: 'include' }),
+      const [clinicians, contentItems] = await Promise.all([
+        apiFetch('/api/db/clinicians?view=card'),
+        apiFetch('/api/db/content?view=card&limit=500'),
       ])
-      if (!cliniciansRes.ok) throw new Error('Failed to fetch clinicians')
-      if (!contentRes.ok) throw new Error('Failed to fetch content')
-      const clinicians = await cliniciansRes.json()
-      const contentItems = await contentRes.json()
       qc.setQueryData(queryKeys.clinicians.card(), clinicians)
       return buildStories(clinicians, contentItems)
     },
@@ -430,11 +440,7 @@ export function useStories(filters = {}, options = {}) {
 export function useClinicianSummaries(options = {}) {
   return useQuery({
     queryKey: queryKeys.clinicians.card(),
-    queryFn: async () => {
-      const r = await fetch('/api/db/clinicians?view=card', { credentials: 'include' })
-      if (!r.ok) throw new Error('Failed to fetch clinicians')
-      return r.json()
-    },
+    queryFn: () => apiFetch('/api/db/clinicians?view=card'),
     staleTime: 5 * 60_000,
     ...options,
   })
@@ -443,14 +449,10 @@ export function useClinicianSummaries(options = {}) {
 // Standalone fetcher extracted so prefetchQuery in StoryCard can reuse the
 // same queryFn without duplicating the fetch logic.
 export async function fetchStory(interviewId) {
-  const [intRes, contentRes] = await Promise.all([
-    fetch(`/api/db/interviews?id=${interviewId}`, { credentials: 'include' }),
-    fetch(`/api/db/content?interviewId=${interviewId}`, { credentials: 'include' }),
+  const [interviews, contentItems] = await Promise.all([
+    apiFetch(`/api/db/interviews?id=${encodeURIComponent(interviewId)}`),
+    apiFetch(`/api/db/content?interviewId=${encodeURIComponent(interviewId)}`),
   ])
-  if (!intRes.ok) throw new Error('Failed to fetch interview')
-  if (!contentRes.ok) throw new Error('Failed to fetch content')
-  const interviews = await intRes.json()
-  const contentItems = await contentRes.json()
   const interview = Array.isArray(interviews) ? interviews[0] : interviews
   if (!interview) return null
   const pieces = Array.isArray(contentItems) ? contentItems : []
@@ -499,11 +501,7 @@ export function useStory(interviewId, options = {}) {
 export function useComments(contentItemId, options = {}) {
   return useQuery({
     queryKey: queryKeys.comments.list(contentItemId),
-    queryFn: async () => {
-      const r = await fetch(`/api/db/comments?contentItemId=${contentItemId}`, { credentials: 'include' })
-      if (!r.ok) throw new Error('Failed to fetch comments')
-      return r.json()
-    },
+    queryFn: () => apiFetch(`/api/db/comments?contentItemId=${encodeURIComponent(contentItemId)}`),
     enabled: !!contentItemId,
     ...options,
   })
@@ -511,17 +509,14 @@ export function useComments(contentItemId, options = {}) {
 
 export function useAddComment(contentItemId) {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ body, kind = 'comment' }) => {
-      const r = await fetch('/api/db/comments', {
+  return useAppMutation({
+    errorMessage: "Couldn't post comment",
+    mutationFn: ({ body, kind = 'comment' }) =>
+      apiFetch('/api/db/comments', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contentItemId, body, kind }),
-      })
-      if (!r.ok) throw new Error('Failed to add comment')
-      return r.json()
-    },
+      }),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.comments.list(contentItemId) }),
   })
 }
@@ -535,11 +530,7 @@ export function useAddComment(contentItemId) {
 export function useTopicSuggestions() {
   return useQuery({
     queryKey: queryKeys.topicSuggestions,
-    queryFn: async () => {
-      const r = await fetch('/api/topic-suggestions', { credentials: 'include' })
-      if (!r.ok) return { suggestions: [] }
-      return r.json()
-    },
+    queryFn: () => apiFetch('/api/topic-suggestions').catch(() => ({ suggestions: [] })),
     staleTime: 1000 * 60 * 60 * 6, // 6h client-side cache
   })
 }
@@ -556,9 +547,7 @@ export function useTopPerformers() {
     queryFn: async () => {
       // view=performers returns only the 5 cols this widget needs; drops
       // content body, media_urls, notes, hashtags, etc. (full row = 27 cols).
-      const r = await fetch('/api/db/content?status=published&limit=20&view=performers', { credentials: 'include' })
-      if (!r.ok) return []
-      const items = await r.json()
+      const items = await apiFetch('/api/db/content?status=published&limit=20&view=performers').catch(() => [])
       if (!Array.isArray(items)) return []
       return items
         .filter((i) => i.buffer_metrics?.reach || i.buffer_metrics?.engagement)
@@ -569,18 +558,39 @@ export function useTopPerformers() {
   })
 }
 
+// Regenerate the AI content for a single content_item in place.
+// Resets the row to status=draft and clears approval audit fields, so any
+// previously-approved piece needs fresh review before publish.
+export function useRegenerateContentItem() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: 'Regeneration failed',
+    mutationFn: ({ id }) =>
+      apiFetch('/api/content-items/regenerate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.stories.all })
+    },
+  })
+}
+
 export function useUpdateContentItemStatus() {
   const qc = useQueryClient()
-  return useMutation({
-    mutationFn: async ({ id, status, approvedBy, approvedAt, reviewedBy }) => {
-      const r = await fetch('/api/db/content', {
+  return useAppMutation({
+    errorMessage: "Couldn't update status",
+    mutationFn: ({ id, status, approvedBy, approvedAt, reviewedBy, resolvedUrl, publishedAt }) => {
+      const body = { id, status, approvedBy, approvedAt, reviewedBy }
+      if (resolvedUrl !== undefined) body.resolvedUrl = resolvedUrl
+      if (publishedAt !== undefined) body.publishedAt = publishedAt
+      return apiFetch(`/api/db/content?id=${encodeURIComponent(id)}`, {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, approvedBy, approvedAt, reviewedBy }),
+        body: JSON.stringify(body),
       })
-      if (!r.ok) throw new Error('Failed to update status')
-      return r.json()
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
@@ -594,11 +604,9 @@ export function useUpdateContentItemStatus() {
 export function useBufferMetrics(contentItemId, options = {}) {
   return useQuery({
     queryKey: queryKeys.bufferMetrics(contentItemId),
-    queryFn: async () => {
-      const r = await fetch(`/api/buffer-analytics?contentItemId=${contentItemId}`, { credentials: 'include' })
-      if (!r.ok) return null
-      return r.json()
-    },
+    queryFn: () =>
+      apiFetch(`/api/buffer-analytics?contentItemId=${encodeURIComponent(contentItemId)}`)
+        .catch(() => null),
     enabled: !!contentItemId,
     staleTime: 1000 * 60 * 30, // 30min — Buffer stats don't update by the second
     ...options,
@@ -616,11 +624,7 @@ export function useBufferMetrics(contentItemId, options = {}) {
 export function useOnboardingProgress(options = {}) {
   return useQuery({
     queryKey: queryKeys.onboardingProgress,
-    queryFn: async () => {
-      const r = await fetch('/api/onboarding/progress', { credentials: 'include' })
-      if (!r.ok) return null
-      return r.json()
-    },
+    queryFn: () => apiFetch('/api/onboarding/progress').catch(() => null),
     staleTime: 1000 * 60, // 60s
     ...options,
   })

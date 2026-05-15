@@ -100,6 +100,38 @@ export const ATOM_DEFINITIONS = {
       description: '45–60 second script showing what treatment or recovery looks like',
     },
   ],
+  twitter: [
+    {
+      slot: 1,
+      angle: 'hook',
+      label: 'The Hook (Tweet)',
+      description: 'Single 280-char zinger from the blog’s sharpest claim — built to be quoted and shared',
+    },
+  ],
+  threads: [
+    {
+      slot: 1,
+      angle: 'community_take',
+      label: 'Community Take',
+      description: 'Conversational 500-char post that opens a question and invites replies',
+    },
+  ],
+  bluesky: [
+    {
+      slot: 1,
+      angle: 'clinical_share',
+      label: 'Clinical Share',
+      description: 'Considered clinician-to-clinician share for the Bluesky audience — no hashtags',
+    },
+  ],
+  mastodon: [
+    {
+      slot: 1,
+      angle: 'educational',
+      label: 'Educational Toot',
+      description: 'Plain-language educational post with an optional content warning, inclusive of the federated community',
+    },
+  ],
 }
 
 // Suggested publish date for an atom slot: anchor + (slot - 1) weeks at 9am UTC.

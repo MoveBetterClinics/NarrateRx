@@ -4,6 +4,7 @@ import reactPlugin from 'eslint-plugin-react'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import apiHandlerShape from './eslint/rules/api-handler-shape.js'
+import noRawUseMutation from './eslint/rules/no-raw-use-mutation.js'
 
 export default [
   { ignores: ['dist/**', 'node_modules/**', 'playwright-report/**'] },
@@ -49,6 +50,19 @@ export default [
     },
     rules: {
       'narraterx/api-handler-shape': 'error',
+    },
+  },
+  // Local rule: ban bare `useMutation` from @tanstack/react-query everywhere
+  // except the useAppMutation wrapper. useAppMutation injects a default
+  // onError toast so failed mutations are never silent (PRs #431, #436).
+  // Source: eslint/rules/no-raw-use-mutation.js.
+  {
+    files: ['src/**/*.{js,jsx}'],
+    plugins: {
+      narraterx: { rules: { 'no-raw-use-mutation': noRawUseMutation } },
+    },
+    rules: {
+      'narraterx/no-raw-use-mutation': 'error',
     },
   },
 ]

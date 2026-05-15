@@ -11,6 +11,7 @@ import {
   useDeleteTopic,
   useSuggestTopics,
 } from '@/lib/queries'
+import { toast } from '@/lib/toast'
 
 // Strategic topic backlog. Sits inside the Strategy page and gives the clinic
 // a prioritized queue of "what to interview about next" — either AI-suggested
@@ -49,26 +50,28 @@ export default function TopicBacklogPanel() {
     }
   }
 
+  const onMutateError = (e) => toast.error(e.message || 'Action failed')
+
   function handleStart(topic) {
-    updateMutation.mutate({ id: topic.id, patch: { status: 'in_progress' } })
+    updateMutation.mutate({ id: topic.id, patch: { status: 'in_progress' } }, { onError: onMutateError })
     navigate(`/interview/new?topic=${encodeURIComponent(topic.topic)}`)
   }
 
   function handleArchive(topic) {
-    updateMutation.mutate({ id: topic.id, patch: { status: 'archived' } })
+    updateMutation.mutate({ id: topic.id, patch: { status: 'archived' } }, { onError: onMutateError })
   }
 
   function handleComplete(topic) {
-    updateMutation.mutate({ id: topic.id, patch: { status: 'completed' } })
+    updateMutation.mutate({ id: topic.id, patch: { status: 'completed' } }, { onError: onMutateError })
   }
 
   function handleRestore(topic) {
-    updateMutation.mutate({ id: topic.id, patch: { status: 'pending' } })
+    updateMutation.mutate({ id: topic.id, patch: { status: 'pending' } }, { onError: onMutateError })
   }
 
   function handleDelete(topic) {
     if (!confirm(`Delete "${topic.topic}" from the backlog?`)) return
-    deleteMutation.mutate(topic.id)
+    deleteMutation.mutate(topic.id, { onError: onMutateError })
   }
 
   const STATUS_TABS = [

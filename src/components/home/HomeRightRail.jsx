@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { CalendarClock, Sparkles, Bot, RefreshCw, MapPin, TrendingUp } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTopicSuggestions, useLocations, useTopPerformers, queryKeys } from '@/lib/queries'
+import { toast } from '@/lib/toast'
 
 const PLATFORM_LABELS = {
   facebook: 'Facebook',
@@ -72,7 +73,11 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
     // the 7-day server-side cache. The query refetch will call the normal
     // endpoint; we separately ping the refresh URL so the next cache write
     // gets fresh data without blocking the UI.
-    await fetch('/api/topic-suggestions?refresh=true', { credentials: 'include' })
+    try {
+      await fetch('/api/topic-suggestions?refresh=true', { credentials: 'include' })
+    } catch (err) {
+      toast.error('Failed to refresh suggestions', { description: err.message })
+    }
     qc.invalidateQueries({ queryKey: queryKeys.topicSuggestions })
   }
 

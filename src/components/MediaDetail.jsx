@@ -97,6 +97,9 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const purgeReady  = isArchived && asset.archived_at && cooldownLeft === 0 && canPurge
 
   // Sync local state if a different asset is loaded into the same drawer.
+  // Intentional: reseeds ONLY on asset.id change. Listing every asset.* field
+  // here would clobber in-progress user edits the moment an autosave round-trip
+  // refreshes the upstream object.
   useEffect(() => {
     setTags(asset.tags || [])
     setNotes(asset.notes || '')
@@ -113,6 +116,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setError('')
     setShowPurge(false)
     setPurgeConfirm('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id])
 
   const refreshBriefs = useCallback(async () => {
@@ -541,7 +545,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
 
             {assetPurpose === 'interview' && (
               <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Who's speaking?</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Who&apos;s speaking?</label>
                 <select
                   value={speakerRole}
                   onChange={(e) => setSpeakerRole(e.target.value)}
@@ -722,7 +726,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">
                 Alt text
                 <span className="text-muted-foreground/70 font-normal ml-1">
-                  · describes what's in the image for screen readers + captions
+                  · describes what&apos;s in the image for screen readers + captions
                 </span>
               </label>
               <Input

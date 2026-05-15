@@ -94,7 +94,7 @@ export default function ContentBriefList({ refreshKey, expandedDefault = true })
             </div>
           ) : visible.length === 0 ? (
             <div className="text-center text-xs text-muted-foreground py-8">
-              No briefs in this view. Upload a tagged interview or click "New brief" on a media item to add one manually.
+              No briefs in this view. Upload a tagged interview or click &quot;New brief&quot; on a media item to add one manually.
             </div>
           ) : (
             <ul className="divide-y">

@@ -1,19 +1,23 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
-  ChevronDown, MessageSquare, Eye, EyeOff,
+  ChevronDown, MessageSquare, Eye, EyeOff, RotateCcw, ExternalLink,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { PLATFORM_META, STATUS_META } from '@/lib/contentMeta'
 import { useUserRole } from '@/lib/useUserRole'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 import {
   useComments,
   useAddComment,
+  useUpdateContentItem,
   useUpdateContentItemStatus,
+  useRegenerateContentItem,
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
+import { buildImagesManifest } from '@/lib/publishImageMirror'
 import { toast } from '@/lib/toast'
 import BufferMetricsRow from './BufferMetricsRow'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
@@ -108,9 +112,156 @@ function CommentThread({ pieceId }) {
   )
 }
 
+// Inline editor for a content_item's body. Always-editable textarea that
+// auto-grows with content. Save / Reset only appear when the local buffer
+// differs from the saved value, so the unedited path stays clean.
+function ContentEditor({ piece }) {
+  // JSONB platforms (rare — currently none in production) round-trip through
+  // a JSON string so the textarea isn't [object Object]. Edits stay as plain
+  // text — we don't try to re-parse on save; if the user mangled the JSON,
+  // the backend will store the string and Plan/Preview will fall back.
+  const initial = typeof piece.content === 'string'
+    ? piece.content
+    : piece.content == null ? '' : JSON.stringify(piece.content, null, 2)
+
+  const [value, setValue] = useState(initial)
+  const taRef = useRef(null)
+  const updateItem = useUpdateContentItem()
+
+  // Re-sync local buffer when the saved row changes from elsewhere
+  // (regenerate, server roundtrip after Save). Without this the textarea
+  // would stay pinned to the user's stale buffer after a Regenerate.
+  useEffect(() => { setValue(initial) }, [initial])
+
+  // Auto-grow textarea to fit content, clamped so very long posts stay
+  // scrollable instead of pushing the rest of the pane off-screen.
+  useEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${Math.min(ta.scrollHeight, 480)}px`
+  }, [value])
+
+  const dirty = value !== initial
+  const saving = updateItem.isPending
+
+  const handleSave = async () => {
+    try {
+      await updateItem.mutateAsync({ id: piece.id, patch: { content: value } })
+      toast.success('Saved')
+    } catch (e) {
+      toast.error('Save failed', { description: e.message })
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <textarea
+        ref={taRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        spellCheck
+        className="w-full min-h-[160px] max-h-[480px] rounded-md border bg-muted/20 p-3 text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground/90 break-words resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+        placeholder="No draft content yet."
+      />
+      {dirty && (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => setValue(initial)}
+            disabled={saving}
+          >
+            Reset
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 text-xs"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Saving…</>
+            ) : (
+              'Save changes'
+            )}
+          </Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RegenerateButton({ piece }) {
+  const regenerate = useRegenerateContentItem()
+  const [confirming, setConfirming] = useState(false)
+
+  const handleRegenerate = async () => {
+    setConfirming(false)
+    try {
+      await regenerate.mutateAsync({ id: piece.id })
+      toast.success('Regenerated', { description: 'Content rewritten and reset to draft.' })
+    } catch (e) {
+      toast.error('Regeneration failed', { description: e.message })
+    }
+  }
+
+  if (regenerate.isPending) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Regenerating — this can take 30–60 seconds…
+      </div>
+    )
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs">
+        <span className="text-amber-800">
+          Replace this draft with a fresh AI generation? Current text and approval state will be lost.
+        </span>
+        <div className="ml-auto flex gap-1.5 shrink-0">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100"
+            onClick={handleRegenerate}
+          >
+            Regenerate
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => setConfirming(false)}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 text-xs gap-1.5"
+      onClick={() => setConfirming(true)}
+    >
+      <RotateCcw className="h-3 w-3" />
+      Regenerate
+    </Button>
+  )
+}
+
 function ApprovalPanel({ piece }) {
   const { user } = useUser()
   const { canReview } = useUserRole()
+  const workspace = useWorkspace()
+  const skipReview = !!workspace?.skip_review
   const updateStatus = useUpdateContentItemStatus()
   const addComment = useAddComment(piece.id)
 
@@ -121,29 +272,41 @@ function ApprovalPanel({ piece }) {
   const userEmail = user?.primaryEmailAddress?.emailAddress || user?.id || ''
 
   const handleSendForReview = async () => {
-    await updateStatus.mutateAsync({
-      id: piece.id,
-      status: 'in_review',
-      reviewedBy: userEmail,
-    })
+    try {
+      await updateStatus.mutateAsync({
+        id: piece.id,
+        status: 'in_review',
+        reviewedBy: userEmail,
+      })
+    } catch (err) {
+      toast.error('Failed to send for review', { description: err.message })
+    }
   }
 
   const handleApprove = async () => {
-    await updateStatus.mutateAsync({
-      id: piece.id,
-      status: 'approved',
-      approvedBy: userEmail,
-      approvedAt: new Date().toISOString(),
-    })
+    try {
+      await updateStatus.mutateAsync({
+        id: piece.id,
+        status: 'approved',
+        approvedBy: userEmail,
+        approvedAt: new Date().toISOString(),
+      })
+    } catch (err) {
+      toast.error('Failed to approve', { description: err.message })
+    }
   }
 
   const handleRequestChanges = async (e) => {
     e.preventDefault()
     if (!changeRequestBody.trim()) return
-    await addComment.mutateAsync({ body: changeRequestBody, kind: 'change_request' })
-    await updateStatus.mutateAsync({ id: piece.id, status: 'draft' })
-    setChangeRequestBody('')
-    setChangeRequestOpen(false)
+    try {
+      await addComment.mutateAsync({ body: changeRequestBody, kind: 'change_request' })
+      await updateStatus.mutateAsync({ id: piece.id, status: 'draft' })
+      setChangeRequestBody('')
+      setChangeRequestOpen(false)
+    } catch (err) {
+      toast.error('Failed to submit change request', { description: err.message })
+    }
   }
 
   const handlePublish = async () => {
@@ -158,8 +321,25 @@ function ApprovalPanel({ piece }) {
         const descLine = lines.find((l) => l.trim() && !/^#/.test(l) && !/^!\[/.test(l))
         const description = descLine?.trim().slice(0, 200) || title
         const pubDate = new Date().toISOString().slice(0, 10)
-        const result = await publishBlogToWebsite({ slug, title, description, pubDate, markdown })
-        await updateStatus.mutateAsync({ id: piece.id, status: 'published' })
+        // Mirror-on-publish image manifest — hero from media_urls[0], inline
+        // body images parsed from the markdown. Server-side WP path uploads
+        // each into the Media Library and rewrites the body; the Astro
+        // webhook receives the manifest and is responsible for committing the
+        // bytes into the destination repo. See src/lib/publishImageMirror.js.
+        const manifest = buildImagesManifest({ markdown, mediaUrls: piece.media_urls, slug })
+        const payload = { slug, title, description, pubDate, markdown, ...manifest }
+        if (piece.clinician_name) payload.author = piece.clinician_name
+        if (piece.topic) {
+          const topicSlug = piece.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+          if (topicSlug) payload.topic = topicSlug
+        }
+        const result = await publishBlogToWebsite(payload)
+        await updateStatus.mutateAsync({
+          id: piece.id,
+          status: 'published',
+          publishedAt: new Date().toISOString(),
+          resolvedUrl: result.postUrl || undefined,
+        })
         toast.success('Published to website', {
           description: result.postUrl ? `View at ${result.postUrl}` : 'Post is live.',
         })
@@ -205,8 +385,8 @@ function ApprovalPanel({ piece }) {
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
-        {/* Send for review — all roles, only on draft */}
-        {piece.status === 'draft' && (
+        {/* Send for review — all roles, only on draft, only when review workflow is on */}
+        {piece.status === 'draft' && !skipReview && (
           <Button
             size="sm"
             variant="outline"
@@ -222,8 +402,9 @@ function ApprovalPanel({ piece }) {
           </Button>
         )}
 
-        {/* Approve — reviewer only, in_review */}
-        {piece.status === 'in_review' && canReview && (
+        {/* Approve — on draft when workspace skips the review step, or on in_review */}
+        {((piece.status === 'draft' && skipReview && canReview) ||
+          (piece.status === 'in_review' && canReview)) && (
           <Button
             size="sm"
             onClick={handleApprove}
@@ -281,6 +462,19 @@ function ApprovalPanel({ piece }) {
             <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
             {piece.platform === 'blog' ? 'Published to Website' : 'Published to Buffer'}
           </Button>
+        )}
+
+        {/* Live link — shown once the website publish round-trip captures a URL */}
+        {piece.status === 'published' && piece.platform === 'blog' && piece.resolved_url && (
+          <a
+            href={piece.resolved_url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline self-center"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            View live post
+          </a>
         )}
       </div>
 
@@ -445,15 +639,12 @@ export default function AssetsPane({ story }) {
           )}
         </div>
 
-        {active?.content ? (
-          <div className="rounded-md border bg-muted/30 p-3 max-h-64 overflow-y-auto">
-            <pre className="text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground/90 break-words">
-              {typeof active.content === 'string' ? active.content : JSON.stringify(active.content, null, 2)}
-            </pre>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground italic">No draft content yet.</p>
-        )}
+        {active && <ContentEditor key={active.id} piece={active} />}
+
+        {/* Regenerate — re-runs the AI for this piece. Use when content is
+            cut off, off-voice, or contains an obvious error. Resets to draft
+            and clears approval audit so it needs fresh review. */}
+        {active && <RegenerateButton piece={active} />}
 
         {/* Media + overlay editors — attach photos/videos and tune the on-screen
             text overlay without leaving the Story screen. */}

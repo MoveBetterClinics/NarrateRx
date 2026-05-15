@@ -2,7 +2,7 @@
 // Used for UI rendering (labels, descriptions, icons, slot badges).
 // Keep in sync with the server-side file when adding new platforms/angles.
 
-import { Instagram, Linkedin, Facebook, MapPin, Pin, Music2 } from 'lucide-react'
+import { Instagram, Linkedin, Facebook, MapPin, Pin, Music2, Twitter, AtSign, Cloud, Hash } from 'lucide-react'
 
 export const ATOM_DEFINITIONS = {
   instagram: [
@@ -31,6 +31,18 @@ export const ATOM_DEFINITIONS = {
     { slot: 1, angle: 'myth_buster', label: 'Myth-Buster Script', description: '45–60 second script leading with a counterintuitive claim' },
     { slot: 2, angle: 'process',     label: 'The Process Script', description: '45–60 second script showing what treatment or recovery looks like' },
   ],
+  twitter: [
+    { slot: 1, angle: 'hook',           label: 'The Hook (Tweet)',  description: 'Single 280-char zinger from the blog’s sharpest claim — built to be quoted and shared' },
+  ],
+  threads: [
+    { slot: 1, angle: 'community_take', label: 'Community Take',    description: 'Conversational 500-char post that opens a question and invites replies' },
+  ],
+  bluesky: [
+    { slot: 1, angle: 'clinical_share', label: 'Clinical Share',    description: 'Considered clinician-to-clinician share for the Bluesky audience — no hashtags' },
+  ],
+  mastodon: [
+    { slot: 1, angle: 'educational',    label: 'Educational Toot',  description: 'Plain-language educational post with an optional content warning, inclusive of the federated community' },
+  ],
 }
 
 export const PLATFORM_UI = {
@@ -40,6 +52,10 @@ export const PLATFORM_UI = {
   gbp:       { label: 'Google Business',   icon: MapPin,    color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200'},
   pinterest: { label: 'Pinterest',         icon: Pin,       color: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-200'  },
   tiktok:    { label: 'TikTok / Reels',    icon: Music2,    color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', border: 'border-fuchsia-200' },
+  twitter:   { label: 'X / Twitter',       icon: Twitter,   color: 'text-slate-700',   bg: 'bg-slate-50',  border: 'border-slate-200' },
+  threads:   { label: 'Threads',           icon: AtSign,    color: 'text-zinc-700',    bg: 'bg-zinc-50',   border: 'border-zinc-200'  },
+  bluesky:   { label: 'Bluesky',           icon: Cloud,     color: 'text-sky-600',     bg: 'bg-sky-50',    border: 'border-sky-200'   },
+  mastodon:  { label: 'Mastodon',          icon: Hash,      color: 'text-violet-600',  bg: 'bg-violet-50', border: 'border-violet-200'},
 }
 
 export const SLOT_LABELS = ['Week 1', 'Week 2', 'Week 3', 'Week 4']

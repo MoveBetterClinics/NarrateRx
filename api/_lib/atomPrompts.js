@@ -149,6 +149,44 @@ Walk through: assessment → first session → what improves first → full reco
 CAPTION:
 50–80 word TikTok caption with 5–6 hashtags. Brand as ${workspace.display_name}.`,
     },
+
+    twitter: {
+      hook: `Write a single tweet (X post) for ${workspace.display_name} about ${condition}. Hard limit: 280 characters total INCLUDING any URL or hashtags.
+ANGLE: Pull the sharpest claim, myth-buster, or counterintuitive insight from the blog post. Make it quotable — the kind of line someone screenshots or quote-tweets.
+${isPersonal ? `Write in ${firstName}'s first-person voice — punchy and direct.` : `Use plural "we"/"our team" but keep it punchy, not corporate.`}
+No threading. No "1/" prefix. No emoji unless the blog post tone is unmistakably casual.
+At most 1–2 hashtags. Prefer NO link unless the punchline only lands with one — Twitter throttles posts with links.
+Output ONLY the tweet body. Do not include "TWEET:" or any label.`,
+    },
+
+    threads: {
+      community_take: `Write a single Threads post for ${workspace.display_name} about ${condition}. Hard limit: 500 characters.
+ANGLE: Conversational, opinion-forward. Open with a stance or observation that invites disagreement or "same here" replies — Threads rewards posts that spark replies, not broadcasts.
+${isPersonal ? `Write in ${firstName}'s first-person voice — like you're posting from your phone, not a brand account.` : `Write as the clinic team but in a personal, conversational register — first names and "we" rather than third-person clinic-speak.`}
+End with an open question or invitation to share experiences. No corporate hashtag stacks — at most 1–2 lowercase hashtags if they feel natural.
+Do NOT include a URL — Threads users rarely click out; the goal is engagement.
+Output ONLY the post body.`,
+    },
+
+    bluesky: {
+      clinical_share: `Write a single Bluesky post for ${workspace.display_name} about ${condition}. Hard limit: 300 characters.
+ANGLE: Considered clinician-to-clinician share — assume the reader is another health professional, athlete, or unusually informed patient. The Bluesky audience skews technical and rewards specificity over hype.
+${isPersonal ? `Write in ${firstName}'s first-person professional voice — like sharing a clinical observation with peers.` : `Write as the clinical team. Specific, not promotional.`}
+NO hashtags (Bluesky culture doesn't use them).
+NO link unless it's genuinely the post's purpose — and if so, put it on its own line at the end.
+${toneNote.includes('clinical') ? '' : 'Lean slightly more clinical than the source tone here — this audience can handle precision.'}
+Output ONLY the post body.`,
+    },
+
+    mastodon: {
+      educational: `Write a single Mastodon post (toot) for ${workspace.display_name} about ${condition}. Hard limit: 500 characters.
+ANGLE: Plain-language educational, federated-community-conscious. The Mastodon audience values: clear writing, inclusive language, accessibility, and content warnings on potentially-distressing health topics.
+${isPersonal ? `Write in ${firstName}'s first-person voice — like a clinician posting on their personal account.` : `Write as the clinic team in a community register, not a marketing register.`}
+If ${condition} touches injury, pain, weight, eating, or mental health, prefix the post with a content warning line: \`CW: <one-phrase topic>\` on its own line, then a blank line, then the body.
+Include alt-text guidance if a visual would normally accompany the post: add \`[image alt: ...]\` placeholder at the end.
+At most 2–3 hashtags, written in CamelCase for screen-reader accessibility (e.g. #PhysicalTherapy not #physicaltherapy).
+Output ONLY the post body (with the CW prefix and alt-text placeholder if applicable).`,
+    },
   }
 
   const instruction = instructions[platform]?.[angle]

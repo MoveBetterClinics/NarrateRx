@@ -66,19 +66,19 @@ export default function MediaHubHelp() {
                   Film treatment moments, demonstrations, and clinician explanations. Aim for 30–90s segments where something specific is being taught or shown. Patient consent (verbal at minimum, written when published as a piece featuring them) is required for anything that goes public.
                 </Step>
                 <Step icon={<Upload className="h-4 w-4" />} num={2} title="Upload">
-                  Drop files into the uploader at the top of this page. Pick "Who's speaking?" — Clinician (default for in-clinic capture), Admin staff (operations/business interviews), or Patient guest (consent required). Within ~60s the system will tag what's shown and transcribe what's said.
+                  Drop files into the uploader at the top of this page. Pick &quot;Who&apos;s speaking?&quot; — Clinician (default for in-clinic capture), Admin staff (operations/business interviews), or Patient guest (consent required). Within ~60s the system will tag what&apos;s shown and transcribe what&apos;s said.
                 </Step>
                 <Step icon={<Sparkles className="h-4 w-4" />} num={3} title="Review AI-suggested briefs">
-                  After tagging completes, the system surfaces 1–5 "edit briefs" per clip — moments worth turning into a finished, reusable post. Each brief includes a draft caption, a suggested platform, and a verbatim source quote. Open the Edit Briefs section below to review. Accept the strong ones, reject the rest.
+                  After tagging completes, the system surfaces 1–5 &quot;edit briefs&quot; per clip — moments worth turning into a finished, reusable post. Each brief includes a draft caption, a suggested platform, and a verbatim source quote. Open the Edit Briefs section below to review. Accept the strong ones, reject the rest.
                 </Step>
                 <Step icon={<Pencil className="h-4 w-4" />} num={4} title="Spot one AI missed? Create manually.">
-                  AI is a head-start, not a gate. If a moment caught your eye that AI didn't surface, open the source clip's detail and click "New brief" — fill in your own caption, suggested platform, and the source range you want to edit.
+                  AI is a head-start, not a gate. If a moment caught your eye that AI didn&apos;t surface, open the source clip&apos;s detail and click &quot;New brief&quot; — fill in your own caption, suggested platform, and the source range you want to edit.
                 </Step>
                 <Step icon={<Pencil className="h-4 w-4" />} num={5} title="Edit in CapCut Pro">
                   For each accepted brief: open it, copy the suggested clip range and caption, then jump to CapCut Pro to do the actual cut, captioning, and brand wrap. The brief stays open in the queue so you can come back.
                 </Step>
                 <Step icon={<Upload className="h-4 w-4" />} num={6} title="Bring the finished file back">
-                  In the same brief, click "Upload final" and select the file you exported from CapCut. It lands in the library tied to the original source — and the brief flips to "returned" status so you know it's ready to publish.
+                  In the same brief, click &quot;Upload final&quot; and select the file you exported from CapCut. It lands in the library tied to the original source — and the brief flips to &quot;returned&quot; status so you know it&apos;s ready to publish.
                 </Step>
                 <Step icon={<Send className="h-4 w-4" />} num={7} title="Attach to a post in Content Hub">
                   Finished media is reusable. The same edited clip can power a Reel today, a story next week, and a newsletter banner next month. Open Content Hub, create or pick a post, and attach the media via the Library tab in the media picker.
@@ -95,7 +95,7 @@ export default function MediaHubHelp() {
               <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-2">
                 <div className="font-medium">For clinicians</div>
                 <p className="text-muted-foreground">
-                  You'll see this page if you're curious or want to flag a clip for the team. Browse, search by patient pseudonym or condition, and add a note on a clip if you spot something the team should turn into content. Philip handles the editing side.
+                  You&apos;ll see this page if you&apos;re curious or want to flag a clip for the team. Browse, search by patient pseudonym or condition, and add a note on a clip if you spot something the team should turn into content. Philip handles the editing side.
                 </p>
               </div>
             </div>
