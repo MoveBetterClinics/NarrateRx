@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
@@ -11,6 +11,7 @@ import { useUserRole } from '@/lib/useUserRole'
 import {
   useComments,
   useAddComment,
+  useUpdateContentItem,
   useUpdateContentItemStatus,
   useRegenerateContentItem,
 } from '@/lib/queries'
@@ -105,6 +106,87 @@ function CommentThread({ pieceId }) {
           {addComment.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <MessageSquare className="h-3 w-3" />}
         </Button>
       </form>
+    </div>
+  )
+}
+
+// Inline editor for a content_item's body. Always-editable textarea that
+// auto-grows with content. Save / Reset only appear when the local buffer
+// differs from the saved value, so the unedited path stays clean.
+function ContentEditor({ piece }) {
+  // JSONB platforms (rare — currently none in production) round-trip through
+  // a JSON string so the textarea isn't [object Object]. Edits stay as plain
+  // text — we don't try to re-parse on save; if the user mangled the JSON,
+  // the backend will store the string and Plan/Preview will fall back.
+  const initial = typeof piece.content === 'string'
+    ? piece.content
+    : piece.content == null ? '' : JSON.stringify(piece.content, null, 2)
+
+  const [value, setValue] = useState(initial)
+  const taRef = useRef(null)
+  const updateItem = useUpdateContentItem()
+
+  // Re-sync local buffer when the saved row changes from elsewhere
+  // (regenerate, server roundtrip after Save). Without this the textarea
+  // would stay pinned to the user's stale buffer after a Regenerate.
+  useEffect(() => { setValue(initial) }, [initial])
+
+  // Auto-grow textarea to fit content, clamped so very long posts stay
+  // scrollable instead of pushing the rest of the pane off-screen.
+  useEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${Math.min(ta.scrollHeight, 480)}px`
+  }, [value])
+
+  const dirty = value !== initial
+  const saving = updateItem.isPending
+
+  const handleSave = async () => {
+    try {
+      await updateItem.mutateAsync({ id: piece.id, patch: { content: value } })
+      toast.success('Saved')
+    } catch (e) {
+      toast.error('Save failed', { description: e.message })
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <textarea
+        ref={taRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        spellCheck
+        className="w-full min-h-[160px] max-h-[480px] rounded-md border bg-muted/20 p-3 text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground/90 break-words resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+        placeholder="No draft content yet."
+      />
+      {dirty && (
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => setValue(initial)}
+            disabled={saving}
+          >
+            Reset
+          </Button>
+          <Button
+            size="sm"
+            className="h-7 text-xs"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? (
+              <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Saving…</>
+            ) : (
+              'Save changes'
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -514,15 +596,7 @@ export default function AssetsPane({ story }) {
           )}
         </div>
 
-        {active?.content ? (
-          <div className="rounded-md border bg-muted/30 p-3 max-h-64 overflow-y-auto">
-            <pre className="text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground/90 break-words">
-              {typeof active.content === 'string' ? active.content : JSON.stringify(active.content, null, 2)}
-            </pre>
-          </div>
-        ) : (
-          <p className="text-xs text-muted-foreground italic">No draft content yet.</p>
-        )}
+        {active && <ContentEditor key={active.id} piece={active} />}
 
         {/* Regenerate — re-runs the AI for this piece. Use when content is
             cut off, off-voice, or contains an obvious error. Resets to draft
