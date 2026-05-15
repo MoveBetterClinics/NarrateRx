@@ -1,0 +1,165 @@
+/* ============================================================
+   Mock: Dusk · Parchment variant
+   Loads AFTER mock-dusk.css and overrides for a LIGHT background.
+   Same layout, same italic-serif emphasis, same asymmetric hero
+   and 6-card grid — just inverted to a warm cream base.
+   Closest comp: Substack × Stripe Atlas.
+   ============================================================ */
+:root {
+  --bg:        #f7efde;
+  --bg-2:      #efe5d0;
+  --bg-3:      #e7dcc4;
+  --bg-card:   #ffffff;
+  --bg-card-2: #fbf6ec;
+  --line:      rgba(60,40,20,0.08);
+  --line-2:    rgba(60,40,20,0.14);
+  --line-3:    rgba(60,40,20,0.22);
+
+  --ink:       #1a1612;
+  --ink-soft:  #5a4d3b;
+  --grey:      #8a7d6a;
+  --grey-d:    #6c6253;
+
+  /* Darker coral for AA contrast on cream */
+  --coral:     #c8451f;
+  --coral-h:   #d65a32;
+  --coral-d:   #a83612;
+
+  /* Darker sage for contrast on light */
+  --sage:      #4f7a59;
+  --sage-d:    #3a5d42;
+
+  --glow:      rgba(200,69,31,0.30);
+}
+
+/* Light-mode body bg radials — softer */
+body {
+  background-image:
+    radial-gradient(circle at 85% -5%, rgba(200,69,31,0.08) 0%, transparent 50%),
+    radial-gradient(circle at -10% 45%, rgba(79,122,89,0.06) 0%, transparent 55%),
+    radial-gradient(circle at 50% 110%, rgba(200,69,31,0.04) 0%, transparent 50%);
+}
+
+/* Headers + cards on light mode — shadow instead of border glow */
+.uhdr { background: rgba(247,239,222,0.85); border-bottom: 1px solid var(--line); }
+.uhdr-logo .glyph {
+  background: linear-gradient(135deg, var(--coral) 0%, #e36744 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px -4px rgba(200,69,31,0.40);
+}
+
+/* Headline gradients — dark text on light bg */
+.uhero h1 {
+  background: linear-gradient(180deg, #1a1612 0%, #5a4d3b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.ucta h2 {
+  background: linear-gradient(180deg, #1a1612 0%, #5a4d3b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.uhero h1 em,
+.ufeat-head h2 em,
+.ucta h2 em {
+  background: linear-gradient(135deg, var(--coral) 0%, #e36744 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Side panel + cards lose the glow/dark-shadow; gain a subtle border */
+.uhero-side {
+  background: linear-gradient(180deg, #ffffff 0%, var(--bg-card-2) 100%);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 24px 56px -28px rgba(60,40,20,0.18);
+}
+.uhero-side::before {
+  background: linear-gradient(90deg, transparent 0%, var(--coral) 50%, transparent 100%);
+}
+
+/* Buttons */
+.ubtn-primary {
+  background: var(--ink);
+  color: var(--bg) !important;
+  box-shadow: 0 10px 28px -10px rgba(26,22,18,0.40);
+}
+.ubtn-primary:hover { background: var(--coral); color: #fff !important; }
+.ubtn-ghost {
+  background: #ffffff;
+  color: var(--ink) !important;
+  border-color: var(--line-2);
+}
+.ubtn-ghost:hover { border-color: var(--coral); color: var(--coral) !important; }
+
+/* Product preview window — light chrome */
+.upreview {
+  background: linear-gradient(180deg, #ffffff 0%, var(--bg-card-2) 100%);
+  border: 1px solid var(--line-2);
+  box-shadow: 0 40px 100px -40px rgba(60,40,20,0.25), 0 0 0 1px rgba(200,69,31,0.06);
+}
+.upreview-window { background: var(--bg); border: 1px solid var(--line); }
+.upreview-bar { background: var(--bg-2); border-bottom: 1px solid var(--line); }
+.upreview-bar .dots span { background: var(--bg-card); border: 1px solid var(--line); }
+.upreview-bar .urlbar {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+.upreview-pane .a,
+.upreview-pane .out {
+  background: var(--bg-card-2);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+.upreview-pane .out { color: var(--ink); }
+.upreview-pane .out .head { color: var(--ink); }
+.upreview-pane .out .chip {
+  background: rgba(200,69,31,0.12);
+  color: var(--coral-d);
+}
+.upreview-pane .a::before { background: var(--coral); color: #fff; }
+.upreview-tabs span {
+  background: var(--bg-card-2);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+.upreview-tabs span.is-on { background: var(--coral); color: #fff; border-color: var(--coral); }
+
+/* Feature cards */
+.ufeat-card {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  box-shadow: 0 2px 6px -2px rgba(60,40,20,0.06);
+}
+.ufeat-card:hover {
+  border-color: var(--coral);
+  box-shadow: 0 22px 44px -22px rgba(60,40,20,0.18);
+}
+.ufeat-card::after {
+  background: radial-gradient(circle at 100% 0%, rgba(200,69,31,0.10) 0%, transparent 45%);
+}
+
+/* Quote */
+.uquote {
+  background: var(--bg-2);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.uquote p { color: var(--ink); }
+.uquote::before {
+  background: radial-gradient(circle, rgba(79,122,89,0.10) 0%, transparent 65%);
+}
+.uquote::after {
+  background: radial-gradient(circle, rgba(200,69,31,0.08) 0%, transparent 65%);
+}
+
+/* Proof strip */
+.uproof { background: var(--bg-2); }
+
+/* Footer */
+.ufoot { background: var(--bg-2); border-top: 1px solid var(--line); }
+
+/* Pill hover */
+.uhero-pill { background: #ffffff; }
+.uhero-pill:hover { background: #ffffff; border-color: var(--coral); }

@@ -1,0 +1,84 @@
+/* ============================================================
+   Mock: Dusk · Forest variant
+   Loads AFTER mock-dusk.css and overrides only the palette.
+   Background: deep evergreen. Distinctively healthcare-grounded
+   without using the obvious medical blue. Coral pops harder
+   against green than against brown or navy.
+   Closest comp: Patagonia × clinical-grade software.
+   ============================================================ */
+:root {
+  /* ONLY the body backdrop is lifted (~50% less opaque).
+     Everything else stays at the saturated solid-green values. */
+  --bg:        #6e9581;   /* the lifted backdrop only */
+
+  /* Cards, sections, lines, ink — deep evergreen anchors */
+  --bg-2:      #1a4a33;
+  --bg-3:      #1f5a3d;
+  --bg-card:   #1c4d37;
+  --bg-card-2: #235a41;
+  --line:      rgba(220,255,230,0.14);
+  --line-2:    rgba(220,255,230,0.22);
+  --line-3:    rgba(220,255,230,0.32);
+
+  --ink:       #f4f8ed;
+  --ink-soft:  #c4d6be;
+  --grey:      #8fa489;
+  --grey-d:    #74896f;
+
+  /* Coral shifts slightly more orange — reads warmer against green */
+  --coral:     #ff8552;
+  --coral-h:   #ffa885;
+
+  /* Lighter sage works on the dark-green base */
+  --sage:      #a8d6a0;
+  --sage-d:    #7baa72;
+
+  --glow:      rgba(255,133,82,0.42);
+}
+
+/* Dampen the radial overlays so the green stays dominant and solid.
+   Was 0.14 / 0.10 / 0.07 — now 0.06 / 0.04 / 0.03 (roughly half). */
+body {
+  background-image:
+    radial-gradient(circle at 85% -5%, rgba(255,133,82,0.06) 0%, transparent 45%),
+    radial-gradient(circle at -10% 45%, rgba(168,214,160,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 50% 110%, rgba(168,214,160,0.03) 0%, transparent 45%);
+}
+
+/* Override hardcoded headline gradients */
+.uhero h1 {
+  background: linear-gradient(180deg, #f4f8ed 0%, #c4d6be 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+.ucta h2 {
+  background: linear-gradient(180deg, #f4f8ed 0%, #c4d6be 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Update the coral-side glow on logo glyph and side panel to match new coral */
+.uhdr-logo .glyph {
+  background: linear-gradient(135deg, var(--coral) 0%, #ffb892 100%);
+}
+.uhero h1 em,
+.ufeat-head h2 em,
+.ucta h2 em {
+  background: linear-gradient(135deg, var(--coral) 0%, #ffb892 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ============================================================
+   Pin "dark anchor" elements to the deep solid green.
+   The base mock-dusk.css uses var(--bg) as both the body backdrop
+   AND as the dark anchor color for these surfaces/text. Since we
+   only want the BODY backdrop lifted, we hold these to the deep
+   green explicitly so they don't drift along with --bg.
+   ============================================================ */
+.upreview-window { background: #1c4d37; }
+.upreview-pane   { background: #1c4d37; }
+.ubtn-primary    { color: #1c4d37 !important; }
+.uhdr-logo .glyph { color: #1c4d37; }
+.upreview-pane .a::before { color: #1c4d37; }
