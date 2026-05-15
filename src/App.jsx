@@ -294,6 +294,7 @@ function ProtectedApp() {
             <div className="flex gap-4 justify-center mt-6 text-xs text-muted-foreground">
               <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
               <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+              <Link to="/status" className="hover:text-foreground transition-colors">Status</Link>
             </div>
           </div>
         </div>
