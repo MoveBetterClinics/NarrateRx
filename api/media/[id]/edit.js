@@ -141,6 +141,19 @@ async function editImage({ inPath, outPath, rotate, crop, srcW, srcH, mimeType }
 
 // ── Video edit (ffmpeg) ──────────────────────────────────────────────────────
 
+// Pixel-true rotation/crop. We re-encode the frames rather than stamp a
+// display-rotation metadata flag because phone uploads ship a `displaymatrix`
+// side-data atom that takes precedence in some browsers — Chrome / Safari /
+// Firefox each disagree about which hint wins when both are present, so the
+// metadata-only path looked silent for users (2026-05-15: rotation API
+// returned 200 but the video never visibly turned). Baking the rotation
+// into pixels and stripping every rotation hint we know about decouples
+// playback from any source-side ambiguity.
+//
+// preset=veryfast keeps encode time well under the 300s function ceiling
+// for ≤3-minute clips (current use case). For long-form interviews we'd
+// need to move this behind a queue — see the parked idea on streaming-pipe
+// normalize in .claude/ideas.md.
 async function editVideo({ inPath, outPath, rotate, crop, srcW, srcH }) {
   const filters = transposeFilter(rotate)
   if (crop) {
@@ -148,53 +161,29 @@ async function editVideo({ inPath, outPath, rotate, crop, srcW, srcH }) {
     const c = normalizeCrop(crop, rDims.w, rDims.h)
     filters.push(`crop=${c.w}:${c.h}:${c.x}:${c.y}`)
   }
-  // No `-movflags +faststart` here for the same reason as editVideoRotateOnly:
-  // the faststart pass writes the output, reads it back, and rewrites with
-  // the moov atom relocated, peaking at ~3x file size in /tmp. The 512 MB
-  // Fluid Compute disk runs out on long crops. Output is still web-playable;
-  // start-of-stream latency is slightly higher when moov is at the tail.
-  // Revisit if we add upload-time normalize that guarantees faststart on
-  // the source side, or move heavy transforms behind a queue.
+  // No `-movflags +faststart`: the faststart pass rewrites the file with
+  // the moov atom moved to the front, peaking at ~3x file size in /tmp.
+  // Output is still playable; first-byte latency is slightly higher when
+  // moov is at the tail. Revisit if upload-time normalize lands.
   const args = [
     '-y',
     '-i', inPath,
     ...(filters.length ? ['-vf', filters.join(',')] : []),
     '-c:v', 'libx264',
     '-crf', '23',
-    '-preset', 'fast',
+    '-preset', 'veryfast',
     '-pix_fmt', 'yuv420p',
     '-c:a', 'copy',
+    // Drop all source metadata, then explicitly clear the legacy `rotate`
+    // tag. The re-encoded video already has rotation baked into its pixels
+    // — any lingering rotation hint would double-rotate in some players.
+    '-map_metadata', '-1',
+    '-metadata:s:v:0', 'rotate=',
     outPath,
   ]
   await runFfmpeg(args)
   const s = await stat(outPath).catch(() => null)
   if (!s || s.size === 0) throw new Error('ffmpeg produced an empty output')
-}
-
-// Lossless rotation: stream-copy with a display-rotation metadata flag.
-// Pixel re-encode (editVideo) blew the 300s function ceiling on long clips
-// (prod 504 observed 2026-05-15). All modern browsers honor the rotate flag,
-// so for rotate-only ops we keep the bytes and just stamp the tag.
-// `existingRotate` is the source's current rotate metadata (0/90/180/270);
-// the new flag is the sum mod 360 so chained rotations compose correctly.
-async function editVideoRotateOnly({ inPath, outPath, rotate, existingRotate }) {
-  const finalRotate = (((existingRotate || 0) + rotate) % 360 + 360) % 360
-  // No `-movflags +faststart`: ffmpeg's faststart pass writes the output,
-  // reads it back, and rewrites with the moov atom moved to the front —
-  // peak /tmp usage hits ~3× the file size and exploded the 512 MB Fluid
-  // Compute disk on a 176 MB clip ("No space left on device", 2026-05-15).
-  // Stream-copy preserves whatever faststart layout the source already had;
-  // phone / camera uploads ship with it by default.
-  await runFfmpeg([
-    '-y',
-    '-i', inPath,
-    '-c', 'copy',
-    '-metadata:s:v:0', `rotate=${finalRotate}`,
-    outPath,
-  ])
-  const s = await stat(outPath).catch(() => null)
-  if (!s || s.size === 0) throw new Error('ffmpeg produced an empty output')
-  return { finalRotate }
 }
 
 // ── Probe output dimensions ──────────────────────────────────────────────────
@@ -341,18 +330,12 @@ async function handler(req, res) {
     }
 
     if (source.kind === 'video') {
-      if (rotate && !crop) {
-        // Lossless metadata rotation — sub-second even for long clips. The
-        // pixel re-encode path (with crop) stays on libx264 and may still
-        // time out for very long videos, but rotate-only is the common case
-        // and was reliably 504-ing in prod (2026-05-15).
-        const meta = await probeVideoDims(videoInputArg)
-        await editVideoRotateOnly({
-          inPath: videoInputArg, outPath, rotate, existingRotate: meta.rotate,
-        })
-      } else {
-        await editVideo({ inPath: videoInputArg, outPath, rotate, crop, srcW, srcH })
-      }
+      // Single pixel-rotation path for rotate, crop, or both. The previous
+      // metadata-only rotate was failing silently for some sources (rotate
+      // hint conflicted with the displaymatrix already present on phone
+      // clips); baking rotation into pixels guarantees the output orientation
+      // matches what the user clicked regardless of any source-side hints.
+      await editVideo({ inPath: videoInputArg, outPath, rotate, crop, srcW, srcH })
     } else {
       await editImage({
         inPath, outPath, rotate, crop, srcW, srcH, mimeType: source.mime_type,
@@ -360,20 +343,12 @@ async function handler(req, res) {
     }
 
     const outStat = await stat(outPath)
-    let outDims
-    if (source.kind === 'video') {
-      const probed = await probeVideoDims(outPath)
-      // Stream dims don't swap when the metadata flag rotates the picture, so
-      // expose the displayed (post-rotation) dims to consumers. The pixel
-      // re-encode path already produces swapped stream dims, so its rotate
-      // metadata is 0 and the swap is a no-op there.
-      const swap = probed.rotate === 90 || probed.rotate === 270
-      outDims = swap
-        ? { width: probed.height, height: probed.width }
-        : { width: probed.width,  height: probed.height }
-    } else {
-      outDims = await probeImageDims(outPath)
-    }
+    // Pixel re-encode produces output whose stream dims already reflect the
+    // applied rotation, and -map_metadata -1 strips any inherited rotation
+    // flag, so the probed dims are the displayed dims with no swap needed.
+    const outDims = source.kind === 'video'
+      ? await probeVideoDims(outPath)
+      : await probeImageDims(outPath)
 
     // Upload the new blob. Stream from disk — videos can be 500MB+ and
     // readFile() materializes the entire file in RAM.
