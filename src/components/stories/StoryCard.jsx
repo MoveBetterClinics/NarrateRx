@@ -2,15 +2,7 @@ import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { formatRelativeDate } from '@/lib/utils'
 import { queryKeys, fetchStory } from '@/lib/queries'
-
-// Stage badge colors aligned with the canonical stages from stories.js.
-const STAGE_BADGE = {
-  capture:   'bg-blue-100 text-blue-700',
-  drafting:  'bg-yellow-100 text-yellow-700',
-  review:    'bg-orange-100 text-orange-700',
-  scheduled: 'bg-purple-100 text-purple-700',
-  published: 'bg-green-100 text-green-700',
-}
+import { getStageToken } from '@/lib/stageTokens'
 
 // Short labels for platform chips shown on the card.
 const PLATFORM_SHORT = {
@@ -64,10 +56,7 @@ export default function StoryCard({ story }) {
   // Unique platforms represented in this story's pieces.
   const platforms = [...new Set((pieces || []).map((p) => p.platform).filter(Boolean))]
 
-  const badgeClass = STAGE_BADGE[story_stage] ?? 'bg-gray-100 text-gray-600'
-  const stageLabel = story_stage
-    ? story_stage.charAt(0).toUpperCase() + story_stage.slice(1)
-    : 'Unknown'
+  const { badge: badgeClass, label: stageLabel } = getStageToken(story_stage || '')
 
   return (
     <Link

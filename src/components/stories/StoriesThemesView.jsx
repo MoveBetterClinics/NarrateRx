@@ -4,24 +4,7 @@ import { Users, ArrowRight, Layers, MapPin } from 'lucide-react'
 import { useLocations } from '@/lib/queries'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getStoryArchetypes } from '@/lib/topicSuggestions'
-
-// ── Stage dot colours ────────────────────────────────────────────────────────
-
-const STAGE_COLORS = {
-  capture:   'bg-gray-400',
-  drafting:  'bg-yellow-400',
-  review:    'bg-blue-400',
-  scheduled: 'bg-purple-400',
-  published: 'bg-green-500',
-}
-
-const STAGE_LABELS = {
-  capture:   'Capture',
-  drafting:  'Drafting',
-  review:    'Review',
-  scheduled: 'Scheduled',
-  published: 'Published',
-}
+import { getStageToken } from '@/lib/stageTokens'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -259,15 +242,18 @@ function ThemeCard({ topic, stories, workspace }) {
 
       {/* Stage distribution dots */}
       <div className="flex items-center gap-2 flex-wrap">
-        {stagesPresent.map(([stage, count]) => (
-          <span key={stage} className="inline-flex items-center gap-1.5 text-xs text-gray-500">
-            <span
-              className={`h-2.5 w-2.5 rounded-full shrink-0 ${STAGE_COLORS[stage] || 'bg-gray-300'}`}
-              title={STAGE_LABELS[stage] || stage}
-            />
-            {count} {STAGE_LABELS[stage] || stage}
-          </span>
-        ))}
+        {stagesPresent.map(([stage, count]) => {
+          const tok = getStageToken(stage)
+          return (
+            <span key={stage} className="inline-flex items-center gap-1.5 text-xs text-gray-500">
+              <span
+                className={`h-2.5 w-2.5 rounded-full shrink-0 ${tok.dot}`}
+                title={tok.label}
+              />
+              {count} {tok.label}
+            </span>
+          )
+        })}
       </div>
 
       {/* CTA */}

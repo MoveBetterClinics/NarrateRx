@@ -2,18 +2,10 @@ import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useStory } from '@/lib/queries'
+import { getStageToken } from '@/lib/stageTokens'
 import TranscriptPane from '@/components/story-detail/TranscriptPane'
 import AssetsPane from '@/components/story-detail/AssetsPane'
 import TranscriptExport from '@/components/story-detail/TranscriptExport'
-
-// Stage badge colours mirror the StoryCard conventions from StoriesCardsView.
-const STAGE_META = {
-  capture:   { label: 'Capture',   color: 'bg-sky-100 text-sky-700' },
-  drafting:  { label: 'Drafting',  color: 'bg-slate-100 text-slate-700' },
-  review:    { label: 'In Review', color: 'bg-amber-100 text-amber-700' },
-  scheduled: { label: 'Scheduled', color: 'bg-purple-100 text-purple-700' },
-  published: { label: 'Published', color: 'bg-green-100 text-green-700' },
-}
 
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
@@ -52,7 +44,7 @@ export default function StoryDetail() {
   }
 
   const stage = story.story_stage || 'drafting'
-  const stageMeta = STAGE_META[stage] || { label: stage, color: 'bg-slate-100 text-slate-700' }
+  const stageMeta = getStageToken(stage)
 
   return (
     <div className="space-y-5 p-6">
@@ -77,7 +69,7 @@ export default function StoryDetail() {
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <TranscriptExport story={story} />
-            <Badge className={`text-xs border-0 ${stageMeta.color}`}>
+            <Badge className={`text-xs border-0 ${stageMeta.badge}`}>
               {stageMeta.label}
             </Badge>
           </div>
