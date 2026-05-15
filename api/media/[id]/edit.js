@@ -41,7 +41,11 @@ import { generateAndPersistThumbnail } from '../../_lib/thumbnail.js'
 // Runs on Node (Fluid Compute) — needs ffmpeg-static + @vercel/blob server.
 // 300s ceiling covers worst-case video re-encode (~500MB clips).
 
-export const config = { maxDuration: 300 }
+// `memory` doubles as the /tmp size ceiling on Fluid Compute. Stream-copy
+// rotation on a 176 MB clip was hitting ENOSPC at the trailer write — even
+// after we removed the +faststart 3x peak, concurrent jobs sharing the same
+// reused instance pushed /tmp over the default. 3009 MB is the Pro-plan max.
+export const config = { maxDuration: 300, memory: 3009 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -315,11 +319,19 @@ async function handler(req, res) {
   const outPath = join(dir, `out${outExt}`)
 
   try {
-    await downloadToTmp(source.blob_url, inPath)
+    // For VIDEO we pass the blob URL straight to ffmpeg (it reads via HTTP
+    // with Range support), saving ~the source size in /tmp. The output still
+    // lands in /tmp/out.mp4 so the upload-stream stage has something seekable
+    // to hand to @vercel/blob. For IMAGES we still download — sharp wants a
+    // local path or a Buffer, and image sizes don't strain /tmp.
+    const videoInputArg = source.kind === 'video' ? source.blob_url : inPath
+    if (source.kind !== 'video') {
+      await downloadToTmp(source.blob_url, inPath)
+    }
 
     if (crop && (!srcW || !srcH)) {
       const probed = source.kind === 'video'
-        ? await probeVideoDims(inPath)
+        ? await probeVideoDims(videoInputArg)
         : await probeImageDims(inPath)
       srcW = probed.width
       srcH = probed.height
@@ -334,12 +346,12 @@ async function handler(req, res) {
         // pixel re-encode path (with crop) stays on libx264 and may still
         // time out for very long videos, but rotate-only is the common case
         // and was reliably 504-ing in prod (2026-05-15).
-        const meta = await probeVideoDims(inPath)
+        const meta = await probeVideoDims(videoInputArg)
         await editVideoRotateOnly({
-          inPath, outPath, rotate, existingRotate: meta.rotate,
+          inPath: videoInputArg, outPath, rotate, existingRotate: meta.rotate,
         })
       } else {
-        await editVideo({ inPath, outPath, rotate, crop, srcW, srcH })
+        await editVideo({ inPath: videoInputArg, outPath, rotate, crop, srcW, srcH })
       }
     } else {
       await editImage({
