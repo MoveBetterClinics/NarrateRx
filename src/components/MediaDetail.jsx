@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon } from 'lucide-react'
+import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon, Crop } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,12 +11,14 @@ import {
   purgeMediaAsset,
   tagMediaAsset,
   regenerateThumbnail,
+  listVariants,
 } from '@/lib/mediaLib'
 import { listContentPieces, createContentPiece, segmentMediaAsset } from '@/lib/contentLib'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 import ContentBriefDetail from './ContentBriefDetail'
 import CollectionPicker from './CollectionPicker'
+import MediaEditModal from './MediaEditModal'
 
 const STATUSES = ['raw', 'tagged', 'rendered', 'approved', 'archived']
 // Purpose is the primary fork (see MediaUploader for the source of truth).
@@ -79,6 +81,8 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [openBrief, setOpenBrief] = useState(null)
   const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [variants, setVariants] = useState([])
 
   const { canEdit, canArchive, canRestore, canPurge } = useUserRole()
 
@@ -115,7 +119,25 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     } catch { /* empty */ }
   }, [asset.id])
 
+  // Fetch variants whose parent is this asset. Includes only rows the user
+  // produced via Edit (variant_label IS NOT NULL is enforced server-side via
+  // the list filter — the API returns whatever parent_id matches, so we filter
+  // here to keep this strip focused on rotation/crop variants and not other
+  // child rows like CapCut return-uploads).
+  const refreshVariants = useCallback(async () => {
+    if (asset.parent_id) {
+      // Variants of a variant don't render their own strip — keep the model flat.
+      setVariants([])
+      return
+    }
+    try {
+      const rows = await listVariants(asset.id)
+      setVariants((rows || []).filter((r) => r.variant_label))
+    } catch { /* empty */ }
+  }, [asset.id, asset.parent_id])
+
   useEffect(() => { refreshBriefs() }, [refreshBriefs])
+  useEffect(() => { refreshVariants() }, [refreshVariants])
 
   function addTag() {
     const t = tagInput.trim().toLowerCase()
@@ -369,12 +391,56 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 {asset.thumbnail_url ? 'Redo thumbnail' : 'Make thumbnail'}
               </Button>
             )}
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowEdit(true)}
+                className="h-7 gap-1.5 text-[11px]"
+                title="Rotate or crop — saves as a new variant by default"
+              >
+                <Crop className="h-3.5 w-3.5" />
+                Edit
+              </Button>
+            )}
             {asset.kind === 'photo' && (
               <span className="text-[11px] text-muted-foreground">
                 · or drag the preview straight into another browser tab
               </span>
             )}
           </div>
+
+          {/* Variant strip — surfaces rotate/crop derivatives of this source.
+              Only rendered for masters (parent_id IS NULL) so we don't try to
+              show "variants of a variant" — the model is intentionally flat. */}
+          {!asset.parent_id && variants.length > 0 && (
+            <div className="px-5 pt-3">
+              <div className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground mb-1.5">
+                Variants ({variants.length})
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {variants.map((v) => {
+                  const thumb = v.thumbnail_url || (v.kind === 'video' ? null : v.blob_url)
+                  return (
+                    <div
+                      key={v.id}
+                      className="shrink-0 w-28 rounded-md border bg-card overflow-hidden"
+                      title={v.variant_label || 'Variant'}
+                    >
+                      <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                        {thumb
+                          ? <img src={thumb} alt={v.variant_label || ''} className="h-full w-full object-cover" />
+                          : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+                      </div>
+                      <div className="px-2 py-1.5 text-[10px] truncate">
+                        {v.variant_label || 'Variant'}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="p-5 space-y-4">
             {!canEdit && !isArchived && (
@@ -734,6 +800,14 @@ export default function MediaDetail({ asset, onClose, onChange }) {
           brief={openBrief}
           onClose={() => setOpenBrief(null)}
           onChange={() => { refreshBriefs(); onChange?.() }}
+        />
+      )}
+
+      {showEdit && (
+        <MediaEditModal
+          asset={asset}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => { refreshVariants(); onChange?.() }}
         />
       )}
     </div>

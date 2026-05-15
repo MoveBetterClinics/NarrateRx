@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { Plus, X, ArrowLeft, ArrowRight, Play, Image as ImageIcon, Loader2 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Plus, X, ArrowLeft, ArrowRight, Play, Image as ImageIcon, Loader2, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import MediaPicker from '@/components/MediaPicker'
 import { useUpdateContentItem } from '@/lib/queries'
+import { getAssetFamily } from '@/lib/mediaLib'
 
 // Normalize a MediaPicker asset row into the shape stored in
 // content_items.media_urls (consumed by PostPreview + the Buffer dispatcher).
@@ -19,9 +20,86 @@ function pickerItemToMediaEntry(asset) {
   }
 }
 
-function MediaThumb({ entry, onRemove, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight }) {
+// Resolve the master + variants for a given attached entry. Lazy — only
+// triggers when the user clicks the variant chevron, so the cost is paid only
+// when someone actually wants to swap. Returns null on rows without a
+// mediaAssetId (older entries) or when the family resolution fails.
+function useFamilyOnDemand(mediaAssetId) {
+  const [open, setOpen]      = useState(false)
+  const [family, setFamily]  = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  // Close the menu when the entry id changes (e.g. user swapped to a variant).
+  useEffect(() => {
+    setOpen(false)
+    setFamily(null)
+  }, [mediaAssetId])
+
+  async function loadAndOpen() {
+    if (!mediaAssetId) return
+    if (family) { setOpen((o) => !o); return }
+    setLoading(true)
+    try {
+      const f = await getAssetFamily(mediaAssetId)
+      setFamily(f)
+      // Only open if there's actually something to swap to.
+      const total = (f.variants?.length || 0) + (f.master ? 1 : 0)
+      setOpen(total > 1)
+    } catch {
+      setFamily({ master: null, variants: [] })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return { open, setOpen, family, loading, loadAndOpen }
+}
+
+function VariantMenu({ family, currentId, onPick, onClose }) {
+  // Render master first, then variants. Filter out the currently-attached row
+  // so the menu only shows things the user can actually switch to.
+  const items = []
+  if (family?.master && family.master.id !== currentId) items.push({ asset: family.master, label: 'Original' })
+  for (const v of family?.variants || []) {
+    if (v.id !== currentId) items.push({ asset: v, label: v.variant_label || 'Variant' })
+  }
+  if (!items.length) return null
+  return (
+    <div className="absolute right-0 top-full z-30 mt-1 w-44 rounded-md border bg-popover shadow-md">
+      <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b">
+        Use a different variant
+      </div>
+      <ul className="max-h-60 overflow-y-auto py-1">
+        {items.map(({ asset, label }) => {
+          const thumb = asset.thumbnail_url || (asset.kind === 'video' ? null : asset.blob_url)
+          return (
+            <li key={asset.id}>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs hover:bg-muted"
+                onClick={() => { onPick(asset); onClose() }}
+              >
+                <div className="h-7 w-7 shrink-0 overflow-hidden rounded bg-muted">
+                  {thumb
+                    ? <img src={thumb} alt="" className="h-full w-full object-cover" />
+                    : <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                        {asset.kind === 'video' ? <Play className="h-3 w-3" /> : <ImageIcon className="h-3 w-3" />}
+                      </div>}
+                </div>
+                <span className="truncate">{label}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+function MediaThumb({ entry, onRemove, onMoveLeft, onMoveRight, canMoveLeft, canMoveRight, onSwap }) {
   const isVideo = entry.type === 'video' || entry.kind === 'video'
   const thumb   = entry.thumbnailUrl || (!isVideo ? entry.url : null)
+  const { open, setOpen, family, loading, loadAndOpen } = useFamilyOnDemand(entry.mediaAssetId)
 
   return (
     <div className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-md border bg-muted">
@@ -60,6 +138,31 @@ function MediaThumb({ entry, onRemove, onMoveLeft, onMoveRight, canMoveLeft, can
           <ArrowRight className="h-3 w-3" />
         </button>
       </div>
+      {/* Variant picker chevron — only renders when this entry has a known
+          mediaAssetId (older attachments may lack it). Click lazy-loads the
+          family; menu only opens when ≥2 family members exist, so empty
+          clicks for non-variant assets give no visible feedback (acceptable —
+          the user wouldn't have clicked unless they expected variants). */}
+      {entry.mediaAssetId && (
+        <button
+          type="button"
+          onClick={loadAndOpen}
+          className="absolute left-0.5 top-0.5 z-10 rounded bg-black/60 p-0.5 text-white opacity-0 transition-opacity hover:bg-black/80 group-hover:opacity-100"
+          title="Use a different variant"
+        >
+          {loading
+            ? <Loader2 className="h-3 w-3 animate-spin" />
+            : <ChevronDown className="h-3 w-3" />}
+        </button>
+      )}
+      {open && family && (
+        <VariantMenu
+          family={family}
+          currentId={entry.mediaAssetId}
+          onPick={(asset) => onSwap?.(asset)}
+          onClose={() => setOpen(false)}
+        />
+      )}
       <button
         type="button"
         onClick={onRemove}
@@ -117,6 +220,16 @@ export default function MediaAttachmentPanel({ piece }) {
     save(next)
   }
 
+  // Swap one attached entry to a different family member (master ↔ variant).
+  // Rebuilds the entry via the picker-normalization helper so the stored shape
+  // matches what fresh picks produce — same downstream (PostPreview, Buffer
+  // dispatcher) reads.
+  const swapVariant = (idx, asset) => {
+    const next = media.slice()
+    next[idx] = pickerItemToMediaEntry(asset)
+    save(next)
+  }
+
   return (
     <div className="rounded-md border bg-card p-3">
       <div className="mb-2 flex items-center justify-between">
@@ -154,6 +267,7 @@ export default function MediaAttachmentPanel({ piece }) {
               onMoveRight={() => swap(i, i + 1)}
               canMoveLeft={i > 0}
               canMoveRight={i < media.length - 1}
+              onSwap={(asset) => swapVariant(i, asset)}
             />
           ))}
         </div>

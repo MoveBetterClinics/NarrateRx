@@ -35,7 +35,7 @@ async function api(path, init = {}) {
 
 // ── List & detail ────────────────────────────────────────────────────────────
 
-export function listMedia({ kind, status, q, tag, purpose, collectionId, limit, offset, compact } = {}) {
+export function listMedia({ kind, status, q, tag, purpose, collectionId, limit, offset, compact, sources } = {}) {
   const params = new URLSearchParams()
   if (kind)         params.set('kind', kind)
   if (status)       params.set('status', status)
@@ -46,6 +46,7 @@ export function listMedia({ kind, status, q, tag, purpose, collectionId, limit, 
   if (limit)        params.set('limit', String(limit))
   if (offset)       params.set('offset', String(offset))
   if (compact)      params.set('compact', 'true')
+  if (sources)      params.set('sources', 'true')
   const qs = params.toString()
   return api(`/api/media/list${qs ? `?${qs}` : ''}`)
 }
@@ -99,6 +100,54 @@ export function tagMediaAsset(id) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ id }),
   })
+}
+
+// Edit a media asset: rotate (0/90/180/270) and/or crop (in post-rotation
+// pixel space). Default mode 'variant' creates a new media_assets row with
+// parent_id set to this asset's id. Mode 'replace-master' overwrites the
+// source blob in place (only valid when the source is itself a master, i.e.
+// parent_id IS NULL on the row) — used for "fix the original" rotations.
+//
+// params:
+//   rotate  — 0 | 90 | 180 | 270
+//   crop    — { x, y, w, h } in pixels of the post-rotation frame, or null
+//   label   — optional variant_label ("9:16 Reel" etc.). Auto-generated from
+//             the final aspect ratio if omitted.
+//   mode    — 'variant' (default) | 'replace-master'
+//
+// Returns: { mode, asset } — `asset` is the new variant row (variant mode) or
+// the updated master row (replace-master mode).
+export function editMediaAsset(id, { rotate = 0, crop = null, label = null, mode = 'variant' } = {}) {
+  return api(`/api/media/${encodeURIComponent(id)}/edit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rotate, crop, label, mode }),
+  })
+}
+
+// List variants derived from a given source asset id. Wraps listMedia with the
+// `parent` filter so the variant strip in MediaDetail doesn't have to know the
+// query-param name. Includes archived rows excluded by default.
+export function listVariants(parentId) {
+  return api(`/api/media/list?parent=${encodeURIComponent(parentId)}`)
+}
+
+// Resolve the "family" of an asset — the master + all its rotate/crop
+// variants — given the id of any family member. Used by the post-composer
+// variant picker, which needs to offer swap targets regardless of which
+// family member was originally attached. Returns:
+//   { master, variants: [...] }
+// where `master` is the parent_id root and `variants` includes only rows with
+// a variant_label (filters out unrelated parent_id children like CapCut
+// returns).
+export async function getAssetFamily(id) {
+  const self = await getMediaAsset(id)
+  if (!self) return { master: null, variants: [] }
+  const masterId = self.parent_id || self.id
+  const master = self.parent_id ? await getMediaAsset(masterId) : self
+  const siblings = await api(`/api/media/list?parent=${encodeURIComponent(masterId)}`)
+  const variants = (siblings || []).filter((r) => r.variant_label)
+  return { master, variants }
 }
 
 // (Re)generate a poster-frame thumbnail for a video. New uploads get one

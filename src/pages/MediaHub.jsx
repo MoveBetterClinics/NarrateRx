@@ -112,6 +112,10 @@ export default function MediaHub() {
     status:       status || undefined,
     q:            debouncedSearch || undefined,
     collectionId: collectionId || undefined,
+    // Hide rotate/crop variants from the main grid — they're surfaced inside
+    // their parent's detail drawer (variant strip). Keeps the library focused
+    // on source assets and prevents the same clip from appearing N+1 times.
+    sources:      true,
   }), [kind, purpose, status, debouncedSearch, collectionId])
   // clinicianFilter is a client-side filter (created_by value) — it isn't
   // sent to the server since the server only accepts workspace-scoped filter

@@ -29,6 +29,9 @@
     "api/media/[id]/thumbnail.js": {
       "includeFiles": "node_modules/ffmpeg-static/**"
     },
+    "api/media/[id]/edit.js": {
+      "includeFiles": "node_modules/ffmpeg-static/**"
+    },
     "api/media/backfill-thumbnails.js": {
       "includeFiles": "node_modules/ffmpeg-static/**"
     }
