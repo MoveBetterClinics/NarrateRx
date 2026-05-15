@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { put as blobPut } from '@vercel/blob'
+import { put as blobPut, del as blobDel } from '@vercel/blob'
 import ffmpegStaticPath from 'ffmpeg-static'
 
 // Generates a JPEG poster frame for a video asset and persists thumbnail_url.
@@ -126,9 +126,10 @@ async function extractFrame(inPath, outPath) {
   }
 }
 
-// Derive a deterministic blob path for the thumbnail so re-running on the
-// same asset overwrites the previous frame instead of accumulating stale
-// blobs. Uses the asset id as the stable key.
+// Base path for thumbnail blobs. addRandomSuffix=true in blobPut appends a
+// unique segment so every regen produces a fresh URL — same cache-bust
+// reasoning as the edit endpoint's replace-master blob. Old thumbnail blobs
+// are deleted fire-and-forget after the DB row is updated.
 function thumbPathname(asset) {
   return `media/thumbs/${asset.id}.jpg`
 }
@@ -153,13 +154,16 @@ export async function generateAndPersistThumbnail(asset, scope) {
     await extractFrame(inPath, outPath)
     const jpeg = await readFile(outPath)
 
-    // allowOverwrite + deterministic pathname → regenerating the thumbnail
-    // replaces the old blob in place; no orphan cleanup needed.
+    // Fresh pathname on every regen — CDN + browser cache by full URL, so an
+    // in-place overwrite (same URL) keeps serving the pre-rotation frame until
+    // the CDN TTL expires. addRandomSuffix guarantees a new URL, which misses
+    // every cache layer immediately.
+    const oldThumbnailUrl = asset.thumbnail_url || null
     const uploaded = await blobPut(thumbPathname(asset), jpeg, {
       access: 'public',
       contentType: 'image/jpeg',
-      addRandomSuffix: false,
-      allowOverwrite: true,
+      addRandomSuffix: true,
+      allowOverwrite: false,
     })
 
     const where = `id=eq.${asset.id}&${s.column}=eq.${s.id}`
@@ -170,6 +174,15 @@ export async function generateAndPersistThumbnail(asset, scope) {
     if (!upd.ok) {
       throw new Error(`thumbnail PATCH failed: ${upd.status} ${await upd.text()}`)
     }
+
+    // Old thumbnail blob is now orphaned — delete it. Fire-and-forget; only
+    // cost of failure is a leftover small JPEG in storage.
+    if (oldThumbnailUrl && oldThumbnailUrl !== uploaded.url) {
+      blobDel(oldThumbnailUrl).catch((e) => {
+        console.error('[thumbnail] stale blob delete failed:', e?.message)
+      })
+    }
+
     return uploaded.url
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {})
