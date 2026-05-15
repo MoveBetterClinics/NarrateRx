@@ -162,7 +162,13 @@ export default function Synthesis() {
   const load = useCallback(() => {
     setLoading(true)
     setError(null)
-    fetch('/api/concepts/synthesis')
+    const getToken = async () => {
+      try { return await window.Clerk?.session?.getToken?.() } catch { return null }
+    }
+    getToken()
+      .then(token => fetch('/api/concepts/synthesis', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      }))
       .then(r => {
         if (r.status === 401 || r.status === 403) throw new Error('admin_only')
         if (!r.ok) throw new Error('fetch_failed')
