@@ -1,7 +1,10 @@
+import { spawn } from 'node:child_process'
 import { withSentry } from '../_lib/sentry.js'
 import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
 import { tagAndPersist } from '../_lib/tagAsset.js'
+import sharp from 'sharp'
+import ffmpegStaticPath from 'ffmpeg-static'
 import { segmentAndPersist } from '../_lib/segmentInterview.js'
 import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
@@ -41,6 +44,7 @@ const HANDSHAKE_ALLOWED_ROLES = ['admin', 'editor', 'clinician']
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+const FFMPEG_BIN   = process.env.FFMPEG_PATH || ffmpegStaticPath || 'ffmpeg'
 
 async function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -81,6 +85,28 @@ const PURPOSES = new Set(['interview', 'broll', 'photo', 'brand'])
 // default to photo. Brand assets are always opted into explicitly.
 function defaultPurpose(kind) {
   return kind === 'video' ? 'interview' : 'photo'
+}
+
+async function probeImageDimsFromUrl(url) {
+  const res = await fetch(url, { headers: { Range: 'bytes=0-65535' } })
+  if (!res.ok) throw new Error(`probe fetch failed: ${res.status}`)
+  const buf = Buffer.from(await res.arrayBuffer())
+  const meta = await sharp(buf).metadata()
+  return { width: meta.width || null, height: meta.height || null }
+}
+
+function probeVideoDimsFromUrl(url) {
+  return new Promise((resolve) => {
+    const proc = spawn(FFMPEG_BIN, ['-i', url], { stdio: ['ignore', 'ignore', 'pipe'] })
+    let stderr = ''
+    proc.stderr.on('data', (d) => { stderr += d.toString() })
+    proc.on('close', () => {
+      const m = stderr.match(/Stream #\d+:\d+(?:\([^)]+\))?:\s*Video:[^\n]*?\s(\d+)x(\d+)/)
+      if (m) resolve({ width: parseInt(m[1], 10), height: parseInt(m[2], 10) })
+      else resolve({ width: null, height: null })
+    })
+    proc.on('error', () => resolve({ width: null, height: null }))
+  })
 }
 
 async function handler(req, res) {
@@ -182,6 +208,16 @@ async function handler(req, res) {
         const speakerRole = assetPurpose === 'interview'
           ? (meta.speakerRole || 'clinician')
           : null
+        let probeWidth = null
+        let probeHeight = null
+        if (kind === 'photo') {
+          try {
+            const dims = await probeImageDimsFromUrl(blob.url)
+            probeWidth = dims.width
+            probeHeight = dims.height
+          } catch { /* non-fatal */ }
+        }
+
         const row = {
           [scopeColumn]: scopeId,
           kind,
@@ -192,6 +228,8 @@ async function handler(req, res) {
           filename: meta.filename || blob.pathname.split('/').pop(),
           mime_type: blob.contentType,
           size_bytes: blob.size || null,
+          width: probeWidth,
+          height: probeHeight,
           patient_pseudonym: meta.patientPseudonym || null,
           condition: meta.condition || null,
           captured_at: meta.capturedAt || null,
@@ -282,6 +320,17 @@ async function handler(req, res) {
               waitUntil(
                 generateAndPersistThumbnail(insertedRow, innerScope)
                   .catch((e) => console.error('Thumbnail generation failed:', e?.message)),
+              )
+              waitUntil(
+                probeVideoDimsFromUrl(blob.url)
+                  .then(({ width, height }) => {
+                    if (!width || !height) return
+                    return sb(`media_assets?id=eq.${insertedRow.id}&${scopeColumn}=eq.${scopeId}`, {
+                      method: 'PATCH',
+                      body: JSON.stringify({ width, height }),
+                    })
+                  })
+                  .catch((e) => console.error('Video dimension probe failed:', e?.message)),
               )
             }
           }
