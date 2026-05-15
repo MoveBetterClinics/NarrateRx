@@ -392,11 +392,19 @@ function useLiveDataSource() {
         setUploadActive(false)
         if (succeeded > 0) {
           qc.invalidateQueries({ queryKey: ['brandKit'] })
+          // Upload webhook may auto-assign roles (incl. primary_logo) server-side
+          // — refresh the workspace row so the header logo picks up the change.
+          qc.invalidateQueries({ queryKey: ['workspace', 'me'] })
           // Brand book PDFs trigger async extraction (waitUntil) that writes
           // back to the DB seconds after the upload completes. A second
           // invalidation catches those results without a manual page refresh.
           const hasPdf = files.some((f) => f.type === 'application/pdf' || f.name.endsWith('.pdf'))
-          if (hasPdf) setTimeout(() => qc.invalidateQueries({ queryKey: ['brandKit'] }), 8000)
+          if (hasPdf) {
+            setTimeout(() => {
+              qc.invalidateQueries({ queryKey: ['brandKit'] })
+              qc.invalidateQueries({ queryKey: ['workspace', 'me'] })
+            }, 8000)
+          }
         }
       }
     },

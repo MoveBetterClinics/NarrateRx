@@ -153,7 +153,13 @@ export function useAssignBrandRole() {
   return useAppMutation({
     errorMessage: "Couldn't assign brand role",
     mutationFn: ({ role, assetId }) => assignBrandRole(role, assetId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.brandKit.all })
+      // /api/workspace/me bakes the primary_logo URL into its response so the
+      // header can render the brand-kit logo without a second round trip.
+      // Invalidate it so a role change updates the header immediately.
+      qc.invalidateQueries({ queryKey: queryKeys.workspace.me })
+    },
   })
 }
 
@@ -162,7 +168,10 @@ export function useClearBrandRole() {
   return useAppMutation({
     errorMessage: "Couldn't clear brand role",
     mutationFn: ({ role }) => clearBrandRole(role),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.brandKit.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.brandKit.all })
+      qc.invalidateQueries({ queryKey: queryKeys.workspace.me })
+    },
   })
 }
 

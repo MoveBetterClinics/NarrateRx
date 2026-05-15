@@ -7,8 +7,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
 } from '@/components/ui/dialog'
 import { CampaignModeChip } from '@/components/CampaignWidget'
-import { workspace } from '@/lib/workspace'
+import { workspace as STATIC_WORKSPACE } from '@/lib/workspace'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
+
+// App-level byline shown under the "NarrateRx" wordmark in the header.
+// Intentionally NOT the workspace tagline — that belongs to the tenant's brand,
+// not to the product. Keep this short so it doesn't wrap on small headers.
+const APP_BYLINE = 'Interview-driven patient content'
 import TrialBanner from '@/components/TrialBanner'
 
 const NAV_ITEMS = [
@@ -20,19 +26,22 @@ export default function Layout({ children }) {
   const location = useLocation()
   const { role } = useUserRole()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const ws = useWorkspace()
+  const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
+  const logoAlt = ws?.display_name || ws?.name || STATIC_WORKSPACE.name
 
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm">
         <div className="container flex h-14 items-center gap-3 sm:gap-4">
           <Link to="/" className="flex items-center gap-3 min-w-0">
-            <img src={workspace.logo.main} alt={workspace.name} className="h-9 w-auto shrink-0" />
+            <img src={logoSrc} alt={logoAlt} className="h-9 w-auto shrink-0" />
             <div className="hidden sm:block border-l border-border pl-3 min-w-0">
               <p className="text-xs font-semibold leading-none text-foreground truncate" style={{ fontFamily: "'Titillium Web', sans-serif" }}>
                 NarrateRx
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 leading-none truncate" title={workspace.tagline}>
-                {workspace.tagline}
+              <p className="text-[10px] text-muted-foreground mt-0.5 leading-none truncate" title={APP_BYLINE}>
+                {APP_BYLINE}
               </p>
             </div>
           </Link>
