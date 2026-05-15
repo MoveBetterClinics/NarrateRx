@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon, Crop } from 'lucide-react'
+import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon, Crop, Expand, Minimize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -83,6 +83,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [downloading, setDownloading] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
   const [variants, setVariants] = useState([])
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const { canEdit, canArchive, canRestore, canPurge } = useUserRole()
 
@@ -320,12 +321,17 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     && (transcription || visualNarrative)
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-background rounded-xl shadow-2xl w-full max-w-full sm:max-w-3xl max-h-[90vh] flex flex-col">
+    <div className={`fixed inset-0 z-50 bg-black/60 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-4'}`}>
+      <div className={`bg-background shadow-2xl w-full flex flex-col ${isFullscreen ? 'w-screen h-screen' : 'rounded-xl max-w-full sm:max-w-3xl max-h-[90vh]'}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
           <h2 className="font-semibold text-sm truncate pr-2" title={asset.filename}>{asset.filename}</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setIsFullscreen(v => !v)} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto">

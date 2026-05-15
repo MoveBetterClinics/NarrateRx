@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Cropper } from 'react-advanced-cropper'
 import 'react-advanced-cropper/dist/style.css'
-import { X, RotateCcw, RotateCw, Loader2 } from 'lucide-react'
+import { X, RotateCcw, RotateCw, Loader2, Expand, Minimize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { editMediaAsset } from '@/lib/mediaLib'
@@ -46,6 +46,7 @@ export default function MediaEditModal({ asset, onClose, onSaved }) {
   // and never touched the crop, we send crop=null so the server skips the
   // re-encode crop pass and just rotates the full frame.
   const [cropTouched, setCropTouched] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
 
   const isVideo = asset.kind === 'video'
   const previewSrc = isVideo ? asset.thumbnail_url : asset.blob_url
@@ -147,8 +148,8 @@ export default function MediaEditModal({ asset, onClose, onSaved }) {
   const canReplaceMaster = !asset.parent_id && rotate && !cropTouched
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-background rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col">
+    <div className={`fixed inset-0 z-50 bg-black/60 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-4'}`}>
+      <div className={`bg-background shadow-2xl w-full flex flex-col ${isFullscreen ? 'w-screen h-screen' : 'rounded-xl max-w-4xl max-h-[92vh]'}`}>
         <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
           <div className="min-w-0">
             <h2 className="font-semibold text-sm truncate">Edit · {asset.filename}</h2>
@@ -156,10 +157,15 @@ export default function MediaEditModal({ asset, onClose, onSaved }) {
               Rotate and crop. Saves as a new variant by default; the original stays untouched.
             </p>
           </div>
-          <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setIsFullscreen(v => !v)} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className={`p-5 space-y-4 ${isFullscreen ? 'flex-1 min-h-0 overflow-y-auto flex flex-col' : 'flex-1 overflow-y-auto'}`}>
           {!canEdit && (
             <div className="text-sm bg-amber-50 text-amber-900 border border-amber-200 rounded-md px-3 py-2">
               This video does not have a thumbnail yet. Close this dialog, click &quot;Make thumbnail&quot;,
@@ -170,7 +176,7 @@ export default function MediaEditModal({ asset, onClose, onSaved }) {
           {canEdit && (
             <>
               {/* Cropper canvas */}
-              <div className="rounded-md border bg-black/95 overflow-hidden" style={{ height: 420 }}>
+              <div className={`rounded-md border bg-black/95 overflow-hidden ${isFullscreen ? 'flex-1 min-h-0' : ''}`} style={isFullscreen ? {} : { height: 420 }}>
                 <Cropper
                   ref={cropperRef}
                   src={previewSrc}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { Search, X, Loader2, Image, Video, Upload, Check, Play, Library } from 'lucide-react'
+import { Search, X, Loader2, Image, Video, Upload, Check, Play, Library, Expand, Minimize } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { listMedia, uploadMedia } from '@/lib/mediaLib'
@@ -56,6 +56,7 @@ export default function MediaPicker({ onSelect, onClose, multi = false }) {
   const [collections, setCollections] = useState([])
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState('')
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const fileInputRef = useRef(null)
   const debounceRef  = useRef(null)
 
@@ -167,13 +168,18 @@ export default function MediaPicker({ onSelect, onClose, multi = false }) {
   const selectedCount = multi ? selected.size : (selected ? 1 : 0)
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-background rounded-xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col">
+    <div className={`fixed inset-0 z-50 bg-black/60 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-4'}`}>
+      <div className={`bg-background shadow-2xl w-full flex flex-col ${isFullscreen ? 'w-screen h-screen' : 'rounded-xl max-w-4xl max-h-[92vh]'}`}>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
           <h2 className="font-semibold">Add Media</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setIsFullscreen(v => !v)} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          </div>
         </div>
 
         {/* Tabs */}
