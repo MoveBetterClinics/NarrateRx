@@ -32,16 +32,16 @@ export default function PlanNextInterview({
   const filteredEmpty = gaps.length === 0
 
   return (
-    <div className="rounded-xl border-2 border-amber-200 bg-amber-50/60 p-5">
+    <div className="rounded-xl border-2 border-primary/25 bg-accent/50 p-5">
       <div className="flex flex-col sm:flex-row items-start gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="h-4 w-4 text-amber-700" />
-            <p className="text-sm font-semibold text-amber-900">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            <p className="text-sm font-semibold text-foreground">
               {isEmpty ? 'Start with a high-impact topic' : 'Plan your next interview'}
             </p>
           </div>
-          <p className="text-xs text-amber-800/80 mb-3">
+          <p className="text-xs text-muted-foreground mb-3">
             {isEmpty
               ? 'These are high-search topics in your area — pick one to kick off your first interview.'
               : 'High-search topics with no content yet — pick one to start an interview.'}
@@ -49,7 +49,7 @@ export default function PlanNextInterview({
 
           {showChips && (
             <div className="flex flex-wrap gap-1 items-center mb-3">
-              <span className="text-[10px] text-amber-900/70 mr-1 uppercase tracking-wide">For:</span>
+              <span className="text-[10px] text-muted-foreground mr-1 uppercase tracking-wide">For:</span>
               {prototypes.map((p) => {
                 const active = activePrototypeId === p.id
                 return (
@@ -60,8 +60,8 @@ export default function PlanNextInterview({
                     title={p.description || p.label}
                     className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
                       active
-                        ? 'bg-amber-900 text-amber-50 border-amber-900'
-                        : 'bg-amber-100/60 border-amber-300 text-amber-900 hover:bg-amber-200'
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-accent border-primary/30 text-accent-foreground hover:bg-accent/80'
                     }`}
                   >
                     {p.emoji && <span>{p.emoji}</span>}
@@ -73,7 +73,7 @@ export default function PlanNextInterview({
           )}
 
           {filteredEmpty ? (
-            <p className="text-xs text-amber-800/80 italic">
+            <p className="text-xs text-muted-foreground italic">
               No high-priority gaps tagged for this archetype. Clear the filter to see all topics,
               or tag more topics in workspace settings.
             </p>
@@ -83,7 +83,7 @@ export default function PlanNextInterview({
                 <Link
                   key={t.topic}
                   to={`/new?topic=${encodeURIComponent(t.topic)}`}
-                  className="text-xs px-2.5 py-1 rounded-full bg-amber-100 border border-amber-300 text-amber-900 hover:bg-amber-200 transition-colors"
+                  className="text-xs px-2.5 py-1 rounded-full bg-accent border border-primary/30 text-accent-foreground hover:bg-primary/10 transition-colors"
                 >
                   + {t.topic}
                 </Link>
