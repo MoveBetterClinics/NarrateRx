@@ -252,8 +252,12 @@ async function handler(req, res) {
     return res.status(400).json({ error: 'replace-master is only valid on a master (parent_id IS NULL)' })
   }
 
-  // Source dimensions are required to validate crop bounds. Most rows have
-  // them populated from upload; if missing, probe before processing.
+  // Source dimensions are only required to validate crop bounds. Rotate-only
+  // operations don't need them — the transpose filter (video) and sharp's
+  // .rotate() (image) operate on the full frame regardless of size. Most rows
+  // have width/height populated from upload, but older video uploads predate
+  // the upload-side population so they're often null; probing falls back to
+  // ffmpeg/sharp metadata when we DO need them.
   let srcW = source.width || null
   let srcH = source.height || null
 
@@ -266,15 +270,15 @@ async function handler(req, res) {
   try {
     await downloadToTmp(source.blob_url, inPath)
 
-    if (!srcW || !srcH) {
+    if (crop && (!srcW || !srcH)) {
       const probed = source.kind === 'video'
         ? await probeVideoDims(inPath)
         : await probeImageDims(inPath)
       srcW = probed.width
       srcH = probed.height
-    }
-    if (!srcW || !srcH) {
-      return res.status(400).json({ error: 'Could not determine source dimensions' })
+      if (!srcW || !srcH) {
+        return res.status(400).json({ error: 'Could not determine source dimensions' })
+      }
     }
 
     if (source.kind === 'video') {
