@@ -36,8 +36,13 @@
  */
 
 import pg from 'pg'
+import https from 'node:https'
+import http from 'node:http'
 import { put } from '@vercel/blob'
-import { existsSync, readFileSync } from 'fs'
+import { existsSync, readFileSync, createWriteStream, unlinkSync } from 'fs'
+import { readFile } from 'fs/promises'
+import { pipeline } from 'stream/promises'
+import { tmpdir } from 'os'
 import { fileURLToPath } from 'url'
 import { join } from 'path'
 
@@ -55,7 +60,7 @@ const flagValue = (name) => {
 const DRY_RUN = !!flag('dry-run')
 const WORKSPACE_SLUG = flagValue('workspace') // optional
 const LIMIT = flagValue('limit') ? parseInt(flagValue('limit'), 10) : null
-const CONCURRENCY = 4 // moderate; legacy origins are public CDN, we don't want to thrash
+const CONCURRENCY = 1 // 1GB+ videos: sequential, no timeout — let each file complete naturally
 
 // ---------------------------------------------------------------------------
 // .env.local loader
@@ -106,12 +111,14 @@ const [hostport, dbAndQ = 'postgres'] = hostPart.split('/')
 const [host, port = '5432'] = hostport.split(':')
 const db = (dbAndQ || 'postgres').split('?')[0] || 'postgres'
 
-const { Client } = pg
-const client = new Client({
+// Use a Pool so concurrent batch slots each get their own connection,
+// avoiding the pg "query while already executing" deprecation warning.
+const { Pool } = pg
+const client = new Pool({
   host, port: Number(port), user, password: pwd, database: db,
   ssl: { rejectUnauthorized: false },
+  max: CONCURRENCY + 2,
 })
-await client.connect()
 
 // ---------------------------------------------------------------------------
 // Resolve --workspace=<slug> → workspace_id, if provided
@@ -140,7 +147,8 @@ if (workspaceId) {
   params.push(workspaceId)
   sql += ` AND workspace_id = $${params.length}`
 }
-sql += ` ORDER BY workspace_id, created_at`
+// Photos first so the bulk of small files migrate quickly; large videos last.
+sql += ` ORDER BY (CASE WHEN mime_type LIKE 'video/%' THEN 1 ELSE 0 END), workspace_id, created_at`
 if (LIMIT) sql += ` LIMIT ${LIMIT}`
 
 const { rows } = await client.query(sql, params)
@@ -184,21 +192,58 @@ async function migrateOne(row) {
   const pathname = row.blob_pathname || new URL(row.blob_url).pathname.replace(/^\//, '')
   if (!pathname) throw new Error('no pathname')
 
-  const r = await fetch(row.blob_url)
-  if (!r.ok) throw new Error(`fetch ${r.status}`)
+  // Use node:https directly (not fetch) to download large videos.
+  // Node.js's Fetch/undici implementation throws "body disturbed or locked"
+  // on connections that take 30+ minutes (1GB+ files). The classic https.get()
+  // gives a plain Node.js IncomingMessage stream with no locking semantics.
+  // Follows redirects manually (Vercel Blob CDN may redirect once).
+  const tmpFile = join(tmpdir(), `nrx-migrate-${row.id}.tmp`)
+  let contentType = row.mime_type || 'application/octet-stream'
 
-  const contentType = r.headers.get('content-type') || row.mime_type || 'application/octet-stream'
-
-  // Stream the response body straight into put() — no buffering.
-  // addRandomSuffix:false preserves the pathname so blob_pathname stays
-  // accurate; allowOverwrite:true makes re-runs after partial failure safe.
-  const result = await put(pathname, r.body, {
-    access: 'public',
-    token: blobToken,
-    contentType,
-    addRandomSuffix: false,
-    allowOverwrite: true,
+  await new Promise((resolve, reject) => {
+    function doGet(url, redirects = 0) {
+      if (redirects > 5) { reject(new Error('too many redirects')); return }
+      const mod = url.startsWith('https') ? https : http
+      mod.get(url, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          res.resume()
+          doGet(res.headers.location, redirects + 1)
+          return
+        }
+        if (res.statusCode !== 200) {
+          res.resume()
+          reject(new Error(`HTTP ${res.statusCode}`))
+          return
+        }
+        if (res.headers['content-type']) contentType = res.headers['content-type']
+        const dest = createWriteStream(tmpFile)
+        res.pipe(dest)
+        dest.on('finish', resolve)
+        dest.on('error', reject)
+        res.on('error', reject)
+      }).on('error', reject)
+    }
+    doGet(row.blob_url)
   })
+
+  // Read into a Buffer before calling put().
+  // Passing a ReadStream to @vercel/blob put() causes "body disturbed or locked"
+  // because the SDK's internal fetch() response handler reads response.body twice.
+  // A Buffer has no stream-locking semantics and works reliably.
+  // For 1GB files this uses 1GB RAM; with concurrency=1 that's acceptable.
+  let result
+  try {
+    const body = await readFile(tmpFile)
+    result = await put(pathname, body, {
+      access: 'public',
+      token: blobToken,
+      contentType,
+      addRandomSuffix: false,
+      allowOverwrite: true,
+    })
+  } finally {
+    try { unlinkSync(tmpFile) } catch { /* already gone */ }
+  }
 
   // Sanity check: new URL must be on the current store.
   const newPrefix = new URL(result.url).host.split('.')[0].toLowerCase()
@@ -223,7 +268,9 @@ for (let i = 0; i < rows.length; i += CONCURRENCY) {
       done++
     } catch (err) {
       errors++
-      errorLog.push(`${err.message}\t${row.id}\t${row.blob_url}`)
+      const entry = `${err.message}\t${row.id}\t${row.blob_url}`
+      errorLog.push(entry)
+      process.stdout.write(`\nERR: ${err.message}\n`)
     }
     process.stdout.write(`\r  ${done + errors + skipped}/${rows.length}  ok=${done} err=${errors}`)
   }))
