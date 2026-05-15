@@ -35,7 +35,7 @@ function defaultLabelFor(ratioId, rotate) {
  * dimensions before sending. Videos without a thumbnail must generate one
  * first — surfaced as an inline message.
  */
-export default function MediaEditModal({ asset, onClose, onSaved }) {
+export default function MediaEditModal({ asset, onClose, onSaved, inline = false }) {
   const cropperRef = useRef(null)
   const [rotate, setRotate]       = useState(0)
   const [aspect, setAspect]       = useState('free')
@@ -147,130 +147,144 @@ export default function MediaEditModal({ asset, onClose, onSaved }) {
   // duplicate variant around. We hide it once a crop has been touched.
   const canReplaceMaster = !asset.parent_id && rotate && !cropTouched
 
-  return (
-    <div className={`fixed inset-0 z-50 bg-black/60 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-4'}`}>
-      <div className={`bg-background shadow-2xl w-full flex flex-col ${isFullscreen ? 'w-screen h-screen' : 'rounded-xl max-w-4xl max-h-[92vh]'}`}>
-        <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
-          <div className="min-w-0">
-            <h2 className="font-semibold text-sm truncate">Edit · {asset.filename}</h2>
-            <p className="text-[11px] text-muted-foreground">
-              Rotate and crop. Saves as a new variant by default; the original stays untouched.
-            </p>
-          </div>
+  const editContent = (
+    <>
+      <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
+        <div className="min-w-0">
+          <h2 className="font-semibold text-sm truncate">Edit · {asset.filename}</h2>
+          <p className="text-[11px] text-muted-foreground">
+            Rotate and crop. Saves as a new variant by default; the original stays untouched.
+          </p>
+        </div>
+        {!inline && (
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => setIsFullscreen(v => !v)} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
               {isFullscreen ? <Minimize className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
             </Button>
             <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
           </div>
-        </div>
+        )}
+      </div>
 
-        <div className={`p-5 space-y-4 ${isFullscreen ? 'flex-1 min-h-0 overflow-y-auto flex flex-col' : 'flex-1 overflow-y-auto'}`}>
-          {!canEdit && (
-            <div className="text-sm bg-amber-50 text-amber-900 border border-amber-200 rounded-md px-3 py-2">
-              This video does not have a thumbnail yet. Close this dialog, click &quot;Make thumbnail&quot;,
-              then re-open Edit. (Cropping needs a still frame to drag the crop box on.)
-            </div>
-          )}
-
-          {canEdit && (
-            <>
-              {/* Cropper canvas */}
-              <div className={`rounded-md border bg-black/95 overflow-hidden ${isFullscreen ? 'flex-1 min-h-0' : ''}`} style={isFullscreen ? {} : { height: 420 }}>
-                <Cropper
-                  ref={cropperRef}
-                  src={previewSrc}
-                  className="h-full w-full"
-                  stencilProps={ratio ? { aspectRatio: ratio } : {}}
-                  onChange={() => setCropTouched(true)}
-                />
-              </div>
-
-              {/* Controls */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground mr-1">Rotate:</span>
-                <Button size="sm" variant="outline" onClick={() => handleRotate(-90)} className="h-8 gap-1.5">
-                  <RotateCcw className="h-3.5 w-3.5" /> -90°
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => handleRotate(90)} className="h-8 gap-1.5">
-                  <RotateCw className="h-3.5 w-3.5" /> +90°
-                </Button>
-                <span className="text-[11px] text-muted-foreground">
-                  Current: {rotate}°
-                </span>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground mr-1">Aspect:</span>
-                {ASPECT_PRESETS.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleAspect(p.id)}
-                    className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                      aspect === p.id
-                        ? 'bg-primary text-white border-primary'
-                        : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-
-              <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1.5">
-                  Variant label
-                  <span className="text-muted-foreground/70 font-normal ml-1">
-                    · how this variant shows up in the library
-                  </span>
-                </label>
-                <Input
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  placeholder="e.g. Instagram Reel"
-                  className="h-8 text-sm"
-                  maxLength={80}
-                />
-              </div>
-
-              {isVideo && (
-                <p className="text-[11px] text-muted-foreground">
-                  Note: cropping is shown on the poster frame; the same crop applies to every frame of the video.
-                </p>
-              )}
-
-              {error && <div className="text-sm text-destructive">{error}</div>}
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center justify-between px-5 py-3 border-t shrink-0">
-          <div>
-            {canReplaceMaster && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => save({ replaceMaster: true })}
-                disabled={saving}
-                title="Overwrite the original in place — use this when the upload was simply oriented wrong"
-              >
-                {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-                Fix the original
-              </Button>
-            )}
+      <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 flex flex-col">
+        {!canEdit && (
+          <div className="text-sm bg-amber-50 text-amber-900 border border-amber-200 rounded-md px-3 py-2">
+            This video does not have a thumbnail yet. Close this dialog, click &quot;Make thumbnail&quot;,
+            then re-open Edit. (Cropping needs a still frame to drag the crop box on.)
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Cancel</Button>
+        )}
+
+        {canEdit && (
+          <>
+            {/* Cropper canvas */}
+            <div className="flex-1 min-h-0 rounded-md border bg-black/95 overflow-hidden">
+              <Cropper
+                ref={cropperRef}
+                src={previewSrc}
+                className="h-full w-full"
+                stencilProps={ratio ? { aspectRatio: ratio } : {}}
+                onChange={() => setCropTouched(true)}
+              />
+            </div>
+
+            {/* Controls */}
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <span className="text-xs font-medium text-muted-foreground mr-1">Rotate:</span>
+              <Button size="sm" variant="outline" onClick={() => handleRotate(-90)} className="h-8 gap-1.5">
+                <RotateCcw className="h-3.5 w-3.5" /> -90°
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => handleRotate(90)} className="h-8 gap-1.5">
+                <RotateCw className="h-3.5 w-3.5" /> +90°
+              </Button>
+              <span className="text-[11px] text-muted-foreground">
+                Current: {rotate}°
+              </span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <span className="text-xs font-medium text-muted-foreground mr-1">Aspect:</span>
+              {ASPECT_PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleAspect(p.id)}
+                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                    aspect === p.id
+                      ? 'bg-primary text-white border-primary'
+                      : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="shrink-0">
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">
+                Variant label
+                <span className="text-muted-foreground/70 font-normal ml-1">
+                  · how this variant shows up in the library
+                </span>
+              </label>
+              <Input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="e.g. Instagram Reel"
+                className="h-8 text-sm"
+                maxLength={80}
+              />
+            </div>
+
+            {isVideo && (
+              <p className="text-[11px] text-muted-foreground shrink-0">
+                Note: cropping is shown on the poster frame; the same crop applies to every frame of the video.
+              </p>
+            )}
+
+            {error && <div className="text-sm text-destructive shrink-0">{error}</div>}
+          </>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between px-5 py-3 border-t shrink-0">
+        <div>
+          {canReplaceMaster && (
             <Button
+              variant="ghost"
               size="sm"
-              onClick={() => save({ replaceMaster: false })}
-              disabled={saving || !canEdit}
+              onClick={() => save({ replaceMaster: true })}
+              disabled={saving}
+              title="Overwrite the original in place — use this when the upload was simply oriented wrong"
             >
               {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
-              Save as variant
+              Fix the original
             </Button>
-          </div>
+          )}
         </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>
+            {inline ? '← Back' : 'Cancel'}
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => save({ replaceMaster: false })}
+            disabled={saving || !canEdit}
+          >
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+            Save as variant
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+
+  if (inline) {
+    return <div className="flex-1 min-h-0 flex flex-col">{editContent}</div>
+  }
+
+  return (
+    <div className={`fixed inset-0 z-50 bg-black/60 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-4'}`}>
+      <div className={`bg-background shadow-2xl w-full flex flex-col ${isFullscreen ? 'w-screen h-screen' : 'rounded-xl max-w-4xl max-h-[92vh]'}`}>
+        {editContent}
       </div>
     </div>
   )

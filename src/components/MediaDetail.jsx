@@ -334,6 +334,14 @@ export default function MediaDetail({ asset, onClose, onChange }) {
           </div>
         </div>
 
+        {showEdit && isFullscreen ? (
+          <MediaEditModal
+            inline
+            asset={asset}
+            onClose={() => setShowEdit(false)}
+            onSaved={() => { refreshVariants(); onChange?.() }}
+          />
+        ) : (<>
         <div className="flex-1 overflow-y-auto">
           {/* Player / preview */}
           <div className="bg-black flex items-center justify-center" style={{ minHeight: 240 }}>
@@ -799,6 +807,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
             )}
           </div>
         </div>
+        </>)}
       </div>
 
       {openBrief && (
@@ -809,7 +818,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
         />
       )}
 
-      {showEdit && (
+      {showEdit && !isFullscreen && (
         <MediaEditModal
           asset={asset}
           onClose={() => setShowEdit(false)}
