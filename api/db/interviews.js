@@ -51,7 +51,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (id) {
       const r = await sb(
-        `interviews?id=eq.${id}&${wsFilter}&select=id,clinician_id,topic,status,messages,cleaned_messages,outputs,session_state,paused_at,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,pull_quote_candidates,pull_quote_selected_id,verbatim_flags,created_at,updated_at`
+        `interviews?id=eq.${id}&${wsFilter}&select=id,clinician_id,topic,status,messages,cleaned_messages,outputs,session_state,paused_at,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,pull_quote_candidates,pull_quote_selected_id,verbatim_flags,generation_style,created_at,updated_at`
       )
       if (!r.ok) return dbErr(res, r)
       const data = await r.json()
@@ -76,7 +76,7 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     if (!(await enforceLimit(req, res, 'media'))) return
 
-    const { clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId } = req.body || {}
+    const { clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, generationStyle } = req.body || {}
     if (!clinicianId) return err(res, 'Missing clinicianId')
     if (!topic?.trim()) return err(res, 'Topic required')
     if (!ownerId) return err(res, 'Unauthorized', 401)
@@ -95,6 +95,7 @@ export default async function handler(req, res) {
         voice_mode: voiceMode === 'personal' ? 'personal' : 'practice',
         prototype_id: prototypeId || null,
         location_id: locationId || null,
+        generation_style: generationStyle === 'minimal_edits' ? 'minimal_edits' : 'blog_post',
       }),
     })
     if (!r.ok) return dbErr(res, r, 'Create failed')
@@ -122,6 +123,7 @@ export default async function handler(req, res) {
     if (body.locationId !== undefined) patch.location_id = body.locationId || null
     if (body.pullQuoteSelectedId !== undefined) patch.pull_quote_selected_id = body.pullQuoteSelectedId || null
     if (body.verbatimFlags !== undefined) patch.verbatim_flags = body.verbatimFlags
+    if (body.generationStyle !== undefined) patch.generation_style = body.generationStyle === 'minimal_edits' ? 'minimal_edits' : 'blog_post'
     // session_state: null clears it (interview complete); object saves it
     if ('session_state' in body) patch.session_state = body.session_state ?? null
     if ('paused_at' in body) patch.paused_at = body.paused_at ?? null

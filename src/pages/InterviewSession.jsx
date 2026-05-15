@@ -11,7 +11,7 @@ import { fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscr
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { streamMessage } from '@/lib/claude'
-import { getInterviewSystemPrompt, getBlogPostSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi, buildVerbatimBlock } from '@/lib/prompts'
+import { getInterviewSystemPrompt, getBlogPostSystemPrompt, getMinimalEditSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi, buildVerbatimBlock } from '@/lib/prompts'
 import { detectEmotionalState, getEmotionPromptInjection } from '@/lib/emotionDetection'
 import { getInitials } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
@@ -111,6 +111,7 @@ export default function InterviewSession() {
   const [streamingText, setStreamingText] = useState('')
   const [interviewComplete, setInterviewComplete] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationStyle, setGenerationStyle] = useState('blog_post')
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
@@ -249,6 +250,7 @@ export default function InterviewSession() {
     if (interviewLoading) return
     if (!interviewData) { navigate('/'); return }
     setInterview(interviewData)
+    setGenerationStyle(interviewData.generation_style || 'blog_post')
 
     // Resume from session_state if available (paused mid-interview).
     // session_state.messages is the authoritative source when present; it
@@ -713,14 +715,28 @@ export default function InterviewSession() {
       // deltas (see src/lib/claude.js#streamMessage), so we just consume
       // them and accumulate. We update the token counter once every 5
       // chunks to avoid a setState per delta.
+      // Persist style change if the user changed it since the interview loaded (fire-and-forget)
+      if (generationStyle !== (interview.generation_style || 'blog_post')) {
+        updateInterview(interviewId, { generationStyle }, user.id).catch(() => {})
+      }
+
+      const isMinimal = generationStyle === 'minimal_edits'
+      const systemPrompt = isMinimal
+        ? getMinimalEditSystemPrompt(clinician.name, voiceMode, clinician.voice_notes || '')
+        : getBlogPostSystemPrompt(
+            overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
+            clinician.voice_notes || '',
+          ) + buildVerbatimBlock(interview.verbatim_flags)
+
       const streamMessages = [
         ...apiMessages,
-        { role: 'user', content: 'Please write the blog post now based on our interview.' },
+        {
+          role: 'user',
+          content: isMinimal
+            ? 'Please clean up the transcript now using minimal edits only.'
+            : 'Please write the blog post now based on our interview.',
+        },
       ]
-      const systemPrompt = getBlogPostSystemPrompt(
-        overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
-        clinician.voice_notes || '',
-      ) + buildVerbatimBlock(interview.verbatim_flags)
 
       let chunks = 0
       for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7' })) {
@@ -1021,15 +1037,43 @@ export default function InterviewSession() {
 
       {interviewComplete && !isGenerating && isOwner && (
         <div className="py-3 shrink-0">
-          <div className="rounded-xl border bg-primary/5 border-primary/20 p-4 flex items-center justify-between gap-4">
+          <div className="rounded-xl border bg-primary/5 border-primary/20 p-4 flex flex-col gap-3">
             <div>
               <p className="text-sm font-medium">Ready to generate content</p>
-              <p className="text-xs text-muted-foreground">Blog post, social media, video scripts, email newsletter, Google Ads, and more.</p>
+              <p className="text-xs text-muted-foreground">Choose how the AI should handle your transcript.</p>
             </div>
-            <Button onClick={handleGenerateContent} size="sm">
-              <Sparkles className="h-4 w-4 mr-1.5" />
-              Generate
-            </Button>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio" name="generationStyle" value="blog_post"
+                  checked={generationStyle === 'blog_post'}
+                  onChange={() => setGenerationStyle('blog_post')}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs leading-snug">
+                  <span className="font-medium">Full blog post</span>
+                  <span className="text-muted-foreground"> — 7-section structure, links, social content</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio" name="generationStyle" value="minimal_edits"
+                  checked={generationStyle === 'minimal_edits'}
+                  onChange={() => setGenerationStyle('minimal_edits')}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs leading-snug">
+                  <span className="font-medium">Minimal edits</span>
+                  <span className="text-muted-foreground"> — clean prose only, preserves your exact words</span>
+                </span>
+              </label>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleGenerateContent} size="sm">
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                Generate
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -1040,7 +1084,7 @@ export default function InterviewSession() {
             <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" aria-hidden="true" />
             <div className="flex-1">
               <p className="text-sm font-medium">
-                Writing blog post…
+                {generationStyle === 'minimal_edits' ? 'Cleaning transcript…' : 'Writing blog post…'}
                 {blogStreamingTokens > 0 && (
                   <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                     ({blogStreamingTokens} chunks)
@@ -1048,7 +1092,9 @@ export default function InterviewSession() {
                 )}
               </p>
               <p className="text-xs text-muted-foreground">
-                Turning your interview into a full blog post. Social, video, and marketing content will generate on demand.
+                {generationStyle === 'minimal_edits'
+                  ? 'Removing filler words and cleaning up the transcript while preserving your exact words.'
+                  : 'Turning your interview into a full blog post. Social, video, and marketing content will generate on demand.'}
               </p>
             </div>
           </div>

@@ -378,6 +378,34 @@ TARGET LENGTH: 700–950 words. Write like a human who genuinely cares about hel
 ${getToneModifier(tone, workspace)}`
 }
 
+export function getMinimalEditSystemPrompt(clinicianName, voiceMode = 'practice', voiceNotes = '') {
+  return `You are a transcript editor. Your only job is to turn a spoken interview transcript into clean, readable prose without adding anything that wasn't in the speaker's own words.
+
+${voiceNotesBlock(voiceNotes)}
+WHAT YOU MUST DO:
+- Remove filler words and verbal tics: um, uh, like (as filler), you know, basically, sort of, kind of, right?, I mean, literally (as emphasis filler)
+- Fix run-on sentences: split at natural breath points, keep the speaker's syntax otherwise
+- Fix obvious grammar errors (subject-verb agreement, tense consistency within a sentence)
+- Add paragraph breaks where the speaker shifts topic — one blank line between paragraphs
+- Preserve the speaker's vocabulary, sentence rhythm, and technical terminology exactly
+- Preserve all numerical claims, timelines, and clinical specifics word-for-word
+
+WHAT YOU MUST NOT DO:
+- Do not add section headers, subheadings, or any markdown structure
+- Do not add bullet points or numbered lists unless the speaker explicitly listed them
+- Do not invent transitions, narrative connectives, or summary sentences
+- Do not inject marketing language, calls to action, or any mention of booking
+- Do not add links of any kind
+- Do not rearrange the order of topics or ideas
+- Do not add any sentence that was not paraphrasable from the speaker's own words
+
+VOICE: ${voiceMode === 'personal'
+    ? `Preserve all first-person language ("I", "my", "me") exactly as spoken. This is ${clinicianName}'s own words.`
+    : `Preserve the speaker's natural voice. Keep "I" or "we" as used — do not convert to any clinic brand voice.`}
+
+OUTPUT FORMAT: Plain prose only. No markdown headers. No preamble. Begin directly with the first cleaned sentence.`
+}
+
 export function getSocialBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '') {
   const isPersonal = voiceMode === 'personal'
   const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
