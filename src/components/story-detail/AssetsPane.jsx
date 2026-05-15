@@ -17,6 +17,7 @@ import {
   useRegenerateContentItem,
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
+import { buildImagesManifest } from '@/lib/publishImageMirror'
 import { toast } from '@/lib/toast'
 import BufferMetricsRow from './BufferMetricsRow'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
@@ -320,7 +321,20 @@ function ApprovalPanel({ piece }) {
         const descLine = lines.find((l) => l.trim() && !/^#/.test(l) && !/^!\[/.test(l))
         const description = descLine?.trim().slice(0, 200) || title
         const pubDate = new Date().toISOString().slice(0, 10)
-        const result = await publishBlogToWebsite({ slug, title, description, pubDate, markdown })
+        // Mirror-on-publish image manifest — hero from media_urls[0], inline
+        // body images parsed from the markdown. Server-side WP path uploads
+        // each into the Media Library and rewrites the body; the Astro
+        // webhook receives the manifest and is responsible for committing the
+        // bytes into the destination repo. See src/lib/publishImageMirror.js.
+        const manifest = buildImagesManifest({ markdown, mediaUrls: piece.media_urls, slug })
+        const result = await publishBlogToWebsite({
+          slug,
+          title,
+          description,
+          pubDate,
+          markdown,
+          ...manifest,
+        })
         await updateStatus.mutateAsync({ id: piece.id, status: 'published' })
         toast.success('Published to website', {
           description: result.postUrl ? `View at ${result.postUrl}` : 'Post is live.',

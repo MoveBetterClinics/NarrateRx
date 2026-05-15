@@ -2,7 +2,9 @@
 
 For the `movebetter-animals` workspace (and any future workspace publishing to an Astro+GitHub-backed site), the **Settings → Publishing credentials → Astro + GitHub website** card needs two values. Both are easy to lose track of because one is a Sensitive shared secret that lives on **two** sides — NarrateRx and the Astro deployment — and they must match exactly.
 
-At publish time NarrateRx serializes the blog post (slug, title, description, pubDate, markdown, optional heroImage / heroImageAlt / tags / draft) and `POST`s it as JSON to the webhook URL with `Authorization: Bearer <secret>`. The receiving Astro app validates the bearer, writes a markdown file to its content directory, commits to GitHub, and lets Vercel rebuild. The full receiver contract lives at `docs/api-publish-contract.md` in the `movebetteranimal` repo.
+At publish time NarrateRx serializes the blog post (slug, title, description, pubDate, markdown, optional heroImage / heroImageAlt / tags / draft / images[]) and `POST`s it as JSON to the webhook URL with `Authorization: Bearer <secret>`. The receiving Astro app validates the bearer, writes a markdown file to its content directory, commits to GitHub, and lets Vercel rebuild. The full receiver contract lives at `docs/api-publish-contract.md` in the `movebetteranimal` repo.
+
+**`images[]` (added 2026-05-15, mirror-on-publish)**: an array of `{ url, alt, filename, mirrorable }` entries pulled from inline `![alt](…)` references in the post markdown. The receiver should, for each entry where `mirrorable: true`, fetch `url`, commit the bytes to `src/assets/blog/<slug>/<filename>` in the same commit as the post markdown, and rewrite the post's `![alt](url)` to point at the repo-relative path. Receivers that ignore the field still render correctly because the original `url` is a public Vercel Blob URL — mirroring just severs the dependency on NarrateRx infra. `heroImage` is **not** included in `images[]`; it's handled separately as frontmatter.
 
 ## The two fields
 

@@ -24,6 +24,7 @@ import { withSentry } from '../_lib/sentry.js'
 import { marked } from 'marked'
 import { getCredential } from '../_lib/getCredential.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
+import { rewriteMarkdownImageUrls } from '../_lib/publishImageMirror.js'
 
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed', message: 'POST only' })
@@ -80,6 +81,12 @@ async function publishToAstro(res, payload, cred) {
   if (payload.heroImageAlt) body.heroImageAlt = payload.heroImageAlt
   if (Array.isArray(payload.tags) && payload.tags.length) body.tags = payload.tags
   if (typeof payload.draft === 'boolean') body.draft = payload.draft
+  // Inline image manifest — each entry is { url, alt, filename, mirrorable }.
+  // Receivers committing to GitHub should fetch each `url`, write the bytes
+  // to `src/assets/blog/<slug>/<filename>`, and rewrite the markdown's
+  // `![alt](url)` → `![alt](./<filename>)` (or `~/assets/...`) before committing.
+  // Older receivers that ignore the field still render correctly via hotlinks.
+  if (Array.isArray(payload.images) && payload.images.length) body.images = payload.images
   // Kebab-case topic slug — used by movebetter.co's blog schema (mapped
   // into `topic` frontmatter on receive). Animal's receiver ignores
   // unknown fields, so this is safe for both tenants.
@@ -162,7 +169,8 @@ async function publishToWordPress(res, payload, cred) {
   let featuredMediaId = null
   if (payload.heroImage) {
     try {
-      featuredMediaId = await uploadMedia(wp, payload.heroImage, payload.heroImageAlt)
+      const media = await uploadMedia(wp, payload.heroImage, payload.heroImageAlt)
+      featuredMediaId = media.id
     } catch (e) {
       return res.status(502).json({ error: 'media_upload_failed', message: `Hero image upload failed: ${e.message}` })
     }
@@ -178,8 +186,28 @@ async function publishToWordPress(res, payload, cred) {
     }
   }
 
-  // 4. Create the post.
-  const html = markdownToHtml(payload.markdown)
+  // 4. Inline body images — mirror each into the WordPress Media Library and
+  // build a {oldUrl → newWpUrl} map. The markdown body is rewritten so the
+  // emitted HTML references WP-hosted images, severing the dependency on
+  // NarrateRx blob storage. Non-mirrorable URLs (external CDNs, etc.) are
+  // left as hotlinks.
+  let mirroredMarkdown = payload.markdown
+  if (Array.isArray(payload.images) && payload.images.length) {
+    const urlMap = {}
+    for (const img of payload.images) {
+      if (!img?.url || img.mirrorable === false) continue
+      try {
+        const wpMediaUrl = await uploadMediaForRewrite(wp, img.url, img.alt)
+        if (wpMediaUrl) urlMap[img.url] = wpMediaUrl
+      } catch (e) {
+        return res.status(502).json({ error: 'media_upload_failed', message: `Inline image upload failed for ${img.url}: ${e.message}` })
+      }
+    }
+    mirroredMarkdown = rewriteMarkdownImageUrls(payload.markdown, urlMap)
+  }
+
+  // 5. Create the post.
+  const html = markdownToHtml(mirroredMarkdown)
   const postBody = {
     title:   payload.title,
     slug:    payload.slug,
@@ -222,12 +250,12 @@ async function publishToWordPress(res, payload, cred) {
   return res.status(502).json({ error: 'upstream_error', message: postData.message || `WordPress returned ${postRes.status}.`, status: postRes.status })
 }
 
-async function uploadMedia(wp, sourceUrl, altText) {
+async function uploadMedia(wp, sourceUrl, altText, overrideFilename = null) {
   const sourceRes = await fetch(sourceUrl)
   if (!sourceRes.ok) throw new Error(`Could not download image from ${sourceUrl} (${sourceRes.status})`)
   const contentType = sourceRes.headers.get('content-type') || 'application/octet-stream'
   const bytes = await sourceRes.arrayBuffer()
-  const filename = filenameFromUrl(sourceUrl, contentType)
+  const filename = overrideFilename || filenameFromUrl(sourceUrl, contentType)
 
   const uploadRes = await wp('/wp/v2/media', {
     method:  'POST',
@@ -250,7 +278,14 @@ async function uploadMedia(wp, sourceUrl, altText) {
       body:    JSON.stringify({ alt_text: altText }),
     }).catch(() => {})
   }
-  return media.id
+  return { id: media.id, source_url: media.source_url }
+}
+
+// Thin wrapper used by the inline-image rewrite path — returns the WP-hosted
+// URL so the markdown can be rewritten to point at it.
+async function uploadMediaForRewrite(wp, sourceUrl, altText) {
+  const media = await uploadMedia(wp, sourceUrl, altText)
+  return media.source_url || null
 }
 
 async function resolveTags(wp, names) {
