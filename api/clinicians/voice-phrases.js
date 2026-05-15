@@ -1,0 +1,87 @@
+// GET /api/clinicians/voice-phrases?clinician_id=<uuid>&limit=<n>
+//
+// Returns the structured voice substrate for a single clinician — the
+// frequency-weighted phrases that future phases (auto-tune, diff annotations,
+// freshness UI) will read and write. Today this is read-only and the table is
+// empty for every clinician; writes land in follow-up PRs.
+//
+// Tenant isolation: workspaceScope(req) resolves the workspace from the host,
+// every query filters by workspace_id, and the clinician existence-check is
+// scoped to the same workspace so cross-workspace clinician_ids return 404.
+
+export const config = { runtime: 'nodejs' }
+
+import { withSentry } from '../_lib/sentry.js'
+import { requireRole } from '../_lib/auth.js'
+import { workspaceScope } from '../_lib/workspaceScope.js'
+
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+
+const DEFAULT_LIMIT = 50
+const MAX_LIMIT = 200
+
+function sb(path, init = {}) {
+  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      ...init.headers,
+    },
+  })
+}
+
+async function dbErr(res, r, msg) {
+  let body = ''
+  try { body = await r.text() } catch { /* ignore */ }
+  console.error(`[clinicians/voice-phrases] ${msg} status=${r.status} body=${body.slice(0, 500)}`)
+  return res.status(500).json({ error: 'Database error' })
+}
+
+async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+
+  const auth = await requireRole(req)
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+
+  const { id: workspaceId } = await workspaceScope(req)
+
+  const url = new URL(req.url, 'http://localhost')
+  const clinicianId = url.searchParams.get('clinician_id')
+  if (!clinicianId) return res.status(400).json({ error: 'Missing clinician_id' })
+
+  const limitRaw = parseInt(url.searchParams.get('limit') || '', 10)
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0
+    ? Math.min(limitRaw, MAX_LIMIT)
+    : DEFAULT_LIMIT
+
+  // Scope the clinician lookup to this workspace so cross-tenant ids 404.
+  const clinRes = await sb(
+    `clinicians?id=eq.${clinicianId}&workspace_id=eq.${workspaceId}&select=id`
+  )
+  if (!clinRes.ok) return dbErr(res, clinRes, 'clinician lookup failed')
+  const clinRows = await clinRes.json()
+  if (!clinRows.length) return res.status(404).json({ error: 'Clinician not found' })
+
+  // Phrases ordered by weight desc (strongest preserved phrasings first),
+  // then last_seen_at desc as a tie-breaker so fresher signals win.
+  const phrasesRes = await sb(
+    `clinician_voice_phrases?clinician_id=eq.${clinicianId}&workspace_id=eq.${workspaceId}` +
+    `&select=phrase,weight,approve_count,reject_count,first_seen_at,last_seen_at` +
+    `&order=weight.desc,last_seen_at.desc` +
+    `&limit=${limit}`
+  )
+  if (!phrasesRes.ok) return dbErr(res, phrasesRes, 'phrases query failed')
+  const phrases = await phrasesRes.json()
+
+  return res.status(200).json({
+    clinician_id: clinicianId,
+    count: phrases.length,
+    limit,
+    phrases,
+  })
+}
+
+export default withSentry(handler)
