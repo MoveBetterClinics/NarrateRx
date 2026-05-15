@@ -1,3 +1,4 @@
+// @ts-check
 // Drop-in replacement for TanStack Query's useMutation that guarantees a
 // user-facing error toast when the mutation throws.
 //
@@ -20,6 +21,10 @@
 import { useMutation } from '@tanstack/react-query'
 import { toast } from '@/lib/toast'
 
+/**
+ * Wrapper around useMutation that always shows a toast on error.
+ * @param {{ errorMessage?: string, silent?: boolean, onError?: (...args: any[]) => any, [key: string]: any }} [options]
+ */
 export function useAppMutation({
   errorMessage = 'Something went wrong',
   silent = false,
@@ -30,9 +35,8 @@ export function useAppMutation({
     ...rest,
     onError: (err, vars, ctx) => {
       if (!silent) {
-        const description = err?.message && err.message !== errorMessage
-          ? err.message
-          : undefined
+        const message = err instanceof Error ? err.message : String(err)
+        const description = message && message !== errorMessage ? message : undefined
         toast.error(errorMessage, description ? { description } : undefined)
       }
       if (callerOnError) callerOnError(err, vars, ctx)

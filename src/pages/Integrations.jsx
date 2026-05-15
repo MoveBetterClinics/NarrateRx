@@ -131,7 +131,6 @@ export default function Integrations() {
   useEffect(() => {
     if (!isAdmin || roleLoading) return
     reload()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, roleLoading])
 
   return (

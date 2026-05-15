@@ -1,3 +1,4 @@
+// @ts-check
 // Shared error handling for fetch() responses from our own /api routes.
 //
 // Routing failures through a single helper:
@@ -18,24 +19,41 @@ import { toast } from '@/lib/toast'
 let _last429At = 0
 let _last401At = 0
 
-// Coerce arbitrary payload values into a human-readable string. Servers
-// occasionally return `{ error: { ... } }` (e.g. an AI SDK error whose
-// `.message` was itself an object), and `new Error(obj)` would otherwise
-// stringify to the literal "[object Object]" that the user sees in the UI.
+/**
+ * Coerce arbitrary payload values into a human-readable string.
+ * Servers occasionally return `{ error: { ... } }` (e.g. an AI SDK error whose
+ * `.message` was itself an object), and `new Error(obj)` would otherwise
+ * stringify to the literal "[object Object]" that the user sees in the UI.
+ * @param {...unknown} candidates
+ * @returns {string}
+ */
 function extractMessage(...candidates) {
   for (const v of candidates) {
     if (typeof v === 'string' && v.length > 0) return v
     if (v && typeof v === 'object') {
-      if (typeof v.message === 'string' && v.message.length > 0) return v.message
+      const obj = /** @type {Record<string, unknown>} */ (v)
+      if (typeof obj.message === 'string' && obj.message.length > 0) return obj.message
       try { return JSON.stringify(v) } catch { /* fall through */ }
     }
   }
   return ''
 }
 
-// Error class that preserves the HTTP status so callers can branch on it
-// (`if (err.status === 403)` instead of re-parsing the message string).
+/**
+ * Error class that preserves the HTTP status so callers can branch on it
+ * (`if (err.status === 403)` instead of re-parsing the message string).
+ */
 export class ApiError extends Error {
+  /** @type {number} */
+  status
+  /** @type {unknown} */
+  payload
+
+  /**
+   * @param {string} message
+   * @param {number} status
+   * @param {unknown} payload
+   */
   constructor(message, status, payload) {
     super(message)
     this.name = 'ApiError'
@@ -44,8 +62,14 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Parse a non-2xx Response into an ApiError and throw it.
+ * For 401/429 also shows a debounced toast.
+ * @param {Response} response
+ * @returns {Promise<never>}
+ */
 export async function throwApiError(response) {
-  let payload = {}
+  let payload = /** @type {Record<string, unknown>} */ ({})
   try { payload = await response.json() } catch { /* empty */ }
 
   const message = extractMessage(payload.error, payload.message)
