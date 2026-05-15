@@ -172,6 +172,36 @@ export function cleanupTranscript(interviewId) {
   })
 }
 
+// Voice-fidelity provenance — finds the blog content_item the cascade created
+// from the interview's outputs and populates its provenance. Fire-and-forget
+// from the generation handler. Empty trailer is allowed; the server falls
+// back to algorithmic similarity matching against the transcript.
+/**
+ * @param {string} interviewId
+ * @param {string} [trailer]
+ * @param {string} [platform]
+ * @returns {Promise<unknown>}
+ */
+export async function populateContentItemProvenance(interviewId, trailer = '', platform = 'blog') {
+  /** @type {unknown} */
+  let result
+  try {
+    result = await apiFetch(
+      `/api/db/content?interviewId=${encodeURIComponent(interviewId)}&platform=${encodeURIComponent(platform)}&limit=1`
+    )
+  } catch {
+    return null
+  }
+  const rows = /** @type {Array<{ id?: string }>} */ (Array.isArray(result) ? result : [])
+  const contentItemId = rows[0]?.id
+  if (!contentItemId) return null
+  return apiFetch('/api/content-items/provenance', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentItemId, trailer: trailer || '' }),
+  })
+}
+
 /** @param {string} itemId @returns {Promise<unknown>} */
 export function listContentItemDrafts(itemId) {
   return apiFetch(`/api/content-item-drafts?itemId=${encodeURIComponent(itemId)}`)

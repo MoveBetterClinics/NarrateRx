@@ -196,6 +196,40 @@ ${trimmed}
 `
 }
 
+// Appended to long-form generation prompts (blog + minimal-edits). Instructs
+// the model to emit a single trailing JSON block that maps each paragraph in
+// the generated content back to a user-message index + character span in the
+// transcript. Captured by the streaming consumer (extractProvenanceBlock in
+// api/_lib/provenanceValidator.js) and stored on content_items.provenance.
+//
+// The substrate powers three voice-fidelity surfaces:
+//   • P0-A — transcript ↔ asset highlight on Story Detail
+//   • P0-C — verbatim/paraphrase/synthesis scorecard in ApprovalPanel
+//   • P0-G — verbatim contrasting quotes in Themes view
+//
+// If the model fails to emit cleanly or validation rejects the trailer, the
+// server falls back to algorithmic similarity matching — feature works either
+// way. Token cost: ~80 in / ~150 out per generation (≈0.5% overhead).
+export const PROVENANCE_INSTRUCTION = `
+
+After the content body, emit a single JSON block in this exact shape, on its own lines after the content:
+
+<PROVENANCE>
+{"blocks":[{"text_prefix":"First 80 chars of paragraph...","msg":3,"type":"paraphrase","span":[44,187]}]}
+</PROVENANCE>
+
+For EACH paragraph in the content body above (in order), emit one block with:
+- text_prefix: the first 80 characters of that paragraph (used to verify alignment)
+- msg: the index of the user message in the transcript that inspired the paragraph (0-indexed), OR null if the paragraph is synthesis from workspace context / your own knowledge
+- type: "verbatim" if quoted exactly | "paraphrase" if reworded from the user message | "synthesis" if drawn from workspace context, exemplars, or your own knowledge
+- span: [start, end] character offsets within that user message's text; OMIT this field when type is "synthesis"
+
+Rules:
+- Emit ONLY the JSON block — no markdown fence, no commentary, no leading or trailing prose.
+- The number of blocks MUST equal the number of paragraphs in the content body.
+- Do NOT include the <PROVENANCE> markers themselves in the content body above.
+- If your message index is wrong or you cannot identify a source, prefer "synthesis" with msg: null over guessing.`
+
 // Returns the framing-rule block injected into each generation prompt.
 // In practice mode: scrub first-person → clinic voice (existing behavior).
 // In personal mode: preserve first-person voice, append a brand-attribution signature.
@@ -382,7 +416,7 @@ ${isPersonal ? '' : `
 *${workspace.display_name} · ${workspace.location}*
 `}
 TARGET LENGTH: 700–950 words. Write like a human who genuinely cares about helping people move better — not like a content marketing checklist.
-${getToneModifier(tone, workspace)}`
+${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
 }
 
 export function getMinimalEditSystemPrompt(clinicianName, voiceMode = 'practice', voiceNotes = '') {
@@ -410,7 +444,7 @@ VOICE: ${voiceMode === 'personal'
     ? `Preserve all first-person language ("I", "my", "me") exactly as spoken. This is ${clinicianName}'s own words.`
     : `Preserve the speaker's natural voice. Keep "I" or "we" as used — do not convert to any clinic brand voice.`}
 
-OUTPUT FORMAT: Plain prose only. No markdown headers. No preamble. Begin directly with the first cleaned sentence.`
+OUTPUT FORMAT: Plain prose only. No markdown headers. No preamble. Begin directly with the first cleaned sentence.${PROVENANCE_INSTRUCTION}`
 }
 
 export function getSocialBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '') {

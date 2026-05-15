@@ -7,7 +7,8 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
-import { fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscript } from '@/lib/api'
+import { fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscript, populateContentItemProvenance } from '@/lib/api'
+import { extractProvenanceBlock } from '@/lib/provenance'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { streamMessage } from '@/lib/claude'
@@ -898,7 +899,11 @@ export default function InterviewSession() {
       }
       setBlogStreamingTokens(chunks)
 
-      const blogPost = blogStreamingTextRef.current
+      // Separate the voice-fidelity provenance trailer from the visible
+      // content body. The trailer (if present) is the model's per-paragraph
+      // source attribution; the server validates it against the content +
+      // transcript and falls back to algorithmic matching if validation fails.
+      const { content: blogPost, provenanceJson } = extractProvenanceBlock(blogStreamingTextRef.current)
       if (!blogPost.trim()) throw new Error('No content returned from generation')
 
       const outputs = { blogPost, generatedAt: new Date().toISOString() }
@@ -910,6 +915,15 @@ export default function InterviewSession() {
       qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
       qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+
+      // Fire-and-forget: populate provenance on the new blog content_item.
+      // Server validates trailer (if any) against content + transcript and
+      // stores either `model_emit_validated` or `algorithmic_fallback`. The
+      // UI does not wait for this — it lands within a second or two and
+      // shows up on next Story Detail fetch.
+      populateContentItemProvenance(interviewId, provenanceJson || '', 'blog').catch((err) => {
+        console.warn('[interview] provenance population failed:', err?.message)
+      })
       // Slide the output panel in-place — no full page transition.
       // Update the URL so the user can bookmark/share the output link,
       // but stay on this page with the transcript still visible on the left.
