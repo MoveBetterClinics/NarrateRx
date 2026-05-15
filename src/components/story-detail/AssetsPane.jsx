@@ -14,6 +14,7 @@ import {
   useUpdateContentItemStatus,
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
+import { toast } from '@/lib/toast'
 import BufferMetricsRow from './BufferMetricsRow'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
 import MediaAttachmentPanel from './MediaAttachmentPanel'
@@ -116,7 +117,6 @@ function ApprovalPanel({ piece }) {
   const [changeRequestOpen, setChangeRequestOpen] = useState(false)
   const [changeRequestBody, setChangeRequestBody] = useState('')
   const [publishing, setPublishing] = useState(false)
-  const [publishError, setPublishError] = useState(null)
 
   const userEmail = user?.primaryEmailAddress?.emailAddress || user?.id || ''
 
@@ -148,7 +148,6 @@ function ApprovalPanel({ piece }) {
 
   const handlePublish = async () => {
     setPublishing(true)
-    setPublishError(null)
     try {
       const markdown = typeof piece.content === 'string' ? piece.content : JSON.stringify(piece.content)
       if (piece.platform === 'blog') {
@@ -159,7 +158,10 @@ function ApprovalPanel({ piece }) {
         const descLine = lines.find((l) => l.trim() && !/^#/.test(l) && !/^!\[/.test(l))
         const description = descLine?.trim().slice(0, 200) || title
         const pubDate = new Date().toISOString().slice(0, 10)
-        await publishBlogToWebsite({ slug, title, description, pubDate, markdown })
+        const result = await publishBlogToWebsite({ slug, title, description, pubDate, markdown })
+        toast.success('Published to website', {
+          description: result.postUrl ? `View at ${result.postUrl}` : 'Post is live.',
+        })
       } else {
         await publishAndTrack(
           {
@@ -171,9 +173,10 @@ function ApprovalPanel({ piece }) {
           },
           userEmail,
         )
+        toast.success('Sent to Buffer')
       }
     } catch (e) {
-      setPublishError(e.message || 'Publish failed')
+      toast.error('Publish failed', { description: e.message })
     } finally {
       setPublishing(false)
     }
@@ -266,9 +269,7 @@ function ApprovalPanel({ piece }) {
         )}
       </div>
 
-      {publishError && (
-        <p className="text-xs text-destructive">{publishError}</p>
-      )}
+
 
       {/* Change request inline form */}
       {changeRequestOpen && (
