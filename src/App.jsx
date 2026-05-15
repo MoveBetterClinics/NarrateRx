@@ -4,9 +4,8 @@ import PrivacyPolicy from '@/pages/PrivacyPolicy'
 import TermsOfService from '@/pages/TermsOfService'
 import {
   ClerkProvider,
-  SignedIn,
-  SignedOut,
   SignIn,
+  useAuth,
   useUser,
   useOrganizationList,
   useSession,
@@ -257,6 +256,14 @@ function AppRoutes() {
 function ProtectedApp() {
   const { workspace: ws, isLoading } = useWorkspaceState()
   const { user } = useUser()
+  // Explicit Clerk hydration gate. Using <SignedIn>/<SignedOut> directly caused
+  // a one-frame flash of the sign-in panel during normal use — Clerk's silent
+  // session-token refresh (and tab-focus revalidation) can briefly report
+  // `isSignedIn=false` before the new token settles, and the SignedOut branch
+  // rendered for that frame. Holding both branches until `isLoaded` is true
+  // eliminates the flash because the sign-in panel only renders once Clerk
+  // has definitively confirmed there is no session.
+  const { isLoaded, isSignedIn } = useAuth()
 
   useEffect(() => { setSentryUser(user?.id ?? null) }, [user?.id])
   useEffect(() => { setSentryWorkspace(ws?.slug ?? null) }, [ws?.slug])
@@ -265,41 +272,39 @@ function ProtectedApp() {
   const signInName  = ws?.app_name      ?? workspace.appName
   const signInBlurb = ws?.sign_in_blurb ?? workspace.signInBlurb
 
-  return (
-    <>
-      <SignedIn>
-        {/* Hold SignedIn content until workspace fetch resolves to avoid a
-            flash of the wrong guard. SignedOut renders immediately below. */}
-        {isLoading ? null : ws?.clerk_org_id
-          ? <OrgGate clerkOrgId={ws.clerk_org_id}><AppRoutes /></OrgGate>
-          : <DomainGuard><AppRoutes /></DomainGuard>
-        }
-      </SignedIn>
+  if (!isLoaded) return null
 
-      <SignedOut>
-        <div className="min-h-screen flex items-start sm:items-center justify-center bg-background px-4 py-8">
-          <div className="w-full flex flex-col items-center">
-            <div className="text-center mb-6 max-w-md">
-              <h1 className="text-xl font-bold">{signInName}</h1>
-              <p className="text-sm text-muted-foreground">{signInBlurb}</p>
-            </div>
-            <SignIn
-              appearance={{
-                elements: {
-                  rootBox: 'mx-auto w-full',
-                  card: 'shadow-sm border w-full',
-                },
-              }}
-            />
-            <div className="flex gap-4 justify-center mt-6 text-xs text-muted-foreground">
-              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-              <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
-              <Link to="/status" className="hover:text-foreground transition-colors">Status</Link>
-            </div>
-          </div>
+  if (isSignedIn) {
+    // Hold workspace-gated content until the /api/workspace/me fetch resolves
+    // so we don't flash the wrong guard (Org vs Domain).
+    if (isLoading) return null
+    return ws?.clerk_org_id
+      ? <OrgGate clerkOrgId={ws.clerk_org_id}><AppRoutes /></OrgGate>
+      : <DomainGuard><AppRoutes /></DomainGuard>
+  }
+
+  return (
+    <div className="min-h-screen flex items-start sm:items-center justify-center bg-background px-4 py-8">
+      <div className="w-full flex flex-col items-center">
+        <div className="text-center mb-6 max-w-md">
+          <h1 className="text-xl font-bold">{signInName}</h1>
+          <p className="text-sm text-muted-foreground">{signInBlurb}</p>
         </div>
-      </SignedOut>
-    </>
+        <SignIn
+          appearance={{
+            elements: {
+              rootBox: 'mx-auto w-full',
+              card: 'shadow-sm border w-full',
+            },
+          }}
+        />
+        <div className="flex gap-4 justify-center mt-6 text-xs text-muted-foreground">
+          <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+          <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+          <Link to="/status" className="hover:text-foreground transition-colors">Status</Link>
+        </div>
+      </div>
+    </div>
   )
 }
 
