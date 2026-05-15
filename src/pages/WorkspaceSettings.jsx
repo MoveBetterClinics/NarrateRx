@@ -635,6 +635,7 @@ const KIND_META = {
 }
 
 function KnowledgeBankSection() {
+  const { getToken } = useAuth()
   const [concepts, setConcepts] = useState(null)
   const [loading, setLoading]   = useState(true)
   const [reextracting, setReextracting] = useState(false)
@@ -654,7 +655,11 @@ function KnowledgeBankSection() {
   async function reextract() {
     setReextracting(true)
     try {
-      const r = await fetch('/api/concepts/reextract', { method: 'POST' })
+      const token = await getToken()
+      const r = await fetch('/api/concepts/reextract', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      })
       if (r.ok) {
         setToast('Re-extraction queued — results will appear within a minute.')
         setTimeout(() => { load(); setToast(null) }, 8000)
