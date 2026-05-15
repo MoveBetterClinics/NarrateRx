@@ -102,7 +102,7 @@ function OrgGate({ clerkOrgId, children }) {
           <p className="text-3xl" aria-hidden="true">🔒</p>
           <h2 className="font-semibold text-lg">No access to this workspace</h2>
           <p className="text-sm text-muted-foreground">
-            Your account isn't a member of this workspace. Ask your admin to send you an
+            Your account isn&apos;t a member of this workspace. Ask your admin to send you an
             invite, or sign in with a different account.
           </p>
           <button
@@ -135,7 +135,7 @@ function DomainGuard({ children }) {
           <h2 className="font-semibold text-lg">Access Restricted</h2>
           <p className="text-sm text-muted-foreground">
             This app is only available to <strong>@{allowed}</strong> accounts.
-            You're signed in as <span className="font-mono text-xs">{email}</span>.
+            You&apos;re signed in as <span className="font-mono text-xs">{email}</span>.
           </p>
           <button
             onClick={() => window.Clerk?.signOut()}

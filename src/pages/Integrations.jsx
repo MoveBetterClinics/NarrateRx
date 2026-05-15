@@ -296,7 +296,7 @@ function TrustDrivenCareCard() {
           <div>
             <p className="font-medium">TrustDrivenCare — Email Newsletter</p>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Email previews render the actual {templateName} template. Here's how to keep it in sync.
+              Email previews render the actual {templateName} template. Here&apos;s how to keep it in sync.
             </p>
             <div className="flex gap-1 mt-1.5">
               <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Email</span>

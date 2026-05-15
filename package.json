@@ -13,7 +13,7 @@
     "e2e:install": "playwright install --with-deps chromium",
     "e2e:seed": "node scripts/seed-e2e-fixtures.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src api --max-warnings 58",
+    "lint": "eslint src api --max-warnings 9",
     "test": "vitest run"
   },
   "dependencies": {

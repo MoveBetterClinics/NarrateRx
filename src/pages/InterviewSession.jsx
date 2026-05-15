@@ -1109,7 +1109,7 @@ export default function InterviewSession() {
               aria-label="Transcript"
               className="w-full rounded-xl bg-muted px-4 py-3 text-sm text-foreground/80 italic min-h-[44px]"
             >
-              "{transcript}"
+              &quot;{transcript}&quot;
             </div>
           )}
 
@@ -1124,7 +1124,7 @@ export default function InterviewSession() {
               </span>
             ) : isListening ? (
               <span className="flex items-center gap-1.5 text-red-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — say "done" or tap mic to send
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — say &quot;done&quot; or tap mic to send
               </span>
             ) : 'Tap to speak'}
           </p>
@@ -1196,7 +1196,7 @@ export default function InterviewSession() {
 // content generation completes. Receives already-fetched data as props so
 // there's no duplicate network fetch. The full standalone output page at
 // /output/:clinicianId/:interviewId is unchanged.
-function InlineOutputPanel({ clinicianId, interviewId, clinician, interview, outputs, onViewFull }) {
+function InlineOutputPanel({ clinicianId: _clinicianId, interviewId: _interviewId, clinician: _clinician, interview: _interview, outputs, onViewFull }) {
   const [copied, setCopied] = useState(false)
 
   function handleCopy() {

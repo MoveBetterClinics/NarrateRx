@@ -563,7 +563,7 @@ function DangerZone({ workspace, getToken }) {
             </p>
             <ul className="text-[11px] text-muted-foreground list-disc pl-4 mt-1.5 space-y-0.5">
               <li>Published posts on external channels (WordPress / Astro / Buffer) are <strong>not</strong> taken down.</li>
-              <li>Cron jobs that reference this workspace start no-op'ing.</li>
+              <li>Cron jobs that reference this workspace start no-op&apos;ing.</li>
               <li>Your Clerk Organization is not deleted; members can still sign in elsewhere.</li>
             </ul>
           </div>
@@ -1246,7 +1246,7 @@ function LocationFields({ draft, setDraft }) {
             placeholder="Portland"
             className="text-sm"
           />
-          <p className="text-[10px] text-muted-foreground">Used in copy and 'near me' SEO.</p>
+          <p className="text-[10px] text-muted-foreground">Used in copy and &apos;near me&apos; SEO.</p>
         </div>
         <div className="col-span-6 space-y-1">
           <Label className="text-xs">Location hashtag</Label>
@@ -1278,7 +1278,7 @@ function LocationFields({ draft, setDraft }) {
           className="text-sm font-mono"
         />
         <p className="text-[10px] text-muted-foreground">
-          Buffer profile ID for this location's Google Business listing. Find it
+          Buffer profile ID for this location&apos;s Google Business listing. Find it
           at <a className="underline" href="https://publish.buffer.com/" target="_blank" rel="noreferrer">publish.buffer.com</a> →
           select the GBP channel → copy the ID from the URL
           (<code>publish.buffer.com/profile/&lt;id&gt;/...</code>), or call

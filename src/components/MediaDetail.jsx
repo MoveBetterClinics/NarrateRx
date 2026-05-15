@@ -510,7 +510,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
 
             {assetPurpose === 'interview' && (
               <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Who's speaking?</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Who&apos;s speaking?</label>
                 <select
                   value={speakerRole}
                   onChange={(e) => setSpeakerRole(e.target.value)}
@@ -691,7 +691,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">
                 Alt text
                 <span className="text-muted-foreground/70 font-normal ml-1">
-                  · describes what's in the image for screen readers + captions
+                  · describes what&apos;s in the image for screen readers + captions
                 </span>
               </label>
               <Input

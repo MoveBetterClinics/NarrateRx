@@ -224,7 +224,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">2</span>
             <div>
               <div className="text-sm font-semibold">
-                Who's speaking in these clips? <span className="text-destructive">*</span>
+                Who&apos;s speaking in these clips? <span className="text-destructive">*</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
                 This shapes how AI reviews the upload. Pick before dropping files.
