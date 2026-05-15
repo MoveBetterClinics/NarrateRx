@@ -739,7 +739,7 @@ export default function InterviewSession() {
       ]
 
       let chunks = 0
-      for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7' })) {
+      for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7', maxOutputTokens: 4096 })) {
         blogStreamingTextRef.current += delta
         chunks += 1
         if (chunks % 5 === 0) setBlogStreamingTokens(chunks)

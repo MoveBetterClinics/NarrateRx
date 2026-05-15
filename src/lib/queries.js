@@ -569,6 +569,33 @@ export function useTopPerformers() {
   })
 }
 
+// Regenerate the AI content for a single content_item in place.
+// Resets the row to status=draft and clears approval audit fields, so any
+// previously-approved piece needs fresh review before publish.
+export function useRegenerateContentItem() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id }) => {
+      const r = await fetch('/api/content-items/regenerate', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      })
+      if (!r.ok) {
+        let message = 'Regeneration failed'
+        try { message = (await r.json())?.error || message } catch { /* keep default */ }
+        throw new Error(message)
+      }
+      return r.json()
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.stories.all })
+    },
+  })
+}
+
 export function useUpdateContentItemStatus() {
   const qc = useQueryClient()
   return useMutation({

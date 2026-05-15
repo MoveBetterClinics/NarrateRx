@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
-  ChevronDown, MessageSquare, Eye, EyeOff,
+  ChevronDown, MessageSquare, Eye, EyeOff, RotateCcw,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ import {
   useComments,
   useAddComment,
   useUpdateContentItemStatus,
+  useRegenerateContentItem,
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
 import { toast } from '@/lib/toast'
@@ -105,6 +106,70 @@ function CommentThread({ pieceId }) {
         </Button>
       </form>
     </div>
+  )
+}
+
+function RegenerateButton({ piece }) {
+  const regenerate = useRegenerateContentItem()
+  const [confirming, setConfirming] = useState(false)
+
+  const handleRegenerate = async () => {
+    setConfirming(false)
+    try {
+      await regenerate.mutateAsync({ id: piece.id })
+      toast.success('Regenerated', { description: 'Content rewritten and reset to draft.' })
+    } catch (e) {
+      toast.error('Regeneration failed', { description: e.message })
+    }
+  }
+
+  if (regenerate.isPending) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Regenerating — this can take 30–60 seconds…
+      </div>
+    )
+  }
+
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs">
+        <span className="text-amber-800">
+          Replace this draft with a fresh AI generation? Current text and approval state will be lost.
+        </span>
+        <div className="ml-auto flex gap-1.5 shrink-0">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100"
+            onClick={handleRegenerate}
+          >
+            Regenerate
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => setConfirming(false)}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 text-xs gap-1.5"
+      onClick={() => setConfirming(true)}
+    >
+      <RotateCcw className="h-3 w-3" />
+      Regenerate
+    </Button>
   )
 }
 
@@ -458,6 +523,11 @@ export default function AssetsPane({ story }) {
         ) : (
           <p className="text-xs text-muted-foreground italic">No draft content yet.</p>
         )}
+
+        {/* Regenerate — re-runs the AI for this piece. Use when content is
+            cut off, off-voice, or contains an obvious error. Resets to draft
+            and clears approval audit so it needs fresh review. */}
+        {active && <RegenerateButton piece={active} />}
 
         {/* Media + overlay editors — attach photos/videos and tune the on-screen
             text overlay without leaving the Story screen. */}
