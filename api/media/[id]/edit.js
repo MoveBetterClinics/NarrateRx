@@ -144,6 +144,13 @@ async function editVideo({ inPath, outPath, rotate, crop, srcW, srcH }) {
     const c = normalizeCrop(crop, rDims.w, rDims.h)
     filters.push(`crop=${c.w}:${c.h}:${c.x}:${c.y}`)
   }
+  // No `-movflags +faststart` here for the same reason as editVideoRotateOnly:
+  // the faststart pass writes the output, reads it back, and rewrites with
+  // the moov atom relocated, peaking at ~3x file size in /tmp. The 512 MB
+  // Fluid Compute disk runs out on long crops. Output is still web-playable;
+  // start-of-stream latency is slightly higher when moov is at the tail.
+  // Revisit if we add upload-time normalize that guarantees faststart on
+  // the source side, or move heavy transforms behind a queue.
   const args = [
     '-y',
     '-i', inPath,
@@ -153,7 +160,6 @@ async function editVideo({ inPath, outPath, rotate, crop, srcW, srcH }) {
     '-preset', 'fast',
     '-pix_fmt', 'yuv420p',
     '-c:a', 'copy',
-    '-movflags', '+faststart',
     outPath,
   ]
   await runFfmpeg(args)

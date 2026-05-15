@@ -109,6 +109,44 @@ function probeVideoDimsFromUrl(url) {
   })
 }
 
+// Probes the moov-atom location of an MP4/MOV by Range-fetching the first
+// ~256 KB of the file and scanning the top-level atom sequence. A `moov`
+// atom that appears before `mdat` means the file is faststart (player can
+// start streaming immediately). When `moov` is at the tail, the player has
+// to download the whole file before playback starts, AND any ffmpeg edit
+// that wants to fix this hits the disk-thrash problem (peak ~3x file size).
+//
+// Returns one of: 'faststart' | 'tail' | 'unknown'. Non-fatal — we just log
+// the result so we can decide later whether to remediate via a streaming-pipe
+// re-mux at upload time.
+async function probeFaststart(url) {
+  try {
+    const r = await fetch(url, { headers: { Range: 'bytes=0-262143' } })
+    if (!r.ok && r.status !== 206) return 'unknown'
+    const buf = Buffer.from(await r.arrayBuffer())
+    // Top-level MP4 atom walk: each atom is [size:4 BE][type:4 ASCII][...payload].
+    // Bail out as soon as we see moov or mdat — whichever appears first wins.
+    let off = 0
+    while (off + 8 <= buf.length) {
+      const size = buf.readUInt32BE(off)
+      const type = buf.slice(off + 4, off + 8).toString('ascii')
+      if (type === 'moov') return 'faststart'
+      if (type === 'mdat') return 'tail'
+      // size === 0 → atom extends to EOF. size === 1 → 64-bit size at off+8.
+      const step = size === 0
+        ? Infinity
+        : size === 1 && off + 16 <= buf.length
+          ? Number(buf.readBigUInt64BE(off + 8))
+          : size
+      if (!Number.isFinite(step) || step < 8) break
+      off += step
+    }
+    return 'unknown'
+  } catch {
+    return 'unknown'
+  }
+}
+
 async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -331,6 +369,24 @@ async function handler(req, res) {
                     })
                   })
                   .catch((e) => console.error('Video dimension probe failed:', e?.message)),
+              )
+              // Faststart probe — observability only for now. A "tail" result
+              // means the moov atom is at the end of the file, which both
+              // hurts playback start-latency and would blow /tmp if a later
+              // edit tried to re-add +faststart. When we add a streaming-pipe
+              // re-mux ("upload-time normalize"), this is the signal to fire.
+              waitUntil(
+                probeFaststart(blob.url)
+                  .then((status) => {
+                    if (status === 'tail') {
+                      console.warn(
+                        `[upload] non-faststart video uploaded id=${insertedRow.id} size=${blob.size} — playback start latency will be slow until normalize lands`,
+                      )
+                    } else if (status === 'unknown') {
+                      console.warn(`[upload] faststart probe inconclusive id=${insertedRow.id}`)
+                    }
+                  })
+                  .catch((e) => console.error('Faststart probe failed:', e?.message)),
               )
             }
           }
