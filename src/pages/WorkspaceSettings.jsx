@@ -693,7 +693,7 @@ function KnowledgeBankSection() {
         </div>
       ) : totalCount === 0 ? (
         <p className="text-sm text-muted-foreground py-2">
-          No concepts learned yet. Complete and approve a few interviews to start building your practice&apos;s knowledge graph.
+          No concepts learned yet. Use the button below to seed from your existing approved content and completed interviews.
         </p>
       ) : (
         <div className="space-y-4">
@@ -721,19 +721,19 @@ function KnowledgeBankSection() {
               </div>
             ))}
           </div>
-          {toast && (
-            <p className="text-xs text-muted-foreground border rounded px-3 py-2 bg-muted">{toast}</p>
-          )}
-          <Button
-            variant="outline" size="sm"
-            onClick={reextract}
-            disabled={reextracting}
-            className="mt-1"
-          >
-            {reextracting ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> Re-extracting…</> : 'Re-extract from history'}
-          </Button>
         </div>
       )}
+      {toast && (
+        <p className="text-xs text-muted-foreground border rounded px-3 py-2 bg-muted">{toast}</p>
+      )}
+      <Button
+        variant="outline" size="sm"
+        onClick={reextract}
+        disabled={reextracting || loading}
+        className="mt-1"
+      >
+        {reextracting ? <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" /> Re-extracting…</> : 'Re-extract from history'}
+      </Button>
     </Section>
   )
 }
