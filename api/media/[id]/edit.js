@@ -209,7 +209,9 @@ async function probeVideoDims(path) {
       // avoids false matches on codec hex tags like "(avc1 / 0x31637661)"
       // where the leading 0 is a single digit — and the prior `\s\d+x\d+`
       // pattern was matching that 0 first, returning width=0 → null in DB.
-      const dim = stderr.match(/Stream #\d+:\d+(?:\([^)]+\))?:\s*Video:[^\n]*?,\s*(\d{2,5})x(\d{2,5})/)
+      // ffmpeg may emit a stream-id `[0x1]` and/or a language `(und)` between
+      // the index and the colon, in either order; accept any sequence of both.
+      const dim = stderr.match(/Stream #\d+:\d+(?:\[[^\]]+\]|\([^)]+\))*:\s*Video:[^\n]*?,\s*(\d{2,5})x(\d{2,5})/)
       const rot = stderr.match(/rotate\s*:\s*(-?\d+)/i)
       const dm  = stderr.match(/displaymatrix:\s*rotation of (-?[\d.]+)/i)
       const rRaw = rot
@@ -219,28 +221,13 @@ async function probeVideoDims(path) {
       // 0/90/180/270 CW so the rest of the pipeline can reason in one frame.
       const cw = dm && !rot ? -rRaw : rRaw
       const rotate = ((cw % 360) + 360) % 360
-      const out = {
+      resolve({
         width:  dim ? parseInt(dim[1], 10) : null,
         height: dim ? parseInt(dim[2], 10) : null,
         rotate,
-      }
-      // Log a slice of stderr when the regex misses so we can see what ffmpeg
-      // actually emitted for this particular video. Tail captures the Stream
-      // line which is what we care about. Removed once probe is stable across
-      // the catalog.
-      if (!out.width || !out.height) {
-        const streamMatch = stderr.match(/Stream[^\n]{0,400}/)
-        console.error('[probeVideoDims] miss:',
-          'path=', typeof path === 'string' && path.startsWith('http') ? 'http' : 'local',
-          'streamLine=', streamMatch ? streamMatch[0] : '(no Stream line)',
-          'stderrTail=', stderr.slice(-600))
-      }
-      resolve(out)
+      })
     })
-    proc.on('error', (e) => {
-      console.error('[probeVideoDims] spawn error:', e?.message)
-      resolve({ width: null, height: null, rotate: 0 })
-    })
+    proc.on('error', () => resolve({ width: null, height: null, rotate: 0 }))
   })
 }
 
@@ -353,11 +340,6 @@ async function handler(req, res) {
       srcW = probed.width
       srcH = probed.height
       if (!srcW || !srcH) {
-        console.error('[edit] dim probe failed for asset', id,
-          'kind=', source.kind,
-          'dbWidth=', source.width, 'dbHeight=', source.height,
-          'probedWidth=', probed.width, 'probedHeight=', probed.height,
-          'blobUrl=', source.blob_url)
         return res.status(400).json({ error: 'Could not determine source dimensions' })
       }
     }
