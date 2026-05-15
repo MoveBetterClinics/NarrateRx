@@ -168,10 +168,26 @@ export default function Home() {
   return (
     <div className="flex flex-col gap-6">
       {/* Greeting */}
-      <h1 className="text-xl font-semibold text-gray-900">{greeting}</h1>
+      <h1 className="text-xl font-semibold text-foreground">{greeting}</h1>
+
+      {/* Plan next interview — top of page so it's the first thing seen */}
+      {unfilteredGaps.length > 0 && (
+        <PlanNextInterview
+          gaps={topicGaps}
+          isEmpty={allInterviews.length === 0}
+          prototypes={prototypesUi}
+          activePrototypeId={topicFilterPrototype}
+          onPrototypeChange={setTopicFilterPrototype}
+        />
+      )}
 
       {/* Getting Started (auto-hides when complete or dismissed) */}
       <GettingStarted />
+
+      {/* Resume strip — in-progress interviews within 14 days */}
+      {resumeInterviews.length > 0 && (
+        <ResumeStrip interviews={resumeInterviews} currentUserId={user?.id} />
+      )}
 
       {/* Main content: task buckets left, right rail right */}
       <div className="flex gap-6">
@@ -264,23 +280,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Resume strip — in-progress interviews within 14 days */}
-      {resumeInterviews.length > 0 && (
-        <ResumeStrip interviews={resumeInterviews} currentUserId={user?.id} />
-      )}
-
-      {/* Plan next interview — high-search topic gaps. Rendered whenever
-          the workspace has unfiltered gaps; the archetype filter may zero
-          the visible list but the card stays so the filter can be cleared. */}
-      {unfilteredGaps.length > 0 && (
-        <PlanNextInterview
-          gaps={topicGaps}
-          isEmpty={allInterviews.length === 0}
-          prototypes={prototypesUi}
-          activePrototypeId={topicFilterPrototype}
-          onPrototypeChange={setTopicFilterPrototype}
-        />
-      )}
     </div>
   )
 }

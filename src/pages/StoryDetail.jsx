@@ -68,7 +68,7 @@ export default function StoryDetail() {
 
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="space-y-1 min-w-0">
-            <h1 className="text-xl font-semibold text-gray-900 leading-snug">
+            <h1 className="text-xl font-semibold text-foreground leading-snug">
               {story.topic || 'Untitled interview'}
             </h1>
             {story.clinician_name && (

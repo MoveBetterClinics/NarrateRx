@@ -38,7 +38,7 @@ export default function Stories() {
         <div className="flex flex-col gap-4">
           {/* Header */}
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-semibold text-gray-900">Stories</h1>
+            <h1 className="text-xl font-semibold text-foreground">Stories</h1>
             <StoriesViewToggle />
           </div>
 

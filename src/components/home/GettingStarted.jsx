@@ -108,7 +108,7 @@ export default function GettingStarted() {
               className="flex items-start gap-3 rounded-lg p-2.5 -m-2.5 hover:bg-primary/5 transition-colors group"
             >
               {item.done ? (
-                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0 mt-0.5" />
+                <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
               ) : (
                 <Circle className="h-5 w-5 text-muted-foreground/40 shrink-0 mt-0.5" />
               )}

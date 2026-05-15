@@ -21,8 +21,8 @@ export default function ResumeStrip({ interviews, currentUserId }) {
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
-        <PlayCircle className="h-3.5 w-3.5 text-amber-600" />
-        <p className="text-xs font-medium uppercase tracking-wider text-amber-800">
+        <PlayCircle className="h-3.5 w-3.5 text-primary" />
+        <p className="text-xs font-medium uppercase tracking-wider text-foreground">
           In progress — pick up where you left off
         </p>
         <span className="text-xs text-muted-foreground">{interviews.length} active</span>
@@ -63,7 +63,7 @@ function ResumeCard({ interview, currentUserId }) {
   return (
     <Link
       to={href}
-      className="block rounded-xl border-2 border-amber-200 bg-amber-50/50 p-3.5 hover:border-amber-300 hover:bg-amber-50 transition-colors"
+      className="block rounded-xl border-2 border-primary/20 bg-primary/5 p-3.5 hover:border-primary/35 hover:bg-primary/10 transition-colors"
     >
       <div className="flex items-center gap-2 mb-1.5">
         <Avatar className="h-6 w-6">
@@ -78,10 +78,10 @@ function ResumeCard({ interview, currentUserId }) {
           {interview.clinicianName}
         </p>
       </div>
-      <p className="text-sm font-semibold text-amber-900 truncate" title={interview.topic}>
+      <p className="text-sm font-semibold text-foreground truncate" title={interview.topic}>
         {interview.topic}
       </p>
-      <p className="text-[11px] text-amber-700/80 mt-0.5">
+      <p className="text-[11px] text-muted-foreground mt-0.5">
         Updated {formatRelativeDate(interview.updated_at)}
         {!isOwner && interview.owner_email
           ? ` · by ${formatInterviewerName(interview.owner_email)}`

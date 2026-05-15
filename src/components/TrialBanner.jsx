@@ -51,11 +51,11 @@ export default function TrialBanner() {
     <div
       className={`w-full flex items-center justify-center gap-3 px-4 py-2 text-sm ${
         isUrgent
-          ? 'bg-amber-500 text-white'
-          : 'bg-orange-50 border-b border-orange-200 text-orange-900'
+          ? 'bg-primary text-primary-foreground'
+          : 'bg-accent border-b border-primary/20 text-accent-foreground'
       }`}
     >
-      <Clock className={`h-4 w-4 shrink-0 ${isUrgent ? 'text-white' : 'text-orange-600'}`} />
+      <Clock className={`h-4 w-4 shrink-0 ${isUrgent ? 'text-primary-foreground' : 'text-primary'}`} />
       <span className="flex-1 text-center">
         {isUrgent ? (
           <>
@@ -70,7 +70,7 @@ export default function TrialBanner() {
         <Link
           to="/settings/workspace#billing"
           className={`underline underline-offset-2 font-medium ${
-            isUrgent ? 'text-white hover:text-white/80' : 'text-orange-700 hover:text-orange-900'
+            isUrgent ? 'text-primary-foreground hover:text-primary-foreground/80' : 'text-primary hover:text-primary/80'
           }`}
         >
           Upgrade now →
@@ -81,7 +81,7 @@ export default function TrialBanner() {
         onClick={handleDismiss}
         aria-label="Dismiss trial banner"
         className={`shrink-0 p-1 rounded hover:opacity-70 transition-opacity ${
-          isUrgent ? 'text-white' : 'text-orange-700'
+          isUrgent ? 'text-primary-foreground' : 'text-primary'
         }`}
       >
         <X className="h-4 w-4" />
