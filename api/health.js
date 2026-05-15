@@ -29,7 +29,11 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 const DB_TIMEOUT_MS = 5_000
 
 export default async function handler(req, res) {
-  if (req.method !== 'GET') {
+  // Allow GET and HEAD. Uptime monitors (UptimeRobot, Better Uptime, etc.)
+  // commonly probe with HEAD rather than GET — treat them identically except
+  // HEAD responses must not include a body (the status code is what matters).
+  const isHead = req.method === 'HEAD'
+  if (req.method !== 'GET' && !isHead) {
     return res.status(405).json({ ok: false, error: 'Method Not Allowed' })
   }
 
@@ -71,6 +75,7 @@ export default async function handler(req, res) {
   const ms = Date.now() - start
 
   if (!dbOk) {
+    if (isHead) return res.status(503).end()
     return res.status(503).json({
       ok:    false,
       db:    false,
@@ -80,6 +85,7 @@ export default async function handler(req, res) {
     })
   }
 
+  if (isHead) return res.status(200).end()
   return res.status(200).json({
     ok: true,
     db: true,
