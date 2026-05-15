@@ -292,9 +292,15 @@ function ProtectedApp() {
         </div>
         <SignIn
           appearance={{
+            layout: {
+              logoImageUrl: '/narraterx-logo.svg',
+              logoPlacement: 'inside',
+            },
             elements: {
-              rootBox: 'mx-auto w-full',
+              rootBox: 'mx-auto w-full max-w-sm',
               card: 'shadow-sm border w-full',
+              logoImage: 'h-14 w-auto',
+              logoBox: 'h-14',
             },
           }}
         />
