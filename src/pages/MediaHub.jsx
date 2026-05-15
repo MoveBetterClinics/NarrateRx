@@ -652,10 +652,20 @@ export default function MediaHub() {
         <MediaDetail
           asset={selected}
           onClose={() => setSelected(null)}
-          onChange={() => {
+          onChange={async () => {
             refresh()
             setBriefRefreshKey((k) => k + 1)
             setCollectionRefreshKey((k) => k + 1)
+            // Re-pull the open row so an in-place edit (rotate, retag,
+            // make-thumbnail) shows the new blob_url / thumbnail_url in
+            // the still-open drawer. Without this the drawer kept rendering
+            // the stale prop and edits looked silent.
+            if (selected?.id) {
+              try {
+                const fresh = await getMediaAsset(selected.id)
+                if (fresh) setSelected(fresh)
+              } catch { /* empty */ }
+            }
           }}
         />
       )}

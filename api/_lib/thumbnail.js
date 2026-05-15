@@ -60,12 +60,51 @@ function runFfmpeg(args) {
   })
 }
 
+// Read the display-rotation metadata so the thumbnail can be transposed to
+// match what a video player would render. Returns 0/90/180/270 CW. ffmpeg's
+// `-vf scale=…` does NOT auto-rotate reliably across versions when a custom
+// filter chain is supplied, so we apply it explicitly under `-noautorotate`.
+function probeRotation(inPath) {
+  return new Promise((resolve) => {
+    const proc = spawn(FFMPEG_BIN, ['-i', inPath], { stdio: ['ignore', 'ignore', 'pipe'] })
+    let stderr = ''
+    proc.stderr.on('data', (d) => { stderr += d.toString() })
+    proc.on('close', () => {
+      const rot = stderr.match(/rotate\s*:\s*(-?\d+)/i)
+      const dm  = stderr.match(/displaymatrix:\s*rotation of (-?[\d.]+)/i)
+      // displaymatrix reports CCW (negative = CW); legacy rotate atom is CW.
+      // Convert displaymatrix to the same CW sign before normalizing.
+      const raw = rot
+        ? parseInt(rot[1], 10)
+        : (dm ? -Math.round(parseFloat(dm[1])) : 0)
+      resolve(((raw % 360) + 360) % 360)
+    })
+    proc.on('error', () => resolve(0))
+  })
+}
+
+function transposeForRotation(deg) {
+  switch (deg) {
+    case 90:  return 'transpose=1'
+    case 180: return 'transpose=1,transpose=1'
+    case 270: return 'transpose=2'
+    default:  return ''
+  }
+}
+
 async function extractFrame(inPath, outPath) {
+  const rotation = await probeRotation(inPath)
+  const filters = [transposeForRotation(rotation), `scale=${THUMB_WIDTH}:-2`]
+    .filter(Boolean)
+    .join(',')
+  // `-noautorotate` disables ffmpeg's implicit rotation so the explicit
+  // transpose below is the sole source of orientation — keeps behavior
+  // deterministic across ffmpeg versions.
   const baseArgs = [
-    '-y',
+    '-y', '-noautorotate',
     '-ss', SEEK_SECONDS, '-i', inPath,
     '-vframes', '1',
-    '-vf', `scale=${THUMB_WIDTH}:-2`,
+    '-vf', filters,
     '-q:v', JPEG_QUALITY,
     outPath,
   ]
@@ -77,9 +116,9 @@ async function extractFrame(inPath, outPath) {
   } catch {
     // Seek past EOF or short clip — retry from the very beginning.
     const fallback = [
-      '-y', '-i', inPath,
+      '-y', '-noautorotate', '-i', inPath,
       '-vframes', '1',
-      '-vf', `scale=${THUMB_WIDTH}:-2`,
+      '-vf', filters,
       '-q:v', JPEG_QUALITY,
       outPath,
     ]

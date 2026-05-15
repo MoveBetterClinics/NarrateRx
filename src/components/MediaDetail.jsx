@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon, Crop, Expand, Minimize, RotateCw } from 'lucide-react'
+import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon, Crop, Expand, Minimize, RotateCw, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -146,10 +146,11 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   useEffect(() => { refreshBriefs() }, [refreshBriefs])
   useEffect(() => { refreshVariants() }, [refreshVariants])
 
-  async function handleQuickRotate() {
+  // 90 CW / 270 CW (= 90 CCW). API constrains to {0, 90, 180, 270}.
+  async function handleQuickRotate(degrees) {
     setRotatingQuick(true)
     try {
-      await editMediaAsset(asset.id, { rotate: 90, crop: null, mode: 'replace-master' })
+      await editMediaAsset(asset.id, { rotate: degrees, crop: null, mode: 'replace-master' })
       toast.success('Rotated', { description: 'Original updated in place.' })
       onChange?.()
       refreshVariants()
@@ -426,19 +427,36 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               </Button>
             )}
             {canEdit && !asset.parent_id && (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleQuickRotate}
-                disabled={rotatingQuick}
-                className="h-7 gap-1.5 text-[11px]"
-                title="Rotate 90° clockwise — overwrites the original in place"
-              >
-                {rotatingQuick
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <RotateCw className="h-3.5 w-3.5" />}
-                Rotate
-              </Button>
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleQuickRotate(270)}
+                  disabled={rotatingQuick}
+                  className="h-7 gap-1.5 text-[11px]"
+                  title="Rotate 90° counter-clockwise — overwrites the original in place"
+                  aria-label="Rotate left 90 degrees"
+                >
+                  {rotatingQuick
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RotateCcw className="h-3.5 w-3.5" />}
+                  Rotate left
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleQuickRotate(90)}
+                  disabled={rotatingQuick}
+                  className="h-7 gap-1.5 text-[11px]"
+                  title="Rotate 90° clockwise — overwrites the original in place"
+                  aria-label="Rotate right 90 degrees"
+                >
+                  {rotatingQuick
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RotateCw className="h-3.5 w-3.5" />}
+                  Rotate right
+                </Button>
+              </>
             )}
             {canEdit && (
               <Button
