@@ -68,7 +68,7 @@ export default function TrialBanner() {
           </>
         )}
         <Link
-          to="/settings/workspace#billing"
+          to="/settings/workspace/billing"
           className={`underline underline-offset-2 font-medium ${
             isUrgent ? 'text-primary-foreground hover:text-primary-foreground/80' : 'text-primary hover:text-primary/80'
           }`}

@@ -58,8 +58,8 @@ async function handler(req, res) {
       mode: 'subscription',
       'line_items[0][price]': priceId,
       'line_items[0][quantity]': '1',
-      success_url: `${base}/settings/workspace?billing=success`,
-      cancel_url: `${base}/settings/workspace?billing=cancelled`,
+      success_url: `${base}/settings/workspace/billing?billing=success`,
+      cancel_url: `${base}/settings/workspace/billing?billing=cancelled`,
       'metadata[workspace_id]': ws.id,
       'subscription_data[metadata][workspace_id]': ws.id,
     }

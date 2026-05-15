@@ -1,10 +1,12 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useAuth } from '@clerk/clerk-react'
 import {
   Upload, Search, Filter, Check, X, Sparkles, AlertCircle,
   FileText, Image as ImageIcon, Tag as TagIcon, RotateCcw, Loader2, Trash2, RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { FIXTURE_ASSETS, ROLE_DEFS, FIXTURE_STYLE } from '@/components/brandKitFixtures'
 import { uploadBrandAsset } from '@/lib/brandKitLib'
@@ -958,6 +960,8 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
         </section>
       )}
 
+      {!isOnboarding && !mockup && <BrandBookReference />}
+
       <AssetDetail
         asset={openAsset}
         roleAssignments={roleAssignments}
@@ -981,6 +985,99 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
         onClose={() => setPickerRole(null)}
       />
     </div>
+  )
+}
+
+// Brand book URL + notes — stored on `workspaces.brandbook` JSONB, separate
+// from brand_kit_style. Fetches the current values from /api/workspace/me on
+// mount and persists with a PATCH on save. Lives in Brand Kit because the
+// brand book is a brand asset; the General tab no longer surfaces these.
+function BrandBookReference() {
+  const { getToken } = useAuth()
+  const [pristine, setPristine] = useState(null) // null = loading
+  const [url, setUrl] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/workspace/me')
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null)
+      .then((ws) => {
+        const u = ws?.brandbook?.url   ?? ''
+        const n = ws?.brandbook?.notes ?? ''
+        setUrl(u)
+        setNotes(n)
+        setPristine({ url: u, notes: n })
+      })
+  }, [])
+
+  const isDirty = pristine && (url !== pristine.url || notes !== pristine.notes)
+
+  async function handleSave() {
+    setSaving(true); setError(null); setSaved(false)
+    try {
+      const token = await getToken()
+      const r = await fetch('/api/workspace/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ brandbook: { url: url || null, notes: notes || null } }),
+      })
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}))
+        setError(err.error || 'save-failed')
+      } else {
+        setPristine({ url, notes })
+        setSaved(true)
+        setTimeout(() => setSaved(false), 3000)
+      }
+    } catch {
+      setError('network-error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (pristine === null) return null
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Brand book reference</h2>
+      <div className="rounded-xl border bg-card p-4 space-y-3">
+        <div>
+          <Label className="text-xs">Brand book URL</Label>
+          <Input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://..."
+            className="h-8 text-xs mt-1"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Link to your brand guidelines — Notion page, Figma file, Drive PDF, etc.
+          </p>
+        </div>
+        <div>
+          <Label className="text-xs">Brand book notes</Label>
+          <Textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={4}
+            className="text-xs mt-1 resize-y"
+            placeholder="Anything an image generator or designer should know — typography rules, photo style, what to avoid."
+          />
+        </div>
+        <div className="flex items-center gap-2 justify-end">
+          {error && <span className="text-xs text-destructive">{error}</span>}
+          {saved && !isDirty && <span className="text-xs text-emerald-600">Saved</span>}
+          <Button size="sm" onClick={handleSave} disabled={saving || !isDirty}>
+            {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Saving…</> : 'Save'}
+          </Button>
+        </div>
+      </div>
+    </section>
   )
 }
 

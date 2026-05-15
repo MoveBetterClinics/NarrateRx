@@ -1467,6 +1467,13 @@ function InstructionCard({ icon, title, body }) {
 }
 
 function MessageBubble({ message, clinicianName, isStreaming }) {
+  const runtimeWs = useWorkspace()
+  // Prefer the Brand Kit's favicon / mark-only role (canonical), then any
+  // legacy workspace.logo.icon, then the static per-deploy fallback.
+  const iconUrl = runtimeWs?.brand_kit_roles?.favicon
+    ?? runtimeWs?.brand_kit_roles?.mark_only
+    ?? runtimeWs?.logo?.icon
+    ?? workspace.logo.icon
   const isAI = message.role === 'assistant'
   const isContrast  = isAI && hasContrastSignal(message.content)
   const isAgreement = isAI && hasAgreementSignal(message.content)
@@ -1478,7 +1485,7 @@ function MessageBubble({ message, clinicianName, isStreaming }) {
     <div className={`flex items-start gap-3 ${!isAI ? 'flex-row-reverse' : ''}`}>
       {isAI ? (
         <div className="h-8 w-8 rounded-full bg-white border border-border flex items-center justify-center shrink-0 p-1">
-          <img src={workspace.logo.icon} alt={workspace.name} className="h-full w-full" />
+          <img src={iconUrl} alt={runtimeWs?.display_name || workspace.name} className="h-full w-full" />
         </div>
       ) : (
         <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-xs font-medium">

@@ -28,7 +28,7 @@ const FEATURE_LABELS = {
 // UsageGate — wraps a feature with a plan gate.
 //
 // If the workspace plan meets or exceeds the required plan, renders children.
-// Otherwise shows a soft upsell nudge that links to /settings/workspace#billing.
+// Otherwise shows a soft upsell nudge that links to /settings/workspace/billing.
 //
 // Props:
 //   feature  — string key from FEATURE_PLANS (e.g. 'cross_staff_synthesis')
@@ -67,7 +67,7 @@ export default function UsageGate({ feature, plan, currentPlan, children }) {
         {featureLabel} is available on the {planLabel} plan and above.
       </p>
       <Link
-        to="/settings/workspace#billing"
+        to="/settings/workspace/billing"
         className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-orange-500 px-4 py-2 text-sm font-medium text-white hover:bg-orange-600 transition-colors"
       >
         View plans →

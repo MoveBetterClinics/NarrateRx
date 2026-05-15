@@ -22,6 +22,8 @@ const Integrations = lazy(() => import('@/pages/Integrations'))
 const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
 const VoiceSettings = lazy(() => import('@/pages/settings/VoiceSettings'))
 const ChannelsSettings = lazy(() => import('@/pages/settings/ChannelsSettings'))
+const LocationsSettings = lazy(() => import('@/pages/settings/LocationsSettings'))
+const BillingSettings = lazy(() => import('@/pages/settings/BillingSettings'))
 const BrandKitPreview = lazy(() => import('@/pages/BrandKitPreview'))
 const BrandKitSettings = lazy(() => import('@/pages/BrandKitSettings'))
 import SettingsLayout from '@/components/SettingsLayout'
@@ -238,7 +240,9 @@ function AppRoutes() {
             <Route element={<SettingsLayout />}>
               <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
               <Route path="/settings/workspace/voice" element={guarded(<VoiceSettings />)} />
+              <Route path="/settings/workspace/locations" element={guarded(<LocationsSettings />)} />
               <Route path="/settings/workspace/channels" element={guarded(<ChannelsSettings />)} />
+              <Route path="/settings/workspace/billing" element={guarded(<BillingSettings />)} />
               <Route path="/settings/integrations" element={guarded(<Integrations />)} />
               <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
               <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />

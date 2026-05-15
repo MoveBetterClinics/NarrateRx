@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { Loader2 } from 'lucide-react'
 import { Section, Field, Textarea2, SaveBar } from '@/components/settings/helpers'
+import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useUserRole } from '@/lib/useUserRole'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
@@ -21,6 +22,18 @@ function formFromWorkspace(ws) {
     tone_clinical:        ws.tone_modifiers?.clinical ?? '',
     tone_warm:            ws.tone_modifiers?.warm     ?? '',
     tone_smart:           ws.tone_modifiers?.smart    ?? '',
+    patient_context_json:    JSON.stringify(ws.patient_context   ?? {}, null, 2),
+    interview_context_json:  JSON.stringify(ws.interview_context ?? {}, null, 2),
+    topic_suggestions_json:  JSON.stringify(ws.topic_suggestions ?? [], null, 2),
+  }
+}
+
+function tryParseJson(text, fallback) {
+  if (!text || !text.trim()) return { ok: true, value: fallback }
+  try {
+    return { ok: true, value: JSON.parse(text) }
+  } catch (e) {
+    return { ok: false, error: e.message }
   }
 }
 
@@ -38,6 +51,9 @@ function formToPatch(form) {
       warm:     form.tone_warm     ?? '',
       smart:    form.tone_smart    ?? '',
     },
+    patient_context:   form._parsed_patient_context,
+    interview_context: form._parsed_interview_context,
+    topic_suggestions: form._parsed_topic_suggestions,
   }
 }
 
@@ -77,11 +93,23 @@ export default function VoiceSettings() {
   async function handleSave() {
     setSaving(true); setError(null); setSaved(false)
     try {
+      const pc = tryParseJson(form.patient_context_json, {})
+      const ic = tryParseJson(form.interview_context_json, {})
+      const ts = tryParseJson(form.topic_suggestions_json, [])
+      if (!pc.ok)  { setError(`Patient context JSON: ${pc.error}`);   setSaving(false); return }
+      if (!ic.ok)  { setError(`Interview context JSON: ${ic.error}`); setSaving(false); return }
+      if (!ts.ok)  { setError(`Topic suggestions JSON: ${ts.error}`); setSaving(false); return }
+      const formWithParsed = {
+        ...form,
+        _parsed_patient_context:   pc.value,
+        _parsed_interview_context: ic.value,
+        _parsed_topic_suggestions: ts.value,
+      }
       const token = await getToken()
       const r = await fetch('/api/workspace/me', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(formToPatch(form)),
+        body: JSON.stringify(formToPatch(formWithParsed)),
       })
       if (!r.ok) {
         const err = await r.json().catch(() => ({}))
@@ -165,11 +193,132 @@ export default function VoiceSettings() {
           hint="Used when the author picks 'Smart Default' or no tone." />
       </Section>
 
+      <Separator />
+
+      <Section
+        title="Paradigm content (advanced)"
+        description="Structured prompt context — patient archetypes, the per-condition interview bank, and the topic-suggestions list. Edit as JSON. Invalid JSON blocks save and shows the parse error inline. Leave empty to skip injection."
+      >
+        <Textarea2 label="Patient / audience context"
+          value={form.patient_context_json} onChange={set('patient_context_json')}
+          rows={14}
+          hint="Shape: { summaryBlurb, primaryAvatar, prototypes[], priorProviderPainPoints[], staffProfiles[] }" />
+        <Textarea2 label="Interview context (condition bank)"
+          value={form.interview_context_json} onChange={set('interview_context_json')}
+          rows={18}
+          hint="Shape: { conditions: { [key]: { audienceProfile, audienceStakes, regionalAngles[], interviewTopics[], chronicRelevant } }, keywordAliases, fallback }" />
+        <Textarea2 label="Topic suggestions"
+          value={form.topic_suggestions_json} onChange={set('topic_suggestions_json')}
+          rows={14}
+          hint="Shape: array of { topic, category, priority: 'high'|'medium'|'low', keywords[], pnwNote, prototypes?: string[] }. prototypes is the list of archetype ids (from patient_context.prototypes[].id) this topic primarily serves — empty/missing = all archetypes." />
+        <TopicArchetypeEditor
+          topicsJson={form.topic_suggestions_json}
+          patientContextJson={form.patient_context_json}
+          onChange={set('topic_suggestions_json')}
+        />
+      </Section>
+
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}
         onSave={handleSave}
         onDiscard={() => { setForm(pristine); setError(null) }}
       />
+    </div>
+  )
+}
+
+// Per-topic archetype-tag editor. Renders each parsed topic_suggestions[]
+// entry as a row with toggle chips for each archetype defined in
+// patient_context.prototypes[]. Writes back into the JSON textarea so the
+// shared Save flow handles persistence (no separate API path needed).
+function TopicArchetypeEditor({ topicsJson, patientContextJson, onChange }) {
+  let topics = null
+  let archetypes = []
+  try {
+    const parsed = JSON.parse(topicsJson)
+    if (Array.isArray(parsed)) topics = parsed
+  } catch { /* fall through */ }
+  try {
+    const pc = JSON.parse(patientContextJson)
+    if (pc && Array.isArray(pc.prototypes)) archetypes = pc.prototypes
+  } catch { /* fall through */ }
+
+  if (!topics) {
+    return (
+      <p className="text-[11px] text-muted-foreground italic">
+        Per-topic archetype tags: fix the topic-suggestions JSON above to enable this editor.
+      </p>
+    )
+  }
+  if (archetypes.length === 0) {
+    return (
+      <p className="text-[11px] text-muted-foreground italic">
+        Per-topic archetype tags: define <code>patient_context.prototypes[]</code> (each with an <code>id</code>) above to enable this editor.
+      </p>
+    )
+  }
+  if (topics.length === 0) {
+    return (
+      <p className="text-[11px] text-muted-foreground italic">
+        Per-topic archetype tags: add a topic above first.
+      </p>
+    )
+  }
+
+  function toggle(idx, archetypeId) {
+    const next = topics.map((row, i) => {
+      if (i !== idx) return row
+      const cur = Array.isArray(row.prototypes) ? row.prototypes : []
+      const without = cur.filter((t) => t !== archetypeId)
+      const newTags = cur.includes(archetypeId) ? without : [...without, archetypeId]
+      const { prototypes: _drop, ...rest } = row
+      return newTags.length > 0 ? { ...rest, prototypes: newTags } : rest
+    })
+    onChange(JSON.stringify(next, null, 2))
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs">Per-topic archetype tags</Label>
+      <p className="text-[11px] text-muted-foreground">
+        Toggle which archetype(s) each topic primarily serves. Empty row = applies to all archetypes. Changes write to the JSON above; click Save to persist.
+      </p>
+      <div className="rounded-md border border-input divide-y divide-input max-h-96 overflow-y-auto">
+        {topics.map((row, idx) => {
+          const tags = Array.isArray(row.prototypes) ? row.prototypes : []
+          return (
+            <div key={idx} className="p-2 flex flex-wrap items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs font-medium truncate">{row.topic || <em className="text-muted-foreground">(untitled)</em>}</div>
+                {row.category && (
+                  <div className="text-[10px] text-muted-foreground truncate">{row.category}</div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {archetypes.map((a) => {
+                  const active = tags.includes(a.id)
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      onClick={() => toggle(idx, a.id)}
+                      className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full border transition-colors ${
+                        active
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'border-input hover:bg-accent/40'
+                      }`}
+                      title={a.coreDesire || a.label}
+                    >
+                      {a.emoji && <span>{a.emoji}</span>}
+                      {a.shortLabel || a.label || a.id}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

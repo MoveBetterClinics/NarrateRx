@@ -3,6 +3,17 @@ import ReactMarkdown from 'react-markdown'
 import { Heart, MessageCircle, Send, Bookmark, ThumbsUp, Repeat2, Globe, MapPin, ChevronLeft, ChevronRight, Play } from 'lucide-react'
 import emailTemplateHtml from '../email-template.html?raw'
 import { workspace } from '@/lib/workspace'
+import { useWorkspace } from '@/lib/WorkspaceContext'
+
+// Pull the best logo URL for previews, preferring Brand Kit (primary_logo_url
+// is resolved by api/workspace/me from brand_kit_roles), then any legacy
+// workspaces.logo.main, then the static per-deploy fallback.
+function useWorkspaceLogo() {
+  const ws = useWorkspace()
+  return ws?.primary_logo_url
+    ?? ws?.logo?.main
+    ?? workspace.logo.main
+}
 
 // Brand identity used in mock previews — sourced from src/lib/workspace.js
 const MB_HANDLE   = workspace.social.instagram
@@ -42,11 +53,12 @@ function mediaSrc(m) {
 function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
   const [idx, setIdx] = React.useState(0)
   const total = mediaUrls.length
+  const logoSrc = useWorkspaceLogo()
 
   if (total === 0) {
     return (
       <div className={`bg-gradient-to-br from-orange-100 to-orange-50 ${aspectClass} flex flex-col items-center justify-center gap-2`}>
-        <img src={workspace.logo.main} alt={workspace.name} className="h-16 w-auto opacity-30" />
+        <img src={logoSrc} alt={workspace.name} className="h-16 w-auto opacity-30" />
         <p className="text-xs text-muted-foreground">Add media in the editor</p>
       </div>
     )

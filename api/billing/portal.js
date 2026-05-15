@@ -47,7 +47,7 @@ async function handler(req, res) {
 
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'narraterx.ai'
   const base = `https://${host}`
-  const returnUrl = `${base}/settings/workspace#billing`
+  const returnUrl = `${base}/settings/workspace/billing`
 
   // No customer yet — no portal to show. Tell client to go to checkout instead.
   if (!ws.stripe_customer_id) {

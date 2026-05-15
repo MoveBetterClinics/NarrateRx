@@ -1,6 +1,6 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
-  Settings, Mic2, Radio, Puzzle, Palette, Users, CreditCard,
+  Settings, Mic2, Radio, Puzzle, Palette, Users, CreditCard, MapPin,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 
@@ -8,11 +8,12 @@ const GROUPS = [
   {
     label: 'Workspace',
     items: [
-      { to: '/settings/workspace',          label: 'General',            icon: Settings,   exact: true },
-      { to: '/settings/workspace/voice',    label: 'Bernard & voice',    icon: Mic2 },
-      { to: '/settings/workspace/channels', label: 'Output channels',    icon: Radio },
-      { to: '/settings/integrations',       label: 'Integrations',       icon: Puzzle },
-      { to: '/settings/brand-kit',          label: 'Brand kit',          icon: Palette },
+      { to: '/settings/workspace',           label: 'General',            icon: Settings,   exact: true },
+      { to: '/settings/workspace/voice',     label: 'Bernard & voice',    icon: Mic2 },
+      { to: '/settings/workspace/locations', label: 'Locations',          icon: MapPin },
+      { to: '/settings/workspace/channels',  label: 'Output channels',    icon: Radio },
+      { to: '/settings/integrations',        label: 'Integrations',       icon: Puzzle },
+      { to: '/settings/brand-kit',           label: 'Brand kit',          icon: Palette },
     ],
   },
   {
@@ -24,27 +25,22 @@ const GROUPS = [
   {
     label: 'Account',
     items: [
-      { to: '/settings/workspace',          label: 'Plan & billing',     icon: CreditCard,  hash: '#billing' },
+      { to: '/settings/workspace/billing',  label: 'Plan & billing',     icon: CreditCard },
     ],
   },
 ]
 
 function SidebarItem({ item }) {
   const location = useLocation()
-  const dest = item.hash ? item.to + item.hash : item.to
 
   // Active: exact match when flagged, or starts-with for nested routes.
-  // For the "Plan & billing" hash-link we only highlight when on that exact
-  // path (not when on /settings/workspace/voice etc.).
-  const isActive = item.hash
-    ? location.pathname === item.to && location.hash === item.hash
-    : item.exact
-      ? location.pathname === item.to
-      : location.pathname.startsWith(item.to)
+  const isActive = item.exact
+    ? location.pathname === item.to
+    : location.pathname.startsWith(item.to)
 
   return (
     <NavLink
-      to={dest}
+      to={item.to}
       className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors ${
         isActive
           ? 'bg-emerald-50 text-emerald-800 font-medium'
@@ -88,7 +84,7 @@ export default function SettingsLayout() {
                 </p>
                 <nav className="space-y-0.5">
                   {group.items.map((item) => (
-                    <SidebarItem key={item.to + (item.hash || '')} item={item} />
+                    <SidebarItem key={item.to} item={item} />
                   ))}
                 </nav>
               </div>
