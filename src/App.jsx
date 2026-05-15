@@ -1,37 +1,41 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useParams } from 'react-router-dom'
+import PrivacyPolicy from '@/pages/PrivacyPolicy'
+import TermsOfService from '@/pages/TermsOfService'
 import {
   ClerkProvider,
-  SignedIn,
-  SignedOut,
   SignIn,
+  useAuth,
   useUser,
   useOrganizationList,
   useSession,
 } from '@clerk/clerk-react'
 import Layout from '@/components/Layout'
-import Dashboard from '@/pages/Dashboard'
+import Home from '@/pages/Home'
 import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
 const NewInterview = lazy(() => import('@/pages/NewInterview'))
 const InterviewSession = lazy(() => import('@/pages/InterviewSession'))
-const InterviewOutput = lazy(() => import('@/pages/InterviewOutput'))
 const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
-const Strategy = lazy(() => import('@/pages/Strategy'))
-const ContentHub = lazy(() => import('@/pages/ContentHub'))
-const ReviewPost = lazy(() => import('@/pages/ReviewPost'))
-const ContentCalendar = lazy(() => import('@/pages/ContentCalendar'))
 const MediaHub = lazy(() => import('@/pages/MediaHub'))
 const Integrations = lazy(() => import('@/pages/Integrations'))
 const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
+const VoiceSettings = lazy(() => import('@/pages/settings/VoiceSettings'))
+const ChannelsSettings = lazy(() => import('@/pages/settings/ChannelsSettings'))
 const BrandKitPreview = lazy(() => import('@/pages/BrandKitPreview'))
 const BrandKitSettings = lazy(() => import('@/pages/BrandKitSettings'))
+import SettingsLayout from '@/components/SettingsLayout'
 const OnboardingBrandKit = lazy(() => import('@/pages/OnboardingBrandKit'))
 const Members = lazy(() => import('@/pages/Members'))
 const Account = lazy(() => import('@/pages/Account'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
+const Stories = lazy(() => import('@/pages/Stories'))
+const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
+const Synthesis = lazy(() => import('@/pages/Synthesis'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
+import { UploadProgressProvider } from '@/lib/UploadProgressContext'
+import UploadTray from '@/components/UploadTray'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import RouteErrorBoundary from '@/components/RouteErrorBoundary'
 import { setSentryUser, setSentryWorkspace } from '@/lib/sentry'
@@ -99,7 +103,7 @@ function OrgGate({ clerkOrgId, children }) {
           <p className="text-3xl" aria-hidden="true">🔒</p>
           <h2 className="font-semibold text-lg">No access to this workspace</h2>
           <p className="text-sm text-muted-foreground">
-            Your account isn't a member of this workspace. Ask your admin to send you an
+            Your account isn&apos;t a member of this workspace. Ask your admin to send you an
             invite, or sign in with a different account.
           </p>
           <button
@@ -132,7 +136,7 @@ function DomainGuard({ children }) {
           <h2 className="font-semibold text-lg">Access Restricted</h2>
           <p className="text-sm text-muted-foreground">
             This app is only available to <strong>@{allowed}</strong> accounts.
-            You're signed in as <span className="font-mono text-xs">{email}</span>.
+            You&apos;re signed in as <span className="font-mono text-xs">{email}</span>.
           </p>
           <button
             onClick={() => window.Clerk?.signOut()}
@@ -175,6 +179,18 @@ function guarded(node) {
   return <RouteErrorBoundary>{node}</RouteErrorBoundary>
 }
 
+// Legacy redirect: /output/:clinicianId/:interviewId → /stories/:interviewId
+function LegacyOutputRedirect() {
+  const { interviewId } = useParams()
+  return <Navigate to={`/stories/${interviewId}`} replace />
+}
+
+// Legacy redirect: /review/:itemId → /stories/:itemId
+function LegacyReviewRedirect() {
+  const { itemId } = useParams()
+  return <Navigate to={`/stories/${itemId}`} replace />
+}
+
 // Routes shared between org-gated and domain-gated modes.
 function AppRoutes() {
   const location = useLocation()
@@ -199,23 +215,36 @@ function AppRoutes() {
       <Layout>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={guarded(<Dashboard />)} />
+            <Route path="/" element={guarded(<Home />)} />
             <Route path="/new" element={guarded(<NewInterview />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
-            <Route path="/output/:clinicianId/:interviewId" element={guarded(<InterviewOutput />)} />
+            <Route path="/interview/:clinicianId/:interviewId/output" element={guarded(<InterviewSession />)} />
+            {/* /output legacy path → StoryDetail (interviewId is the anchor) */}
+            <Route path="/output/:clinicianId/:interviewId" element={<LegacyOutputRedirect />} />
             <Route path="/clinician/:clinicianId" element={guarded(<ClinicianProfile />)} />
-            <Route path="/strategy" element={guarded(<Strategy />)} />
-            <Route path="/hub" element={guarded(<ContentHub />)} />
-            <Route path="/review/:itemId" element={guarded(<ReviewPost />)} />
-            <Route path="/calendar" element={guarded(<ContentCalendar />)} />
-            <Route path="/media" element={guarded(<MediaHub />)} />
-            <Route path="/settings/integrations" element={guarded(<Integrations />)} />
-            <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
-            <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
-            <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />
-            {/* Both Clerk-mounted pages use routing="path" so deep links to
-                Clerk's own sub-routes resolve under the same base. */}
-            <Route path="/settings/members/*" element={guarded(<Members />)} />
+            <Route path="/stories" element={guarded(<Stories />)} />
+            <Route path="/stories/:storyId" element={guarded(<StoryDetail />)} />
+            <Route path="/synthesis" element={guarded(<Synthesis />)} />
+            <Route path="/library" element={guarded(<MediaHub />)} />
+            {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}
+            <Route path="/review/:itemId" element={<LegacyReviewRedirect />} />
+            <Route path="/review-queue" element={<Navigate to="/?bucket=review" replace />} />
+            {/* Legacy redirects — bookmark safety */}
+            <Route path="/hub" element={<Navigate to="/stories" replace />} />
+            <Route path="/calendar" element={<Navigate to="/stories?view=calendar" replace />} />
+            <Route path="/strategy" element={<Navigate to="/" replace />} />
+            <Route path="/media" element={<Navigate to="/library" replace />} />
+            {/* Settings sub-pages share SettingsLayout (sidebar nav). */}
+            <Route element={<SettingsLayout />}>
+              <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
+              <Route path="/settings/workspace/voice" element={guarded(<VoiceSettings />)} />
+              <Route path="/settings/workspace/channels" element={guarded(<ChannelsSettings />)} />
+              <Route path="/settings/integrations" element={guarded(<Integrations />)} />
+              <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
+              <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />
+              {/* Clerk-mounted pages use routing="path" so their deep links resolve. */}
+              <Route path="/settings/members/*" element={guarded(<Members />)} />
+            </Route>
             <Route path="/account/*" element={guarded(<Account />)} />
           </Routes>
         </Suspense>
@@ -227,6 +256,14 @@ function AppRoutes() {
 function ProtectedApp() {
   const { workspace: ws, isLoading } = useWorkspaceState()
   const { user } = useUser()
+  // Explicit Clerk hydration gate. Using <SignedIn>/<SignedOut> directly caused
+  // a one-frame flash of the sign-in panel during normal use — Clerk's silent
+  // session-token refresh (and tab-focus revalidation) can briefly report
+  // `isSignedIn=false` before the new token settles, and the SignedOut branch
+  // rendered for that frame. Holding both branches until `isLoaded` is true
+  // eliminates the flash because the sign-in panel only renders once Clerk
+  // has definitively confirmed there is no session.
+  const { isLoaded, isSignedIn } = useAuth()
 
   useEffect(() => { setSentryUser(user?.id ?? null) }, [user?.id])
   useEffect(() => { setSentryWorkspace(ws?.slug ?? null) }, [ws?.slug])
@@ -235,36 +272,45 @@ function ProtectedApp() {
   const signInName  = ws?.app_name      ?? workspace.appName
   const signInBlurb = ws?.sign_in_blurb ?? workspace.signInBlurb
 
-  return (
-    <>
-      <SignedIn>
-        {/* Hold SignedIn content until workspace fetch resolves to avoid a
-            flash of the wrong guard. SignedOut renders immediately below. */}
-        {isLoading ? null : ws?.clerk_org_id
-          ? <OrgGate clerkOrgId={ws.clerk_org_id}><AppRoutes /></OrgGate>
-          : <DomainGuard><AppRoutes /></DomainGuard>
-        }
-      </SignedIn>
+  if (!isLoaded) return null
 
-      <SignedOut>
-        <div className="min-h-screen flex items-center justify-center bg-background">
-          <div className="w-full max-w-md">
-            <div className="text-center mb-6">
-              <h1 className="text-xl font-bold">{signInName}</h1>
-              <p className="text-sm text-muted-foreground">{signInBlurb}</p>
-            </div>
-            <SignIn
-              appearance={{
-                elements: {
-                  rootBox: 'mx-auto',
-                  card: 'shadow-sm border',
-                },
-              }}
-            />
-          </div>
+  if (isSignedIn) {
+    // Hold workspace-gated content until the /api/workspace/me fetch resolves
+    // so we don't flash the wrong guard (Org vs Domain).
+    if (isLoading) return null
+    return ws?.clerk_org_id
+      ? <OrgGate clerkOrgId={ws.clerk_org_id}><AppRoutes /></OrgGate>
+      : <DomainGuard><AppRoutes /></DomainGuard>
+  }
+
+  return (
+    <div className="min-h-screen flex items-start sm:items-center justify-center bg-background px-4 py-8">
+      <div className="w-full flex flex-col items-center">
+        <div className="text-center mb-6 max-w-md">
+          <h1 className="text-xl font-bold">{signInName}</h1>
+          <p className="text-sm text-muted-foreground">{signInBlurb}</p>
         </div>
-      </SignedOut>
-    </>
+        <SignIn
+          appearance={{
+            layout: {
+              logoImageUrl: '/narraterx-logo.svg',
+              logoPlacement: 'inside',
+            },
+            elements: {
+              rootBox: 'mx-auto w-full max-w-sm',
+              card: 'shadow-sm border w-full',
+              logoImage: 'h-14 w-auto',
+              logoBox: 'h-14',
+            },
+          }}
+        />
+        <div className="flex gap-4 justify-center mt-6 text-xs text-muted-foreground">
+          <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+          <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+          <Link to="/status" className="hover:text-foreground transition-colors">Status</Link>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -287,7 +333,13 @@ function OnboardingShell() {
 function ProtectedAppWithProvider() {
   return (
     <WorkspaceProvider>
-      <ProtectedApp />
+      <UploadProgressProvider>
+        <ProtectedApp />
+        {/* Floating upload tray — only renders when uploads.length > 0.
+            Lives at the protected-app layer so progress survives modal
+            close and in-app navigation. */}
+        <UploadTray />
+      </UploadProgressProvider>
     </WorkspaceProvider>
   )
 }
@@ -317,6 +369,9 @@ export default function App() {
                   the new subdomain and needs WorkspaceProvider + OrgGate, so
                   it routes through ProtectedAppWithProvider rather than the
                   apex onboarding shell. */}
+              {/* Public pages — no auth required */}
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsOfService />} />
               <Route path="/onboard/brand-kit" element={<ProtectedAppWithProvider />} />
               <Route path="/onboard/*" element={<OnboardingShell />} />
               <Route path="*" element={<ProtectedAppWithProvider />} />

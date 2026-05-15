@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { Video, Image as ImageIcon, Play, Check } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Video, Image as ImageIcon, Play, Check, Download, Link2 } from 'lucide-react'
+import { toast } from '@/lib/toast'
 
 const STATUS_LABEL = {
   raw:      { label: 'Raw',      tone: 'bg-slate-200 text-slate-700' },
@@ -7,6 +9,19 @@ const STATUS_LABEL = {
   rendered: { label: 'Rendered', tone: 'bg-violet-100 text-violet-700' },
   approved: { label: 'Approved', tone: 'bg-emerald-100 text-emerald-700' },
   archived: { label: 'Archived', tone: 'bg-muted text-muted-foreground' },
+}
+
+// Derive up to 2 initials from a Clerk user ID or display name.
+// Clerk user IDs look like "user_2abc…" — we show "?" for those since
+// we don't have the real name from the media list query. Callers that
+// pass a proper display name get real initials.
+function initials(value) {
+  if (!value) return '?'
+  // If it looks like a Clerk ID (user_xxx), return a placeholder glyph.
+  if (/^user_/.test(value)) return '?'
+  const parts = value.trim().split(/\s+/)
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return value.slice(0, 2).toUpperCase()
 }
 
 // Thumb renders the per-asset preview. loading="lazy" + decoding="async" keep
@@ -74,6 +89,163 @@ function columnsAt(width) {
   if (width >= 768)  return 4  // md
   if (width >= 640)  return 3  // sm
   return 2                     // default
+}
+
+// Quick-action download without opening the detail drawer.
+async function quickDownload(e, asset) {
+  e.stopPropagation()
+  if (!asset.blob_url) return
+  try {
+    const res = await fetch(asset.blob_url)
+    if (!res.ok) throw new Error(`Fetch failed (${res.status})`)
+    const blob = await res.blob()
+    const objUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objUrl
+    a.download = asset.filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(objUrl)
+  } catch (err) {
+    toast.error('Download failed', { description: err?.message })
+  }
+}
+
+async function quickCopyLink(e, asset) {
+  e.stopPropagation()
+  if (!asset.blob_url) return
+  try {
+    await navigator.clipboard.writeText(asset.blob_url)
+    toast.success('Link copied')
+  } catch {
+    toast.error('Could not copy link')
+  }
+}
+
+// Individual grid cell with hover overlay, badges, and checkbox.
+function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, buttonRef }) {
+  const [hovered, setHovered] = useState(false)
+  const navigate = useNavigate()
+  const statusMeta = STATUS_LABEL[asset.status] || STATUS_LABEL.raw
+
+  // Usage count from the content_item_ids array stored on the asset row.
+  // This is populated server-side when a content piece is linked to a source
+  // asset; for new uploads it's null/empty so we show ×0.
+  const usageCount = Array.isArray(asset.content_item_ids) ? asset.content_item_ids.length : 0
+  const firstStoryId = usageCount > 0 ? asset.content_item_ids[0] : null
+
+  // Clinician initial badge. created_by is a Clerk user ID string.
+  // We show "?" when it's a raw Clerk ID because we don't resolve names
+  // in the list query; users can hover for the raw ID.
+  const createdByInitials = initials(asset.created_by)
+
+  return (
+    <button
+      ref={buttonRef}
+      tabIndex={isFocused ? 0 : -1}
+      onFocus={() => {}}
+      onClick={(e) => onSelect?.(asset, { index, shiftKey: e.shiftKey, metaKey: e.metaKey || e.ctrlKey })}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      draggable
+      onDragStart={(e) => handleDragStart(e, asset)}
+      title={`${asset.filename} — click to open, or drag into another browser tab to upload it there`}
+      aria-label={`${asset.filename}, ${statusMeta.label.toLowerCase()}`}
+      className={`relative rounded-lg overflow-hidden border-2 aspect-square transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
+        isSelected ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'
+      }`}
+    >
+      <Thumb asset={asset} />
+
+      {/* Status pill — top left */}
+      <div className="absolute top-1.5 left-1.5">
+        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${statusMeta.tone}`}>
+          {statusMeta.label}
+        </span>
+      </div>
+
+      {/* Hover checkbox — top left (overlays status pill when hovered/multiselect) */}
+      {(multiSelect || hovered) && (
+        <div
+          className="absolute top-1.5 left-1.5 z-10"
+          onClick={(e) => {
+            e.stopPropagation()
+            onSelect?.(asset, { index, shiftKey: e.shiftKey, metaKey: e.metaKey || e.ctrlKey })
+          }}
+        >
+          <div
+            className={`h-5 w-5 rounded border-2 flex items-center justify-center transition-colors ${
+              isSelected
+                ? 'bg-primary border-primary'
+                : 'bg-white/90 border-white/80 hover:border-primary'
+            }`}
+          >
+            {isSelected && <Check className="h-3 w-3 text-white" />}
+          </div>
+        </div>
+      )}
+
+      {/* Clinician initial badge — bottom left */}
+      {asset.created_by && (
+        <div className="absolute bottom-6 left-1.5 z-10" title={`Uploaded by: ${asset.created_by}`}>
+          <div className="bg-indigo-600 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none">
+            {createdByInitials}
+          </div>
+        </div>
+      )}
+
+      {/* Usage count badge — bottom right. Clickable when used in ≥1 story. */}
+      <div className="absolute bottom-6 right-1.5 z-10">
+        {firstStoryId ? (
+          <button
+            className="text-[9px] bg-emerald-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-emerald-600 transition-colors"
+            title={usageCount === 1 ? 'Used in 1 story — click to open' : `Used in ${usageCount} stories — click to open the first`}
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/stories/${firstStoryId}`)
+            }}
+          >
+            used ×{usageCount}
+          </button>
+        ) : (
+          <span className="text-[9px] bg-black/40 text-white/70 px-1.5 py-0.5 rounded-full leading-none">
+            ×0
+          </span>
+        )}
+      </div>
+
+      {/* Selected overlay */}
+      {isSelected && (
+        <div className="absolute inset-0 bg-primary/20 pointer-events-none" />
+      )}
+
+      {/* Hover overlay with quick actions */}
+      {hovered && !multiSelect && (
+        <div className="absolute inset-0 bg-black/40 flex flex-col items-end justify-start p-1.5 gap-1 z-20 pointer-events-none">
+          <button
+            className="pointer-events-auto h-6 w-6 rounded bg-white/90 flex items-center justify-center hover:bg-white transition-colors"
+            title="Download"
+            onClick={(e) => quickDownload(e, asset)}
+          >
+            <Download className="h-3.5 w-3.5 text-slate-700" />
+          </button>
+          <button
+            className="pointer-events-auto h-6 w-6 rounded bg-white/90 flex items-center justify-center hover:bg-white transition-colors"
+            title="Copy link"
+            onClick={(e) => quickCopyLink(e, asset)}
+          >
+            <Link2 className="h-3.5 w-3.5 text-slate-700" />
+          </button>
+        </div>
+      )}
+
+      {/* Filename caption */}
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] px-1.5 py-1 leading-tight truncate" title={asset.filename}>
+        {asset.filename}
+      </div>
+    </button>
+  )
 }
 
 export default function MediaGrid({ assets, selectedId, onSelect, multiSelect = false, selectedIds = [] }) {
@@ -146,50 +318,25 @@ export default function MediaGrid({ assets, selectedId, onSelect, multiSelect = 
     <div
       role="grid"
       onKeyDown={handleKeyDown}
-      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
+      className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2"
     >
       {assets.map((a, index) => {
         const isSelected = multiSelect ? selectedIds.includes(a.id) : selectedId === a.id
-        const statusMeta = STATUS_LABEL[a.status] || STATUS_LABEL.raw
         const isFocused = index === focusedIndex
         return (
-          <button
+          <GridCell
             key={a.id}
-            ref={(el) => { buttonRefs.current[index] = el }}
-            // Roving tabindex — only the focused item participates in tab order.
-            tabIndex={isFocused ? 0 : -1}
-            onFocus={() => setFocusedIndex(index)}
-            onClick={(e) => onSelect?.(a, { index, shiftKey: e.shiftKey, metaKey: e.metaKey || e.ctrlKey })}
-            draggable
-            onDragStart={(e) => handleDragStart(e, a)}
-            title={`${a.filename} — click to open, or drag into another browser tab to upload it there`}
-            aria-label={`${a.filename}, ${statusMeta.label.toLowerCase()}`}
-            className={`relative rounded-lg overflow-hidden border-2 aspect-square transition-all text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-              isSelected ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'
-            }`}
-          >
-            <Thumb asset={a} />
-
-            {/* Status pill */}
-            <div className="absolute top-1.5 left-1.5">
-              <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${statusMeta.tone}`}>
-                {statusMeta.label}
-              </span>
-            </div>
-
-            {isSelected && (
-              <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                <div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center">
-                  <Check className="h-4 w-4 text-white" />
-                </div>
-              </div>
-            )}
-
-            {/* Filename caption */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] px-1.5 py-1 leading-tight truncate" title={a.filename}>
-              {a.filename}
-            </div>
-          </button>
+            asset={a}
+            index={index}
+            isSelected={isSelected}
+            isFocused={isFocused}
+            multiSelect={multiSelect}
+            onSelect={(asset, meta) => {
+              if (typeof meta?.index === 'number') setFocusedIndex(meta.index)
+              onSelect?.(asset, meta)
+            }}
+            buttonRef={(el) => { buttonRefs.current[index] = el }}
+          />
         )
       })}
     </div>

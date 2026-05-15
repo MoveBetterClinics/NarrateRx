@@ -1,13 +1,58 @@
 import { useRef, useState } from 'react'
-import { Upload, Loader2, AlertCircle, CheckCircle2, Stethoscope, Briefcase, UserCircle, AlertTriangle } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { uploadMedia } from '@/lib/mediaLib'
+import {
+  Upload, AlertCircle,
+  Stethoscope, Briefcase, UserCircle, AlertTriangle,
+  Mic, Film, Image as ImageIcon, Sparkles,
+} from 'lucide-react'
+import { useUploadProgress } from '@/lib/UploadProgressContext'
 
-// The speaker role drives how AI processes each upload — clinician captures
-// surface treatment pearls, admin captures surface operational stories, and
-// patient-guest captures require consent verification before AI even runs.
-// We render this as a deliberate workflow step (not a small dropdown) so
-// users feel the weight of the choice.
+// Asset purpose is the primary fork — it decides which downstream pipeline
+// the upload feeds. We render the choice as deliberate cards (not a dropdown)
+// because picking the wrong one routes the upload through the wrong AI prompt
+// and queues unwanted edit briefs.
+//
+//   interview — someone speaking on camera; runs the segmenter, produces
+//               edit briefs for the contractor.
+//   broll     — treatment/interaction footage with no spoken narrative;
+//               tagged for search, no segmenter, no briefs.
+//   photo     — clinic, team, equipment, before/after, social shots.
+//   brand     — logos, headshots, graphics (lives in Brand Kit too).
+const PURPOSES = [
+  {
+    id: 'interview',
+    label: 'Interview clip',
+    sublabel: 'Someone speaking on camera — clinician, admin, or patient',
+    icon: Mic,
+    accept: 'video/*',
+    // Tag the input as video-only so the file picker biases correctly,
+    // but server still validates on completion.
+  },
+  {
+    id: 'broll',
+    label: 'B-roll video',
+    sublabel: 'Treatment, interaction, atmosphere — no spoken narrative',
+    icon: Film,
+    accept: 'video/*',
+  },
+  {
+    id: 'photo',
+    label: 'Photo',
+    sublabel: 'Clinic, team, equipment, before/after, social',
+    icon: ImageIcon,
+    accept: 'image/*',
+  },
+  {
+    id: 'brand',
+    label: 'Brand asset',
+    sublabel: 'Logos, headshots, graphics, icons',
+    icon: Sparkles,
+    accept: 'image/*,video/*',
+  },
+]
+
+// Only shown when purpose === 'interview'. Drives the segmenter prompt
+// (clinical pearls vs. operational story vs. patient testimony) and the
+// consent surface for patient-guest uploads.
 const SPEAKER_ROLES = [
   {
     id: 'clinician',
@@ -29,23 +74,41 @@ const SPEAKER_ROLES = [
   },
 ]
 
-// Hard caps the user sees before the upload kicks off. The server still has
-// the last word (Vercel Blob enforces its own plan-level limits + handleUpload
-// can reject), but failing fast here keeps the user from staring at a 0%
-// progress bar for ten seconds on an obviously-too-big file.
-const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024  // 2 GB — covers a long clinical clip
-const MAX_IMAGE_BYTES = 50 * 1024 * 1024        // 50 MB — covers raw camera output
+const MAX_VIDEO_BYTES = 2 * 1024 * 1024 * 1024
+const MAX_IMAGE_BYTES = 50 * 1024 * 1024
 
-// We accept the broad image/* + video/* via <input accept>, but reject obvious
-// non-media that ends up in the drop zone via drag-and-drop (browsers don't
-// honor `accept` on drop). Empty type === unknown; let those through and let
-// the server decide.
-function checkFile(file) {
+// Per-purpose accept rules, used both for the <input accept> attribute and
+// for the drop-zone validator. Browsers don't honor `accept` on drag-and-drop
+// so we re-check after drop. Brand can be either kind; everything else is
+// kind-locked to keep the file picker honest.
+function acceptsKind(purpose, kind) {
+  if (purpose === 'photo')  return kind === 'image'
+  if (purpose === 'broll' || purpose === 'interview') return kind === 'video'
+  if (purpose === 'brand')  return kind === 'image' || kind === 'video'
+  return false
+}
+
+function kindFromType(t) {
+  if (!t) return null
+  if (t.startsWith('image/')) return 'image'
+  if (t.startsWith('video/')) return 'video'
+  return null
+}
+
+function checkFile(file, purpose) {
   const t = file.type || ''
-  if (t && !t.startsWith('image/') && !t.startsWith('video/')) {
+  const kind = kindFromType(t)
+  if (t && !kind) {
     return `Unsupported file type (${t}). Only images and videos are accepted.`
   }
-  const isVideo = t.startsWith('video/')
+  if (kind && !acceptsKind(purpose, kind)) {
+    const expected = purpose === 'photo' ? 'a photo' :
+                     purpose === 'interview' ? 'a video' :
+                     purpose === 'broll' ? 'a video' :
+                     'an image or video'
+    return `This file is a ${kind} but the selected purpose expects ${expected}. Switch purpose above or pick a different file.`
+  }
+  const isVideo = kind === 'video'
   const cap = isVideo ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES
   if (file.size > cap) {
     const mb = (cap / (1024 * 1024)).toFixed(0)
@@ -59,59 +122,44 @@ function checkFile(file) {
 export default function MediaUploader({ onUploaded, createdBy }) {
   const inputRef = useRef(null)
   const [dragOver, setDragOver]    = useState(false)
-  const [uploads, setUploads]      = useState([])  // [{ id, name, status, error?, progress?, transcoding? }]
+  // Pre-upload validation errors only — actual progress lives in the
+  // app-wide UploadProgressContext and is rendered by <UploadTray/>.
+  const [rejected, setRejected]    = useState([])
+  const [purpose, setPurpose]      = useState('interview')
   const [speakerRole, setSpeakerRole] = useState('clinician')
+  const { startUpload } = useUploadProgress()
+
+  const purposeMeta = PURPOSES.find((p) => p.id === purpose) || PURPOSES[0]
+  const showSpeakerRole = purpose === 'interview'
 
   async function handleFiles(fileList) {
     const files = Array.from(fileList || [])
     if (!files.length) return
 
-    // Pre-validate each file before kicking off any upload. Failures still
-    // appear as rows so the user sees what was rejected and why; only the
-    // ones that pass make the network round trip.
-    const newRows = files.map((f) => {
-      const error = checkFile(f)
-      return error
-        ? { id: crypto.randomUUID(), name: f.name, status: 'error', error }
-        : { id: crypto.randomUUID(), name: f.name, status: 'uploading', progress: 0, transcoding: false }
-    })
-    setUploads((prev) => [...newRows, ...prev])
-
-    await Promise.all(files.map(async (file, i) => {
-      const row = newRows[i]
-      if (row.status === 'error') return  // pre-validated reject — skip upload
-      const rowId = row.id
-      try {
-        await uploadMedia(
-          file,
-          { createdBy: createdBy || null, speakerRole },
-          {
-            onTranscodeStart: () => setUploads((prev) => prev.map((r) =>
-              r.id === rowId ? { ...r, transcoding: true } : r,
-            )),
-            onTranscodeEnd: () => setUploads((prev) => prev.map((r) =>
-              r.id === rowId ? { ...r, transcoding: false } : r,
-            )),
-            // Vercel Blob's onUploadProgress event: { loaded, total, percentage }.
-            // We cap state writes at the integer-percentage granularity so
-            // a 1.2 GB file doesn't trigger a setState per chunk.
-            onProgress: (e) => {
-              const pct = typeof e.percentage === 'number'
-                ? Math.round(e.percentage)
-                : (e.total ? Math.round((e.loaded / e.total) * 100) : 0)
-              setUploads((prev) => prev.map((r) =>
-                r.id === rowId && r.progress !== pct ? { ...r, progress: pct } : r,
-              ))
-            },
-          },
-        )
-        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'done', progress: 100, transcoding: false } : r))
-      } catch (e) {
-        setUploads((prev) => prev.map((r) => r.id === rowId ? { ...r, status: 'error', error: e.message, transcoding: false } : r))
+    // Split validation errors out so they surface in-modal (the tray only
+    // shows uploads that actually started).
+    const accepted = []
+    const newRejected = []
+    for (const f of files) {
+      const error = checkFile(f, purpose)
+      if (error) {
+        newRejected.push({ id: crypto.randomUUID(), name: f.name, error })
+      } else {
+        accepted.push(f)
       }
-    }))
+    }
+    if (newRejected.length) setRejected((prev) => [...newRejected, ...prev])
+    if (!accepted.length) return
 
-    onUploaded?.()
+    const results = await Promise.all(accepted.map((file) => startUpload(file, {
+      createdBy: createdBy || null,
+      assetPurpose: purpose,
+      // mediaLib enforces null speakerRole on non-interview, but pass
+      // explicitly anyway so the wire payload reads cleanly in logs.
+      speakerRole: showSpeakerRole ? speakerRole : null,
+    })))
+
+    if (results.some((r) => r)) onUploaded?.()
   }
 
   function handleDrop(e) {
@@ -122,29 +170,31 @@ export default function MediaUploader({ onUploaded, createdBy }) {
 
   return (
     <div>
-      {/* Step 1 — speaker role. Numbered + radio cards make this read as a
-          deliberate workflow step, not an optional sidebar setting. */}
+      {/* Step 1 — what kind of asset is this. Purpose is the primary fork: it
+          decides whether this upload feeds the interview-segmenter pipeline
+          (and therefore generates edit briefs), gets tagged-only for search,
+          or lands in the Brand Kit. Picking wrong = wrong downstream noise. */}
       <div className="mb-3 rounded-xl border bg-card p-4">
         <div className="flex items-center gap-2 mb-2.5">
           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">1</span>
           <div>
             <div className="text-sm font-semibold">
-              Who's speaking in these clips? <span className="text-destructive">*</span>
+              What kind of asset is this? <span className="text-destructive">*</span>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              This shapes how AI reviews the upload. Pick before dropping files.
+              Picks the right pipeline. Only interview clips go to the editor&apos;s brief queue.
             </p>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          {SPEAKER_ROLES.map((r) => {
-            const Icon = r.icon
-            const active = speakerRole === r.id
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {PURPOSES.map((p) => {
+            const Icon = p.icon
+            const active = purpose === p.id
             return (
               <button
                 type="button"
-                key={r.id}
-                onClick={() => setSpeakerRole(r.id)}
+                key={p.id}
+                onClick={() => setPurpose(p.id)}
                 className={`text-left rounded-lg border-2 p-2.5 transition-colors ${
                   active
                     ? 'border-primary bg-primary/5'
@@ -153,33 +203,83 @@ export default function MediaUploader({ onUploaded, createdBy }) {
               >
                 <div className="flex items-center gap-2">
                   <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
-                  <span className={`text-sm font-medium ${active ? 'text-primary' : ''}`}>{r.label}</span>
+                  <span className={`text-sm font-medium ${active ? 'text-primary' : ''}`}>{p.label}</span>
                 </div>
                 <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
-                  {r.sublabel}
+                  {p.sublabel}
                 </div>
               </button>
             )
           })}
         </div>
-        {speakerRole === 'patient_guest' && (
-          <div className="mt-2.5 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2.5">
-            <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-            <p className="text-xs text-amber-900 dark:text-amber-200">
-              Verify written consent from the patient before uploading. Patient-guest content cannot be published without it.
-            </p>
-          </div>
-        )}
       </div>
 
-      {/* Step 2 — drop zone. Numbered + tied visually to step 1. */}
+      {/* Step 2 — speaker role, conditional on interview purpose. For B-roll,
+          photos, and brand assets the question doesn't apply, so we hide it
+          entirely instead of forcing a default that downstream prompts
+          would treat as meaningful. */}
+      {showSpeakerRole && (
+        <div className="mb-3 rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">2</span>
+            <div>
+              <div className="text-sm font-semibold">
+                Who&apos;s speaking in these clips? <span className="text-destructive">*</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                This shapes how AI reviews the upload. Pick before dropping files.
+              </p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {SPEAKER_ROLES.map((r) => {
+              const Icon = r.icon
+              const active = speakerRole === r.id
+              return (
+                <button
+                  type="button"
+                  key={r.id}
+                  onClick={() => setSpeakerRole(r.id)}
+                  className={`text-left rounded-lg border-2 p-2.5 transition-colors ${
+                    active
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/40'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
+                    <span className={`text-sm font-medium ${active ? 'text-primary' : ''}`}>{r.label}</span>
+                  </div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                    {r.sublabel}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+          {speakerRole === 'patient_guest' && (
+            <div className="mt-2.5 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2.5">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-900 dark:text-amber-200">
+                Verify written consent from the patient before uploading. Patient-guest content cannot be published without it.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Final step — drop zone. Step number adjusts based on whether the
+          speaker-role step is showing, so the user always sees a continuous
+          1 → 2 (→ 3) sequence. */}
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-center gap-2 mb-2.5">
-          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">2</span>
+          <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
+            {showSpeakerRole ? 3 : 2}
+          </span>
           <div>
             <div className="text-sm font-semibold">Drop your files</div>
             <p className="text-[11px] text-muted-foreground">
-              JPG, PNG, HEIC, MP4, MOV — uploads go to your private library. Max 50 MB images, 2 GB videos.
+              {dropZoneHint(purpose)}
             </p>
           </div>
         </div>
@@ -193,58 +293,65 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           }`}
         >
           <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-          <p className="text-sm font-medium mb-0.5">Drop photos or videos here, or click to browse</p>
-          <p className="text-xs text-muted-foreground">Speaker role above will be applied to every file in this batch.</p>
+          <p className="text-sm font-medium mb-0.5">
+            {dropZoneHeadline(purpose)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Marked as <span className="font-medium">{purposeMeta.label.toLowerCase()}</span>
+            {showSpeakerRole ? ` · ${labelForSpeaker(speakerRole)}` : ''}.
+          </p>
         </div>
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,video/*"
+        accept={purposeMeta.accept}
         multiple
         className="hidden"
         onChange={(e) => handleFiles(e.target.files)}
       />
 
-      {uploads.length > 0 && (
+      {/* Pre-upload validation errors only. Successful uploads surface in
+          the floating <UploadTray/>, which survives modal close. */}
+      {rejected.length > 0 && (
         <div className="mt-3 space-y-1.5">
-          {uploads.map((r) => (
-            <div key={r.id} className="flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-md bg-muted/40">
-              {r.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
-              {r.status === 'done'      && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />}
-              {r.status === 'error'     && <AlertCircle  className="h-3.5 w-3.5 text-destructive shrink-0" />}
-              <span className="truncate flex-1" title={r.name}>{r.name}</span>
-              {r.status === 'uploading' && (
-                <>
-                  {r.transcoding ? (
-                    <span className="text-[10px] text-muted-foreground shrink-0">Converting HEIC…</span>
-                  ) : (
-                    <>
-                      {/* Determinate progress bar — replaces the prior spinner-
-                          only state which gave no signal on a 1 GB upload. */}
-                      <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden shrink-0" role="progressbar" aria-valuenow={r.progress || 0} aria-valuemin="0" aria-valuemax="100">
-                        <div
-                          className="h-full bg-primary transition-[width] duration-200"
-                          style={{ width: `${Math.min(100, Math.max(0, r.progress || 0))}%` }}
-                        />
-                      </div>
-                      <span className="tabular-nums text-[10px] text-muted-foreground w-9 text-right shrink-0">
-                        {r.progress || 0}%
-                      </span>
-                    </>
-                  )}
-                </>
-              )}
-              {r.status === 'error' && <span className="text-destructive truncate max-w-[40%]" title={r.error}>{r.error}</span>}
+          {rejected.map((r) => (
+            <div key={r.id} className="flex items-start gap-2 text-xs px-2.5 py-1.5 rounded-md bg-destructive/5 border border-destructive/20">
+              <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="truncate font-medium" title={r.name}>{r.name}</div>
+                <div className="text-destructive">{r.error}</div>
+              </div>
+              <button
+                type="button"
+                className="text-[10px] text-muted-foreground hover:text-foreground"
+                onClick={() => setRejected((prev) => prev.filter((x) => x.id !== r.id))}
+              >
+                Dismiss
+              </button>
             </div>
           ))}
-          {uploads.some((r) => r.status === 'done') && (
-            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setUploads((prev) => prev.filter((r) => r.status !== 'done'))}>
-              Clear finished
-            </Button>
-          )}
         </div>
       )}
     </div>
   )
+}
+
+function labelForSpeaker(id) {
+  const r = SPEAKER_ROLES.find((x) => x.id === id)
+  return r ? r.label.toLowerCase() : id
+}
+
+function dropZoneHeadline(purpose) {
+  if (purpose === 'photo')     return 'Drop photos here, or click to browse'
+  if (purpose === 'interview') return 'Drop interview clips here, or click to browse'
+  if (purpose === 'broll')     return 'Drop B-roll videos here, or click to browse'
+  if (purpose === 'brand')     return 'Drop brand assets here, or click to browse'
+  return 'Drop your files here, or click to browse'
+}
+
+function dropZoneHint(purpose) {
+  if (purpose === 'photo')     return 'JPG, PNG, HEIC — max 50 MB per file.'
+  if (purpose === 'brand')     return 'JPG, PNG, HEIC, MP4 — logos, headshots, icons. For SVG + role assignment use Brand Kit in Settings. Max 50 MB images, 2 GB videos.'
+  return 'MP4, MOV, WebM — max 2 GB per file.'
 }

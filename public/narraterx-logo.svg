@@ -3,34 +3,31 @@
   <title>NarrateRx</title>
   <defs>
     <style>
-      /* Fonts load correctly when this SVG is used inline or in a page that loads Google Fonts.
-         When used as a standalone img, Georgia/system-ui serve as clean fallbacks. */
       .wm-narrate {
         font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
         font-weight: 700;
         font-size: 36px;
-        fill: #1A1B1D;
+        fill: #1c4d37;
       }
       .wm-rx {
         font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
         font-style: italic;
         font-weight: 600;
         font-size: 36px;
-        fill: #E36525;
+        fill: #ff8552;
       }
     </style>
   </defs>
 
   <!-- Icon mark: waveform (voice → content) -->
-  <!-- 5 bars, varying heights, all centered at vertical midpoint y=32 -->
-  <!-- Bar width 6px, gap 5px → each column 11px; total icon width 50px -->
-  <rect x="0"  y="21" width="6" height="22" rx="3" fill="#E36525"/>
-  <rect x="11" y="12" width="6" height="40" rx="3" fill="#E36525"/>
-  <rect x="22" y="4"  width="6" height="56" rx="3" fill="#1A1B1D"/>
-  <rect x="33" y="16" width="6" height="32" rx="3" fill="#E36525"/>
-  <rect x="44" y="24" width="6" height="16" rx="3" fill="#6E7072"/>
+  <!-- outer bars: coral; center tall bar: deep evergreen; last bar: sage -->
+  <rect x="0"  y="21" width="6" height="22" rx="3" fill="#ff8552"/>
+  <rect x="11" y="12" width="6" height="40" rx="3" fill="#ff8552"/>
+  <rect x="22" y="4"  width="6" height="56" rx="3" fill="#1c4d37"/>
+  <rect x="33" y="16" width="6" height="32" rx="3" fill="#ff8552"/>
+  <rect x="44" y="24" width="6" height="16" rx="3" fill="#6e9581"/>
 
-  <!-- Wordmark: "narrate" dark + "Rx" orange italic -->
+  <!-- Wordmark: "narrate" evergreen + "Rx" coral italic -->
   <text x="62" y="45">
     <tspan class="wm-narrate">narrate</tspan><tspan class="wm-rx">Rx</tspan>
   </text>

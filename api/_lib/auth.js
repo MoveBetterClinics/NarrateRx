@@ -33,6 +33,24 @@ function clerk() {
   return _clerk
 }
 
+// In-process user cache. verifyToken() is local crypto (fast); getUser() hits
+// the Clerk API on every request — expensive when a page fires 4-5 parallel
+// calls. Roles change only via admin action in Clerk dashboard, so a 60s lag
+// is acceptable. TTL intentionally short so role grants take effect promptly.
+const _userCache = new Map() // userId → { user, expiresAt }
+const USER_TTL_MS = 60_000
+
+function getCachedUser(userId) {
+  const entry = _userCache.get(userId)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) { _userCache.delete(userId); return null }
+  return entry.user
+}
+
+function setCachedUser(userId, user) {
+  _userCache.set(userId, { user, expiresAt: Date.now() + USER_TTL_MS })
+}
+
 export async function requireRole(req, allowedRoles = null, { orgId = null } = {}) {
   if (!CLERK_SECRET) {
     // Fail closed. A missing secret is an ops misconfiguration, not a reason
@@ -63,12 +81,15 @@ export async function requireRole(req, allowedRoles = null, { orgId = null } = {
     return { ok: false, reason: 'wrong-org' }
   }
 
-  let user
-  try {
-    user = await clerk().users.getUser(userId)
-  } catch (e) {
-    console.error('[auth] getUser failed:', e?.message)
-    return { ok: false, reason: 'no-user' }
+  let user = getCachedUser(userId)
+  if (!user) {
+    try {
+      user = await clerk().users.getUser(userId)
+      if (user) setCachedUser(userId, user)
+    } catch (e) {
+      console.error('[auth] getUser failed:', e?.message)
+      return { ok: false, reason: 'no-user' }
+    }
   }
   if (!user) return { ok: false, reason: 'no-user' }
 

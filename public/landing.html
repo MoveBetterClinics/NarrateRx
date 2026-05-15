@@ -6,353 +6,219 @@
   <title>NarrateRx — One interview. A month of content. In your actual voice.</title>
   <meta name="description" content="NarrateRx turns a 15-minute conversation into a month of email, social, and Google content — in your voice, from your ideas, ready to paste into whatever tools you already use." />
   <link rel="canonical" href="https://narraterx.ai/" />
-
-  <!-- Open Graph -->
   <meta property="og:title" content="NarrateRx — Marketing in your actual voice" />
   <meta property="og:description" content="One 15-minute interview becomes a month of email, social, and Google content — your ideas, your voice, ready to paste into your stack." />
   <meta property="og:url" content="https://narraterx.ai/" />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="NarrateRx" />
   <meta name="twitter:card" content="summary_large_image" />
-
-  <!-- Favicon: canonical NarrateRx icon -->
   <link rel="icon" type="image/svg+xml" href="/narraterx-icon.svg" />
   <link rel="apple-touch-icon" href="/narraterx-icon.svg" />
-
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,600;1,400;1,600&display=swap" rel="stylesheet" />
-
-  <link rel="stylesheet" href="/landing.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/site.css" />
 </head>
 <body>
 
-<header class="site-header">
-  <div class="container header-inner">
-    <a class="wordmark" href="/" aria-label="NarrateRx home">
-      <span class="wm-1">narrate</span><span class="wm-rx">Rx</span>
+<header class="uhdr">
+  <div class="container uhdr-inner">
+    <a href="/" class="uhdr-logo">
+      <span class="glyph">N</span>
+      narrate<span class="rx">Rx</span>
     </a>
-    <nav class="site-nav">
-      <a href="#what">How it works</a>
-      <a href="#ai">The AI's job</a>
-      <a href="#who">Who it's for</a>
-      <a class="nav-signin" href="/onboard#signin">Sign in</a>
-      <a class="nav-cta" href="/onboard">Claim a spot</a>
+    <button class="uhdr-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="uhdr-nav">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/compare">Compare</a>
+      <a href="/demo">Demo</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/onboard#signin" class="uhdr-signin">Sign in</a>
+      <a href="/onboard" class="uhdr-cta">Claim a spot</a>
     </nav>
   </div>
 </header>
 
 <!-- HERO -->
-<section class="hero">
-  <div class="container hero-inner">
-    <div class="hero-text">
-      <p class="eyebrow"><span class="dot"></span> Built by a clinic owner who couldn't stand agency drafts</p>
+<section class="uhero">
+  <div class="container uhero-grid">
+    <div class="uhero-text">
+      <a href="/about" class="uhero-pill">
+        <span class="dot"></span>
+        <span>v0.9 · founding cohort open</span>
+        <span class="arrow">→</span>
+      </a>
       <h1>
-        One interview. A month of content.<br />
-        <em>In your actual voice.</em>
+        One interview.<br>
+        A month of content<br>
+        <em>— in your actual voice.</em>
       </h1>
-      <p class="hero-sub">
-        NarrateRx turns a 15-minute conversation into a month of email, social,
-        and Google content — in your voice, from your ideas. Ready to paste into
-        the tools you already use, not generic AI filler.
+      <p class="uhero-sub">
+        NarrateRx turns a 15-minute conversation into a month of
+        <strong>blog, social, email, and Google content</strong> — drawn
+        entirely from what you said, shaped to the channel you need. The AI is
+        the assembler. You're the author.
       </p>
-      <div class="hero-cta">
-        <a class="btn btn-primary" href="/onboard">Claim a founding spot →</a>
-        <a class="btn btn-ghost" href="#what">See how it works →</a>
+      <div class="uhero-cta">
+        <a class="ubtn ubtn-primary" href="/onboard">Claim a founding spot <span class="arrow">→</span></a>
+        <a class="ubtn ubtn-ghost" href="/demo">Watch the 90-second demo</a>
       </div>
-      <p class="hero-meta">Limited to 10 founding owners · Founding price locked in for life</p>
-    </div>
-    <div class="hero-media">
-      <img
-        src="/dr-q-clinic.jpg"
-        alt="Dr. Q working with a patient in his clinic"
-        class="hero-photo"
-        width="1200"
-        height="800"
-      />
-    </div>
-  </div>
-</section>
-
-<!-- PROBLEM -->
-<section class="band band-light" id="problem">
-  <div class="container narrow">
-    <p class="section-eyebrow">You've tried this already</p>
-    <h2 class="section-h">
-      The ideas aren't the problem.
-      <span class="hl">The gap is.</span>
-    </h2>
-    <p class="lede">
-      You know you should be posting. You know the people who'd hire you find
-      you online before they find you in person. And you've tried every version
-      of solving it:
-    </p>
-
-    <ul class="problem-list">
-      <li><strong>The agency retainer</strong> — $400 to $1,200 a month for content that could be from anyone in your category. You stopped reading the drafts in month two.</li>
-      <li><strong>The social media VA</strong> — recycled stock graphics and a generic "Top 5 reasons" listicle. Your audience scrolls past it. So do you.</li>
-      <li><strong>DIY when you have time</strong> — works for a week. Dies the second a busy week hits.</li>
-      <li><strong>ChatGPT copy-paste</strong> — sounds like ChatGPT. Because it is. Your audience can tell.</li>
-      <li><strong>Or, honestly, nothing</strong> — knowing you should, feeling guilty about it, watching another month go by.</li>
-    </ul>
-
-    <p class="lede">
-      You have <em>more</em> ideas than the average marketing agency has ever
-      had. The problem is the gap between your head and a published post.
-      <strong>NarrateRx closes that gap.</strong>
-    </p>
-  </div>
-</section>
-
-<!-- WHAT IT DOES -->
-<section class="band" id="what">
-  <div class="container">
-    <p class="section-eyebrow">How it actually works</p>
-    <h2 class="section-h">One interview. <span class="hl">A month of content.</span></h2>
-
-    <div class="features three-up">
-      <article class="feature">
-        <span class="feature-num">01</span>
-        <h3>Talk for 15 minutes.</h3>
-        <p>
-          NarrateRx prompts you with the right questions about what you actually
-          do — your method, the thing you saw this week that lit you up, the
-          question people keep asking you. You answer out loud. That's the work.
-        </p>
-      </article>
-
-      <article class="feature">
-        <span class="feature-num">02</span>
-        <h3>NarrateRx drafts the month.</h3>
-        <p>
-          One conversation becomes an email newsletter, a batch of social posts,
-          Google Business Profile copy, and the supporting media — exported
-          clean and ready to drop into the tools you already use. All in your
-          voice. All from your ideas.
-        </p>
-      </article>
-
-      <article class="feature">
-        <span class="feature-num">03</span>
-        <h3>Review, tweak, publish.</h3>
-        <p>
-          You skim, edit anything that needs it, and ship it. Connect
-          <strong>Buffer</strong> in our integrations panel and NarrateRx
-          will queue your social posts and Google Business updates straight
-          to every channel Buffer supports — one click instead of a
-          copy-paste tour. Prefer Mailchimp, your own scheduler, or a VA's
-          queue? Clean exports work just as well. Thirty minutes a week
-          instead of eight hours. Or $800 a month for content you don't
-          recognize.
-        </p>
-      </article>
+      <p class="uhero-meta"><strong>Ten founding spots.</strong> Permanent founding rate. No credit card to apply.</p>
     </div>
 
-    <!-- Buffer integration callout -->
-    <div class="integration-callout" aria-label="One-click publishing with Buffer">
-      <div class="integration-card">
-        <div class="integration-step">
-          <img src="/narraterx-icon.svg" alt="" class="integration-logo logo-narraterx" width="56" height="56" />
-          <div class="integration-step-text">
-            <span class="integration-label">Create with</span>
-            <span class="integration-name">NarrateRx</span>
-          </div>
+    <aside class="uhero-side">
+      <div class="uhero-side-top">
+        <span class="label">The leverage</span>
+        <p>Most AI tools start from a prompt.<br><em>We start from your mouth.</em></p>
+      </div>
+      <div class="uhero-side-stats">
+        <div class="uhero-stat">
+          <span class="num">15 <em>min</em></span>
+          <span class="lbl">to record an interview</span>
         </div>
+        <div class="uhero-stat">
+          <span class="num">30+</span>
+          <span class="lbl">pieces of content per month</span>
+        </div>
+        <div class="uhero-stat">
+          <span class="num"><em>$</em><span class="accent">0</span></span>
+          <span class="lbl">founding-cohort price</span>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
 
-        <span class="integration-arrow" aria-hidden="true">
-          <svg viewBox="0 0 48 24" width="48" height="24">
-            <path d="M2 12 H42 M32 4 L42 12 L32 20" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </span>
-
-        <div class="integration-step">
-          <span class="integration-logo logo-buffer" aria-hidden="true">
-            <svg viewBox="0 0 64 64" width="56" height="56">
-              <rect width="64" height="64" rx="14" fill="#111111"/>
-              <g fill="#ffffff">
-                <path d="M32 12 L52 21 L32 30 L12 21 Z"/>
-                <path d="M12 31 L32 40 L52 31 L48 29 L32 36 L16 29 Z"/>
-                <path d="M12 41 L32 50 L52 41 L48 39 L32 46 L16 39 Z"/>
-              </g>
-            </svg>
-          </span>
-          <div class="integration-step-text">
-            <span class="integration-label">Post with</span>
-            <span class="integration-name">Buffer</span>
+<!-- PRODUCT WINDOW -->
+<section class="upreview-wrap">
+  <div class="container">
+    <div class="upreview">
+      <div class="upreview-window">
+        <div class="upreview-bar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <div class="urlbar">app.narraterx.ai<span class="path"> / interview / new</span></div>
+        </div>
+        <div class="upreview-body">
+          <div class="upreview-pane">
+            <p class="h">Interview · question 2 of 5</p>
+            <p class="q">"What's a belief you hold about your work that most peers don't?"</p>
+            <div class="a">
+              That pain is a movement problem, not a tissue problem. The MRI almost never explains the pain. The way you move always does. Imaging studies of asymptomatic adults in their thirties show "abnormalities" in 60%+ of cases — the picture and the pain don't match.
+            </div>
+          </div>
+          <div class="upreview-pane">
+            <p class="h">NarrateRx · generated</p>
+            <div class="upreview-tabs">
+              <span class="is-on">Blog</span>
+              <span>Social</span>
+              <span>Email</span>
+              <span>Google</span>
+            </div>
+            <div class="out">
+              <span class="head">The MRI doesn't explain your pain. Your movement does.</span>
+              <span class="meta">Blog post · 950 words · movebetter.co</span>
+              Here's a belief I hold that most of my peers don't: pain is a movement problem, not a tissue problem. Imaging is seductive — there's a bulging disc on the picture, the bulging disc must be the cause. Except imaging studies of asymptomatic adults in their thirties show "abnormalities" in <span class="chip">60%+ of cases</span>. The picture and the pain almost never match.
+            </div>
           </div>
         </div>
       </div>
-      <p class="integration-blurb">
-        One-click <strong>Buffer integration</strong> queues every social
-        channel and Google Business Profile post for you — no copy-paste,
-        no scheduler hopping. Prefer your own stack? Clean exports still
-        ship with every interview.
-      </p>
     </div>
   </div>
 </section>
 
-<!-- AI: DOES / DOESN'T -->
-<section class="band band-light" id="ai">
+<!-- PROOF STRIP -->
+<section class="uproof">
+  <div class="container uproof-inner">
+    <span><em>In production at</em></span>
+    <span><strong>Move Better</strong> — Portland, OR</span>
+    <span class="sep">·</span>
+    <span><strong>Move Better Equine</strong> — Ridgefield, WA</span>
+    <span class="sep">·</span>
+    <span><strong>Move Better Animals</strong> — Portland + Vancouver</span>
+  </div>
+</section>
+
+<!-- SIX-CARD FEATURES -->
+<section class="ufeat">
   <div class="container">
-    <p class="section-eyebrow">The AI's job</p>
-    <h2 class="section-h">
-      The AI is the assembler.
-      <span class="hl">Not the author.</span>
-    </h2>
-    <p class="lede">
-      Every other tool in this space scrapes your website, ingests a few posts,
-      and asks an LLM to <em>be</em> you. The output is fluent and forgettable,
-      because there's nothing actually in it. NarrateRx works the other way:
-      your words go in, the AI just shapes them.
-    </p>
-
-    <div class="does-grid">
-      <div class="does-col yes">
-        <h3>What the AI does</h3>
-        <ul class="does-list yes">
-          <li>Transcribes your 15-minute interview, word for word</li>
-          <li>Sorts your ideas into email, social, and Google Business drafts</li>
-          <li>Shapes each draft to the format — length, structure, hook</li>
-          <li>Generates supporting media so you don't pay a designer for hero images</li>
-        </ul>
-      </div>
-
-      <div class="does-col no">
-        <h3>What the AI doesn't do</h3>
-        <ul class="does-list no">
-          <li>Invent ideas. If you didn't say it, it isn't in the draft.</li>
-          <li>Scrape your website to fake your voice</li>
-          <li>Decide your point of view — that part is already yours</li>
-          <li>Write the month if you skip the interview</li>
-          <li>Pretend to be the expert. You are.</li>
-        </ul>
-      </div>
-    </div>
-
-    <p class="lede ai-closer"><strong>That's why the output sounds like you. Because it is you.</strong></p>
-  </div>
-</section>
-
-<!-- WHO IT'S FOR -->
-<section class="band band-sage" id="who">
-  <div class="container two-col">
-    <div>
-      <p class="section-eyebrow on-sage">Who it's for</p>
-      <h2 class="section-h">
-        Owner-operators whose voice
-        <span class="hl-sage">is the differentiator.</span>
-      </h2>
-      <p class="lede">
-        Anyone whose audience hires <em>them</em>, not the brand. A method, a
-        model, a stance you've earned. If your marketing today is "best service,
-        great prices, friendly staff," NarrateRx won't help. It amplifies what's
-        already there.
-      </p>
-    </div>
-    <ul class="who-list">
-      <li><span>→</span> Movement clinicians — chiro, PT, sports med, performance</li>
-      <li><span>→</span> Equine &amp; animal practitioners</li>
-      <li><span>→</span> Coaches and consultants with a method</li>
-      <li><span>→</span> Solo experts and small practices</li>
-      <li><span>→</span> Anyone whose work <em>is</em> the brand</li>
-      <li><span>→</span> Operators who sound nothing like their category</li>
-    </ul>
-  </div>
-</section>
-
-<!-- ORIGIN -->
-<section class="band band-light" id="origin">
-  <div class="container two-col flip">
-    <div class="origin-card">
-      <img
-        src="/dr-q.jpg"
-        alt="Dr. Q, founder of NarrateRx, in his clinic"
-        class="origin-portrait"
-        width="336"
-        height="336"
-        loading="lazy"
-      />
-      <p class="origin-quote">
-        <span class="quote-mark">“</span>
-        I'm a small clinic owner with an exceptional medical model and not
-        enough time to tell people about it. I had the ideas. I didn't have
-        the forty-five minutes between patients to turn them into posts. So
-        I built the tool I wanted.
-      </p>
-      <p class="origin-attr">— Dr. Q, founder</p>
-    </div>
-    <div>
-      <p class="section-eyebrow">Origin</p>
-      <h2 class="section-h">Built by a clinic owner. For anyone in the same boat.</h2>
-      <p class="lede">
-        NarrateRx is the platform behind
-        <a href="https://movebetter.co" target="_blank" rel="noopener">Move Better</a>'s
-        content engine — used daily across our human, equine, and animal
-        chiropractic practices. I'm opening it up to a small group of founding
-        owners first, because I want to build it alongside people who think
-        about their work the way I think about mine.
-      </p>
-    </div>
-  </div>
-</section>
-
-<!-- ACCESS / CTA -->
-<section class="band band-cta" id="access">
-  <div class="container">
-    <h2 class="cta-h">Founding owners.</h2>
-    <p class="cta-sub">
-      I'm taking on ten before this opens up. Locked-in founding price. I
-      personally onboard you and tune the voice model with you. Direct line
-      to me, not a support queue.
-    </p>
-
-    <div class="founding-grid">
+    <div class="ufeat-head">
       <div>
-        <h3>What you get</h3>
-        <ul class="founding-list">
-          <li>Permanent founding price (locked in when pricing launches)</li>
-          <li>I personally onboard you and tune your voice model</li>
-          <li>Your feedback shapes what gets built next</li>
-          <li>Direct line to me, not a support queue</li>
-        </ul>
+        <p class="ufeat-eyebrow">The architecture</p>
+        <h2>Six things <em>no one else does at once.</em></h2>
       </div>
-      <div>
-        <h3>What I'm looking for</h3>
-        <ul class="founding-list">
-          <li>A business with a real point of view — a method, a model, a stance you've earned</li>
-          <li>An owner who'll actually do the 15-minute interview each month</li>
-          <li>Willing to tell me what's broken so I can fix it</li>
-        </ul>
-      </div>
+      <p>Pieces of NarrateRx exist in other tools — the transcription, the LLM, the publishing. The leverage is in the combination, and in one architectural decision the rest of the market hasn't made.</p>
     </div>
 
-    <p class="cta-apply">
-      <a class="btn btn-primary btn-lg" href="/onboard">Claim a founding spot →</a>
-    </p>
-    <p class="cta-fineprint">5-minute setup. Limited to 10 founding owners. Questions? <a href="mailto:drq@narraterx.ai">drq@narraterx.ai</a>.</p>
+    <div class="ufeat-grid">
+      <article class="ufeat-card">
+        <span class="ix">01</span>
+        <h3>Interview-first architecture</h3>
+        <p>The only category that starts with your voice in audio form. Castmagic starts with a podcast. Jasper starts with a prompt. We start with a 15-minute conversation the model can build a month around.</p>
+      </article>
+      <article class="ufeat-card">
+        <span class="ix">02</span>
+        <h3>Four channels from one interview</h3>
+        <p>Blog post, six social variants, newsletter, and Google Business update — drafted in parallel from the same transcript. Every other tool requires four interviews and four briefs.</p>
+      </article>
+      <article class="ufeat-card">
+        <span class="ix">03</span>
+        <h3>Voice fingerprint that learns</h3>
+        <p>Every accept and reject in the review queue tunes the next month's drafts. Generic AI tools have no memory of what you cut. We remember, and get quieter with the corrections each month.</p>
+      </article>
+      <article class="ufeat-card">
+        <span class="ix">04</span>
+        <h3>Vertical-specific prompts</h3>
+        <p>Chiro, equine, animal chiro, and coaching each get their own audience description, link library, and tone vocabulary. A horizontal AI writer has no opinion on whether "fur baby" is acceptable. We have a strong one.</p>
+      </article>
+      <article class="ufeat-card">
+        <span class="ix">05</span>
+        <h3>Native publish, not just export</h3>
+        <p>Buffer for social and Google Business Profile. WordPress and Astro for the blog itself. Clean exports for Mailchimp, TrustDrivenCare, and anything else. One click, not a copy-paste tour.</p>
+      </article>
+      <article class="ufeat-card">
+        <span class="ix">06</span>
+        <h3>Built by an operator</h3>
+        <p>Every workflow decision pressure-tested in a real three-clinic practice. We optimize for "the owner has thirty minutes a week between patients." Tools built by SaaS-natives optimize for marketers who have all day.</p>
+      </article>
+    </div>
   </div>
-  <div class="cta-diagonal" aria-hidden="true"></div>
 </section>
 
-<footer class="site-footer">
-  <div class="container footer-inner">
-    <div class="footer-brand">
-      <span class="wordmark">
-        <span class="wm-1">narrate</span><span class="wm-rx">Rx</span>
-      </span>
-      <p class="footer-tag">Built by Dr. Q, a previously stressed-out small clinic owner.</p>
+<!-- QUOTE -->
+<section class="uquote">
+  <div class="uquote-inner">
+    <div class="uquote-mark">&ldquo;</div>
+    <p>
+      I had the ideas. I didn't have the forty-five minutes between
+      patients to turn them into posts. So I built the tool I wanted.
+    </p>
+    <cite>— Dr. Q, founder · Move Better</cite>
+  </div>
+</section>
+
+<!-- CTA -->
+<section class="ucta">
+  <div class="container ucta-inner">
+    <h2>Stop watching demos. <em>Try it on your voice.</em></h2>
+    <p>The fastest way to know is to do one real interview. Founding-cohort onboarding is free; you keep every draft on us, whether or not you continue.</p>
+    <div class="uhero-cta" style="justify-content:center;">
+      <a class="ubtn ubtn-primary" href="/onboard">Claim a founding spot <span class="arrow">→</span></a>
+      <a class="ubtn ubtn-ghost" href="/compare">See how we compare</a>
     </div>
-    <div class="footer-meta">
-      <p>© <span id="year">2026</span> NarrateRx. All rights reserved.</p>
-      <p><a href="mailto:drq@narraterx.ai">drq@narraterx.ai</a></p>
-    </div>
+  </div>
+</section>
+
+<footer class="ufoot">
+  <div class="container ufoot-inner">
+    <span class="footer-brand">narrate<span class="rx">Rx</span> — You talk. It does the rest.</span>
+    <span><a href="/how-it-works">How it works</a> · <a href="/features">Features</a> · <a href="/compare">Compare</a> · <a href="/pricing">Pricing</a> · <a href="/about">About</a></span>
+    <span>© <span data-year>2026</span> · <a href="mailto:drq@narraterx.ai">drq@narraterx.ai</a></span>
   </div>
 </footer>
 
-<script>
-  document.getElementById('year').textContent = new Date().getFullYear();
-</script>
-
+<script src="/site.js"></script>
 </body>
 </html>

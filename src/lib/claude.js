@@ -14,11 +14,11 @@ async function authHeaders() {
   }
 }
 
-export async function* streamMessage(messages, systemPrompt, { model, signal } = {}) {
+export async function* streamMessage(messages, systemPrompt, { model, signal, maxOutputTokens } = {}) {
   const response = await apiFetchResponse('/api/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-    body: JSON.stringify({ messages, systemPrompt, model }),
+    body: JSON.stringify({ messages, systemPrompt, model, maxOutputTokens }),
     signal,
   })
 

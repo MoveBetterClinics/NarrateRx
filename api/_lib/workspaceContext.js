@@ -22,6 +22,23 @@
 
 const APEX_HOSTS = new Set(['narraterx.ai', 'www.narraterx.ai'])
 
+// In-process workspace cache. Fluid Compute reuses warm instances across
+// concurrent requests so hit rate is high. TTL 60s — workspace config
+// changes are rare and a brief lag is acceptable.
+const _wsCache = new Map() // slug → { row, expiresAt }
+const WS_TTL_MS = 60_000
+
+function getCached(slug) {
+  const entry = _wsCache.get(slug)
+  if (!entry) return null
+  if (Date.now() > entry.expiresAt) { _wsCache.delete(slug); return null }
+  return entry.row
+}
+
+function setCached(slug, row) {
+  _wsCache.set(slug, { row, expiresAt: Date.now() + WS_TTL_MS })
+}
+
 function extractSlug(host) {
   if (!host) return null
   const h = host.split(':')[0].toLowerCase()
@@ -106,6 +123,9 @@ export async function workspaceContext(req) {
   const slug = extractSlug(host) || extractSlugFromQuery(req)
   if (!slug) return null
 
+  const cached = getCached(slug)
+  if (cached) { attachWorkspaceToReq(req, cached); return cached }
+
   const supabaseUrl = process.env.SUPABASE_URL
   const supabaseKey = process.env.SUPABASE_SERVICE_KEY
   if (!supabaseUrl || !supabaseKey) {
@@ -134,6 +154,7 @@ export async function workspaceContext(req) {
   if (!Array.isArray(rows) || rows.length === 0) return null
   const row = rows[0]
   if (row.status !== 'active') return null
+  setCached(slug, row)
   attachWorkspaceToReq(req, row)
   return row
 }

@@ -1,8 +1,12 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUser } from '@clerk/clerk-react'
+import { useSearchParams } from 'react-router-dom'
 import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from '@/components/ui/dialog'
 import EmptyState from '@/components/EmptyState'
 import MediaUploader from '@/components/MediaUploader'
 import MediaGrid from '@/components/MediaGrid'
@@ -17,10 +21,32 @@ import { useMediaInfinite, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { useUploadProgress } from '@/lib/UploadProgressContext'
 
 const PAGE_SIZE = 120
 
-const KIND_FILTERS   = [{ id: '', label: 'All' }, { id: 'video', label: 'Video' }, { id: 'photo', label: 'Photo' }]
+// Bucket assets into three date bands. Called inside useMemo so it only
+// recomputes when the filtered asset list changes.
+function groupByDate(assets) {
+  const now = Date.now()
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  startOfMonth.setHours(0, 0, 0, 0)
+
+  const recent = []
+  const thisMonth = []
+  const older = []
+
+  for (const asset of assets) {
+    const ts = asset.created_at ? new Date(asset.created_at).getTime() : 0
+    if (ts >= now - sevenDaysMs) recent.push(asset)
+    else if (ts >= startOfMonth.getTime()) thisMonth.push(asset)
+    else older.push(asset)
+  }
+  return { recent, thisMonth, older }
+}
+
 // Default ('Any active') excludes archived rows server-side. The explicit
 // 'Archived' option opts in to viewing the trash bin.
 const STATUS_FILTERS = [
@@ -33,12 +59,32 @@ const STATUS_FILTERS = [
 ]
 
 export default function MediaHub() {
-  useDocumentTitle('Media')
+  useDocumentTitle('Library')
   const { user } = useUser()
   const { canUpload, canEdit, role } = useUserRole()
   const qc = useQueryClient()
-  const [kind, setKind]         = useState('')
-  const [status, setStatus]     = useState('')
+
+  // URL-persisted filters so the library position survives navigation.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const kind    = searchParams.get('kind')    || ''
+  const purpose = searchParams.get('purpose') || ''
+  const status  = searchParams.get('status')  || ''
+  const clinicianFilter = searchParams.get('clinician') || ''
+
+  function setParam(key, value) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set(key, value)
+      else next.delete(key)
+      return next
+    }, { replace: true })
+  }
+
+  const setKind      = (v) => setParam('kind', v)
+  const setPurpose   = (v) => setParam('purpose', v)
+  const setStatus    = (v) => setParam('status', v)
+  const setClinicianFilter = (v) => setParam('clinician', v)
+
   const [search, setSearch]     = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [collectionId, setCollectionId] = useState(null)
@@ -47,6 +93,7 @@ export default function MediaHub() {
   const [briefRefreshKey, setBriefRefreshKey] = useState(0)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
+  const [uploadOpen, setUploadOpen] = useState(false)
 
   // Debounce search input.
   useEffect(() => {
@@ -56,13 +103,23 @@ export default function MediaHub() {
 
   // Centralized filter object for the media query — every place that needs
   // to read the same library page (here + SelectAll below) uses this so a
-  // filter change produces a single cache key per state.
-  const mediaFilters = {
+  // filter change produces a single cache key per state. Memoized to give
+  // a stable object reference so downstream useCallbacks don't churn on
+  // every render (react-hooks/exhaustive-deps).
+  const mediaFilters = useMemo(() => ({
     kind:         kind || undefined,
+    purpose:      purpose || undefined,
     status:       status || undefined,
     q:            debouncedSearch || undefined,
     collectionId: collectionId || undefined,
-  }
+    // Hide rotate/crop variants from the main grid — they're surfaced inside
+    // their parent's detail drawer (variant strip). Keeps the library focused
+    // on source assets and prevents the same clip from appearing N+1 times.
+    sources:      true,
+  }), [kind, purpose, status, debouncedSearch, collectionId])
+  // clinicianFilter is a client-side filter (created_by value) — it isn't
+  // sent to the server since the server only accepts workspace-scoped filter
+  // params. We post-filter the flat asset array below after fetching.
 
   const {
     data:           mediaData,
@@ -75,7 +132,48 @@ export default function MediaHub() {
   } = useMediaInfinite(mediaFilters, { pageSize: PAGE_SIZE })
   const error = queryError?.message || ''
   // Flatten pages → flat asset array for the existing grid/select code.
-  const assets = mediaData?.pages?.flat() ?? []
+  const allAssets = useMemo(() => mediaData?.pages?.flat() ?? [], [mediaData])
+  // Client-side clinician filter (created_by is the Clerk user ID string).
+  const assets = useMemo(
+    () => clinicianFilter ? allAssets.filter((a) => a.created_by === clinicianFilter) : allAssets,
+    [clinicianFilter, allAssets]
+  )
+
+  // Date-grouped buckets for section headers. Recomputes whenever the filtered
+  // list changes (new page loaded, filter applied, etc.).
+  const dateGroups = useMemo(() => groupByDate(assets), [assets])
+
+  // Per-type counts derived from the loaded (unfiltered-by-clinician) pages.
+  // When hasMore is true these are partial; the filter chips show a + suffix.
+  const counts = useMemo(() => {
+    const base = allAssets
+    return {
+      total:     base.length,
+      video:     base.filter((a) => a.kind === 'video').length,
+      photo:     base.filter((a) => a.kind === 'photo').length,
+      interview: base.filter((a) => a.asset_purpose === 'interview').length,
+      broll:     base.filter((a) => a.asset_purpose === 'broll').length,
+      photo_p:   base.filter((a) => a.asset_purpose === 'photo').length,
+      brand:     base.filter((a) => a.asset_purpose === 'brand').length,
+    }
+  }, [allAssets])
+
+  function countLabel(n) {
+    return hasMore ? `${n}+` : `${n}`
+  }
+
+  // Unique uploaders visible in the current (unfiltered) page set, for the
+  // clinician chip row. We use allAssets so changing the clinician chip
+  // doesn't hide the other chips.
+  const clinicianOptions = useMemo(() => {
+    const seen = new Map()
+    for (const a of allAssets) {
+      if (a.created_by && !seen.has(a.created_by)) {
+        seen.set(a.created_by, a.created_by)
+      }
+    }
+    return [...seen.values()]
+  }, [allAssets])
 
   // Stable callback name so the existing IntersectionObserver effect keeps
   // working without churn.
@@ -92,6 +190,13 @@ export default function MediaHub() {
     refetchMedia()
   }, [qc, refetchMedia])
 
+  // Background uploads (modal closed mid-upload) still need to refresh
+  // this grid when they finish. The UploadProgressContext notifies all
+  // subscribers on each completion; the in-modal `onUploaded={refresh}`
+  // prop covers the modal-open case (idempotent — both are just re-queries).
+  const { subscribe: subscribeToUploads } = useUploadProgress()
+  useEffect(() => subscribeToUploads(refresh), [subscribeToUploads, refresh])
+
   // Admin-only one-click backfill for legacy videos uploaded before the
   // auto-thumbnail path landed (#159). Pages internally until the API
   // reports nothing left to process, then refreshes the grid so the new
@@ -103,11 +208,12 @@ export default function MediaHub() {
     try {
       let totalSucceeded = 0
       let totalFailed = 0
-      // Loop until a pass returns processed=0. Each call processes up to 100
-      // videos sequentially on the server, so this finishes fast even for
-      // large backlogs.
-      for (let pass = 0; pass < 50; pass++) {
-        const r = await backfillThumbnails(100)
+      // Loop until a pass returns processed=0. The server caps each batch at
+      // 25 and self-bounds by wall-clock (~4 min) so any single HTTP call
+      // stays comfortably under Vercel's 300s maxDuration; the loop here
+      // walks the rest of the backlog one batch at a time.
+      for (let pass = 0; pass < 200; pass++) {
+        const r = await backfillThumbnails(25)
         totalSucceeded += r?.succeeded ?? 0
         totalFailed    += r?.failed    ?? 0
         if (!r || (r.processed ?? 0) === 0) break
@@ -241,14 +347,29 @@ export default function MediaHub() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">Media Hub</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Your library of raw and edited clips. AI suggests posts to make from each upload — accept, edit, return finished files, then attach to Content Hub.
+            Your whole clinic&apos;s media library — interview clips, B-roll, photos, and brand assets. Interview uploads also feed the editor brief queue; everything else is tagged for search and reuse.
           </p>
         </div>
         <MediaHubHelp />
       </div>
 
-      {/* Uploader — surfaced to every role per HANDOFF role table */}
-      {canUpload && <MediaUploader createdBy={user?.id} onUploaded={refresh} />}
+      {/* Upload modal — triggered from the Upload button in the filter row */}
+      {canUpload && (
+        <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
+          <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Upload media</DialogTitle>
+              <DialogDescription>
+                Pick the asset kind, then drop your files. Interview clips feed the editor brief queue; everything else is tagged for search and reuse.
+              </DialogDescription>
+            </DialogHeader>
+            <MediaUploader
+              createdBy={user?.id}
+              onUploaded={refresh}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Edit briefs (AI suggestions + manual overrides) */}
       <ContentBriefList refreshKey={briefRefreshKey} />
@@ -261,78 +382,152 @@ export default function MediaHub() {
       />
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search filename, notes, condition, patient…"
-            className="pl-8 pr-8 h-8 text-sm"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground">
-              <X className="h-4 w-4" />
-            </button>
+      <div className="space-y-2">
+        {/* Row 1: search + status dropdown + action buttons */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search filename, notes, condition, patient…"
+              className="pl-8 pr-8 h-8 text-sm"
+            />
+            {search && (
+              <button onClick={() => setSearch('')} className="absolute right-2.5 top-2 text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <Filter className="h-3.5 w-3.5 text-muted-foreground" />
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              aria-label="Filter by status"
+              className="text-[11px] h-7 px-2 rounded-md border border-border bg-background text-foreground"
+            >
+              {STATUS_FILTERS.map((s) => (
+                <option key={s.id || 'all-status'} value={s.id}>{s.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {canUpload && (
+            <Button
+              size="sm"
+              onClick={() => setUploadOpen(true)}
+              className="h-7 gap-1.5 text-[11px] rounded-full"
+            >
+              <UploadIcon className="h-3.5 w-3.5" />
+              Upload
+            </Button>
+          )}
+
+          {canEdit && (
+            <Button
+              size="sm"
+              variant={multiSelectMode ? 'default' : 'outline'}
+              onClick={() => {
+                if (multiSelectMode) exitMultiSelect()
+                else setMultiSelectMode(true)
+              }}
+              className="h-7 gap-1.5 text-[11px] rounded-full"
+              title="Select multiple media for bulk actions"
+            >
+              <CheckSquare className="h-3.5 w-3.5" />
+              {multiSelectMode ? 'Exit select' : 'Select'}
+            </Button>
+          )}
+
+          {role === 'admin' && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onBackfillThumbnails}
+              disabled={backfilling}
+              className="h-7 gap-1.5 text-[11px] rounded-full"
+              title="Generate missing thumbnails for older videos"
+            >
+              {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
+              {backfilling ? 'Backfilling…' : 'Backfill video thumbnails'}
+            </Button>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5">
-          {KIND_FILTERS.map((k) => (
+        {/* Row 2: purpose + kind filter chips with live counts */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+          <div className="flex items-center gap-1.5">
+            {[
+              { id: '',          label: 'All',        count: counts.total },
+              { id: 'interview', label: 'Interviews', count: counts.interview },
+              { id: 'broll',     label: 'B-roll',     count: counts.broll },
+              { id: 'photo',     label: 'Photos',     count: counts.photo_p },
+              { id: 'brand',     label: 'Brand',      count: counts.brand },
+            ].map((p) => (
+              <button
+                key={p.id || 'all-purpose'}
+                onClick={() => setPurpose(p.id)}
+                className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                  purpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                }`}
+              >
+                {p.label}
+                {!loading && <span className="ml-1 opacity-70">· {countLabel(p.count)}</span>}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-1.5">
+            {[
+              { id: '',      label: 'All kinds', count: counts.total },
+              { id: 'video', label: 'Video',     count: counts.video },
+              { id: 'photo', label: 'Photo',     count: counts.photo },
+            ].map((k) => (
+              <button
+                key={k.id || 'all-kind'}
+                onClick={() => setKind(k.id)}
+                className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                  kind === k.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                }`}
+              >
+                {k.label}
+                {!loading && <span className="ml-1 opacity-70">· {countLabel(k.count)}</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Row 3: clinician chips — shown only when there are multiple uploaders */}
+        {clinicianOptions.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-muted-foreground mr-0.5">Clinician:</span>
             <button
-              key={k.id || 'all-kind'}
-              onClick={() => setKind(k.id)}
+              onClick={() => setClinicianFilter('')}
               className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
-                kind === k.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                !clinicianFilter ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
               }`}
             >
-              {k.label}
+              All
             </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-1.5">
-          <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            aria-label="Filter by status"
-            className="text-[11px] h-7 px-2 rounded-md border border-border bg-background text-foreground"
-          >
-            {STATUS_FILTERS.map((s) => (
-              <option key={s.id || 'all-status'} value={s.id}>{s.label}</option>
-            ))}
-          </select>
-        </div>
-
-        {canEdit && (
-          <Button
-            size="sm"
-            variant={multiSelectMode ? 'default' : 'outline'}
-            onClick={() => {
-              if (multiSelectMode) exitMultiSelect()
-              else setMultiSelectMode(true)
-            }}
-            className="h-7 gap-1.5 text-[11px] rounded-full"
-            title="Select multiple media for bulk actions"
-          >
-            <CheckSquare className="h-3.5 w-3.5" />
-            {multiSelectMode ? 'Exit select' : 'Select'}
-          </Button>
-        )}
-
-        {role === 'admin' && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onBackfillThumbnails}
-            disabled={backfilling}
-            className="h-7 gap-1.5 text-[11px] rounded-full"
-            title="Generate missing thumbnails for older videos"
-          >
-            {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
-            {backfilling ? 'Backfilling…' : 'Backfill video thumbnails'}
-          </Button>
+            {clinicianOptions.map((uid) => {
+              // Show last 6 chars of Clerk user ID as an identifier since we
+              // don't resolve names in the list query. Tooltip shows full ID.
+              const label = uid.startsWith('user_') ? uid.slice(-6) : uid.slice(0, 8)
+              return (
+                <button
+                  key={uid}
+                  onClick={() => setClinicianFilter(uid === clinicianFilter ? '' : uid)}
+                  title={uid}
+                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-mono ${
+                    clinicianFilter === uid ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-muted text-muted-foreground border-border hover:border-indigo-400'
+                  }`}
+                >
+                  …{label}
+                </button>
+              )
+            })}
+          </div>
         )}
       </div>
 
@@ -368,7 +563,7 @@ export default function MediaHub() {
         // the coaching matches the situation. hasActiveFilter is true whenever
         // any narrowing control is active.
         (() => {
-          const hasActiveFilter = !!(debouncedSearch || kind || status || collectionId)
+          const hasActiveFilter = !!(debouncedSearch || kind || purpose || status || collectionId || clinicianFilter)
           if (hasActiveFilter) {
             return (
               <EmptyState
@@ -382,7 +577,9 @@ export default function MediaHub() {
                     onClick={() => {
                       setSearch('')
                       setKind('')
+                      setPurpose('')
                       setStatus('')
+                      setClinicianFilter('')
                       setCollectionId(null)
                     }}
                   >
@@ -398,12 +595,12 @@ export default function MediaHub() {
               title="Your media library is empty"
               description={
                 canUpload
-                  ? 'Drop a video or photo above to upload your first asset. The AI will tag and transcribe it automatically.'
+                  ? 'Click Upload to pick an asset kind (interview, B-roll, photo, or brand) and drop your first file. AI tags every upload for search.'
                   : 'Once your team uploads photos and videos, they will appear here. Ask an admin or editor for upload access.'
               }
               action={
                 canUpload
-                  ? <Button size="sm" onClick={() => document.querySelector('input[type=file]')?.click()}>
+                  ? <Button size="sm" onClick={() => setUploadOpen(true)}>
                       <UploadIcon className="h-4 w-4 mr-1.5" />
                       Upload your first asset
                     </Button>
@@ -414,13 +611,26 @@ export default function MediaHub() {
         })()
       ) : (
         <>
-          <MediaGrid
-            assets={assets}
-            selectedId={selected?.id}
-            onSelect={multiSelectMode ? toggleSelected : openDetail}
-            multiSelect={multiSelectMode}
-            selectedIds={selectedIds}
-          />
+          {[
+            { label: 'Recent · last 7 days', assets: dateGroups.recent },
+            { label: 'This month', assets: dateGroups.thisMonth },
+            { label: 'Earlier', assets: dateGroups.older },
+          ]
+            .filter((g) => g.assets.length > 0)
+            .map((group, i) => (
+              <div key={group.label} className={i > 0 ? 'mt-8' : undefined}>
+                <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold mb-3">
+                  {group.label}
+                </p>
+                <MediaGrid
+                  assets={group.assets}
+                  selectedId={selected?.id}
+                  onSelect={multiSelectMode ? toggleSelected : openDetail}
+                  multiSelect={multiSelectMode}
+                  selectedIds={selectedIds}
+                />
+              </div>
+            ))}
           {hasMore && (
             <div ref={sentinelRef} className="flex items-center justify-center py-6">
               {loadingMore ? (
@@ -442,10 +652,20 @@ export default function MediaHub() {
         <MediaDetail
           asset={selected}
           onClose={() => setSelected(null)}
-          onChange={() => {
+          onChange={async () => {
             refresh()
             setBriefRefreshKey((k) => k + 1)
             setCollectionRefreshKey((k) => k + 1)
+            // Re-pull the open row so an in-place edit (rotate, retag,
+            // make-thumbnail) shows the new blob_url / thumbnail_url in
+            // the still-open drawer. Without this the drawer kept rendering
+            // the stale prop and edits looked silent.
+            if (selected?.id) {
+              try {
+                const fresh = await getMediaAsset(selected.id)
+                if (fresh) setSelected(fresh)
+              } catch { /* empty */ }
+            }
           }}
         />
       )}

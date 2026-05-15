@@ -1,10 +1,17 @@
 // Vercel Routing Middleware — runs before cache on every matched request.
 //
-// Phase 1A scope (revised after the next({headers}) propagation issue):
-//   1. Apex / www → rewrite root path to /landing.html (static landing page)
-//   2. Subdomain (`<slug>.narraterx.ai`) → 404 if the slug doesn't match an
-//      active workspace; pass through otherwise
-//   3. Everything else → pass through
+// Apex (`narraterx.ai` / `www.narraterx.ai`):
+//   - `/` → rewrite to `/landing.html` (static marketing home)
+//   - Known marketing paths (e.g. `/how-it-works`, `/features`, `/demo`,
+//     `/pricing`, `/who-its-for`, `/why`, `/about`) → rewrite to their
+//     `.html` files so they don't fall through to the SPA fallback in
+//     vercel.json. Trailing slashes tolerated.
+//   - Everything else (e.g. `/onboard`) → pass through; the SPA fallback
+//     serves the React onboarding wizard.
+//
+// Subdomain (`<slug>.narraterx.ai`):
+//   - 404 if the slug doesn't match an active workspace
+//   - Pass through otherwise (the React app handles routing)
 //
 // Per-endpoint workspace data is fetched by api/_lib/workspaceContext.js,
 // which also extracts the slug. Middleware does NOT inject workspace
@@ -17,10 +24,36 @@
 import { next, rewrite } from '@vercel/functions'
 
 export const config = {
-  matcher: ['/((?!assets/|favicon\\.ico|robots\\.txt|_vercel/).*)'],
+  matcher: ['/((?!assets/|favicon\\.ico|robots\\.txt|sitemap\\.xml|_vercel/).*)'],
 }
 
 const APEX_HOSTS = new Set(['narraterx.ai', 'www.narraterx.ai'])
+
+// Clean-URL routing table for the marketing site. Keys are the public path
+// (no trailing slash, lowercase); values are the static file inside public/.
+// Keep this in sync with the actual files in `public/` — adding a new page
+// requires both a file AND a row here, otherwise the SPA fallback eats it.
+const MARKETING_PATHS = {
+  '/how-it-works': '/how-it-works.html',
+  '/features':     '/features.html',
+  '/demo':         '/demo.html',
+  '/pricing':      '/pricing.html',
+  '/who-its-for':  '/who-its-for.html',
+  '/why':          '/why.html',
+  '/about':        '/about.html',
+  '/compare':      '/compare.html',
+  '/vs':           '/compare.html',
+  // Design mock variants of the home page. Linked from /mocks.
+  '/mocks':            '/mocks.html',
+  '/mock-warm':        '/mock-warm.html',
+  '/mock-bold':        '/mock-bold.html',
+  '/mock-clinical':    '/mock-clinical.html',
+  '/mock-dark':        '/mock-dark.html',
+  '/mock-dusk':            '/mock-dusk.html',
+  '/mock-dusk-midnight':   '/mock-dusk-midnight.html',
+  '/mock-dusk-forest':     '/mock-dusk-forest.html',
+  '/mock-dusk-parchment':  '/mock-dusk-parchment.html',
+}
 
 function extractSlug(host) {
   if (!host) return null
@@ -60,10 +93,19 @@ export default async function middleware(request) {
   const url  = new URL(request.url)
   const slug = extractSlug(host)
 
-  // Apex / www: rewrite root path to landing page; otherwise pass through.
+  // Apex / www: marketing site.
   if (!slug) {
-    if (APEX_HOSTS.has(host.split(':')[0].toLowerCase()) && url.pathname === '/') {
-      return rewrite(new URL('/landing.html', request.url))
+    const isApex = APEX_HOSTS.has(host.split(':')[0].toLowerCase())
+    if (isApex) {
+      if (url.pathname === '/') {
+        return rewrite(new URL('/landing.html', request.url))
+      }
+      // Tolerate trailing slash on clean URLs.
+      const key = url.pathname.replace(/\/$/, '') || '/'
+      const dest = MARKETING_PATHS[key.toLowerCase()]
+      if (dest) {
+        return rewrite(new URL(dest, request.url))
+      }
     }
     return next()
   }

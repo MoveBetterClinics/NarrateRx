@@ -10,6 +10,7 @@ import {
   scoreRoleCandidates,
   inferImageAttributes,
 } from '../_lib/brandKitClassifier.js'
+import { extractBrandGuidelines } from '../_lib/brandGuidelinesExtractor.js'
 
 // Brand-asset upload — same two-phase Vercel Blob pattern as /api/media/upload
 // (handshake at body.type='blob.generate-client-token', server-side insert at
@@ -141,7 +142,7 @@ async function handler(req, res) {
           blob_url: blob.url,
           blob_pathname: blob.pathname,
           mime_type: blob.contentType,
-          byte_size: blob.size || null,
+          byte_size: blob.size || meta.fileSize || 0,
           original_filename: filename,
           width: attrs.width,
           height: attrs.height,
@@ -160,14 +161,88 @@ async function handler(req, res) {
           // would retry the webhook and we'd end up with N stale blobs for one
           // failed row.
           console.error('brand_assets insert failed:', ins.status, await ins.text())
+          waitUntil(Promise.resolve())
+          return
         }
 
-        // No follow-up pipeline (no AI tagging, no segmentation). The classifier
-        // is synchronous and its output already lives on the row. The waitUntil
-        // is retained as a no-op extension point for the future re-classify
-        // path (e.g. user-overridden background, "re-score against latest
-        // heuristic"). Cheap to keep; expensive to add later.
-        waitUntil(Promise.resolve())
+        const inserted = (await ins.json())?.[0]
+        const topCandidate = ai_classification.role_candidates?.[0]
+        const isBrandBook = topCandidate?.role === 'brand_book'
+
+        // Auto-assign the highest-confidence role to brand_kit_roles when the
+        // slot is empty. Never overwrites an existing manual assignment.
+        const AUTO_ASSIGN_MIN_CONFIDENCE = 0.75
+        if (inserted?.id && topCandidate && topCandidate.confidence >= AUTO_ASSIGN_MIN_CONFIDENCE) {
+          const existingRes = await sb(
+            `brand_kit_roles?workspace_id=eq.${encodeURIComponent(scopeId)}&role=eq.${encodeURIComponent(topCandidate.role)}&select=id&limit=1`
+          )
+          const existingRows = existingRes.ok ? await existingRes.json() : []
+          if (existingRows.length === 0) {
+            const assignRes = await sb(`brand_kit_roles?on_conflict=workspace_id,role`, {
+              method: 'POST',
+              headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+              body: JSON.stringify({
+                workspace_id: scopeId,
+                role: topCandidate.role,
+                asset_id: inserted.id,
+                assigned_by: null,
+                assigned_at: new Date().toISOString(),
+              }),
+            })
+            if (!assignRes.ok) {
+              console.error('brand-kit auto-assign failed:', assignRes.status, await assignRes.text())
+            }
+          }
+        }
+
+        // For brand book PDFs, extract guidelines asynchronously — text parsing
+        // and an AI call can take 10–30s, so we hand it off to waitUntil so the
+        // webhook returns 200 immediately and Vercel continues it in the background.
+        if (isBrandBook && inserted?.id && blob.contentType === 'application/pdf') {
+          waitUntil(
+            extractBrandGuidelines(blob.url).then(async (result) => {
+              if (!result) return
+              const { guidelines, stylePatch } = result
+              // Store extracted text in ai_classification so it travels with the asset.
+              const updatedClassification = {
+                ...ai_classification,
+                extracted_guidelines: guidelines,
+                ...(Object.keys(stylePatch).length > 0 ? { extracted_style: stylePatch } : {}),
+              }
+              const upd = await sb(`brand_assets?id=eq.${inserted.id}`, {
+                method: 'PATCH',
+                headers: { Prefer: 'return=minimal' },
+                body: JSON.stringify({ ai_classification: updatedClassification }),
+              })
+              if (!upd.ok) {
+                console.error('brand_assets guideline patch failed:', upd.status, await upd.text())
+                return
+              }
+              // Sync voice/tone guidelines to workspace row for AI prompt injection.
+              const ws = await sb(`workspaces?id=eq.${scopeId}`, {
+                method: 'PATCH',
+                headers: { Prefer: 'return=minimal' },
+                body: JSON.stringify({ brand_guidelines: guidelines }),
+              })
+              if (!ws.ok) console.error('workspace brand_guidelines sync failed:', ws.status, await ws.text())
+              // Merge extracted colors/fonts into workspaces.brand_style (JSONB).
+              // Re-fetch current value first so we don't overwrite existing manual entries.
+              if (Object.keys(stylePatch).length > 0) {
+                const wsRow = await sb(`workspaces?id=eq.${scopeId}&select=brand_style`)
+                const currentStyle = wsRow.ok ? ((await wsRow.json())?.[0]?.brand_style || {}) : {}
+                const nextStyle = { ...currentStyle, ...stylePatch }
+                const styleUpd = await sb(`workspaces?id=eq.${scopeId}`, {
+                  method: 'PATCH',
+                  headers: { Prefer: 'return=minimal' },
+                  body: JSON.stringify({ brand_style: nextStyle }),
+                })
+                if (!styleUpd.ok) console.error('brand_style patch failed:', styleUpd.status, await styleUpd.text())
+              }
+            }).catch((e) => console.error('brand guideline extraction failed:', e?.message))
+          )
+        } else {
+          waitUntil(Promise.resolve())
+        }
       },
     })
 

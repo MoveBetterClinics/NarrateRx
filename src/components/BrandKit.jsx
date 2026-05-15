@@ -1,13 +1,14 @@
 import { useMemo, useRef, useState } from 'react'
 import {
   Upload, Search, Filter, Check, X, Sparkles, AlertCircle,
-  FileText, Image as ImageIcon, Tag as TagIcon, RotateCcw, Loader2, Trash2,
+  FileText, Image as ImageIcon, Tag as TagIcon, RotateCcw, Loader2, Trash2, RefreshCw,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FIXTURE_ASSETS, ROLE_DEFS, FIXTURE_STYLE } from '@/components/brandKitFixtures'
 import { uploadBrandAsset } from '@/lib/brandKitLib'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useBrandKit,
   useAssignBrandRole,
@@ -33,9 +34,9 @@ const AUTO_ASSIGN_THRESHOLD = 0.7
 
 function classifyChips(a) {
   const chips = []
-  if (a.shape)      chips.push(a.shape)
-  if (a.background) chips.push(a.background === 'light' ? 'on light' : a.background === 'dark' ? 'on dark' : a.background)
-  if (a.color_mode) chips.push(a.color_mode.replace('_', ' '))
+  if (a.shape && a.shape !== 'unknown')           chips.push(a.shape)
+  if (a.background && a.background !== 'unknown') chips.push(a.background === 'light' ? 'on light' : a.background === 'dark' ? 'on dark' : a.background)
+  if (a.color_mode && a.color_mode !== 'unknown') chips.push(a.color_mode.replace(/_/g, ' '))
   return chips
 }
 
@@ -109,13 +110,13 @@ function AssetDetail({ asset, roleAssignments, onAssign, onDelete, onClose }) {
     <div className="fixed inset-0 z-40 bg-black/40 flex justify-end" onClick={onClose}>
       <div className="w-full max-w-md bg-background border-l shadow-xl overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="p-4 border-b flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <div className="text-sm font-semibold truncate" title={asset.filename}>{asset.filename}</div>
             <div className="text-[11px] text-muted-foreground mt-0.5">
               {asset.width ? `${asset.width}×${asset.height}` : '—'} · {(asset.byte_size / 1024).toFixed(0)} KB · {asset.mime_type}
             </div>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground shrink-0"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="p-4">
@@ -283,6 +284,7 @@ function useMockupDataSource() {
     roleAssignments,
     style,
     uploading: false,
+    uploadRows: [],
     assignRole: (role, assetId) => {
       setRoleAssignments((prev) => {
         const n = { ...prev }
@@ -308,7 +310,10 @@ function useLiveDataSource() {
   const clearMut   = useClearBrandRole()
   const styleMut   = useUpdateBrandStyle()
   const deleteMut  = useDeleteBrandAsset()
-  const [uploading, setUploading] = useState(false)
+  // [{ name, status: 'uploading'|'done'|'error', percent, error }]
+  const [uploadRows, setUploadRows]     = useState([])
+  const [uploadActive, setUploadActive] = useState(false)
+  const qc = useQueryClient()
 
   // The DB column is `original_filename`; the view (and fixtures) read
   // `filename`. Normalize at the data-source boundary so the rest of the
@@ -326,7 +331,8 @@ function useLiveDataSource() {
     assets,
     roleAssignments,
     style,
-    uploading,
+    uploading: uploadActive,
+    uploadRows,
     assignRole: async (role, assetId) => {
       try {
         if (assetId == null) await clearMut.mutateAsync({ role })
@@ -356,39 +362,108 @@ function useLiveDataSource() {
       } catch (e) { toast.error(e.message || 'Failed to apply suggested roles') }
     },
     uploadFiles: async (files) => {
-      // Sequential upload — Vercel Blob handles each direct, but the server
-      // classifier holds the function alive briefly for sharp analysis.
-      // Sequential keeps the user's "what just uploaded" indicator coherent
-      // and avoids rate-limit blowback on a large folder dump.
-      setUploading(true)
+      if (!files.length) return
+      const rows = files.map((f) => ({ name: f.name, status: 'pending', percent: 0, error: null }))
+      setUploadRows(rows)
+      setUploadActive(true)
+      let succeeded = 0
+      const CONCURRENCY = 4
       try {
-        for (const file of files) {
-          try {
-            await uploadBrandAsset(file)
-          } catch (e) {
-            toast.error(`${file.name}: ${e.message || 'upload failed'}`)
-          }
+        // Upload in batches of CONCURRENCY so the library doesn't serialize 59 files
+        for (let start = 0; start < files.length; start += CONCURRENCY) {
+          const batch = files.slice(start, start + CONCURRENCY)
+          await Promise.all(batch.map(async (file, batchIdx) => {
+            const i = start + batchIdx
+            setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'uploading', percent: 0 } : r))
+            try {
+              await uploadBrandAsset(file, {}, {
+                onProgress: (e) => {
+                  setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, percent: e.percentage ?? 0 } : r))
+                },
+              })
+              setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'done', percent: 100 } : r))
+              succeeded++
+            } catch (e) {
+              setUploadRows((prev) => prev.map((r, j) => j === i ? { ...r, status: 'error', error: e.message || 'upload failed' } : r))
+            }
+          }))
         }
       } finally {
-        setUploading(false)
+        setUploadActive(false)
+        if (succeeded > 0) {
+          qc.invalidateQueries({ queryKey: ['brandKit'] })
+          // Upload webhook may auto-assign roles (incl. primary_logo) server-side
+          // — refresh the workspace row so the header logo picks up the change.
+          qc.invalidateQueries({ queryKey: ['workspace', 'me'] })
+          // Brand book PDFs trigger async extraction (waitUntil) that writes
+          // back to the DB seconds after the upload completes. A second
+          // invalidation catches those results without a manual page refresh.
+          const hasPdf = files.some((f) => f.type === 'application/pdf' || f.name.endsWith('.pdf'))
+          if (hasPdf) {
+            setTimeout(() => {
+              qc.invalidateQueries({ queryKey: ['brandKit'] })
+              qc.invalidateQueries({ queryKey: ['workspace', 'me'] })
+            }, 8000)
+          }
+        }
       }
     },
     deleteAsset: async (id) => {
       try { await deleteMut.mutateAsync({ id }) }
       catch (e) { toast.error(e.message || 'Failed to delete asset') }
     },
+    clearUploadRows: () => setUploadRows([]),
   }
+}
+
+// Recursively collects File objects from a DataTransferItemList. Handles
+// both plain files and folder drops (using webkitGetAsEntry). Skips macOS
+// metadata files (.__*) and hidden dot-files that designers' folders often
+// include but should never be uploaded as brand assets.
+function readDirectoryEntries(reader) {
+  return new Promise((resolve) => {
+    const out = []
+    function read() {
+      reader.readEntries((entries) => {
+        if (!entries.length) return resolve(out)
+        out.push(...entries)
+        read()
+      }, () => resolve(out))
+    }
+    read()
+  })
+}
+async function entryToFiles(entry) {
+  if (!entry) return []
+  if (entry.isFile) {
+    return new Promise((resolve) => entry.file((f) => resolve([f]), () => resolve([])))
+  }
+  if (entry.isDirectory) {
+    const reader = entry.createReader()
+    const children = await readDirectoryEntries(reader)
+    const nested = await Promise.all(children.map(entryToFiles))
+    return nested.flat()
+  }
+  return []
+}
+async function collectFilesFromItems(items) {
+  const entries = items.map((item) => item.webkitGetAsEntry?.()).filter(Boolean)
+  const nested  = await Promise.all(entries.map(entryToFiles))
+  return nested.flat().filter((f) =>
+    f.size > 0 && !f.name.startsWith('.') && !f.name.startsWith('.__')
+  )
 }
 
 export default function BrandKit({ variant = 'settings', mockup = false, onAdvance }) {
   const isOnboarding = variant === 'onboarding'
+  const qc = useQueryClient()
   // Both hooks are declared so React's hook order stays consistent across
   // renders. The `mockup` prop is set at mount time and doesn't change, so
   // picking one of the two return values is safe.
   const liveSource   = useLiveDataSource()
   const mockSource   = useMockupDataSource()
   const ds           = mockup ? mockSource : liveSource
-  const { assets, roleAssignments, style, isLoading, error, uploading } = ds
+  const { assets, roleAssignments, style, isLoading, error, uploading, uploadRows } = ds
   // Keep the original local-state aliases used below as setters → forward to
   // the data source so the rest of the component code stays the same.
   const setRoleAssignments = (next) => {
@@ -424,8 +499,12 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
   const [formatFilter, setFormat]     = useState(null)
   const [openAsset, setOpenAsset]     = useState(null)
   const [pickerRole, setPickerRole]   = useState(null)
-  const [confirmStrip, setConfirmStrip] = useState(null)  // onboarding auto-assign confirmation
-  const [adjusting, setAdjusting]       = useState(false)  // onboarding "Let me adjust" expanded view
+  const [confirmStrip, setConfirmStrip]   = useState(null)  // onboarding auto-assign confirmation
+  const [adjusting, setAdjusting]         = useState(false)  // onboarding "Let me adjust" expanded view
+  const [autoAssigning, setAutoAssigning] = useState(false)
+  const [customColorDraft, setCustomColorDraft] = useState('')
+  const [addingCustomColor, setAddingCustomColor] = useState(false)
+  const [reclassifying, setReclassifying] = useState(false)
 
   const filtered = useMemo(() => {
     return assets.filter((a) => {
@@ -452,11 +531,21 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
         picked.push({ role: role.id, asset: best.a, confidence: best.c })
       }
     }
-    if (Object.keys(newAssignments).length > 0) {
+    if (Object.keys(newAssignments).length === 0) {
+      toast.info(assets.length === 0
+        ? 'Upload some assets first'
+        : 'No unassigned roles with confident matches — assign manually or re-tag assets')
+      return
+    }
+    setAutoAssigning(true)
+    try {
       // Single batched mutation rather than N parallel "assign" calls — keeps
       // the live path from spamming the API and the mockup path from N
       // re-renders.
       await ds.setBulkRoles(newAssignments)
+      if (!isOnboarding) toast.success(`Assigned ${picked.length} role${picked.length === 1 ? '' : 's'}`)
+    } finally {
+      setAutoAssigning(false)
     }
     if (isOnboarding) setConfirmStrip(picked)
   }
@@ -475,9 +564,14 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
     if (!files.length) return
     ds.uploadFiles(files)
   }
-  function handleDrop(e) {
+  async function handleDrop(e) {
     e.preventDefault()
-    handleFiles(e.dataTransfer?.files)
+    // Use DataTransferItem + webkitGetAsEntry to recurse into dropped folders.
+    // e.dataTransfer.files only gives a stub for directories (size 0, no type).
+    const items = Array.from(e.dataTransfer?.items || [])
+    if (!items.length) return
+    const files = await collectFilesFromItems(items)
+    if (files.length) ds.uploadFiles(files)
   }
 
   const filledRoles = Object.keys(roleAssignments).length
@@ -566,9 +660,39 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
       {/* ===== LIBRARY PANEL ================================================ */}
       <section className="space-y-3">
         {!isOnboarding && (
-          <div className="flex items-baseline justify-between">
+          <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Library</h2>
-            <span className="text-xs text-muted-foreground">{filtered.length} of {assets.length} assets</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">{filtered.length} of {assets.length} assets</span>
+              <Button
+                size="sm" variant="ghost" className="text-xs h-7 text-muted-foreground"
+                disabled={reclassifying}
+                onClick={async () => {
+                  setReclassifying(true)
+                  try {
+                    const token = await window.Clerk?.session?.getToken?.()
+                    const r = await fetch('/api/brand-kit/reclassify', {
+                      method: 'POST',
+                      headers: token ? { Authorization: `Bearer ${token}` } : {},
+                    })
+                    const data = await r.json()
+                    if (r.ok) {
+                      toast.success(`Re-tagged ${data.updated} of ${data.total} assets`)
+                      qc.invalidateQueries({ queryKey: ['brandKit'] })
+                    } else {
+                      toast.error(data.error || 'Re-classify failed')
+                    }
+                  } catch (err) {
+                    toast.error('Re-classify failed', { description: err.message })
+                  } finally {
+                    setReclassifying(false)
+                  }
+                }}
+                title="Re-run AI classifier on all assets"
+              >
+                <RefreshCw className="h-3 w-3 mr-1" /> Re-tag
+              </Button>
+            </div>
           </div>
         )}
 
@@ -587,7 +711,9 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
             <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
           )}
           <p className="text-sm font-medium mb-0.5">
-            {uploading ? 'Uploading…' : 'Drop logo files, a whole folder, or click to browse'}
+            {uploading
+              ? `Uploading ${uploadRows.filter(r => r.status === 'done').length} of ${uploadRows.length}…`
+              : 'Drop logo files, a whole folder, or click to browse'}
           </p>
           <p className="text-xs text-muted-foreground">SVG, PNG, JPG, WebP, PDF · uploads stay private to your workspace</p>
         </div>
@@ -599,6 +725,46 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
           className="hidden"
           onChange={(e) => handleFiles(e.target.files)}
         />
+
+        {/* Persistent upload status — stays visible until user dismisses or starts a new upload */}
+        {uploadRows.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {uploadRows.filter(r => r.status === 'done').length} of {uploadRows.length} uploaded
+                {uploadRows.some(r => r.status === 'error') && ` · ${uploadRows.filter(r => r.status === 'error').length} failed`}
+              </span>
+              {!uploading && (
+                <button
+                  type="button"
+                  onClick={() => liveSource.clearUploadRows?.()}
+                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                >Dismiss</button>
+              )}
+            </div>
+            {uploadRows.map((row, i) => (
+              <div key={i} className="rounded-lg border bg-card px-3 py-2 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs truncate flex-1" title={row.name}>{row.name}</span>
+                  {row.status === 'uploading' && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
+                  {row.status === 'done'      && <Check className="h-3 w-3 text-emerald-500 shrink-0" />}
+                  {row.status === 'error'     && <AlertCircle className="h-3 w-3 text-destructive shrink-0" />}
+                </div>
+                {row.status === 'uploading' && (
+                  <div className="h-1 rounded-full bg-muted overflow-hidden">
+                    <div
+                      className="h-full bg-primary transition-all duration-200"
+                      style={{ width: `${row.percent}%` }}
+                    />
+                  </div>
+                )}
+                {row.status === 'error' && (
+                  <p className="text-[11px] text-destructive">{row.error}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Filter bar */}
         {!isOnboarding && (
@@ -641,8 +807,11 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
               <Button size="sm" variant="outline" className="text-xs h-7" onClick={resetAssignments} disabled={filledRoles === 0}>
                 <RotateCcw className="h-3 w-3 mr-1" /> Reset
               </Button>
-              <Button size="sm" className="text-xs h-7" onClick={autoAssign}>
-                <Sparkles className="h-3 w-3 mr-1" /> Auto-assign suggested
+              <Button size="sm" className="text-xs h-7" onClick={autoAssign} disabled={autoAssigning}>
+                {autoAssigning
+                  ? <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                  : <Sparkles className="h-3 w-3 mr-1" />}
+                Auto-assign suggested
               </Button>
             </div>
           </div>
@@ -703,9 +872,34 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                   <Input value={style.accent_color || ''} onChange={(e) => setStyle((s) => ({ ...s, accent_color: e.target.value }))} className="h-8 text-xs font-mono" placeholder="#0a7f3f" />
                 </div>
               </div>
-              <div>
+              <div className="sm:col-span-2">
                 <Label className="text-xs">Secondary colors</Label>
-                <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                {/* Palette suggested by brand book — swatches not yet added */}
+                {(() => {
+                  const added = new Set((style.secondary_colors || []).map((c) => c.toUpperCase()))
+                  const accent = (style.accent_color || '').toUpperCase()
+                  const suggestions = (style.suggested_palette || [])
+                    .filter((c) => c.toUpperCase() !== accent && !added.has(c.toUpperCase()))
+                  if (!suggestions.length) return null
+                  return (
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className="text-[10px] text-muted-foreground shrink-0">From brand book:</span>
+                      {suggestions.map((c) => (
+                        <button
+                          key={c}
+                          title={`Add ${c}`}
+                          onClick={() => setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), c] }))}
+                          className="flex items-center gap-1 rounded-md border px-1.5 py-0.5 hover:border-primary/60 hover:bg-accent/30 transition-colors text-[11px] font-mono"
+                        >
+                          <div className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ background: c }} />
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
+                {/* Added colors */}
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   {(style.secondary_colors || []).map((c, i) => (
                     <div key={i} className="flex items-center gap-1 rounded-md border px-1.5 py-0.5">
                       <div className="w-4 h-4 rounded" style={{ background: c }} />
@@ -716,9 +910,35 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                       ><X className="h-3 w-3" /></button>
                     </div>
                   ))}
-                  <Button size="sm" variant="ghost" className="h-6 text-[11px]"
-                    onClick={() => setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), '#888888'] }))}
-                  >+ Add</Button>
+                  {addingCustomColor ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        value={customColorDraft || '#888888'}
+                        onChange={(e) => setCustomColorDraft(e.target.value)}
+                        className="h-7 w-10 rounded border cursor-pointer"
+                      />
+                      <Input
+                        value={customColorDraft}
+                        onChange={(e) => setCustomColorDraft(e.target.value)}
+                        className="h-7 w-24 text-xs font-mono"
+                        placeholder="#000000"
+                      />
+                      <Button size="sm" className="h-7 text-[11px]" onClick={() => {
+                        const hex = customColorDraft.trim()
+                        if (/^#[0-9a-f]{3,6}$/i.test(hex)) {
+                          setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), hex.toUpperCase()] }))
+                        }
+                        setAddingCustomColor(false)
+                        setCustomColorDraft('')
+                      }}>Add</Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => { setAddingCustomColor(false); setCustomColorDraft('') }}>Cancel</Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="ghost" className="h-6 text-[11px]"
+                      onClick={() => { setCustomColorDraft(''); setAddingCustomColor(true) }}
+                    >+ Add custom</Button>
+                  )}
                 </div>
               </div>
               <div>

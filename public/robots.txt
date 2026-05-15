@@ -1,6 +1,28 @@
 User-agent: *
-Disallow: /
+Allow: /
+Allow: /how-it-works
+Allow: /features
+Allow: /demo
+Allow: /who-its-for
+Allow: /why
+Allow: /pricing
+Allow: /about
+Allow: /compare
 
-# NarrateRx is a B2B SaaS app — all routes are auth-gated.
-# The public onboarding wizard is at /onboard but does not benefit
-# from indexing (invite-only / direct-link acquisition only).
+# Design mock variants are noindex — they're for stakeholder review only.
+Disallow: /mocks
+Disallow: /mock-warm
+Disallow: /mock-bold
+Disallow: /mock-clinical
+Disallow: /mock-dark
+Disallow: /mock-dusk
+Disallow: /mock-dusk-midnight
+Disallow: /mock-dusk-forest
+Disallow: /mock-dusk-parchment
+
+# The signed-in app at workspace subdomains (e.g. <slug>.narraterx.ai) is
+# auth-gated; the same SPA shell serves every workspace path so there is
+# nothing useful to index there. Crawl budget is best spent on apex.
+Disallow: /onboard
+
+Sitemap: https://narraterx.ai/sitemap.xml

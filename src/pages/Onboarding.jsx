@@ -524,7 +524,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
       <div className="space-y-2">
         <Label className="text-xs">Location *</Label>
         <p className="text-[11px] text-muted-foreground">
-          City and state — used in "near me" SEO copy. If your practice has more than one
+          City and state — used in &quot;near me&quot; SEO copy. If your practice has more than one
           location, add each one so each post can target the right city and hashtag.
         </p>
         <div className="space-y-2">
@@ -592,10 +592,10 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
           <p className="text-sm font-medium">Scan your website to draft your voice</p>
         </div>
         <p className="text-xs text-muted-foreground">
-          We'll read your home page, your services / treatments / programs
+          We&apos;ll read your home page, your services / treatments / programs
           pages, your about page, and a few blog posts if you have them — then
           propose starter brand voice context grounded in what you actually
-          offer and how you actually write. You'll review and edit on the next
+          offer and how you actually write. You&apos;ll review and edit on the next
           step.
         </p>
         <div className="flex items-center gap-2">
@@ -632,7 +632,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
                   {SCAN_STATUS_MESSAGES[scanMessageIdx]}
                 </p>
                 <p className="text-[11px] text-orange-700 mt-0.5">
-                  This usually takes 20–60 seconds. We're reading up to 15 pages from your site.
+                  This usually takes 20–60 seconds. We&apos;re reading up to 15 pages from your site.
                   {scanElapsed > 0 && ` (${scanElapsed}s elapsed)`}
                 </p>
               </div>
@@ -714,7 +714,7 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
             ))}
           </div>
           <p className="text-[11px] text-orange-700 mt-1.5">
-            These are topics pulled from your blog. We'll use them later to seed post ideas — you don't need to edit anything here.
+            These are topics pulled from your blog. We&apos;ll use them later to seed post ideas — you don&apos;t need to edit anything here.
           </p>
         </div>
       )}

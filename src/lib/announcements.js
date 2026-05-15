@@ -35,13 +35,13 @@ export const ANNOUNCEMENTS = [
       {
         icon: ImageIcon,
         title: 'Pair drafts with your media',
-        body: 'Upload photos and videos to the Media Hub, organize them into collections, and attach them to posts before publishing. Your library stays searchable across every campaign.',
+        body: 'Upload photos and videos to the Library, organize them into collections, and attach them to posts before publishing. Your library stays searchable across every campaign.',
         accent: 'bg-emerald-100 text-emerald-700',
       },
       {
         icon: Send,
         title: 'Review, schedule, and publish',
-        body: 'Edit drafts in the Content Hub, schedule them on the calendar, and publish to your connected channels. You stay in control of every word that ships.',
+        body: 'Edit drafts in Stories, move them through the pipeline, and publish to your connected channels. You stay in control of every word that ships.',
         accent: 'bg-violet-100 text-violet-700',
       },
     ],

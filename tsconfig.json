@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "noEmit": true,
+    "strict": false,
+    "noImplicitAny": true,
+    "paths": { "@/*": ["./src/*"] },
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "files": ["src/lib/clerk-types.d.ts"],
+  "include": [
+    "src/lib/api.js",
+    "src/lib/apiError.js",
+    "src/lib/useAppMutation.js",
+    "src/lib/queries.js",
+    "src/lib/publish.js",
+    "src/lib/contentPlan.js",
+    "src/lib/topicBacklog.js"
+  ]
+}

@@ -125,11 +125,15 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
 }
 
 // ── Instagram ────────────────────────────────────────────────────────────────
-function InstagramPreview({ content, mediaUrls = [] }) {
+function InstagramPreview({ content, mediaUrls = [], overlayText = null }) {
   const [showFull, setShowFull] = React.useState(false)
   const lines = (content || '').split('\n')
   const preview = lines.slice(0, 4).join('\n')
   const hasMore = lines.length > 4
+
+  // Show overlay only when there's at least one image (not a video-only post)
+  const hasImage = mediaUrls.some((m) => m.type !== 'video')
+  const showOverlay = overlayText && hasImage && (overlayText.hook || overlayText.subhead || overlayText.cta)
 
   return (
     <div className="max-w-sm mx-auto border rounded-xl overflow-hidden bg-white shadow-sm font-sans">
@@ -145,8 +149,32 @@ function InstagramPreview({ content, mediaUrls = [] }) {
         <button className="ml-auto text-xs font-semibold text-blue-500">Follow</button>
       </div>
 
-      {/* Carousel */}
-      <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />
+      {/* Carousel + overlay */}
+      <div className="relative">
+        <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />
+        {showOverlay && (
+          <div className="absolute inset-0 pointer-events-none flex flex-col justify-end">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
+            <div className="relative z-10 px-4 pb-4 flex flex-col gap-1.5">
+              {overlayText.hook && (
+                <p className="text-white font-extrabold text-base leading-tight tracking-tight drop-shadow-md uppercase">
+                  {overlayText.hook}
+                </p>
+              )}
+              {overlayText.subhead && (
+                <p className="text-white/90 text-[11px] font-medium leading-snug drop-shadow">
+                  {overlayText.subhead}
+                </p>
+              )}
+              {overlayText.cta && (
+                <span className="self-start mt-1 text-[10px] font-bold text-white bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-3 py-1 drop-shadow">
+                  {overlayText.cta}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Actions */}
       <div className="px-4 pt-3 pb-1 flex items-center gap-4">
@@ -616,7 +644,7 @@ function EmailPreview({ content, mediaUrls = [] }) {
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
-export default function PostPreview({ platform, content, mediaUrls = [] }) {
+export default function PostPreview({ platform, content, mediaUrls = [], overlayText = null }) {
   if (!content?.trim()) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
@@ -626,7 +654,7 @@ export default function PostPreview({ platform, content, mediaUrls = [] }) {
   }
 
   switch (platform) {
-    case 'instagram':   return <InstagramPreview content={content} mediaUrls={mediaUrls} />
+    case 'instagram':   return <InstagramPreview content={content} mediaUrls={mediaUrls} overlayText={overlayText} />
     case 'facebook':    return <FacebookPreview  content={content} mediaUrls={mediaUrls} />
     case 'linkedin':    return <LinkedInPreview  content={content} />
     case 'gbp':         return <GBPPreview       content={content} />

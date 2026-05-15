@@ -280,11 +280,9 @@ const ANIMALS = {
   linkPreviewBlurb: 'AVCA-certified animal chiropractic in Portland and Vancouver — gentle adjustments for dogs, cats, and small animals.',
   linkedInIndustry: 'Veterinary',
 
-  // Social handles — none claimed yet. Placeholders mirror expected usernames so
-  // PostPreview mocks render coherently. Update once handles are claimed.
   social: {
-    instagram: 'movebetteranimal',
-    facebook: 'movebetteranimal',
+    instagram: 'movebetteranimalchiro',
+    facebook: 'movebetteranimalchiro',
   },
 
   // Strings injected into AI system prompts. Mirror PEOPLE/EQUINE structure exactly

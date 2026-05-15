@@ -83,6 +83,34 @@ async function handler(req, res) {
       return res.status(500).json({ error: 'Database error (upsert)', detail: text })
     }
     const row = await upRes.json()
+
+    // When the brand book is assigned, sync its extracted guidelines to the
+    // workspace row so prompts can read them without a separate brand-kit query.
+    if (role === 'brand_book') {
+      const assetRes = await sb(`brand_assets?select=ai_classification&id=eq.${encodeURIComponent(assetId)}&limit=1`)
+      if (assetRes.ok) {
+        const assetRows = await assetRes.json()
+        const cls = assetRows?.[0]?.ai_classification || {}
+        if (cls.extracted_guidelines) {
+          await sb(`workspaces?id=eq.${scope.id}`, {
+            method: 'PATCH',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ brand_guidelines: cls.extracted_guidelines }),
+          })
+        }
+        if (cls.extracted_style && Object.keys(cls.extracted_style).length > 0) {
+          const wsRow = await sb(`workspaces?id=eq.${scope.id}&select=brand_style`)
+          const currentStyle = wsRow.ok ? ((await wsRow.json())?.[0]?.brand_style || {}) : {}
+          const nextStyle = { ...currentStyle, ...cls.extracted_style }
+          await sb(`workspaces?id=eq.${scope.id}`, {
+            method: 'PATCH',
+            headers: { Prefer: 'return=minimal' },
+            body: JSON.stringify({ brand_style: nextStyle }),
+          })
+        }
+      }
+    }
+
     return res.status(200).json({ ok: true, row: row?.[0] || null })
   }
 

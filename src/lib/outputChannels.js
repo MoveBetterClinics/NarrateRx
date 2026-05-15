@@ -122,30 +122,24 @@ export const OUTPUT_CHANNELS = Object.freeze({
     id: 'twitter',
     label: 'X / Twitter post',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    // TODO(prompts): no dedicated prompt generator in src/lib/prompts.js yet.
-    // Publish path is wired (Buffer) but content currently must be authored
-    // by hand or adapted from another social platform.
     publishMode: PUBLISH_MODES.BUFFER,
   },
   threads: {
     id: 'threads',
     label: 'Threads post',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    // TODO(prompts): no dedicated prompt generator yet.
     publishMode: PUBLISH_MODES.BUFFER,
   },
   bluesky: {
     id: 'bluesky',
     label: 'Bluesky post',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    // TODO(prompts): no dedicated prompt generator yet.
     publishMode: PUBLISH_MODES.BUFFER,
   },
   mastodon: {
     id: 'mastodon',
     label: 'Mastodon post',
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
-    // TODO(prompts): no dedicated prompt generator yet.
     publishMode: PUBLISH_MODES.BUFFER,
   },
   google_ads: {

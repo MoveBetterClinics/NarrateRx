@@ -85,6 +85,24 @@ const ALLOWED_BRAND_MIME = new Set([
   'image/svg+xml', 'image/png', 'image/jpeg', 'image/webp', 'application/pdf',
 ])
 
+// Extension → MIME fallback for files whose browser-reported type is empty.
+// This commonly happens when files come from a folder drop — the OS/browser
+// occasionally strips the type for files inside a dragged directory.
+const EXT_MIME = {
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.webp': 'image/webp',
+  '.pdf': 'application/pdf',
+}
+
+function resolveContentType(file) {
+  if (file.type) return file.type
+  const ext = (file.name.match(/\.[^.]+$/) || [''])[0].toLowerCase()
+  return EXT_MIME[ext] || null
+}
+
 // Direct-to-Blob upload. The handshake endpoint mints a token; @vercel/blob
 // then PUTs the file straight to Blob storage; the platform calls back into
 // /api/brand-kit/upload which writes the brand_assets row.
@@ -92,8 +110,13 @@ const ALLOWED_BRAND_MIME = new Set([
 // Returns the @vercel/blob `Blob` object on success; the caller refetches the
 // kit (getBrandKit) to see the new asset row appear.
 export async function uploadBrandAsset(file, meta = {}, options = {}) {
-  if (file.type && !ALLOWED_BRAND_MIME.has(file.type)) {
-    throw new Error(`Unsupported file type for brand assets: ${file.type}`)
+  const contentType = resolveContentType(file)
+  if (!contentType || !ALLOWED_BRAND_MIME.has(contentType)) {
+    throw new Error(
+      contentType
+        ? `Unsupported file type for brand assets: ${contentType}`
+        : `Cannot determine file type for "${file.name}" — use SVG, PNG, JPG, WebP, or PDF`
+    )
   }
 
   const ext       = (file.name.match(/\.[^.]+$/) || [''])[0]
@@ -106,7 +129,7 @@ export async function uploadBrandAsset(file, meta = {}, options = {}) {
   return await upload(pathname, file, {
     access: 'public',
     handleUploadUrl: '/api/brand-kit/upload',
-    contentType: file.type || undefined,
+    contentType,
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     onUploadProgress: typeof options.onProgress === 'function'
       ? (e) => options.onProgress(e)
@@ -114,6 +137,7 @@ export async function uploadBrandAsset(file, meta = {}, options = {}) {
     clientPayload: JSON.stringify({
       filename: file.name,
       uploadedBy: meta.uploadedBy || null,
+      fileSize: file.size || null,
     }),
   })
 }

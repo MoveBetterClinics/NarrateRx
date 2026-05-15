@@ -1,0 +1,257 @@
+// POST /api/content-items/regenerate  { id }
+//
+// Regenerates the AI content for an existing content_item, updating the row in
+// place (preserves attached media, comments, scheduled_at). Two paths:
+//
+//   1. Atom-derived piece (instagram, facebook, linkedin, gbp, pinterest,
+//      tiktok) — re-runs the atom prompt against the interview's blog post,
+//      same logic as /api/content-plan/draft but UPDATEs instead of INSERTs.
+//
+//   2. Blog piece (or any interview-output platform) — re-runs the blog
+//      prompt against the interview transcript and also updates
+//      interview.outputs.blogPost so downstream atom regeneration uses the
+//      fresh source.
+//
+// On success the row's status is reset to 'draft' and approved_by/at are
+// cleared — regenerated content needs fresh review.
+
+export const config = { runtime: 'nodejs', maxDuration: 60 }
+
+import { generateText } from 'ai'
+import { workspaceContext } from '../_lib/workspaceContext.js'
+import { enforceLimit } from '../_lib/ratelimit.js'
+import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
+import { getContextBlock } from '../_lib/conceptRetrieval.js'
+import {
+  getBlogPostSystemPrompt,
+  buildVerbatimBlock,
+} from '../../src/lib/prompts.js'
+import { applyLocationOverlay } from '../../src/lib/locationOverlay.js'
+
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+
+function sb(path, init = {}) {
+  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey:        SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer:        'return=representation',
+      ...init.headers,
+    },
+  })
+}
+
+const ok  = (res, data, status = 200) => res.status(status).json(data)
+const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
+
+async function dbErr(res, r, msg = 'Database error', status = 500) {
+  const body = await r.text().catch(() => '')
+  console.error(`[content-items/regenerate] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
+  return res.status(status).json({ error: msg })
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return err(res, 'Method not allowed', 405)
+  if (!(await enforceLimit(req, res, 'ai'))) return
+
+  const ws = await workspaceContext(req)
+  if (!ws) return err(res, 'Workspace not resolved', 400)
+  const wsFilter = `workspace_id=eq.${ws.id}`
+
+  const { id } = req.body || {}
+  if (!id) return err(res, 'Missing id')
+
+  // Load the content_item under workspace scope.
+  const itemRes = await sb(`content_items?id=eq.${id}&${wsFilter}&select=*`)
+  if (!itemRes.ok) return dbErr(res, itemRes)
+  const itemRows = await itemRes.json()
+  if (!itemRows.length) return err(res, 'Content item not found', 404)
+  const item = itemRows[0]
+
+  if (!item.interview_id) {
+    return err(res, 'Content item has no source interview — regenerate not supported', 422)
+  }
+
+  // Load the interview (everything we might need across both paths).
+  const ivRes = await sb(
+    `interviews?id=eq.${item.interview_id}&${wsFilter}` +
+    `&select=id,clinician_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,cleaned_messages,outputs,created_at`,
+  )
+  if (!ivRes.ok) return dbErr(res, ivRes)
+  const ivRows = await ivRes.json()
+  if (!ivRows.length) return err(res, 'Interview not found', 404)
+  const interview = ivRows[0]
+
+  // Load clinician (name + voice_notes) — workspace-scoped to prevent FK leakage.
+  let clinicianName = ''
+  let voiceNotes = ''
+  if (interview.clinician_id) {
+    const clinRes = await sb(
+      `clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name,voice_notes`,
+    )
+    if (clinRes.ok) {
+      const rows = await clinRes.json()
+      clinicianName = rows[0]?.name ?? ''
+      voiceNotes    = rows[0]?.voice_notes ?? ''
+    }
+  }
+
+  // Look up a content_plan_atom that owns this piece, if any.
+  const atomRes = await sb(
+    `content_plan_atoms?content_piece_id=eq.${id}&${wsFilter}&select=*&limit=1`,
+  )
+  const atomRows = atomRes.ok ? await atomRes.json() : []
+  const atom = atomRows[0] ?? null
+
+  try {
+    let newContent
+    let newOverlayText = item.overlay_text ?? null
+    let updatedBlogPost = null
+
+    if (atom) {
+      // ── Atom-derived regeneration ───────────────────────────────────────
+      const blogPost = interview.outputs?.blogPost
+      if (!blogPost) {
+        return err(res, 'Blog post not generated yet — regenerate the blog first', 422)
+      }
+
+      const conceptBlock = await getContextBlock({ workspaceId: ws.id, topic: interview.topic })
+      const systemPrompt = getAtomSystemPrompt(
+        ws,
+        clinicianName,
+        interview.topic,
+        atom.platform,
+        atom.angle,
+        interview.voice_mode || 'practice',
+        interview.tone || 'smart',
+        voiceNotes,
+        (ws.brand_guidelines || '') + conceptBlock,
+      )
+      if (!systemPrompt) {
+        return err(res, `No prompt defined for ${atom.platform}/${atom.angle}`, 422)
+      }
+
+      const { text } = await generateText({
+        model: 'anthropic/claude-sonnet-4-6',
+        system: systemPrompt,
+        messages: [{ role: 'user', content: blogPost }],
+        maxTokens: 1500,
+      })
+      if (!text?.trim()) throw new Error('AI returned empty content')
+
+      // Mirror draft.js: split optional ---OVERLAY--- block for Instagram.
+      const [captionRaw, overlayRaw] = text.trim().split('---OVERLAY---')
+      newContent = captionRaw.trim()
+
+      if (overlayRaw) {
+        const hookMatch    = overlayRaw.match(/^HOOK:\s*(.+)$/m)
+        const subheadMatch = overlayRaw.match(/^SUBHEAD:\s*(.+)$/m)
+        const ctaMatch     = overlayRaw.match(/^CTA:\s*(.+)$/m)
+        if (hookMatch || subheadMatch || ctaMatch) {
+          newOverlayText = {
+            hook:    hookMatch?.[1]?.trim()    ?? '',
+            subhead: subheadMatch?.[1]?.trim() ?? '',
+            cta:     ctaMatch?.[1]?.trim()     ?? '',
+          }
+        }
+      }
+    } else {
+      // ── Blog / interview-output regeneration ────────────────────────────
+      // Only blog has a server-side prompt today. Other interview-output
+      // platforms (email, google_ads, landing_page, youtube, instagram_ads)
+      // were never wired into outputs generation, so they shouldn't appear
+      // as content_items without an atom. Guard explicitly.
+      if (item.platform !== 'blog') {
+        return err(
+          res,
+          `Regeneration not supported for platform "${item.platform}" — no source atom or prompt found`,
+          422,
+        )
+      }
+
+      const turns = Array.isArray(interview.messages) ? interview.messages : []
+      if (!turns.length) {
+        return err(res, 'Interview transcript missing — cannot regenerate', 422)
+      }
+
+      // Pull the per-post workspace_location overlay (city/region/keyword/hashtag)
+      // so prompts that reference workspace.location pick up the local values.
+      let interviewLocation = null
+      if (interview.location_id) {
+        const locRes = await sb(
+          `workspace_locations?id=eq.${interview.location_id}&${wsFilter}&select=*&limit=1`,
+        )
+        if (locRes.ok) {
+          const rows = await locRes.json()
+          interviewLocation = rows[0] ?? null
+        }
+      }
+      const overlaidWorkspace = applyLocationOverlay(ws, interviewLocation)
+
+      const systemPrompt = getBlogPostSystemPrompt(
+        overlaidWorkspace,
+        clinicianName,
+        interview.topic,
+        interview.tone || 'smart',
+        interview.voice_mode || 'practice',
+        interview.prototype_id,
+        voiceNotes,
+      ) + buildVerbatimBlock(interview.verbatim_flags)
+
+      const messages = [
+        ...turns.map((m) => ({ role: m.role, content: m.content })),
+        { role: 'user', content: 'Please write the blog post now based on our interview.' },
+      ]
+
+      const { text } = await generateText({
+        model: 'anthropic/claude-opus-4-7',
+        system: systemPrompt,
+        messages,
+        maxTokens: 4096,
+      })
+      if (!text?.trim()) throw new Error('AI returned empty content')
+
+      newContent = text.trim()
+      updatedBlogPost = newContent
+    }
+
+    // ── Update content_item in place ──────────────────────────────────────
+    // Reset to draft + clear approval audit so regenerated content needs
+    // fresh review before publish.
+    const patch = {
+      content:             newContent,
+      ai_original_content: newContent,
+      overlay_text:        newOverlayText,
+      status:              'draft',
+      approved_by:         null,
+      approved_at:         null,
+      reviewed_by:         null,
+      updated_at:          new Date().toISOString(),
+    }
+    const upd = await sb(`content_items?id=eq.${id}&${wsFilter}`, {
+      method: 'PATCH',
+      body:   JSON.stringify(patch),
+    })
+    if (!upd.ok) return dbErr(res, upd, 'Update failed')
+    const updRows = await upd.json()
+
+    // If we regenerated the blog, also refresh interview.outputs.blogPost
+    // so subsequent atom regenerations use the latest source.
+    if (updatedBlogPost) {
+      const nextOutputs = { ...(interview.outputs || {}), blogPost: updatedBlogPost }
+      await sb(`interviews?id=eq.${interview.id}&${wsFilter}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ outputs: nextOutputs }),
+        headers: { Prefer: 'return=minimal' },
+      })
+    }
+
+    return ok(res, updRows[0] ?? null)
+  } catch (e) {
+    console.error('[content-items/regenerate]', e?.message || e)
+    return err(res, e?.message || 'Regeneration failed', 500)
+  }
+}

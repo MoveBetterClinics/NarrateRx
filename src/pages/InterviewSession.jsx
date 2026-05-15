@@ -1,26 +1,99 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Copy, Check, FileText, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { fetchSimilarInterviews, updateInterview } from '@/lib/api'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscript } from '@/lib/api'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
-import { createContentItems } from '@/lib/publish'
 import { streamMessage } from '@/lib/claude'
-import { getInterviewSystemPrompt, getBlogPostSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
+import { getInterviewSystemPrompt, getBlogPostSystemPrompt, getMinimalEditSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi, buildVerbatimBlock } from '@/lib/prompts'
+import { detectEmotionalState, getEmotionPromptInjection } from '@/lib/emotionDetection'
 import { getInitials } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
+import MicCheck from '@/components/MicCheck'
+
+// Concrete noun list for shallow-answer detection (Feature 2)
+const CONCRETE_NOUNS = ['patient', 'person', 'name', 'case', 'example', 'time', 'moment', 'client', 'athlete', 'runner', 'worker']
+
+function isShallowAnswer(text) {
+  const words = text.trim().split(/\s+/)
+  if (words.length >= 15) return false
+  const lower = text.toLowerCase()
+  return !CONCRETE_NOUNS.some((noun) => lower.includes(noun))
+}
+
+// Strip [CONTRAST] marker from AI message text before display
+function stripContrastToken(text) {
+  return text.replace(/\[CONTRAST\]/g, '').trim()
+}
+
+// Detect if AI message was a contrast probe (Feature 1)
+function hasContrastSignal(text) {
+  return text.includes('[CONTRAST]')
+}
+
+function stripAgreementToken(text) { return text.replace(/\[AGREEMENT\]/g, '').trim() }
+function hasAgreementSignal(text)   { return text.includes('[AGREEMENT]') }
+
+function stripGapToken(text) { return text.replace(/\[GAP\]/g, '').trim() }
+function hasGapSignal(text)  { return text.includes('[GAP]') }
 
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
+// Per-interview localStorage key for the messages backup. The DB save can
+// fail silently — network blip, expired Clerk token, iOS WebKit dropping the
+// PATCH on background — and the only previous safety net was React state in
+// memory. A clinician 20 minutes deep who refreshes the tab then sees the AI
+// restart at question 1 because the DB row still has `messages: []`. The
+// local backup is the rescue: on resume, if the DB has fewer messages than
+// the local copy, we restore from local and push it back up.
+function lsKey(interviewId) {
+  return `narraterx:interview:${interviewId}:messages`
+}
+
+function loadLocalMessages(interviewId) {
+  if (typeof window === 'undefined' || !interviewId) return null
+  try {
+    const raw = window.localStorage.getItem(lsKey(interviewId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed?.messages)) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveLocalMessages(interviewId, messages) {
+  if (typeof window === 'undefined' || !interviewId) return
+  try {
+    window.localStorage.setItem(lsKey(interviewId), JSON.stringify({
+      messages,
+      savedAt: new Date().toISOString(),
+    }))
+  } catch {
+    // Quota or private-mode failure — non-fatal
+  }
+}
+
+function clearLocalMessages(interviewId) {
+  if (typeof window === 'undefined' || !interviewId) return
+  try { window.localStorage.removeItem(lsKey(interviewId)) } catch { /* ignore */ }
+}
+
+// Session-end phrases — matched at end of utterance to signal interview completion.
+// "next question" and "move on" are intentionally excluded here: they're opt-out
+// signals handled by emotionDetection (→ 'resistant' state) so the AI transitions
+// topics gracefully rather than ending the session.
 const STOP_PHRASES = [
   "that's all",
   "that's it",
@@ -29,8 +102,6 @@ const STOP_PHRASES = [
   "send it",
   "send that",
   "submit",
-  "next question",
-  "move on",
   "done",
 ]
 
@@ -51,6 +122,11 @@ export default function InterviewSession() {
   const { clinicianId, interviewId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
+  // Detect if the user landed directly on the /output sub-path (e.g. via
+  // bookmark or page refresh). If so, auto-open the inline panel once data loads.
+  const mountedOnOutputPath = useRef(
+    typeof window !== 'undefined' && window.location.pathname.endsWith('/output')
+  )
   const runtimeWorkspace = useWorkspace()
   const VOICE_MODES = getVoiceModes(runtimeWorkspace)
   const PATIENT_PROTOTYPES_UI = getPatientPrototypesUi(runtimeWorkspace)
@@ -69,12 +145,23 @@ export default function InterviewSession() {
   const [streamingText, setStreamingText] = useState('')
   const [interviewComplete, setInterviewComplete] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generationStyle, setGenerationStyle] = useState('blog_post')
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [showInstructions, setShowInstructions] = useState(true)
+  // micCheckPassed gates the mic check screen shown after the pre-interview
+  // instructions but before the AI sends its first question.
+  const [micCheckPassed, setMicCheckPassed] = useState(false)
   const [saveStatus, setSaveStatus] = useState('') // '' | 'saving' | 'saved' | 'error'
+  // Resume banner: true for 1.5s when returning to a session with saved state
+  const [showResumeBanner, setShowResumeBanner] = useState(false)
+  // Verbatim-flag UX state. selectionTip = { text, top, left } when the user has
+  // selected a chunk of clinician text inside the conversation log that's a
+  // valid substring of the user-message transcript; otherwise null.
+  const [selectionTip, setSelectionTip] = useState(null)
+  const conversationRef = useRef(null)
 
   const bottomRef = useRef(null)
   const hasStarted = useRef(false)
@@ -85,8 +172,44 @@ export default function InterviewSession() {
   const finalTranscriptRef = useRef('')
   const interviewRef = useRef(null)
   const pastInterviewsRef = useRef([])
+  // Emotional-state ref: 'weighted' | 'resistant' | null.
+  // Set after each user message; reset to null after each AI response completes.
+  // State is per-exchange — not persistent across the whole session.
+  const emotionStateRef = useRef(null)
+  // Track which user-message indexes have already triggered a re-probe
+  const reprobedIndexesRef = useRef(new Set())
+  // Prior session context for returning clinicians
+  const priorSessionContextRef = useRef(null)
+  // Learned practice knowledge from concept graph — fetched once at session start
+  const conceptBlockRef   = useRef('')
+  const agreementBlockRef = useRef('')
+  const gapBlockRef       = useRef('')
+  // Refs for pause/resume persistence
+  const sessionSaveTimerRef = useRef(null)
+  const userIdRef = useRef(null)
+  const interviewCompleteRef = useRef(false)
+  // Seeding guard: messages restoration runs exactly once per interview-id
+  // mount. Without this, every React Query background refetch (window focus,
+  // network reconnect, post-save invalidation) re-fires the seeding effect
+  // with a stale DB row and clobbers in-flight local state — which is how
+  // clinicians lost 5–6 saved responses mid-session and got bounced back to
+  // question 1.
+  const hasSeededRef = useRef(false)
+  const seededForIdRef = useRef(null)
+  // Reset the guard when the interview id changes so navigating between
+  // interviews still re-seeds the new one correctly. This runs synchronously
+  // during render — that's intentional: by the time the seeding effect
+  // below reads hasSeededRef, the flag must already be cleared for the new id.
+  if (seededForIdRef.current !== interviewId) {
+    seededForIdRef.current = interviewId
+    hasSeededRef.current = false
+  }
 
   function saveMessages(interviewId, patch, userId) {
+    // Always mirror to localStorage FIRST so the data survives even if the
+    // server PATCH never lands (auth blip, network, iOS WebKit kill).
+    if (Array.isArray(patch?.messages)) saveLocalMessages(interviewId, patch.messages)
+
     setSaveStatus('saving')
     updateInterview(interviewId, patch, userId)
       .then((updated) => {
@@ -99,12 +222,90 @@ export default function InterviewSession() {
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus(''), 2000)
       })
-      .catch(() => setSaveStatus('error'))
+      .catch((err) => {
+        console.error('[InterviewSession] save failed', err?.status, err?.message)
+        setSaveStatus('error')
+      })
   }
 
   useEffect(() => { messagesRef.current = messages }, [messages])
   useEffect(() => { transcriptRef.current = transcript }, [transcript])
   useEffect(() => { interviewRef.current = interview }, [interview])
+  useEffect(() => { userIdRef.current = user?.id }, [user?.id])
+  useEffect(() => { interviewCompleteRef.current = interviewComplete }, [interviewComplete])
+
+  // Build the session_state payload from the current messages ref.
+  // Called both from the debounced effect and from the unload/visibility handlers.
+  function buildSessionState(msgs) {
+    return {
+      messages: msgs,
+      paused_at: new Date().toISOString(),
+    }
+  }
+
+  // Persist session_state immediately — used by unload/visibility handlers
+  // where we can't await a fetch. sendBeacon is fire-and-forget but reliable
+  // for short payloads. Falls back to a synchronous keepalive fetch on browsers
+  // that don't support sendBeacon with JSON.
+  function flushSessionState(msgs) {
+    const uid = userIdRef.current
+    if (!uid || interviewCompleteRef.current || !msgs.length) return
+    const url = `/api/db/interviews?id=${encodeURIComponent(interviewId)}`
+    const payload = JSON.stringify({
+      session_state: buildSessionState(msgs),
+      paused_at: new Date().toISOString(),
+    })
+    if (typeof navigator.sendBeacon === 'function') {
+      const blob = new Blob([payload], { type: 'application/json' })
+      navigator.sendBeacon(url + `&_uid=${encodeURIComponent(uid)}`, blob)
+    } else {
+      fetch(url, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-user-id': uid },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {})
+    }
+  }
+
+  // Debounced auto-save of session_state whenever messages change.
+  // Runs 3s after the last message update. Skipped when interview is done
+  // (session_state is cleared on completion instead). Also mirrors to
+  // localStorage immediately on every messages change as a last-line backup.
+  useEffect(() => {
+    if (!interviewId || messages.length === 0) return
+    // Local backup runs even before any server save and even if user isn't ready.
+    saveLocalMessages(interviewId, messages)
+    if (!user?.id || interviewComplete) return
+    clearTimeout(sessionSaveTimerRef.current)
+    sessionSaveTimerRef.current = setTimeout(() => {
+      updateInterview(
+        interviewId,
+        { session_state: buildSessionState(messages), paused_at: new Date().toISOString() },
+        user.id,
+      ).catch((err) => {
+        console.error('[InterviewSession] session_state autosave failed', err?.status, err?.message)
+        setSaveStatus('error')
+      })
+    }, 3000)
+    return () => clearTimeout(sessionSaveTimerRef.current)
+  }, [messages, interviewComplete, user?.id, interviewId])
+
+  // Immediate flush on tab hide or page unload.
+  useEffect(() => {
+    function onVisibilityChange() {
+      if (document.visibilityState === 'hidden') flushSessionState(messagesRef.current)
+    }
+    function onBeforeUnload() {
+      flushSessionState(messagesRef.current)
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('beforeunload', onBeforeUnload)
+    }
+  }, [interviewId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Seed local interview state (which we then mutate during conversation)
   // from the cached row. Bounce back to dashboard on a hard 404 — the
@@ -112,17 +313,116 @@ export default function InterviewSession() {
   useEffect(() => {
     if (interviewLoading) return
     if (!interviewData) { navigate('/'); return }
+    // Always refresh the interview metadata object (topic, status, outputs,
+    // location, owner) — that's safe to track from server. But messages
+    // restoration is one-shot per mount, guarded below.
     setInterview(interviewData)
-    setMessages(interviewData.messages || [])
-    if ((interviewData.messages || []).some((m) => m.content?.includes(COMPLETE_TOKEN))) {
+    if (hasSeededRef.current) return
+    hasSeededRef.current = true
+    setGenerationStyle(interviewData.generation_style || 'blog_post')
+
+    // Resume from session_state if available (paused mid-interview).
+    // session_state.messages is the authoritative source when present; it
+    // may be ahead of the DB messages column (which only saves on each
+    // user turn, not on every AI response). Prefer session_state so the
+    // resumed transcript matches exactly what the clinician saw before pausing.
+    //
+    // The localStorage backup wins over the server when it has MORE messages —
+    // that's the signature of saves having failed silently mid-session. When
+    // we pick the local copy, push it back up so the server catches up.
+    const savedState = interviewData.session_state
+    const serverMessages = savedState?.messages ?? interviewData.messages ?? []
+    const localBackup = loadLocalMessages(interviewId)
+    const localMessages = Array.isArray(localBackup?.messages) ? localBackup.messages : []
+    const useLocal = localMessages.length > serverMessages.length
+    const restoredMessages = useLocal ? localMessages : serverMessages
+    if (useLocal) {
+      console.warn(
+        '[InterviewSession] Restoring messages from localStorage backup',
+        { local: localMessages.length, server: serverMessages.length, interviewId },
+      )
+      setSaveStatus('recovered')
+      // Push the recovered state back to the server so subsequent loads
+      // don't need the local backup.
+      if (user?.id) {
+        saveMessages(
+          interviewId,
+          {
+            messages: restoredMessages,
+            session_state: { messages: restoredMessages, paused_at: new Date().toISOString() },
+          },
+          user.id,
+        )
+      }
+    }
+    setMessages(restoredMessages)
+
+    if (restoredMessages.some((m) => m.content?.includes(COMPLETE_TOKEN))) {
       setInterviewComplete(true)
     }
-    if ((interviewData.messages || []).length > 0) setShowInstructions(false)
+    if (restoredMessages.length > 0) {
+      // Resuming an existing interview — skip instructions and mic check
+      setShowInstructions(false)
+      setMicCheckPassed(true)
+      // Show a brief "Resuming…" banner if we're restoring saved state
+      if (savedState?.messages?.length) {
+        setShowResumeBanner(true)
+        setTimeout(() => setShowResumeBanner(false), 1500)
+      }
+    }
 
+    // Auto-open output panel when landing directly on /…/output (e.g. bookmark)
+    if (mountedOnOutputPath.current && interviewData.outputs?.blogPost) {
+      setOutputData(interviewData.outputs)
+      setShowOutput(true)
+    }
+
+    // These three are AI prompt-context enrichments. Each one failing
+    // degrades the AI's history awareness but does not block the interview,
+    // so they stay non-fatal. We DO log so prod issues are visible in
+    // vercel logs — a previously-silent .catch(() => {}) hid the fact
+    // that these can fail at all.
     fetchSimilarInterviews(interviewData.topic, interviewId)
       .then((past) => { pastInterviewsRef.current = past || [] })
-      .catch(() => {})
-  }, [interviewLoading, interviewData, interviewId, navigate])
+      .catch((err) => console.warn('[InterviewSession] fetchSimilarInterviews failed', err?.status, err?.message))
+
+    // Fetch learned practice knowledge for this topic — injected into every
+    // system prompt for this session. Fails silently (empty block = graceful noop).
+    const clinicianParam = clinicianId ? `&clinician_id=${encodeURIComponent(clinicianId)}` : ''
+    fetch(`/api/concepts/context?topic=${encodeURIComponent(interviewData.topic || '')}${clinicianParam}`)
+      .then((r) => r.ok ? r.json() : { block: '', agreementBlock: '', gapBlock: '' })
+      .then(({ block, agreementBlock, gapBlock }) => {
+        conceptBlockRef.current   = block          || ''
+        agreementBlockRef.current = agreementBlock || ''
+        gapBlockRef.current       = gapBlock       || ''
+      })
+      .catch((err) => console.warn('[InterviewSession] concepts/context failed', err?.status, err?.message))
+
+    // Feature 5: use clinician data (already fetched) to find prior sessions
+    // for returning clinicians. fetchClinician returns interviews with topic+status
+    // but not messages — topic alone is enough for the keyword-overlap check and
+    // the system prompt reference.
+    fetchClinician(clinicianId)
+      .then((clinicianRow) => {
+        const priorInterviews = (clinicianRow?.interviews || [])
+          .filter((iv) => iv.status === 'completed' && iv.id !== interviewId)
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        if (priorInterviews.length === 0) return
+        const prior = priorInterviews[0]
+        if (!prior.topic) return
+        // Simple keyword-overlap check: at least 1 word (>3 chars) in common
+        const topicWords = (interviewData.topic || '').toLowerCase().split(/\W+/).filter((w) => w.length > 3)
+        const priorWords = prior.topic.toLowerCase().split(/\W+/).filter((w) => w.length > 3)
+        const hasOverlap = topicWords.some((w) => priorWords.includes(w))
+        if (!hasOverlap) return
+        priorSessionContextRef.current = { topic: prior.topic }
+      })
+      .catch((err) => console.warn('[InterviewSession] prior session fetch failed', err?.status, err?.message))
+    // `saveMessages` is a stable scope-level helper; `user.id` doesn't change
+    // mid-session (the auth-gated route remounts on user change). Listing
+    // them would re-fire this seeding effect and clobber in-progress state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interviewLoading, interviewData, interviewId, navigate, clinicianId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -174,6 +474,10 @@ export default function InterviewSession() {
       const timer = setTimeout(() => startListening(), 400)
       return () => clearTimeout(timer)
     }
+    // `startListening` is a stable function defined in this component scope.
+    // Including it as a dep would re-fire the effect on every render and is
+    // unnecessary — the auto-listen trigger only depends on the three flags.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSpeaking, isStreaming, interviewComplete])
 
   const sendToAI = useCallback(async (currentMessages) => {
@@ -186,8 +490,60 @@ export default function InterviewSession() {
       l => l.id === interviewRef.current?.location_id
     )
     const overlaidWorkspace = applyLocationOverlay(runtimeWorkspace, interviewLocation)
-    const systemPrompt = getInterviewSystemPrompt(overlaidWorkspace, clinician.name, interviewRef.current.topic, pastInterviewsRef.current, interviewRef.current?.prototype_id)
-    let apiMessages = currentMessages.map((m) => ({ role: m.role, content: m.content }))
+
+    // First message = AI introduces itself; subsequent = skip intro
+    const isFirstMessage = currentMessages.length === 0 ||
+      (currentMessages.length === 1 && currentMessages[0].role === 'user' && currentMessages[0].content === 'Please begin the interview.')
+
+    // Detect shallow previous answer for re-probe instruction
+    const userMessages = currentMessages.filter((m) => m.role === 'user')
+    const lastUserIdx = userMessages.length - 1
+    const lastUserMsg = userMessages[lastUserIdx]
+    const shouldReprobe = lastUserMsg &&
+      isShallowAnswer(lastUserMsg.content) &&
+      !reprobedIndexesRef.current.has(lastUserIdx)
+    if (shouldReprobe) reprobedIndexesRef.current.add(lastUserIdx)
+
+    const baseSystemPrompt = getInterviewSystemPrompt(
+      overlaidWorkspace,
+      clinician.name,
+      interviewRef.current.topic,
+      pastInterviewsRef.current,
+      interviewRef.current?.prototype_id,
+      {
+        tone: interviewRef.current?.tone || 'smart',
+        isFirstMessage,
+        shallowReprobe: shouldReprobe,
+        priorSessionContext: priorSessionContextRef.current,
+        conceptBlock:   conceptBlockRef.current,
+        agreementBlock: agreementBlockRef.current,
+        gapBlock:       gapBlockRef.current,
+      }
+    )
+
+    // Append per-exchange emotional context if detected, then clear the ref
+    // so it doesn't bleed into subsequent turns.
+    const emotionInjection = getEmotionPromptInjection(emotionStateRef.current)
+    emotionStateRef.current = null
+    const systemPrompt = emotionInjection ? baseSystemPrompt + emotionInjection : baseSystemPrompt
+
+    // Strip [CONTRAST] tokens from messages before sending to API
+    // (the token is for our UI layer, not for the model to see in history)
+    let apiMessages = currentMessages.map((m) => ({
+      role: m.role,
+      content: m.role === 'assistant' ? stripGapToken(stripAgreementToken(stripContrastToken(m.content))) : m.content,
+    }))
+    // Cap the history window for interview turns. Full history is kept in state
+    // for display; only the last 20 messages (≈ 10 exchanges) go to the API to
+    // prevent unbounded payload growth on very long sessions. The system prompt
+    // already carries the topic and persona context, so the recent window is
+    // sufficient for continuity without risking a 413 or cost runaway.
+    if (apiMessages.length > 20) {
+      apiMessages = apiMessages.slice(-20)
+      // Ensure the trimmed window doesn't open with a user message following
+      // an implied assistant turn — if the slice starts on an assistant turn it
+      // means we cut right after a user answer, which is fine for the model.
+    }
     // Claude API requires at least one message — inject a silent starter for new interviews
     if (apiMessages.length === 0) {
       apiMessages = [{ role: 'user', content: 'Please begin the interview.' }]
@@ -206,6 +562,7 @@ export default function InterviewSession() {
     }
 
     const isComplete = fullText.includes(COMPLETE_TOKEN)
+    // Strip COMPLETE_TOKEN but preserve [CONTRAST] in stored message for UI detection
     const cleanText = fullText.replace(COMPLETE_TOKEN, '').trim()
 
     const aiMessage = { role: 'assistant', content: cleanText }
@@ -215,18 +572,32 @@ export default function InterviewSession() {
     if (user?.id) {
       const patch = { messages: updated }
       if (isComplete) patch.status = 'in_progress'
+      // Clear session_state when the AI signals completion — the interview
+      // is done and the resume banner should not appear on next visit.
+      if (isComplete) { patch.session_state = null; patch.paused_at = null }
       saveMessages(interviewId, patch, user.id)
+      // Once the AI declares the interview complete, the local backup has
+      // served its purpose. Drop it so a future load doesn't accidentally
+      // re-hydrate stale messages.
+      if (isComplete) clearLocalMessages(interviewId)
     }
 
     if (isComplete) setInterviewComplete(true)
     setStreamingText('')
     setIsStreaming(false)
 
-    if (!isComplete) speak(cleanText)
+    // Speak the clean version (without probe tokens)
+    if (!isComplete) speak(stripGapToken(stripAgreementToken(stripContrastToken(cleanText))))
+    // `runtimeWorkspace`, `saveMessages`, and `speak` are stable for the
+    // session: workspace switching reloads the page; saveMessages and speak
+    // are unmemoized helpers re-created each render. Listing them would
+    // defeat useCallback (sendToAI would re-create constantly and re-trigger
+    // every effect that depends on it).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinician, interviewId, user?.id])
 
   useEffect(() => {
-    if (!clinician || !interview || hasStarted.current || showInstructions) return
+    if (!clinician || !interview || hasStarted.current || showInstructions || !micCheckPassed) return
     hasStarted.current = true
     if (messages.length === 0) {
       sendToAI([])
@@ -234,7 +605,12 @@ export default function InterviewSession() {
       const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant')
       if (lastAssistant && !interviewComplete) speak(lastAssistant.content)
     }
-  }, [clinician, interview, showInstructions])
+    // Intentional one-shot kickoff effect. hasStarted.current guards against
+    // re-entry — listing `messages`, `interviewComplete`, `sendToAI`, or
+    // `speak` here would either re-trigger on every message (after the
+    // hasStarted guard, harmless but wasteful) or fight the guard pattern.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clinician, interview, showInstructions, micCheckPassed])
 
   function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -309,11 +685,30 @@ export default function InterviewSession() {
     const updated = [...messagesRef.current, userMessage]
     setMessages(updated)
 
+    // Detect emotional state from the last 3 user messages before calling AI.
+    // The ref is read (and cleared) inside sendToAI so the injection is
+    // scoped to this single exchange only.
+    const recentUserMessages = updated
+      .filter((m) => m.role === 'user')
+      .slice(-3)
+      .map((m) => m.content)
+    emotionStateRef.current = detectEmotionalState(recentUserMessages)
+
+    // Opt-out phrases (RESIST_PHRASES) may appear mid-utterance as well as
+    // at the end. If the whole message is just an opt-out phrase and contains
+    // no other content, we still send it so the AI's back-off injection works
+    // naturally — we don't strip it the way STOP_PHRASES are stripped.
+
     if (user?.id) {
       saveMessages(interviewId, { messages: updated }, user.id)
     }
 
     sendToAI(updated)
+    // `saveMessages` is a stable scope-level helper, and `user.id` doesn't
+    // change mid-session (the auth-gated route remounts on user change).
+    // Listing them here would re-create this callback on every render and
+    // churn downstream effects that depend on it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isListening, interviewId, sendToAI])
 
   // Pause = leave the interview mid-flight. Conversation auto-saves on every
@@ -323,10 +718,104 @@ export default function InterviewSession() {
   // (paused for a moment, then leaving) stays one click.
   const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
 
+  // Inline output panel: slides in from the right when content generation
+  // completes so the user sees transcript + output side-by-side without a
+  // full page navigation.
+  const [showOutput, setShowOutput] = useState(false)
+  const [outputData, setOutputData] = useState(null)
+
   function leaveInterview() {
     window.speechSynthesis?.cancel()
     recognitionRef.current?.abort()
-    navigate(`/clinician/${clinicianId}`)
+    // Flush session_state immediately before leaving so resume works
+    // even if the debounced auto-save hasn't fired yet.
+    clearTimeout(sessionSaveTimerRef.current)
+    if (user?.id && !interviewComplete && messagesRef.current.length > 0) {
+      // Mirror locally before navigating away so a failed pause save can be
+      // recovered on next load.
+      saveLocalMessages(interviewId, messagesRef.current)
+      updateInterview(
+        interviewId,
+        { session_state: buildSessionState(messagesRef.current), paused_at: new Date().toISOString() },
+        user.id,
+      ).catch((err) => {
+        console.error('[InterviewSession] pause save failed', err?.status, err?.message)
+      })
+    }
+    navigate('/')
+  }
+
+  // Verbatim flag helpers. The transcript-substring check guarantees flagged
+  // text is something the clinician actually said — selecting an assistant
+  // question or a sentence that spans multiple bubbles fails validation and
+  // the tip never appears. We intentionally only consider user-role
+  // messages so the verbatim guarantee in the prompt is honest.
+  function getUserTranscript() {
+    return (interview?.messages || [])
+      .filter((m) => m.role === 'user')
+      .map((m) => m.content || '')
+      .join('\n\n')
+  }
+
+  function handleSelectionUp() {
+    const sel = window.getSelection?.()
+    if (!sel || sel.isCollapsed) { setSelectionTip(null); return }
+    const text = sel.toString().trim()
+    if (text.length < 10) { setSelectionTip(null); return }
+    if (!conversationRef.current) return
+    // Selection must be entirely inside the conversation log.
+    const range = sel.getRangeAt(0)
+    if (!conversationRef.current.contains(range.commonAncestorContainer)) {
+      setSelectionTip(null); return
+    }
+    if (!getUserTranscript().includes(text)) { setSelectionTip(null); return }
+    const rect = range.getBoundingClientRect()
+    const containerRect = conversationRef.current.getBoundingClientRect()
+    setSelectionTip({
+      text,
+      top: rect.top - containerRect.top - 36,
+      left: rect.left - containerRect.left + rect.width / 2,
+    })
+  }
+
+  async function addVerbatimFlag() {
+    if (!selectionTip?.text || !interview) return
+    const text = selectionTip.text
+    const transcript = getUserTranscript()
+    const idx = transcript.indexOf(text)
+    if (idx === -1) { setSelectionTip(null); return }
+    const existing = Array.isArray(interview.verbatim_flags) ? interview.verbatim_flags : []
+    if (existing.some((f) => f.text === text)) { setSelectionTip(null); return }
+    const next = [
+      ...existing,
+      {
+        id: crypto.randomUUID(),
+        text,
+        start_offset: idx,
+        end_offset: idx + text.length,
+        created_at: new Date().toISOString(),
+      },
+    ]
+    setInterview((prev) => prev ? { ...prev, verbatim_flags: next } : prev)
+    setSelectionTip(null)
+    window.getSelection?.()?.removeAllRanges()
+    try {
+      await updateInterview(interviewId, { verbatimFlags: next }, user.id)
+    } catch {
+      setError('Could not save verbatim flag — try again.')
+    }
+  }
+
+  async function removeVerbatimFlag(id) {
+    if (!interview) return
+    const existing = Array.isArray(interview.verbatim_flags) ? interview.verbatim_flags : []
+    const next = existing.filter((f) => f.id !== id)
+    setInterview((prev) => prev ? { ...prev, verbatim_flags: next } : prev)
+    try {
+      await updateInterview(interviewId, { verbatimFlags: next }, user.id)
+    } catch {
+      setError('Could not remove verbatim flag — try again.')
+    }
   }
 
   function handlePause() {
@@ -351,6 +840,14 @@ export default function InterviewSession() {
     blogStreamingTextRef.current = ''
     setBlogStreamingTokens(0)
     window.speechSynthesis?.cancel()
+    // Kick off the transcript cleanup pass in parallel with the blog draft.
+    // It writes cleaned_messages on the interview row independently, so
+    // failure is non-fatal — the editor falls back to the raw transcript on
+    // the Output page. We don't await: the blog generator uses the raw
+    // messages by design (cleanup is a verification tool, not a rewrite).
+    cleanupTranscript(interviewId).catch((e) => {
+      console.warn('[interview] transcript cleanup failed:', e?.message)
+    })
     try {
       const apiMessages = messages.map((m) => ({ role: m.role, content: m.content }))
       const tone = interview.tone || 'smart'
@@ -363,16 +860,38 @@ export default function InterviewSession() {
       // deltas (see src/lib/claude.js#streamMessage), so we just consume
       // them and accumulate. We update the token counter once every 5
       // chunks to avoid a setState per delta.
+      // Persist style change if the user changed it since the interview loaded.
+      // If the save fails, log + flip the visible save indicator. The
+      // user's selection still drives this generation; the persistence
+      // just won't survive a reload, so a recoverable warning is the right
+      // posture rather than blocking generation.
+      if (generationStyle !== (interview.generation_style || 'blog_post')) {
+        updateInterview(interviewId, { generationStyle }, user.id).catch((err) => {
+          console.error('[InterviewSession] generationStyle save failed', err?.status, err?.message)
+          setSaveStatus('error')
+        })
+      }
+
+      const isMinimal = generationStyle === 'minimal_edits'
+      const systemPrompt = isMinimal
+        ? getMinimalEditSystemPrompt(clinician.name, voiceMode, clinician.voice_notes || '')
+        : getBlogPostSystemPrompt(
+            overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
+            clinician.voice_notes || '',
+          ) + buildVerbatimBlock(interview.verbatim_flags)
+
       const streamMessages = [
         ...apiMessages,
-        { role: 'user', content: 'Please write the blog post now based on our interview.' },
+        {
+          role: 'user',
+          content: isMinimal
+            ? 'Please clean up the transcript now using minimal edits only.'
+            : 'Please write the blog post now based on our interview.',
+        },
       ]
-      const systemPrompt = getBlogPostSystemPrompt(
-        overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
-      )
 
       let chunks = 0
-      for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7' })) {
+      for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7', maxOutputTokens: 4096 })) {
         blogStreamingTextRef.current += delta
         chunks += 1
         if (chunks % 5 === 0) setBlogStreamingTokens(chunks)
@@ -383,23 +902,20 @@ export default function InterviewSession() {
       if (!blogPost.trim()) throw new Error('No content returned from generation')
 
       const outputs = { blogPost, generatedAt: new Date().toISOString() }
-      await updateInterview(interviewId, { outputs, status: 'completed' }, user.id)
-      // Completed interview triggers a server-side cascade that creates
-      // content_items rows. Flush both caches so ContentHub / Calendar
-      // pick those up on next read.
+      // Clear session_state: completed interviews don't need resume capability.
+      await updateInterview(interviewId, { outputs, status: 'completed', session_state: null, paused_at: null }, user.id)
+      // The PATCH above triggers a server-side cascade in api/db/interviews.js
+      // that creates the content_items rows. Flush caches so ContentHub /
+      // Calendar pick those up on next read.
       qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
       qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
-      createContentItems({
-        interviewId,
-        clinicianId,
-        clinicianName: clinician.name,
-        topic: interview.topic,
-        platform: 'blog',
-        content: blogPost,
-        status: 'draft',
-      }).catch(() => {})
-      navigate(`/output/${clinicianId}/${interviewId}`)
+      // Slide the output panel in-place — no full page transition.
+      // Update the URL so the user can bookmark/share the output link,
+      // but stay on this page with the transcript still visible on the left.
+      setOutputData(outputs)
+      setShowOutput(true)
+      navigate(`/interview/${clinicianId}/${interviewId}/output`, { replace: true })
     } catch (err) {
       setError(`Failed to generate content: ${err.message}`)
       setIsGenerating(false)
@@ -454,11 +970,17 @@ export default function InterviewSession() {
 
           <Button className="w-full" size="lg" onClick={() => setShowInstructions(false)}>
             <Mic className="h-4 w-4 mr-2" />
-            I'm ready — start the interview
+            I&apos;m ready &mdash; start the interview
           </Button>
         </div>
       </div>
     )
+  }
+
+  // Mic check gate: shown after instructions are dismissed but before the AI
+  // sends its first question. onContinue flips micCheckPassed → true.
+  if (!micCheckPassed) {
+    return <MicCheck onContinue={() => setMicCheckPassed(true)} />
   }
 
   const displayMessages = messages.filter((m) => !m.content?.includes(COMPLETE_TOKEN))
@@ -476,7 +998,9 @@ export default function InterviewSession() {
     : null
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-7rem)]">
+    <div className={`flex h-[calc(100vh-7rem)] ${showOutput ? 'gap-0 overflow-hidden' : 'max-w-2xl mx-auto'}`}>
+      {/* ── Left: interview transcript pane ── */}
+      <div className={`flex flex-col min-w-0 transition-all duration-300 ease-out ${showOutput ? 'w-1/2 pr-4' : 'flex-1'}`}>
       <div className="flex items-center gap-3 pb-4 shrink-0">
         <Button variant="ghost" size="icon" asChild>
           <Link to={`/clinician/${clinicianId}`}>
@@ -493,8 +1017,37 @@ export default function InterviewSession() {
           <p className="text-xs text-muted-foreground mt-0.5 truncate" title={interview.topic}>{interview.topic}</p>
         </div>
         {saveStatus && (
-          <span className={`text-xs shrink-0 ${saveStatus === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>
-            {saveStatus === 'saving' ? '↑ Saving…' : saveStatus === 'saved' ? '✓ Saved' : '⚠ Save failed'}
+          <span
+            className={`text-xs shrink-0 ${saveStatus === 'error' ? 'text-destructive' : saveStatus === 'recovered' ? 'text-amber-600' : 'text-muted-foreground'}`}
+            title={
+              saveStatus === 'error'
+                ? 'Server save failed — your answers are kept locally. Tap to retry.'
+                : saveStatus === 'recovered'
+                ? 'Restored from local backup after a save failure. Re-syncing…'
+                : ''
+            }
+          >
+            {saveStatus === 'saving'
+              ? '↑ Saving…'
+              : saveStatus === 'saved'
+              ? '✓ Saved'
+              : saveStatus === 'recovered'
+              ? '↻ Recovered locally'
+              : (
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  onClick={() => {
+                    if (user?.id) saveMessages(
+                      interviewId,
+                      { messages: messagesRef.current, session_state: buildSessionState(messagesRef.current) },
+                      user.id,
+                    )
+                  }}
+                >
+                  ⚠ Save failed — retry
+                </button>
+              )}
           </span>
         )}
         {interviewComplete
@@ -534,8 +1087,32 @@ export default function InterviewSession() {
         )}
       </div>
 
-      <ScrollArea className="flex-1 pr-4 -mr-4">
-        <div className="space-y-4 pb-4">
+      {showResumeBanner && (
+        <div className="mb-2 rounded-lg bg-amber-50 border border-amber-200 px-4 py-2 text-xs text-amber-800 flex items-center gap-2 shrink-0" role="status">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" aria-hidden="true" />
+          Resuming your session…
+        </div>
+      )}
+
+      <div
+        ref={conversationRef}
+        onMouseUp={handleSelectionUp}
+        onTouchEnd={handleSelectionUp}
+        className="flex-1 relative pr-4 -mr-4 overflow-hidden"
+      >
+        {selectionTip && (
+          <button
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); addVerbatimFlag() }}
+            style={{ top: Math.max(0, selectionTip.top), left: selectionTip.left, transform: 'translateX(-50%)' }}
+            className="absolute z-10 bg-foreground text-background text-xs rounded-md shadow-lg px-2.5 py-1.5 flex items-center gap-1.5 hover:bg-foreground/90"
+          >
+            <Quote className="h-3 w-3" />
+            Use verbatim
+          </button>
+        )}
+        <ScrollArea className="h-full pr-4 -mr-4">
+          <div className="space-y-4 pb-4">
           {displayMessages.map((msg, i) => (
             <MessageBubble key={i} message={msg} clinicianName={firstNameOnly} />
           ))}
@@ -570,21 +1147,107 @@ export default function InterviewSession() {
             </div>
           )}
 
+          {interviewComplete && !isStreaming && (
+            <div className="rounded-xl bg-emerald-50 border border-emerald-200 px-5 py-4 flex flex-col gap-3 mt-2">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" aria-hidden="true" />
+                <p className="font-semibold text-sm text-emerald-900">
+                  {firstNameOnly ? `Great conversation, ${firstNameOnly}.` : 'Great conversation.'}
+                </p>
+              </div>
+              <p className="text-sm text-emerald-800/80 leading-relaxed">
+                Your story is being turned into content.
+              </p>
+              {interview?.outputs?.blogPost && (
+                <Button
+                  size="sm"
+                  className="self-start bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
+                  onClick={() => {
+                    setOutputData(interview.outputs)
+                    setShowOutput(true)
+                    navigate(`/interview/${clinicianId}/${interviewId}/output`, { replace: true })
+                  }}
+                >
+                  See your content →
+                </Button>
+              )}
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </div>
-      </ScrollArea>
+        </ScrollArea>
+      </div>
+
+      {Array.isArray(interview.verbatim_flags) && interview.verbatim_flags.length > 0 && (
+        <div className="py-2 shrink-0 border-t">
+          <p className="text-[11px] text-muted-foreground mb-1.5 flex items-center gap-1">
+            <Quote className="h-3 w-3" />
+            Verbatim — these phrases will appear word-for-word in every draft
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {interview.verbatim_flags.map((f) => (
+              <span key={f.id} className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-900 border border-amber-200 rounded-full pl-2.5 pr-1 py-0.5 max-w-md">
+                <span className="truncate italic">{'“'}{f.text}{'”'}</span>
+                <button
+                  type="button"
+                  onClick={() => removeVerbatimFlag(f.id)}
+                  aria-label="Remove verbatim flag"
+                  className="shrink-0 rounded-full hover:bg-amber-200 p-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {interviewComplete && !isGenerating && isOwner && (
+        <p className="text-[11px] text-muted-foreground py-1 shrink-0">
+          Tip: highlight a sentence above to flag it as verbatim — it will be preserved word-for-word in every draft.
+        </p>
+      )}
 
       {interviewComplete && !isGenerating && isOwner && (
         <div className="py-3 shrink-0">
-          <div className="rounded-xl border bg-primary/5 border-primary/20 p-4 flex items-center justify-between gap-4">
+          <div className="rounded-xl border bg-primary/5 border-primary/20 p-4 flex flex-col gap-3">
             <div>
               <p className="text-sm font-medium">Ready to generate content</p>
-              <p className="text-xs text-muted-foreground">Blog post, social media, video scripts, email newsletter, Google Ads, and more.</p>
+              <p className="text-xs text-muted-foreground">Choose how the AI should handle your transcript.</p>
             </div>
-            <Button onClick={handleGenerateContent} size="sm">
-              <Sparkles className="h-4 w-4 mr-1.5" />
-              Generate
-            </Button>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio" name="generationStyle" value="blog_post"
+                  checked={generationStyle === 'blog_post'}
+                  onChange={() => setGenerationStyle('blog_post')}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs leading-snug">
+                  <span className="font-medium">Full blog post</span>
+                  <span className="text-muted-foreground"> — 7-section structure, links, social content</span>
+                </span>
+              </label>
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input
+                  type="radio" name="generationStyle" value="minimal_edits"
+                  checked={generationStyle === 'minimal_edits'}
+                  onChange={() => setGenerationStyle('minimal_edits')}
+                  className="mt-0.5 accent-primary"
+                />
+                <span className="text-xs leading-snug">
+                  <span className="font-medium">Minimal edits</span>
+                  <span className="text-muted-foreground"> — clean prose only, preserves your exact words</span>
+                </span>
+              </label>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={handleGenerateContent} size="sm">
+                <Sparkles className="h-4 w-4 mr-1.5" />
+                Generate
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -595,7 +1258,7 @@ export default function InterviewSession() {
             <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" aria-hidden="true" />
             <div className="flex-1">
               <p className="text-sm font-medium">
-                Writing blog post…
+                {generationStyle === 'minimal_edits' ? 'Cleaning transcript…' : 'Writing blog post…'}
                 {blogStreamingTokens > 0 && (
                   <span className="ml-1.5 text-xs font-normal text-muted-foreground">
                     ({blogStreamingTokens} chunks)
@@ -603,7 +1266,9 @@ export default function InterviewSession() {
                 )}
               </p>
               <p className="text-xs text-muted-foreground">
-                Turning your interview into a full blog post. Social, video, and marketing content will generate on demand.
+                {generationStyle === 'minimal_edits'
+                  ? 'Removing filler words and cleaning up the transcript while preserving your exact words.'
+                  : 'Turning your interview into a full blog post. Social, video, and marketing content will generate on demand.'}
               </p>
             </div>
           </div>
@@ -618,7 +1283,7 @@ export default function InterviewSession() {
               aria-label="Transcript"
               className="w-full rounded-xl bg-muted px-4 py-3 text-sm text-foreground/80 italic min-h-[44px]"
             >
-              "{transcript}"
+              &quot;{transcript}&quot;
             </div>
           )}
 
@@ -633,7 +1298,7 @@ export default function InterviewSession() {
               </span>
             ) : isListening ? (
               <span className="flex items-center gap-1.5 text-red-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — say "done" or tap mic to send
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — say &quot;done&quot; or tap mic to send
               </span>
             ) : 'Tap to speak'}
           </p>
@@ -671,15 +1336,118 @@ export default function InterviewSession() {
         title="Pause this interview?"
         description={
           isListening
-            ? "We're still capturing your answer. Pausing now will drop the in-progress utterance. You can resume from the clinician's page — past Q&A is saved."
+            ? "We're still capturing your answer. Pausing now will drop the in-progress utterance. Your session will be saved — resume from the Home page."
             : isSpeaking || isStreaming
-              ? "The AI is mid-response. Pausing now will cut it off. Past Q&A is saved — you can resume from the clinician's page."
-              : "Pausing now will drop your in-progress utterance. Past Q&A is saved and you can resume from the clinician's page."
+              ? "The AI is mid-response. Pausing now will cut it off. Your session will be saved — resume from the Home page."
+              : "Pausing now will drop your in-progress utterance. Your session will be saved — resume from the Home page."
         }
         confirmLabel="Pause anyway"
         destructive={false}
         onConfirm={leaveInterview}
       />
+      </div>{/* end left pane */}
+
+      {/* ── Right: inline output panel (slides in on generation complete) ── */}
+      <div
+        className={`flex-shrink-0 w-1/2 border-l bg-background overflow-hidden transition-transform duration-300 ease-out ${
+          showOutput ? 'translate-x-0' : 'translate-x-full hidden'
+        }`}
+      >
+        <InlineOutputPanel
+          clinicianId={clinicianId}
+          interviewId={interviewId}
+          clinician={clinician}
+          interview={interview}
+          outputs={outputData}
+          onViewFull={() => navigate(`/output/${clinicianId}/${interviewId}`)}
+        />
+      </div>
+    </div>
+  )
+}
+
+// Inline output panel rendered as the right half of the split view after
+// content generation completes. Receives already-fetched data as props so
+// there's no duplicate network fetch. The full standalone output page at
+// /output/:clinicianId/:interviewId is unchanged.
+function InlineOutputPanel({ clinicianId: _clinicianId, interviewId: _interviewId, clinician: _clinician, interview: _interview, outputs, onViewFull }) {
+  const [copied, setCopied] = useState(false)
+
+  function handleCopy() {
+    if (!outputs?.blogPost) return
+    navigator.clipboard.writeText(outputs.blogPost)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 3000)
+  }
+
+  if (!outputs) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Panel header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b bg-muted/30 shrink-0">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+          <p className="font-semibold text-sm">Content ready</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={onViewFull} className="gap-1.5 text-xs">
+          <ExternalLink className="h-3.5 w-3.5" />
+          Full output page
+        </Button>
+      </div>
+
+      {/* Content area */}
+      <div className="flex-1 overflow-hidden p-4">
+        <Tabs defaultValue="blog" className="h-full flex flex-col">
+          <TabsList className="grid grid-cols-1 w-full mb-3 shrink-0">
+            <TabsTrigger value="blog" className="gap-1.5 text-xs">
+              <FileText className="h-3.5 w-3.5" />
+              Blog Post
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="blog" className="flex-1 overflow-hidden mt-0">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-muted-foreground">Markdown — copy or open in full editor</p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={handleCopy} className="text-xs h-7 px-2.5">
+                  {copied ? (
+                    <><Check className="h-3 w-3 mr-1 text-green-600" />Copied</>
+                  ) : (
+                    <><Copy className="h-3 w-3 mr-1" />Copy</>
+                  )}
+                </Button>
+              </div>
+            </div>
+            <ScrollArea className="h-[calc(100%-2rem)]">
+              <pre className="text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground p-1">
+                {outputs.blogPost}
+              </pre>
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+      </div>
+
+      {/* Footer: link to full output page for social, video, marketing tabs */}
+      <div className="px-5 py-3 border-t bg-muted/20 shrink-0">
+        <p className="text-xs text-muted-foreground">
+          Social, video, and marketing content available on the{' '}
+          <button
+            type="button"
+            onClick={onViewFull}
+            className="text-primary underline-offset-2 hover:underline"
+          >
+            full output page
+          </button>
+          .
+        </p>
+      </div>
     </div>
   )
 }
@@ -700,6 +1468,12 @@ function InstructionCard({ icon, title, body }) {
 
 function MessageBubble({ message, clinicianName, isStreaming }) {
   const isAI = message.role === 'assistant'
+  const isContrast  = isAI && hasContrastSignal(message.content)
+  const isAgreement = isAI && hasAgreementSignal(message.content)
+  const isGap       = isAI && hasGapSignal(message.content)
+  const displayContent = isAI
+    ? stripGapToken(stripAgreementToken(stripContrastToken(message.content)))
+    : message.content
   return (
     <div className={`flex items-start gap-3 ${!isAI ? 'flex-row-reverse' : ''}`}>
       {isAI ? (
@@ -711,14 +1485,32 @@ function MessageBubble({ message, clinicianName, isStreaming }) {
           {clinicianName[0]}
         </div>
       )}
-      <div
-        className={`max-w-[90%] sm:max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-          isAI
-            ? 'bg-muted rounded-tl-sm'
-            : 'bg-primary text-primary-foreground rounded-tr-sm'
-        } ${isStreaming ? 'animate-pulse' : ''}`}
-      >
-        {message.content}
+      <div className="flex flex-col gap-1 max-w-[90%] sm:max-w-[80%]">
+        {isContrast && (
+          <Badge variant="outline" className="self-start flex items-center gap-1 text-[11px] text-muted-foreground border-muted-foreground/30 px-2 py-0.5">
+            <ArrowLeftRight className="h-3 w-3" aria-hidden="true" />
+            A colleague saw this differently
+          </Badge>
+        )}
+        {isAgreement && (
+          <Badge variant="outline" className="self-start flex items-center gap-1 text-[11px] text-emerald-700 border-emerald-200 bg-emerald-50 px-2 py-0.5">
+            ≡ Shared perspective at your practice
+          </Badge>
+        )}
+        {isGap && (
+          <Badge variant="outline" className="self-start flex items-center gap-1 text-[11px] text-amber-700 border-amber-200 bg-amber-50 px-2 py-0.5">
+            ○ Your perspective on this not yet captured
+          </Badge>
+        )}
+        <div
+          className={`rounded-2xl px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+            isAI
+              ? 'bg-muted rounded-tl-sm'
+              : 'bg-primary text-primary-foreground rounded-tr-sm'
+          } ${isStreaming ? 'animate-pulse' : ''}`}
+        >
+          {displayContent}
+        </div>
       </div>
     </div>
   )

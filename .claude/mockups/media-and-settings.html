@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>NarrateRx — Media library + Workspace settings</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body{background:#eef2f6;font-family:ui-sans-serif,system-ui,-apple-system,Inter,Segoe UI,sans-serif;color:#0f172a}
+  .frame{background:#fff;border:1px solid #e2e8f0;border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500}
+  .dot{width:6px;height:6px;border-radius:999px;display:inline-block}
+  .kbd{font-family:ui-monospace,Menlo,monospace;font-size:10px;padding:1px 5px;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:4px;background:#f8fafc;color:#475569}
+  .row:hover{background:#f8fafc;cursor:pointer}
+  .pagelabel{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#10b981}
+  .badge{font-size:11px;padding:1px 7px;border-radius:6px;background:#0f172a;color:#fff;font-weight:600}
+  .appheader{height:52px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid #e2e8f0;background:#fff}
+  .navlink{padding:6px 12px;border-radius:6px;font-size:13px;color:#64748b}
+  .navlink.active{background:#ecfdf5;color:#047857;font-weight:600}
+  .iconbtn{width:32px;height:32px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#64748b;position:relative}
+  .iconbtn.on{background:#f1f5f9;color:#0f172a}
+  .iconbtn:hover{background:#f1f5f9}
+  .ctabtn{padding:6px 12px;background:#047857;color:#fff;font-size:13px;border-radius:6px;font-weight:500;display:inline-flex;align-items:center;gap:4px}
+  .filtchip{padding:5px 11px;border:1px solid #e2e8f0;border-radius:999px;font-size:12px;color:#475569;background:#fff}
+  .filtchip.on{background:#0f172a;color:#fff;border-color:#0f172a}
+  .filtchip:hover{border-color:#cbd5e1}
+  .tile{position:relative;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;background:#fff;cursor:pointer;transition:transform .15s, box-shadow .15s}
+  .tile:hover{box-shadow:0 4px 14px rgba(0,0,0,.06);transform:translateY(-1px)}
+  .tile .thumb{aspect-ratio:1/1;display:flex;align-items:end;padding:8px;color:#fff;font-size:10px}
+  .tile .meta{padding:8px 10px;font-size:11px}
+  .field label{display:block;font-size:12px;font-weight:600;color:#334155;margin-bottom:4px}
+  .field input,.field select,.field textarea{width:100%;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;font-size:13px;outline:none}
+  .field input:focus,.field textarea:focus{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.12)}
+  .field .help{font-size:11px;color:#64748b;margin-top:4px}
+  .settingsnav a{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:6px;font-size:13px;color:#475569;cursor:pointer}
+  .settingsnav a:hover{background:#f1f5f9}
+  .settingsnav a.active{background:#ecfdf5;color:#047857;font-weight:600}
+  .toggleSw{width:34px;height:20px;background:#cbd5e1;border-radius:999px;position:relative;cursor:pointer;flex-shrink:0}
+  .toggleSw::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;transition:left .15s}
+  .toggleSw.on{background:#10b981}
+  .toggleSw.on::after{left:16px}
+</style>
+</head>
+<body>
+
+<div class="max-w-6xl mx-auto px-6 pt-10 pb-4">
+  <p class="text-xs uppercase tracking-widest text-slate-500 font-semibold">NarrateRx · supporting surfaces</p>
+  <h1 class="text-3xl font-bold mt-2">Media library + Workspace settings</h1>
+  <p class="text-slate-600 mt-2 max-w-3xl leading-relaxed">Both surfaces reached from header icons rather than primary nav. They live as utilities — visual for media, form-heavy for settings — and stay out of the way until needed.</p>
+</div>
+
+<!-- ====================================================== -->
+<!-- PAGE A: MEDIA LIBRARY                                   -->
+<!-- ====================================================== -->
+<section class="max-w-6xl mx-auto px-6 mt-10">
+  <div class="flex items-baseline justify-between mb-3">
+    <div class="flex items-center gap-3"><span class="badge">A</span><p class="pagelabel">Media · Library</p><h2 class="text-lg font-semibold">Visual grid · everything tied back to its source story</h2></div>
+    <p class="text-xs text-slate-500">Borrowed from: Apple Photos · Figma assets · Notion gallery</p>
+  </div>
+
+  <div class="frame">
+    <!-- header — note Library icon is highlighted -->
+    <div class="appheader">
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-2"><div class="w-7 h-7 bg-emerald-700 rounded-md text-white font-bold text-sm flex items-center justify-center">N</div><span class="font-semibold text-sm">Move Better People</span></div>
+        <nav class="flex gap-1"><a class="navlink">Home</a><a class="navlink">Stories</a></nav>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="ctabtn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>New Interview</button>
+        <button class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+        <button class="iconbtn on" title="Library"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/></svg></button>
+        <button class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+        <div class="w-8 h-8 rounded-full bg-slate-200"></div>
+      </div>
+    </div>
+
+    <!-- title bar + search + upload -->
+    <div class="px-6 py-3 border-b border-slate-200 bg-white flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3"><h3 class="font-semibold">Library</h3><p class="text-xs text-slate-500">312 assets · 8.4 GB</p></div>
+      <div class="flex items-center gap-3 flex-1 max-w-xl">
+        <div class="flex-1 flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-md text-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-slate-500"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          <input class="bg-transparent outline-none flex-1 text-slate-700" placeholder="Search by name, clinician, or story…" />
+          <span class="kbd">/</span>
+        </div>
+        <button class="px-3 py-1.5 bg-emerald-700 text-white text-xs font-medium rounded-md flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Upload</button>
+      </div>
+    </div>
+
+    <!-- filter chips row -->
+    <div class="px-6 py-3 border-b border-slate-200 bg-white flex items-center gap-2 flex-wrap">
+      <p class="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mr-2">Filter</p>
+      <button class="filtchip on">All · 312</button>
+      <button class="filtchip">📷 Photos · 184</button>
+      <button class="filtchip">🎬 Video · 47</button>
+      <button class="filtchip">🎵 Audio · 81</button>
+      <span class="w-px h-5 bg-slate-200 mx-1"></span>
+      <button class="filtchip">From interviews · 142</button>
+      <button class="filtchip">B-roll · 73</button>
+      <button class="filtchip">Brand assets · 28</button>
+      <button class="filtchip">Patient photos · 69</button>
+      <span class="w-px h-5 bg-slate-200 mx-1"></span>
+      <button class="filtchip">Unused · 18</button>
+      <button class="filtchip">Maya</button>
+      <button class="filtchip">Devon</button>
+      <button class="filtchip text-slate-400">+ more</button>
+    </div>
+
+    <!-- grid -->
+    <div class="p-6 bg-slate-50">
+      <p class="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mb-3">Recent · last 7 days</p>
+      <div class="grid grid-cols-6 gap-3">
+        <!-- video from Maya's interview -->
+        <div class="tile">
+          <div class="thumb bg-gradient-to-br from-emerald-300 to-emerald-600">
+            <span class="chip bg-black/40 text-white">🎬 0:42</span>
+          </div>
+          <div class="meta">
+            <p class="font-medium truncate">maya-clip-pelvic.mp4</p>
+            <p class="text-slate-500 truncate">From Maya · 22 min ago</p>
+          </div>
+          <div class="absolute top-2 right-2 chip bg-emerald-700 text-white">used ×3</div>
+        </div>
+        <!-- audio waveform -->
+        <div class="tile">
+          <div class="thumb bg-gradient-to-br from-purple-300 to-purple-600">
+            <svg width="100%" height="40" viewBox="0 0 100 40" class="text-white/70"><path d="M0 20 L10 12 L15 28 L20 8 L25 30 L30 14 L35 26 L40 6 L45 32 L50 18 L55 22 L60 10 L65 24 L70 16 L75 28 L80 12 L85 22 L90 18 L95 26 L100 20" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+          </div>
+          <div class="meta">
+            <p class="font-medium truncate">maya-interview.m4a</p>
+            <p class="text-slate-500 truncate">22 min ago · 8:14</p>
+          </div>
+        </div>
+        <!-- photo -->
+        <div class="tile">
+          <div class="thumb bg-gradient-to-br from-amber-200 to-pink-400"></div>
+          <div class="meta"><p class="font-medium truncate">clinic-front-2.jpg</p><p class="text-slate-500 truncate">Brand · Tue</p></div>
+        </div>
+        <!-- video from Devon -->
+        <div class="tile">
+          <div class="thumb bg-gradient-to-br from-blue-300 to-blue-600"><span class="chip bg-black/40 text-white">🎬 1:08</span></div>
+          <div class="meta"><p class="font-medium truncate">devon-app-rant.mp4</p><p class="text-slate-500 truncate">From Devon · yesterday</p></div>
+          <div class="absolute top-2 right-2 chip bg-emerald-700 text-white">used ×1</div>
+        </div>
+        <!-- photo -->
+        <div class="tile">
+          <div class="thumb bg-gradient-to-br from-teal-300 to-emerald-500"></div>
+          <div class="meta"><p class="font-medium truncate">postpartum-stock.jpg</p><p class="text-slate-500 truncate">B-roll · Mon</p></div>
+        </div>
+        <!-- photo with selection -->
+        <div class="tile ring-2 ring-emerald-500">
+          <div class="thumb bg-gradient-to-br from-slate-300 to-slate-500">
+            <div class="absolute top-2 left-2 w-5 h-5 rounded-full bg-emerald-600 flex items-center justify-center text-white">✓</div>
+          </div>
+          <div class="meta"><p class="font-medium truncate">team-photo.jpg</p><p class="text-slate-500 truncate">Brand · Sun</p></div>
+        </div>
+      </div>
+
+      <p class="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mt-7 mb-3">Earlier this month</p>
+      <div class="grid grid-cols-6 gap-3">
+        <div class="tile opacity-90"><div class="thumb bg-gradient-to-br from-rose-200 to-rose-400"></div><div class="meta"><p class="font-medium truncate">sara-bg.jpg</p><p class="text-slate-500 truncate">From Sara</p></div></div>
+        <div class="tile opacity-90"><div class="thumb bg-gradient-to-br from-indigo-300 to-indigo-600"><span class="chip bg-black/40 text-white">🎬 0:34</span></div><div class="meta"><p class="font-medium truncate">sara-massage.mp4</p><p class="text-slate-500 truncate">From Sara</p></div><div class="absolute top-2 right-2 chip bg-emerald-700 text-white">used ×2</div></div>
+        <div class="tile opacity-90"><div class="thumb bg-gradient-to-br from-amber-300 to-orange-400"></div><div class="meta"><p class="font-medium truncate">runner-broll.jpg</p><p class="text-slate-500 truncate">B-roll</p></div></div>
+        <div class="tile opacity-90"><div class="thumb bg-gradient-to-br from-emerald-200 to-teal-400"></div><div class="meta"><p class="font-medium truncate">logo-on-window.jpg</p><p class="text-slate-500 truncate">Brand</p></div></div>
+        <div class="tile opacity-90"><div class="thumb bg-gradient-to-br from-purple-300 to-pink-400"><svg width="100%" height="40" viewBox="0 0 100 40" class="text-white/70"><path d="M0 20 L10 16 L20 24 L30 8 L40 32 L50 14 L60 26 L70 10 L80 28 L90 18 L100 22" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></div><div class="meta"><p class="font-medium truncate">devon-old.m4a</p><p class="text-slate-500 truncate">From Devon</p></div></div>
+        <div class="tile opacity-90"><div class="thumb bg-gradient-to-br from-cyan-200 to-blue-400"></div><div class="meta"><p class="font-medium truncate">treatment-room.jpg</p><p class="text-slate-500 truncate">Brand</p></div></div>
+      </div>
+    </div>
+
+    <!-- selection action bar (appears when items selected) -->
+    <div class="absolute" style="bottom:24px;left:50%;transform:translateX(-50%)"></div>
+  </div>
+
+  <!-- floating selection bar mock-up shown below for clarity -->
+  <div class="mt-3 flex justify-center">
+    <div class="frame bg-slate-900 text-white border-slate-700 px-4 py-2.5 flex items-center gap-3 text-xs shadow-lg">
+      <span class="font-medium">1 selected</span>
+      <span class="w-px h-4 bg-slate-700"></span>
+      <button class="hover:text-emerald-300">Tag</button>
+      <button class="hover:text-emerald-300">Add to story</button>
+      <button class="hover:text-emerald-300">Download</button>
+      <button class="hover:text-rose-300">Delete</button>
+      <span class="w-px h-4 bg-slate-700"></span>
+      <button class="text-slate-400">Clear <span class="kbd ml-1 bg-slate-800 border-slate-700 text-slate-300">esc</span></button>
+    </div>
+  </div>
+
+  <p class="text-xs text-slate-500 mt-3 text-center max-w-2xl mx-auto leading-relaxed">Notable: every interview-derived asset shows its source clinician and a "used ×N" badge — clicking the badge jumps you to the Story Detail page. Media never feels orphaned from the work it came from.</p>
+</section>
+
+<!-- ====================================================== -->
+<!-- PAGE B: WORKSPACE SETTINGS                              -->
+<!-- ====================================================== -->
+<section class="max-w-6xl mx-auto px-6 mt-14 mb-16">
+  <div class="flex items-baseline justify-between mb-3">
+    <div class="flex items-center gap-3"><span class="badge">B</span><p class="pagelabel">Workspace · Settings</p><h2 class="text-lg font-semibold">Sidebar-nav form surface · everything tenant-editable in one place</h2></div>
+    <p class="text-xs text-slate-500">Borrowed from: Linear settings · Stripe dashboard · Vercel project</p>
+  </div>
+
+  <div class="frame">
+    <div class="appheader">
+      <div class="flex items-center gap-6">
+        <div class="flex items-center gap-2"><div class="w-7 h-7 bg-emerald-700 rounded-md text-white font-bold text-sm flex items-center justify-center">N</div><span class="font-semibold text-sm">Move Better People</span></div>
+        <nav class="flex gap-1"><a class="navlink">Home</a><a class="navlink">Stories</a></nav>
+      </div>
+      <div class="flex items-center gap-2">
+        <button class="ctabtn">+ New Interview</button>
+        <button class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></button>
+        <button class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/></svg></button>
+        <button class="iconbtn on" title="Settings"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+        <div class="w-8 h-8 rounded-full bg-slate-200"></div>
+      </div>
+    </div>
+
+    <!-- breadcrumb -->
+    <div class="px-6 py-2.5 border-b border-slate-200 bg-white flex items-center gap-2 text-xs text-slate-500">
+      <span>Settings</span><span>/</span><span class="font-medium text-slate-900">Bernard &amp; voice</span>
+    </div>
+
+    <div class="grid grid-cols-12 min-h-[640px]">
+      <!-- LEFT SIDEBAR -->
+      <aside class="col-span-3 border-r border-slate-200 p-4 bg-slate-50/50">
+        <p class="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mb-2 px-2">Workspace</p>
+        <nav class="settingsnav space-y-0.5 mb-4">
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>General</a>
+          <a class="active"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Bernard &amp; voice</a>
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 7-8 12-8 12s-8-5-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg>Locations</a>
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m12 8 4 4-4 4"/><path d="M8 12h8"/></svg>Output channels</a>
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7L12 19"/></svg>Integrations</a>
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>Brand kit</a>
+        </nav>
+        <p class="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mb-2 mt-5 px-2">People</p>
+        <nav class="settingsnav space-y-0.5 mb-4">
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Members &amp; roles</a>
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 9a2 2 0 1 1-4 0 2 2 0 0 1 4 0z"/><path d="M19 12a7 7 0 1 1-14 0 7 7 0 0 1 14 0z"/></svg>Clinicians</a>
+        </nav>
+        <p class="text-[11px] uppercase tracking-widest text-slate-500 font-semibold mb-2 mt-5 px-2">Account</p>
+        <nav class="settingsnav space-y-0.5">
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>Plan &amp; billing</a>
+          <a><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>Audit log</a>
+        </nav>
+      </aside>
+
+      <!-- MAIN SETTINGS BODY -->
+      <main class="col-span-9 p-8 bg-white">
+        <div class="flex items-start justify-between mb-1">
+          <div>
+            <h2 class="text-xl font-semibold">Bernard &amp; voice</h2>
+            <p class="text-sm text-slate-500 mt-1">How the AI interviewer introduces himself, what questions he asks, and how the practice sounds in the output.</p>
+          </div>
+        </div>
+
+        <!-- SECTION: persona -->
+        <div class="mt-7 frame">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between"><h3 class="font-semibold text-sm">Persona</h3><span class="chip bg-slate-100 text-slate-600">Visible to staff during interviews</span></div>
+          <div class="p-5 grid grid-cols-2 gap-5">
+            <div class="field"><label>AI interviewer name</label><input value="Bernard" /><p class="help">Bernard greets staff and signs the invite emails.</p></div>
+            <div class="field"><label>Greeting tone</label><select><option>Warm &amp; curious (default)</option><option>Direct &amp; efficient</option><option>Playful</option></select><p class="help">Sets the opening line and follow-up rhythm.</p></div>
+            <div class="field col-span-2"><label>Opening line override</label><textarea rows="2" placeholder="Leave blank to use the default. Example: 'Hi — Bernard here. I help the Move Better team capture stories from clinicians.'"></textarea></div>
+          </div>
+        </div>
+
+        <!-- SECTION: voice mode defaults -->
+        <div class="mt-5 frame">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between"><h3 class="font-semibold text-sm">Voice mode defaults</h3></div>
+          <div class="divide-y divide-slate-100">
+            <div class="px-5 py-4 flex items-center justify-between gap-4">
+              <div><p class="font-medium text-sm">Practice voice</p><p class="text-xs text-slate-500 mt-0.5">"We" language — content speaks for the clinic. Default for blog, GBP, email.</p></div>
+              <span class="chip bg-emerald-100 text-emerald-700">Default</span>
+            </div>
+            <div class="px-5 py-4 flex items-center justify-between gap-4">
+              <div><p class="font-medium text-sm">Personal voice</p><p class="text-xs text-slate-500 mt-0.5">"I" language — clinician speaks for themselves. Default for Instagram, personal LinkedIn.</p></div>
+              <span class="chip bg-slate-100 text-slate-600">Opt-in per piece</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION: probe depth -->
+        <div class="mt-5 frame">
+          <div class="px-5 py-3 border-b border-slate-100 flex items-center justify-between"><h3 class="font-semibold text-sm">Probe depth</h3><span class="text-xs text-slate-500">Per tone</span></div>
+          <div class="p-5 space-y-3">
+            <div class="grid grid-cols-12 items-center gap-3 text-sm">
+              <p class="col-span-3 font-medium">Quick (5 turns)</p>
+              <input type="range" min="3" max="14" value="5" class="col-span-7 accent-emerald-600" />
+              <p class="col-span-2 text-right text-xs text-slate-500">Best for IG / GBP</p>
+            </div>
+            <div class="grid grid-cols-12 items-center gap-3 text-sm">
+              <p class="col-span-3 font-medium">Story (8 turns)</p>
+              <input type="range" min="3" max="14" value="8" class="col-span-7 accent-emerald-600" />
+              <p class="col-span-2 text-right text-xs text-slate-500">Best for blog / email</p>
+            </div>
+            <div class="grid grid-cols-12 items-center gap-3 text-sm">
+              <p class="col-span-3 font-medium">Deep (12 turns)</p>
+              <input type="range" min="3" max="14" value="12" class="col-span-7 accent-emerald-600" />
+              <p class="col-span-2 text-right text-xs text-slate-500">Best for landing pages</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION: feature toggles -->
+        <div class="mt-5 frame">
+          <div class="px-5 py-3 border-b border-slate-100"><h3 class="font-semibold text-sm">AI behaviors</h3></div>
+          <div class="divide-y divide-slate-100">
+            <div class="px-5 py-3.5 flex items-center justify-between gap-4">
+              <div><p class="font-medium text-sm">Emotional weight detection</p><p class="text-xs text-slate-500 mt-0.5">Soften follow-ups when answers carry weight. Flag candidate verbatims.</p></div>
+              <div class="toggleSw on"></div>
+            </div>
+            <div class="px-5 py-3.5 flex items-center justify-between gap-4">
+              <div><p class="font-medium text-sm">Cross-staff contrast probe</p><p class="text-xs text-slate-500 mt-0.5">Surface opposing views from other clinicians mid-interview.</p></div>
+              <div class="toggleSw on"></div>
+            </div>
+            <div class="px-5 py-3.5 flex items-center justify-between gap-4">
+              <div><p class="font-medium text-sm">Prior-interview surfacing</p><p class="text-xs text-slate-500 mt-0.5">Bernard references the clinician's earlier interviews when relevant.</p></div>
+              <div class="toggleSw on"></div>
+            </div>
+            <div class="px-5 py-3.5 flex items-center justify-between gap-4">
+              <div><p class="font-medium text-sm">Mic check before interview</p><p class="text-xs text-slate-500 mt-0.5">Show the mic gate screen on first-time interviews.</p></div>
+              <div class="toggleSw on"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SAVE BAR -->
+        <div class="mt-6 flex items-center justify-between bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
+          <p class="text-xs text-slate-500">Changes apply to the next interview started in this workspace.</p>
+          <div class="flex items-center gap-2"><button class="px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 rounded-md">Discard</button><button class="px-3 py-1.5 bg-emerald-700 text-white text-sm font-medium rounded-md">Save changes</button></div>
+        </div>
+      </main>
+    </div>
+  </div>
+</section>
+
+<!-- WRAP-UP -->
+<section class="max-w-6xl mx-auto px-6 mb-20">
+  <div class="frame p-5 text-sm leading-relaxed text-slate-700">
+    <p class="font-semibold mb-2">Why these are utility surfaces, not nav items</p>
+    <p>Media and Settings sit behind header icons rather than the primary nav because daily use doesn't require them. The clinic owner spends time on Home and Stories; they visit Media when adding a hero image to a draft and Settings only when something needs configuring. Keeping the primary nav at 2 items makes everything else feel like deliberate navigation, not background noise.</p>
+    <p class="mt-3"><b>Cross-surface link:</b> the "used ×N" badge on every interview-derived media asset jumps you back to the Story Detail page that consumed it — so Media isn't a graveyard, it's an index into your stories.</p>
+  </div>
+</section>
+
+</body>
+</html>

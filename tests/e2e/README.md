@@ -107,6 +107,38 @@ Playwright uploads its HTML report as a GHA artifact on failure (retention
    memory, a disconnect+reconnect at project Settings → Git usually fixes
    it).
 
+## Before enabling "Require MFA" in prod Clerk
+
+The auth setup ([auth.setup.ts](./auth.setup.ts)) uses Clerk's **sign-in token
+(ticket) strategy**, which is documented to bypass MFA, `needs_client_trust`
+device verification, and bot protection — it lands directly on
+`status: 'complete'` with a `createdSessionId`, skipping the
+`needs_second_factor` transition the password strategy would hit.
+
+So in theory, flipping Clerk dashboard → Configure → User & authentication →
+Multi-factor → **Require multi-factor authentication** ON should leave this
+suite green with no fixture changes.
+
+**Unverified as of 2026-05-14.** Before flipping the toggle in prod, verify on
+the Clerk Development instance:
+
+1. Clerk dashboard → switch to **Development** instance → Configure →
+   User & authentication → Multi-factor → toggle Require MFA **on**.
+2. Point the suite at a dev-instance subdomain with `E2E_BASE_URL` +
+   `CLERK_SECRET_KEY=sk_test_...`, run `npm run e2e`, confirm green.
+3. Toggle Require MFA back **off** in Development.
+4. Then flip it on in Production.
+
+If step 2 fails (Clerk changed the ticket behavior, or there's a subtlety
+we missed), the fallback is to enable **Skip multi-factor enforcement** on
+the e2e fixture user (Clerk dashboard → Users → fixture user → Multi-factor)
+and document it here.
+
+The drq@ iPhone Chrome sign-in bug (2026-05-12, see auto-memory
+`feedback_mobile_signin_silent_no_advance`) is a different failure mode and
+unrelated to this — it's a `needs_client_trust` issue on the password
+strategy, which the ticket strategy doesn't traverse.
+
 ## What this test does NOT cover
 
 - The voice-driven AI conversation (`SpeechRecognition` doesn't work in

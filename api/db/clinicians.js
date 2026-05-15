@@ -37,12 +37,19 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email'
+const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email,verbatim_flags,messages,session_state,location_id,prototype_id'
+
+// Slim shape for the Stories list. Drops the heavy `messages` and `session_state`
+// JSON columns (full transcript per interview) which the list views never render —
+// they are fetched separately by useStory() when a detail page opens.
+const INTERVIEW_FIELDS_CARD = 'id,workspace_id,topic,status,session_state,created_at,updated_at,owner_id,owner_email,location_id,prototype_id'
+const CLINICIAN_FIELDS_CARD = 'id,workspace_id,name,created_at'
 
 export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
-  const userId = req.headers['x-user-id'] ?? req.headers.get?.('x-user-id') ?? null
+  const view = searchParams.get('view')   // 'card' = slim shape for Stories list
+  const userId = req.headers['x-user-id'] ?? null
 
   const ws = await workspaceContext(req)
   if (!ws) return err(res, 'Workspace not resolved', 400)
@@ -51,13 +58,15 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (id) {
       // Single clinician with full interview list
-      const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
+      const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,interviews(${INTERVIEW_FIELDS})`)
       if (!r.ok) return dbErr(res, r)
       const data = await r.json()
       return ok(res, data[0] ?? null)
     }
     // All clinicians with interview summaries
-    const r = await sb(`clinicians?${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})&order=name.asc`)
+    const clinicianSel = view === 'card' ? CLINICIAN_FIELDS_CARD : 'id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed'
+    const interviewSel = view === 'card' ? INTERVIEW_FIELDS_CARD : INTERVIEW_FIELDS
+    const r = await sb(`clinicians?${wsFilter}&select=${clinicianSel},interviews(${interviewSel})&order=name.asc`)
     if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }
@@ -70,7 +79,7 @@ export default async function handler(req, res) {
     if (!createdById) return err(res, 'Unauthorized', 401)
 
     // Find existing by name (case-insensitive) within this workspace
-    const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,interviews(${INTERVIEW_FIELDS})`)
+    const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,interviews(${INTERVIEW_FIELDS})`)
     if (!findRes.ok) return dbErr(res, findRes)
     const found = await findRes.json()
     if (found.length > 0) return ok(res, found[0])

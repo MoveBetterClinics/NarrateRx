@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
-import { ArrowLeft, ArrowRight, Stethoscope, User, Loader2, TrendingUp, Sparkles, Plus } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Stethoscope, User, Loader2, TrendingUp, Sparkles, Plus, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,6 +42,7 @@ export default function NewInterview() {
   const [voiceMode, setVoiceMode] = useState('practice')
   const [prototype, setPrototype] = useState(null)
   const [locationId, setLocationId] = useState(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const activeLocations = Array.isArray(workspace?.locations)
     ? workspace.locations.filter(l => l.status === 'active')
     : []
@@ -205,7 +206,7 @@ export default function NewInterview() {
               </div>
               <div>
                 <CardTitle className="text-base">Who are we interviewing?</CardTitle>
-                <CardDescription>Enter the clinician's full name</CardDescription>
+                <CardDescription>Enter the clinician&apos;s full name</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -222,7 +223,7 @@ export default function NewInterview() {
                 autoFocus
               />
               <p className="text-xs text-muted-foreground">
-                If this clinician has been interviewed before, they'll be linked to their existing profile.
+                If this clinician has been interviewed before, they&apos;ll be linked to their existing profile.
               </p>
             </div>
             <Button onClick={handleNext} disabled={!clinicianName.trim()} className="w-full">
@@ -247,139 +248,6 @@ export default function NewInterview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
-            {/* Patient prototype selector — only rendered when the workspace has archetypes */}
-            {PATIENT_PROTOTYPES_UI.length > 1 && (
-              <div className="space-y-2">
-                <Label className="text-sm">Patient archetype</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {PATIENT_PROTOTYPES_UI.map((p) => (
-                    <button
-                      key={String(p.id)}
-                      type="button"
-                      onClick={() => setPrototype(p.id)}
-                      className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
-                        prototype === p.id
-                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                          : 'border-input hover:border-primary/40 hover:bg-accent/30'
-                      }`}
-                    >
-                      <span className="text-base shrink-0 mt-0.5">{p.emoji}</span>
-                      <div>
-                        <p className="text-xs font-semibold leading-tight">{p.label}</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{p.description}</p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Voice mode selector */}
-            <div className="space-y-2">
-              <Label className="text-sm">Voice</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {VOICE_MODES.map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    onClick={() => setVoiceMode(v.id)}
-                    className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
-                      voiceMode === v.id
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-input hover:border-primary/40 hover:bg-accent/30'
-                    }`}
-                  >
-                    <span className="text-base shrink-0 mt-0.5">{v.emoji}</span>
-                    <div>
-                      <p className="text-xs font-semibold leading-tight">{v.label}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{v.description}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              {voiceMode === 'personal' && (
-                <p className="text-[11px] text-muted-foreground leading-snug">
-                  Personal interviews skip ad-style outputs (Instagram Ads, Google Ads, landing page, email newsletter).
-                </p>
-              )}
-            </div>
-
-            {/* Location selector — only when this workspace has more than one location */}
-            {showLocationPicker && (
-              <div className="space-y-2">
-                <Label className="text-sm">Location</Label>
-                <p className="text-[11px] text-muted-foreground leading-snug">
-                  Which clinic is this interview for? Affects local hashtags, "near me" copy,
-                  and (for GBP posts) which Google Business Profile receives the post.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setLocationId(null)}
-                    className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
-                      locationId === null
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-input hover:border-primary/40 hover:bg-accent/30'
-                    }`}
-                  >
-                    <span className="text-base shrink-0 mt-0.5">🌐</span>
-                    <div>
-                      <p className="text-xs font-semibold leading-tight">All locations</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
-                        Generic copy that fits every site
-                      </p>
-                    </div>
-                  </button>
-                  {activeLocations.map((loc) => (
-                    <button
-                      key={loc.id}
-                      type="button"
-                      onClick={() => setLocationId(loc.id)}
-                      className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
-                        locationId === loc.id
-                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                          : 'border-input hover:border-primary/40 hover:bg-accent/30'
-                      }`}
-                    >
-                      <span className="text-base shrink-0 mt-0.5">📍</span>
-                      <div>
-                        <p className="text-xs font-semibold leading-tight">{loc.label || loc.city}</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
-                          {[loc.city, loc.region].filter(Boolean).join(', ')}
-                          {loc.location_hashtag ? ` · ${loc.location_hashtag}` : ''}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Tone selector */}
-            <div className="space-y-2">
-              <Label className="text-sm">Content tone</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {TONES.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => setTone(t.id)}
-                    className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
-                      tone === t.id
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-input hover:border-primary/40 hover:bg-accent/30'
-                    }`}
-                  >
-                    <span className="text-base shrink-0 mt-0.5">{t.emoji}</span>
-                    <div>
-                      <p className="text-xs font-semibold leading-tight">{t.label}</p>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{t.description}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div className="space-y-1.5">
               <Label htmlFor="condition">Condition, treatment, or topic</Label>
               <Input
@@ -411,13 +279,13 @@ export default function NewInterview() {
                   ) : (
                     <Plus className="h-3 w-3" />
                   )}
-                  Add "{trimmedCondition}" to your workspace's topic suggestions
+                  Add &ldquo;{trimmedCondition}&rdquo; to your workspace&apos;s topic suggestions
                 </button>
               )}
               {suggestionAddedFor && suggestionAddedFor === trimmedCondition && (
                 <p className="text-xs text-emerald-600 mt-1 inline-flex items-center gap-1">
                   <Sparkles className="h-3 w-3" />
-                  Added — you'll see it in your suggestions next time.
+                  Added — you&apos;ll see it in your suggestions next time.
                 </p>
               )}
             </div>
@@ -493,6 +361,159 @@ export default function NewInterview() {
                 </div>
               </div>
             )}
+
+            {/* Adjust settings disclosure */}
+            <div>
+              <button
+                type="button"
+                onClick={() => setSettingsOpen((o) => !o)}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {settingsOpen ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+                {settingsOpen ? 'Hide settings' : 'Adjust settings'}
+              </button>
+
+              {settingsOpen && (
+                <div className="mt-4 space-y-4 border-t pt-4">
+                  {/* Patient prototype selector — only rendered when the workspace has archetypes */}
+                  {PATIENT_PROTOTYPES_UI.length > 1 && (
+                    <div className="space-y-2">
+                      <Label className="text-sm">Patient archetype</Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {PATIENT_PROTOTYPES_UI.map((p) => (
+                          <button
+                            key={String(p.id)}
+                            type="button"
+                            onClick={() => setPrototype(p.id)}
+                            className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
+                              prototype === p.id
+                                ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                                : 'border-input hover:border-primary/40 hover:bg-accent/30'
+                            }`}
+                          >
+                            <span className="text-base shrink-0 mt-0.5">{p.emoji}</span>
+                            <div>
+                              <p className="text-xs font-semibold leading-tight">{p.label}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{p.description}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Voice mode selector */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Voice</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {VOICE_MODES.map((v) => (
+                        <button
+                          key={v.id}
+                          type="button"
+                          onClick={() => setVoiceMode(v.id)}
+                          className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
+                            voiceMode === v.id
+                              ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                              : 'border-input hover:border-primary/40 hover:bg-accent/30'
+                          }`}
+                        >
+                          <span className="text-base shrink-0 mt-0.5">{v.emoji}</span>
+                          <div>
+                            <p className="text-xs font-semibold leading-tight">{v.label}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{v.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    {voiceMode === 'personal' && (
+                      <p className="text-[11px] text-muted-foreground leading-snug">
+                        Personal interviews skip ad-style outputs (Instagram Ads, Google Ads, landing page, email newsletter).
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Location selector — only when this workspace has more than one location */}
+                  {showLocationPicker && (
+                    <div className="space-y-2">
+                      <Label className="text-sm">Location</Label>
+                      <p className="text-[11px] text-muted-foreground leading-snug">
+                        Which clinic is this interview for? Affects local hashtags, &ldquo;near me&rdquo; copy,
+                        and (for GBP posts) which Google Business Profile receives the post.
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setLocationId(null)}
+                          className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
+                            locationId === null
+                              ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                              : 'border-input hover:border-primary/40 hover:bg-accent/30'
+                          }`}
+                        >
+                          <span className="text-base shrink-0 mt-0.5">🌐</span>
+                          <div>
+                            <p className="text-xs font-semibold leading-tight">All locations</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                              Generic copy that fits every site
+                            </p>
+                          </div>
+                        </button>
+                        {activeLocations.map((loc) => (
+                          <button
+                            key={loc.id}
+                            type="button"
+                            onClick={() => setLocationId(loc.id)}
+                            className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
+                              locationId === loc.id
+                                ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                                : 'border-input hover:border-primary/40 hover:bg-accent/30'
+                            }`}
+                          >
+                            <span className="text-base shrink-0 mt-0.5">📍</span>
+                            <div>
+                              <p className="text-xs font-semibold leading-tight">{loc.label || loc.city}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                                {[loc.city, loc.region].filter(Boolean).join(', ')}
+                                {loc.location_hashtag ? ` · ${loc.location_hashtag}` : ''}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tone selector */}
+                  <div className="space-y-2">
+                    <Label className="text-sm">Content tone</Label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {TONES.map((t) => (
+                        <button
+                          key={t.id}
+                          type="button"
+                          onClick={() => setTone(t.id)}
+                          className={`flex items-start gap-2 rounded-lg border p-3 text-left transition-all ${
+                            tone === t.id
+                              ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                              : 'border-input hover:border-primary/40 hover:bg-accent/30'
+                          }`}
+                        >
+                          <span className="text-base shrink-0 mt-0.5">{t.emoji}</span>
+                          <div>
+                            <p className="text-xs font-semibold leading-tight">{t.label}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{t.description}</p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="flex gap-2 pt-1">
               <Button variant="outline" onClick={() => setStep(1)} className="flex-1" disabled={loading}>

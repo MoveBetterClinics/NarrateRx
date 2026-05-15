@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
 # Manual backup of the shared narraterx Supabase Postgres DB.
 # Run from repo root: npm run backup:db
-# Output: ~/Backups/narraterx-supabase/narraterx-<UTC-timestamp>.sql.gz
+# Output: $BACKUP_DB_DIR (default: ~/Library/CloudStorage/GoogleDrive-*/My Drive/NarrateRx Backups/db)
+# Override with: BACKUP_DB_DIR=/path/to/dir npm run backup:db
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BACKUP_DIR="${HOME}/Backups/narraterx-supabase"
+
+# Default to Google Drive sync folder so backups auto-upload off-machine.
+# Falls back to ~/Backups if Drive is not mounted.
+DEFAULT_DRIVE_DIR="${HOME}/Library/CloudStorage/GoogleDrive-drq@movebetter.co/My Drive/NarrateRx Backups/db"
+LOCAL_FALLBACK_DIR="${HOME}/Backups/narraterx-supabase"
+if [ -n "${BACKUP_DB_DIR:-}" ]; then
+  BACKUP_DIR="${BACKUP_DB_DIR}"
+elif [ -d "$(dirname "${DEFAULT_DRIVE_DIR}")" ] || [ -d "${DEFAULT_DRIVE_DIR}" ]; then
+  BACKUP_DIR="${DEFAULT_DRIVE_DIR}"
+else
+  echo "WARN: Google Drive sync folder not found, falling back to ${LOCAL_FALLBACK_DIR}" >&2
+  BACKUP_DIR="${LOCAL_FALLBACK_DIR}"
+fi
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 OUT_FILE="${BACKUP_DIR}/narraterx-${TIMESTAMP}.sql"
 

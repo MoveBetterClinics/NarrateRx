@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo — NarrateRx</title>
+  <meta name="description" content="See NarrateRx in action: a 90-second walkthrough video plus an interactive simulation of the interview-to-published-post pipeline." />
+  <link rel="canonical" href="https://narraterx.ai/demo" />
+  <meta property="og:title" content="See NarrateRx in action" />
+  <meta property="og:description" content="A 90-second demo plus an interactive simulation of the interview-to-post pipeline." />
+  <meta property="og:url" content="https://narraterx.ai/demo" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" type="image/svg+xml" href="/narraterx-icon.svg" />
+  <link rel="apple-touch-icon" href="/narraterx-icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/site.css" />
+  <style>
+    /* Demo-page-specific styles */
+    .uvideo-stage {
+      position: relative;
+      background: var(--bg-card);
+      border: 1px solid var(--line-2);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color 0.2s;
+      margin-top: 40px;
+    }
+    .uvideo-stage:hover { border-color: var(--coral); }
+    .uvideo-stage::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(circle at 50% 40%, rgba(255,133,82,0.08) 0%, transparent 60%);
+    }
+    .uvideo-play {
+      width: 72px; height: 72px;
+      background: var(--coral);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 40px -8px var(--glow);
+      position: relative; z-index: 2;
+      margin-bottom: 20px;
+    }
+    .uvideo-play svg { width: 32px; height: 32px; fill: #1c4d37; margin-left: 4px; }
+    .uvideo-inner {
+      text-align: center;
+      position: relative; z-index: 2;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .uvideo-inner h3 { font-size: 22px; font-weight: 600; color: var(--ink); margin: 0 0 10px; }
+    .uvideo-inner p { color: var(--ink-soft); font-size: 15px; margin: 0; max-width: 480px; line-height: 1.55; }
+    .uvideo-badge {
+      position: absolute;
+      top: 20px; right: 20px;
+      background: rgba(168,214,160,0.18);
+      color: var(--sage);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      padding: 5px 12px;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+<body>
+
+<header class="uhdr">
+  <div class="container uhdr-inner">
+    <a href="/" class="uhdr-logo"><span class="glyph">N</span>narrate<span class="rx">Rx</span></a>
+    <button class="uhdr-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="uhdr-nav">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/compare">Compare</a>
+      <a href="/demo">Demo</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/onboard#signin" class="uhdr-signin">Sign in</a>
+      <a href="/onboard" class="uhdr-cta">Claim a spot</a>
+    </nav>
+  </div>
+</header>
+
+<!-- PAGE HERO -->
+<section class="upage-hero">
+  <div class="container">
+    <div class="upage-hero-inner">
+      <p class="upage-eyebrow"><span class="dot"></span> Demo</p>
+      <h1>Watch it work. <em>Then try it.</em></h1>
+      <p>Two demos. The first is a 90-second video walking through one real interview and its outputs. The second is an interactive replay you can step through right here in the page.</p>
+    </div>
+  </div>
+</section>
+
+<!-- VIDEO -->
+<section class="uband uband-tight">
+  <div class="container">
+    <p class="uband-eyebrow">The 90-second video</p>
+    <h2>From recording, <em>to the post going live.</em></h2>
+
+    <div class="uvideo-stage" role="button" tabindex="0" aria-label="Product walkthrough video (coming soon)">
+      <span class="uvideo-badge">Coming soon</span>
+      <div class="uvideo-inner">
+        <div class="uvideo-play" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        </div>
+        <h3>NarrateRx · the 90-second walkthrough</h3>
+        <p>Dr. Q runs a real interview, then ships the resulting month of content while you watch. Live on the site within the founding cohort.</p>
+      </div>
+    </div>
+    <p class="unote">Want a private walkthrough sooner? <a href="mailto:drq@narraterx.ai">Email Dr. Q</a> — he'll send you a Loom of his own monthly run.</p>
+  </div>
+</section>
+
+<!-- INTERACTIVE PIPELINE -->
+<section class="uband uband-dark">
+  <div class="container">
+    <p class="uband-eyebrow">The interactive replay</p>
+    <h2>Step through <em>a real interview.</em></h2>
+    <p class="uband-lede">The product preview below replays the actual NarrateRx pipeline with real Move Better interview answers. Watch each stage, then see what NarrateRx generated from it.</p>
+
+    <!-- Reuse the home-page preview widget -->
+    <div class="upreview">
+      <div class="upreview-window">
+        <div class="upreview-bar">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <div class="urlbar">app.narraterx.ai<span class="path"> / interview / new</span></div>
+        </div>
+        <div class="upreview-body">
+          <div class="upreview-pane">
+            <p class="h">Interview · question 3 of 5</p>
+            <p class="q">"What did you see this week that stuck with you?"</p>
+            <div class="a">
+              A runner. Two years of "IT band syndrome." Every coach told her to foam-roll more. She'd never once been asked to breathe. Twenty minutes later she ran down the hall and started crying. That's it. That's the week.
+            </div>
+          </div>
+          <div class="upreview-pane">
+            <p class="h">NarrateRx · generated</p>
+            <div class="upreview-tabs">
+              <span class="is-on">Blog</span>
+              <span>Social</span>
+              <span>Email</span>
+              <span>Google</span>
+            </div>
+            <div class="out">
+              <span class="head">Two years of IT band. Twenty minutes of breathing.</span>
+              <span class="meta">Blog post · 1,050 words · movebetter.co</span>
+              She came in carrying two years of foam-rolling advice and a diagnosis that never quite fit. <span class="chip">IT band syndrome</span> is the catch-all for lateral knee pain that doesn't respond to the obvious treatments — because it isn't where the problem actually is.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="unote">All quotes and outputs are from a real Move Better interview. Voice, examples, and clinical details are drawn entirely from what the clinician actually said.</p>
+  </div>
+</section>
+
+<!-- THREE WAYS TO SEE MORE -->
+<section class="uband">
+  <div class="container">
+    <p class="uband-eyebrow">Want to go deeper?</p>
+    <h2>Three ways to <em>see more.</em></h2>
+
+    <div class="ufeat-grid" style="margin-top:40px;">
+      <article class="ufeat-card">
+        <div class="ufeat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg></div>
+        <h3>Read the case studies</h3>
+        <p>Move Better's human, equine, and animal practices have run on NarrateRx for months. Real engagement numbers, time saved, and what they cut.</p>
+        <div style="margin-top:20px;"><a class="ubtn ubtn-ghost" href="/who-its-for" style="font-size:14px;padding:10px 16px;">See the verticals →</a></div>
+      </article>
+      <article class="ufeat-card">
+        <div class="ufeat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 6h-2v9H6v2c0 .55.45 1 1 1h11l4 4V7c0-.55-.45-1-1-1zm-4 6V3c0-.55-.45-1-1-1H3c-.55 0-1 .45-1 1v14l4-4h10c.55 0 1-.45 1-1z"/></svg></div>
+        <h3>Get a private Loom</h3>
+        <p>Email Dr. Q with your clinic name and audience. He records a short personalized walkthrough using your real subject matter, within a day.</p>
+        <div style="margin-top:20px;"><a class="ubtn ubtn-ghost" href="mailto:drq@narraterx.ai" style="font-size:14px;padding:10px 16px;">Email Dr. Q →</a></div>
+      </article>
+      <article class="ufeat-card">
+        <div class="ufeat-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6z"/></svg></div>
+        <h3>Just claim a spot</h3>
+        <p>Five-minute application. Founding owners get a personal onboarding call. If it's not for you after the first interview, you walk — no card, no obligation.</p>
+        <div style="margin-top:20px;"><a class="ubtn ubtn-primary" href="/onboard" style="font-size:14px;padding:10px 16px;">Claim a spot →</a></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- CTA STRIP -->
+<section class="uband uband-tight">
+  <div class="container">
+    <div class="ucta-strip ureveal">
+      <div>
+        <h2>Stop watching demos. <em>Try it on your voice.</em></h2>
+        <p>The fastest way to know whether NarrateRx works for you is to do one real interview. Founding cohort onboarding is free; you keep everything we draft.</p>
+        <div class="ubtn-row">
+          <a class="ubtn ubtn-primary" href="/onboard">Claim a founding spot <span class="arrow">→</span></a>
+          <a class="ubtn ubtn-ghost" href="/how-it-works">See the full pipeline</a>
+        </div>
+      </div>
+      <div>
+        <p class="ucta-strip-quote">"My first month, I shipped more posts than the previous two years combined — and the engagement was 4× our prior baseline."</p>
+        <p class="ucta-strip-cite">— Dr. Q, founder, on running NarrateRx for Move Better</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="ufoot">
+  <div class="container ufoot-inner">
+    <span class="footer-brand">narrate<span class="rx">Rx</span> — You talk. It does the rest.</span>
+    <span><a href="/how-it-works">How it works</a> · <a href="/features">Features</a> · <a href="/compare">Compare</a> · <a href="/pricing">Pricing</a> · <a href="/about">About</a></span>
+    <span>© <span data-year>2026</span> · <a href="mailto:drq@narraterx.ai">drq@narraterx.ai</a></span>
+  </div>
+</footer>
+
+<script src="/site.js"></script>
+</body>
+</html>

@@ -28,6 +28,7 @@ const PATCHABLE_FIELDS = new Set([
   'interview_context',
   'topic_suggestions',
   'publish_topics',
+  'skip_review',
 ])
 
 const TOPIC_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -129,8 +130,25 @@ async function handler(req, res) {
       console.error('[workspace/me] locations fetch failed:', e?.message)
     }
 
+    // Resolve the Brand Kit primary_logo to a URL so the SPA header can render
+    // it without a second round trip. Falls back to workspace.logo.main when
+    // no role is assigned. Non-fatal on failure — header still has the static
+    // logo to fall back to.
+    let primary_logo_url = null
+    try {
+      const lr = await sb(
+        `brand_kit_roles?workspace_id=eq.${encodeURIComponent(workspace.id)}&role=eq.primary_logo&select=brand_assets(blob_url)&limit=1`
+      )
+      if (lr.ok) {
+        const rows = await lr.json().catch(() => [])
+        primary_logo_url = rows?.[0]?.brand_assets?.blob_url || null
+      }
+    } catch (e) {
+      console.error('[workspace/me] primary_logo fetch failed:', e?.message)
+    }
+
     res.setHeader('Cache-Control', 'private, no-store')
-    return res.status(200).json({ ...workspace, locations })
+    return res.status(200).json({ ...workspace, locations, primary_logo_url })
   }
 
   if (req.method === 'PATCH') {

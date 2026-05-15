@@ -26,7 +26,6 @@ export default class RouteErrorBoundary extends Component {
     // Console log keeps the dev experience the same as the top-level
     // boundary. Sentry capture is required — the audit explicitly calls
     // out that silent swallowing isn't acceptable here.
-    // eslint-disable-next-line no-console
     console.error('[RouteErrorBoundary] caught:', error, info?.componentStack)
     captureException(error, { componentStack: info?.componentStack })
   }

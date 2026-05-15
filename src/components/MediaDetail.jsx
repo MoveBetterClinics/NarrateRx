@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon } from 'lucide-react'
+import { Archive, ArchiveRestore, X, Trash2, Loader2, Plus, Sparkles, AlertTriangle, FilePlus2, Wand2, Link2, Download, Check, Image as ImageIcon, Crop, Expand, Minimize, RotateCw, RotateCcw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,19 +11,40 @@ import {
   purgeMediaAsset,
   tagMediaAsset,
   regenerateThumbnail,
+  listVariants,
+  editMediaAsset,
 } from '@/lib/mediaLib'
 import { listContentPieces, createContentPiece, segmentMediaAsset } from '@/lib/contentLib'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast } from '@/lib/toast'
 import ContentBriefDetail from './ContentBriefDetail'
 import CollectionPicker from './CollectionPicker'
+import MediaEditModal from './MediaEditModal'
 
 const STATUSES = ['raw', 'tagged', 'rendered', 'approved', 'archived']
+// Purpose is the primary fork (see MediaUploader for the source of truth).
+// Detail drawer lets admins/editors re-classify if an upload landed on the
+// wrong purpose — flipping out of 'interview' clears speaker_role server-side
+// so the segmenter eligibility check stays honest.
+const PURPOSES = [
+  { id: 'interview', label: 'Interview' },
+  { id: 'broll',     label: 'B-roll' },
+  { id: 'photo',     label: 'Photo' },
+  { id: 'brand',     label: 'Brand asset' },
+]
 const SPEAKER_ROLES = [
   { id: 'clinician',     label: 'Clinician' },
   { id: 'admin',         label: 'Admin staff' },
   { id: 'patient_guest', label: 'Patient guest' },
 ]
+
+// Default purpose for legacy rows or asset types whose backfill we don't
+// trust. Videos default to interview (matches migration 024 backfill), photos
+// to photo.
+function defaultPurposeFor(asset) {
+  if (asset.asset_purpose) return asset.asset_purpose
+  return asset.kind === 'video' ? 'interview' : 'photo'
+}
 const PURGE_COOLDOWN_DAYS = 30
 
 function daysSince(iso) {
@@ -41,6 +62,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [patient, setPatient]   = useState(asset.patient_pseudonym || '')
   const [condition, setCondition] = useState(asset.condition || '')
   const [status, setStatus]     = useState(asset.status || 'raw')
+  const [assetPurpose, setAssetPurpose] = useState(defaultPurposeFor(asset))
   const [speakerRole, setSpeakerRole] = useState(asset.speaker_role || 'clinician')
   const [aiTags, setAiTags]     = useState(asset.ai_tags || [])
   const [transcription, setTranscription] = useState(asset.transcription || '')
@@ -60,6 +82,10 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [openBrief, setOpenBrief] = useState(null)
   const [copied, setCopied] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [showEdit, setShowEdit] = useState(false)
+  const [variants, setVariants] = useState([])
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const [rotatingQuick, setRotatingQuick] = useState(false)
 
   const { canEdit, canArchive, canRestore, canPurge } = useUserRole()
 
@@ -71,6 +97,9 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const purgeReady  = isArchived && asset.archived_at && cooldownLeft === 0 && canPurge
 
   // Sync local state if a different asset is loaded into the same drawer.
+  // Intentional: reseeds ONLY on asset.id change. Listing every asset.* field
+  // here would clobber in-progress user edits the moment an autosave round-trip
+  // refreshes the upstream object.
   useEffect(() => {
     setTags(asset.tags || [])
     setNotes(asset.notes || '')
@@ -78,6 +107,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setPatient(asset.patient_pseudonym || '')
     setCondition(asset.condition || '')
     setStatus(asset.status || 'raw')
+    setAssetPurpose(asset.asset_purpose || (asset.kind === 'video' ? 'interview' : 'photo'))
     setSpeakerRole(asset.speaker_role || 'clinician')
     setAiTags(asset.ai_tags || [])
     setTranscription(asset.transcription || '')
@@ -86,6 +116,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setError('')
     setShowPurge(false)
     setPurgeConfirm('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asset.id])
 
   const refreshBriefs = useCallback(async () => {
@@ -95,7 +126,40 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     } catch { /* empty */ }
   }, [asset.id])
 
+  // Fetch variants whose parent is this asset. Includes only rows the user
+  // produced via Edit (variant_label IS NOT NULL is enforced server-side via
+  // the list filter — the API returns whatever parent_id matches, so we filter
+  // here to keep this strip focused on rotation/crop variants and not other
+  // child rows like CapCut return-uploads).
+  const refreshVariants = useCallback(async () => {
+    if (asset.parent_id) {
+      // Variants of a variant don't render their own strip — keep the model flat.
+      setVariants([])
+      return
+    }
+    try {
+      const rows = await listVariants(asset.id)
+      setVariants((rows || []).filter((r) => r.variant_label))
+    } catch { /* empty */ }
+  }, [asset.id, asset.parent_id])
+
   useEffect(() => { refreshBriefs() }, [refreshBriefs])
+  useEffect(() => { refreshVariants() }, [refreshVariants])
+
+  // 90 CW / 270 CW (= 90 CCW). API constrains to {0, 90, 180, 270}.
+  async function handleQuickRotate(degrees) {
+    setRotatingQuick(true)
+    try {
+      await editMediaAsset(asset.id, { rotate: degrees, crop: null, mode: 'replace-master' })
+      toast.success('Rotated', { description: 'Original updated in place.' })
+      onChange?.()
+      refreshVariants()
+    } catch (e) {
+      toast.error('Rotate failed', { description: e.message })
+    } finally {
+      setRotatingQuick(false)
+    }
+  }
 
   function addTag() {
     const t = tagInput.trim().toLowerCase()
@@ -116,7 +180,11 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setSaving(true); setError('')
     try {
       await updateMediaAsset(asset.id, {
-        tags, aiTags, notes, altText, patientPseudonym: patient, condition, status, speakerRole,
+        tags, aiTags, notes, altText, patientPseudonym: patient, condition, status,
+        assetPurpose,
+        // Server enforces speaker_role=null when purpose != interview, but
+        // mirror the rule client-side so the optimistic state stays accurate.
+        speakerRole: assetPurpose === 'interview' ? speakerRole : null,
       })
       toast.success('Media details saved')
       onChange?.()
@@ -266,17 +334,35 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     }
   }
 
-  const canSegment = asset.kind === 'video' && (transcription || visualNarrative)
+  // Segmenter only runs on interview-purpose video (server enforces the same
+  // gate in segmentInterview.js). Disable the button up-front so B-roll /
+  // photo / brand drawers don't surface an action that would no-op server-side.
+  const canSegment = asset.kind === 'video'
+    && assetPurpose === 'interview'
+    && (transcription || visualNarrative)
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
-      <div className="bg-background rounded-xl shadow-2xl w-full max-w-full sm:max-w-3xl max-h-[90vh] flex flex-col">
+    <div className={`fixed inset-0 z-50 bg-black/60 flex items-center justify-center ${isFullscreen ? 'p-0' : 'p-4'}`}>
+      <div className={`bg-background shadow-2xl w-full flex flex-col ${isFullscreen ? 'w-screen h-screen' : 'rounded-xl max-w-full sm:max-w-3xl max-h-[90vh]'}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
           <h2 className="font-semibold text-sm truncate pr-2" title={asset.filename}>{asset.filename}</h2>
-          <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => setIsFullscreen(v => !v)} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+              {isFullscreen ? <Minimize className="h-4 w-4" /> : <Expand className="h-4 w-4" />}
+            </Button>
+            <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
+          </div>
         </div>
 
+        {showEdit && isFullscreen ? (
+          <MediaEditModal
+            inline
+            asset={asset}
+            onClose={() => setShowEdit(false)}
+            onSaved={() => { refreshVariants(); onChange?.() }}
+          />
+        ) : (<>
         <div className="flex-1 overflow-y-auto">
           {/* Player / preview */}
           <div className="bg-black flex items-center justify-center" style={{ minHeight: 240 }}>
@@ -340,12 +426,88 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 {asset.thumbnail_url ? 'Redo thumbnail' : 'Make thumbnail'}
               </Button>
             )}
+            {canEdit && !asset.parent_id && (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleQuickRotate(270)}
+                  disabled={rotatingQuick}
+                  className="h-7 gap-1.5 text-[11px]"
+                  title="Rotate 90° counter-clockwise — overwrites the original in place"
+                  aria-label="Rotate left 90 degrees"
+                >
+                  {rotatingQuick
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RotateCcw className="h-3.5 w-3.5" />}
+                  Rotate left
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleQuickRotate(90)}
+                  disabled={rotatingQuick}
+                  className="h-7 gap-1.5 text-[11px]"
+                  title="Rotate 90° clockwise — overwrites the original in place"
+                  aria-label="Rotate right 90 degrees"
+                >
+                  {rotatingQuick
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    : <RotateCw className="h-3.5 w-3.5" />}
+                  Rotate right
+                </Button>
+              </>
+            )}
+            {canEdit && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setIsFullscreen(true); setShowEdit(true) }}
+                className="h-7 gap-1.5 text-[11px]"
+                title="Crop this asset — opens fullscreen crop editor"
+              >
+                <Crop className="h-3.5 w-3.5" />
+                Crop
+              </Button>
+            )}
             {asset.kind === 'photo' && (
               <span className="text-[11px] text-muted-foreground">
                 · or drag the preview straight into another browser tab
               </span>
             )}
           </div>
+
+          {/* Variant strip — surfaces rotate/crop derivatives of this source.
+              Only rendered for masters (parent_id IS NULL) so we don't try to
+              show "variants of a variant" — the model is intentionally flat. */}
+          {!asset.parent_id && variants.length > 0 && (
+            <div className="px-5 pt-3">
+              <div className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground mb-1.5">
+                Variants ({variants.length})
+              </div>
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {variants.map((v) => {
+                  const thumb = v.thumbnail_url || (v.kind === 'video' ? null : v.blob_url)
+                  return (
+                    <div
+                      key={v.id}
+                      className="shrink-0 w-28 rounded-md border bg-card overflow-hidden"
+                      title={v.variant_label || 'Variant'}
+                    >
+                      <div className="aspect-square bg-muted flex items-center justify-center overflow-hidden">
+                        {thumb
+                          ? <img src={thumb} alt={v.variant_label || ''} className="h-full w-full object-cover" />
+                          : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
+                      </div>
+                      <div className="px-2 py-1.5 text-[10px] truncate">
+                        {v.variant_label || 'Variant'}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="p-5 space-y-4">
             {!canEdit && !isArchived && (
@@ -354,7 +516,9 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               </div>
             )}
 
-            {/* Status + speaker role */}
+            {/* Status + purpose. Speaker role appears below only when purpose
+                is 'interview' — it has no meaning for B-roll, photo, or
+                brand-asset rows and surfacing it there confused users. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1.5">Status</label>
@@ -373,16 +537,42 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Who's speaking?</label>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Asset purpose</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {PURPOSES.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setAssetPurpose(p.id)}
+                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                        assetPurpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                      }`}
+                      title={p.id === 'interview'
+                        ? 'Spoken-on-camera footage — feeds the editor brief queue'
+                        : p.id === 'broll'
+                          ? 'Video without spoken narrative — tagged for search, no brief queue'
+                          : p.id === 'photo'
+                            ? 'Still image of the clinic, team, or moment'
+                            : 'Logos, headshots, graphics'}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {assetPurpose === 'interview' && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">Who&apos;s speaking?</label>
                 <select
                   value={speakerRole}
                   onChange={(e) => setSpeakerRole(e.target.value)}
-                  className="text-sm h-8 px-2 rounded-md border border-border bg-background text-foreground w-full"
+                  className="text-sm h-8 px-2 rounded-md border border-border bg-background text-foreground w-full sm:max-w-xs"
                 >
                   {SPEAKER_ROLES.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
                 </select>
               </div>
-            </div>
+            )}
 
             {/* Tags */}
             <div>
@@ -486,7 +676,13 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                         <Button
                           size="sm" variant="outline" onClick={handleSegment}
                           disabled={segmenting || !canSegment}
-                          title={canSegment ? 'Re-run AI segmenter on this source' : 'Tag with AI first to enable'}
+                          title={
+                            assetPurpose !== 'interview'
+                              ? 'Only interview-purpose video feeds the segmenter. Switch purpose to Interview to enable.'
+                              : canSegment
+                                ? 'Re-run AI segmenter on this source'
+                                : 'Tag with AI first to enable'
+                          }
                           className="h-7 gap-1.5 text-[11px]"
                         >
                           {segmenting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
@@ -548,7 +744,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">
                 Alt text
                 <span className="text-muted-foreground/70 font-normal ml-1">
-                  · describes what's in the image for screen readers + captions
+                  · describes what&apos;s in the image for screen readers + captions
                 </span>
               </label>
               <Input
@@ -664,6 +860,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
             )}
           </div>
         </div>
+        </>)}
       </div>
 
       {openBrief && (
@@ -671,6 +868,14 @@ export default function MediaDetail({ asset, onClose, onChange }) {
           brief={openBrief}
           onClose={() => setOpenBrief(null)}
           onChange={() => { refreshBriefs(); onChange?.() }}
+        />
+      )}
+
+      {showEdit && !isFullscreen && (
+        <MediaEditModal
+          asset={asset}
+          onClose={() => setShowEdit(false)}
+          onSaved={() => { refreshVariants(); onChange?.() }}
         />
       )}
     </div>

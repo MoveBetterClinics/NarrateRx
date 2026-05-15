@@ -1,7 +1,10 @@
+import { spawn } from 'node:child_process'
 import { withSentry } from '../_lib/sentry.js'
 import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
 import { tagAndPersist } from '../_lib/tagAsset.js'
+import sharp from 'sharp'
+import ffmpegStaticPath from 'ffmpeg-static'
 import { segmentAndPersist } from '../_lib/segmentInterview.js'
 import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
@@ -41,6 +44,7 @@ const HANDSHAKE_ALLOWED_ROLES = ['admin', 'editor', 'clinician']
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+const FFMPEG_BIN   = process.env.FFMPEG_PATH || ffmpegStaticPath || 'ffmpeg'
 
 async function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -71,6 +75,76 @@ function kindFromMime(mime) {
   if (mime.startsWith('image/')) return 'photo'
   if (mime.startsWith('video/')) return 'video'
   return null
+}
+
+const PURPOSES = new Set(['interview', 'broll', 'photo', 'brand'])
+
+// Default asset_purpose when the uploader didn't supply one — covers older
+// API callers (e.g. return-uploads of finished edits, server-side seeding).
+// Videos default to interview to preserve the historical behavior; photos
+// default to photo. Brand assets are always opted into explicitly.
+function defaultPurpose(kind) {
+  return kind === 'video' ? 'interview' : 'photo'
+}
+
+async function probeImageDimsFromUrl(url) {
+  const res = await fetch(url, { headers: { Range: 'bytes=0-65535' } })
+  if (!res.ok) throw new Error(`probe fetch failed: ${res.status}`)
+  const buf = Buffer.from(await res.arrayBuffer())
+  const meta = await sharp(buf).metadata()
+  return { width: meta.width || null, height: meta.height || null }
+}
+
+function probeVideoDimsFromUrl(url) {
+  return new Promise((resolve) => {
+    const proc = spawn(FFMPEG_BIN, ['-i', url], { stdio: ['ignore', 'ignore', 'pipe'] })
+    let stderr = ''
+    proc.stderr.on('data', (d) => { stderr += d.toString() })
+    proc.on('close', () => {
+      const m = stderr.match(/Stream #\d+:\d+(?:\([^)]+\))?:\s*Video:[^\n]*?\s(\d+)x(\d+)/)
+      if (m) resolve({ width: parseInt(m[1], 10), height: parseInt(m[2], 10) })
+      else resolve({ width: null, height: null })
+    })
+    proc.on('error', () => resolve({ width: null, height: null }))
+  })
+}
+
+// Probes the moov-atom location of an MP4/MOV by Range-fetching the first
+// ~256 KB of the file and scanning the top-level atom sequence. A `moov`
+// atom that appears before `mdat` means the file is faststart (player can
+// start streaming immediately). When `moov` is at the tail, the player has
+// to download the whole file before playback starts, AND any ffmpeg edit
+// that wants to fix this hits the disk-thrash problem (peak ~3x file size).
+//
+// Returns one of: 'faststart' | 'tail' | 'unknown'. Non-fatal — we just log
+// the result so we can decide later whether to remediate via a streaming-pipe
+// re-mux at upload time.
+async function probeFaststart(url) {
+  try {
+    const r = await fetch(url, { headers: { Range: 'bytes=0-262143' } })
+    if (!r.ok && r.status !== 206) return 'unknown'
+    const buf = Buffer.from(await r.arrayBuffer())
+    // Top-level MP4 atom walk: each atom is [size:4 BE][type:4 ASCII][...payload].
+    // Bail out as soon as we see moov or mdat — whichever appears first wins.
+    let off = 0
+    while (off + 8 <= buf.length) {
+      const size = buf.readUInt32BE(off)
+      const type = buf.slice(off + 4, off + 8).toString('ascii')
+      if (type === 'moov') return 'faststart'
+      if (type === 'mdat') return 'tail'
+      // size === 0 → atom extends to EOF. size === 1 → 64-bit size at off+8.
+      const step = size === 0
+        ? Infinity
+        : size === 1 && off + 16 <= buf.length
+          ? Number(buf.readBigUInt64BE(off + 8))
+          : size
+      if (!Number.isFinite(step) || step < 8) break
+      off += step
+    }
+    return 'unknown'
+  } catch {
+    return 'unknown'
+  }
 }
 
 async function handler(req, res) {
@@ -122,6 +196,7 @@ async function handler(req, res) {
             condition: meta.condition || null,
             capturedAt: meta.capturedAt || null,
             notes: meta.notes || null,
+            assetPurpose: PURPOSES.has(meta.assetPurpose) ? meta.assetPurpose : null,
             speakerRole: meta.speakerRole || null,
             parentId: meta.parentId || null,
             contentPieceId: meta.contentPieceId || null,
@@ -162,6 +237,25 @@ async function handler(req, res) {
         // lands in 'approved' status and is linked to the source. Skips Phase
         // 2/3 auto-pipeline because the contractor has already done the work.
         const isReturnUpload = !!meta.parentId
+        const assetPurpose = PURPOSES.has(meta.assetPurpose)
+          ? meta.assetPurpose
+          : defaultPurpose(kind)
+        // speaker_role only carries meaning for interview-purpose uploads.
+        // For broll/photo/brand we deliberately store NULL so the segmenter
+        // doesn't pick the row up and so MediaDetail can hide the field.
+        const speakerRole = assetPurpose === 'interview'
+          ? (meta.speakerRole || 'clinician')
+          : null
+        let probeWidth = null
+        let probeHeight = null
+        if (kind === 'photo') {
+          try {
+            const dims = await probeImageDimsFromUrl(blob.url)
+            probeWidth = dims.width
+            probeHeight = dims.height
+          } catch { /* non-fatal */ }
+        }
+
         const row = {
           [scopeColumn]: scopeId,
           kind,
@@ -172,12 +266,15 @@ async function handler(req, res) {
           filename: meta.filename || blob.pathname.split('/').pop(),
           mime_type: blob.contentType,
           size_bytes: blob.size || null,
+          width: probeWidth,
+          height: probeHeight,
           patient_pseudonym: meta.patientPseudonym || null,
           condition: meta.condition || null,
           captured_at: meta.capturedAt || null,
           notes: meta.notes || null,
           created_by: meta.createdBy || null,
-          speaker_role: meta.speakerRole || 'clinician',
+          asset_purpose: assetPurpose,
+          speaker_role: speakerRole,
           parent_id: meta.parentId || null,
         }
 
@@ -234,12 +331,19 @@ async function handler(req, res) {
             }).catch((e) => console.error('Audit record failed:', e?.message)))
 
             // Auto-pipeline: tag (Phase 2) → segment into content_pieces
-            // (Phase 3, video only). tagAndPersist's own audit row writes
-            // inside _lib/tagAsset.js.
+            // (Phase 3, interview videos only). tagAndPersist's own audit
+            // row writes inside _lib/tagAsset.js.
+            //
+            // Segmentation is gated on asset_purpose='interview' because the
+            // segmenter prompt assumes spoken narrative + speaker role and
+            // produces nonsense for B-roll / facility photos / brand assets.
+            // Those still get AI tags (useful for search), just not edit
+            // briefs in the content queue.
             waitUntil(
               tagAndPersist(insertedRow, innerScope)
                 .then((tagged) => {
                   if (tagged?.kind !== 'video') return
+                  if (tagged?.asset_purpose !== 'interview') return
                   const hasSpeech = tagged?.transcription?.trim()
                   const hasVisual = tagged?.visual_narrative?.trim()
                   if (hasSpeech || hasVisual) return segmentAndPersist(tagged, innerScope)
@@ -254,6 +358,35 @@ async function handler(req, res) {
               waitUntil(
                 generateAndPersistThumbnail(insertedRow, innerScope)
                   .catch((e) => console.error('Thumbnail generation failed:', e?.message)),
+              )
+              waitUntil(
+                probeVideoDimsFromUrl(blob.url)
+                  .then(({ width, height }) => {
+                    if (!width || !height) return
+                    return sb(`media_assets?id=eq.${insertedRow.id}&${scopeColumn}=eq.${scopeId}`, {
+                      method: 'PATCH',
+                      body: JSON.stringify({ width, height }),
+                    })
+                  })
+                  .catch((e) => console.error('Video dimension probe failed:', e?.message)),
+              )
+              // Faststart probe — observability only for now. A "tail" result
+              // means the moov atom is at the end of the file, which both
+              // hurts playback start-latency and would blow /tmp if a later
+              // edit tried to re-add +faststart. When we add a streaming-pipe
+              // re-mux ("upload-time normalize"), this is the signal to fire.
+              waitUntil(
+                probeFaststart(blob.url)
+                  .then((status) => {
+                    if (status === 'tail') {
+                      console.warn(
+                        `[upload] non-faststart video uploaded id=${insertedRow.id} size=${blob.size} — playback start latency will be slow until normalize lands`,
+                      )
+                    } else if (status === 'unknown') {
+                      console.warn(`[upload] faststart probe inconclusive id=${insertedRow.id}`)
+                    }
+                  })
+                  .catch((e) => console.error('Faststart probe failed:', e?.message)),
               )
             }
           }

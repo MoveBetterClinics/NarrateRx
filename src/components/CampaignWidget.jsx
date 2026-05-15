@@ -178,7 +178,7 @@ export function CampaignModeChip() {
           )}
 
           <p className="text-[11px] text-muted-foreground pt-1 border-t">
-            Affects every content generation. Full settings on the <a href="/strategy" className="text-primary underline">Strategy</a> page.
+            Affects every content generation. Full settings in <a href="/settings/workspace" className="text-primary underline">Workspace Settings</a>.
           </p>
         </div>
       )}

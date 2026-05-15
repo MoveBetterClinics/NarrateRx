@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mocks · NarrateRx home-page directions</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/svg+xml" href="/narraterx-icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    :root {
+      --ink: #14171d;
+      --ink-soft: #4a4f5a;
+      --grey: #7a7f88;
+      --bg: #f7f6f3;
+      --paper: #ffffff;
+      --line: #e3e2dd;
+      --orange: #d65a1f;
+      --sans: 'Inter', system-ui, sans-serif;
+      --serif: 'Source Serif 4', Georgia, serif;
+      --mono: 'JetBrains Mono', ui-monospace, monospace;
+    }
+    html, body { margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--orange); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 0 clamp(20px, 4vw, 56px); }
+
+    .top {
+      padding: 56px 0 28px;
+      border-bottom: 1px solid var(--line);
+      background: var(--paper);
+    }
+    .top-inner { display: flex; justify-content: space-between; align-items: baseline; gap: 24px; flex-wrap: wrap; }
+    .top h1 {
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: clamp(34px, 5vw, 48px);
+      margin: 0 0 10px;
+      letter-spacing: -0.02em;
+      line-height: 1.05;
+    }
+    .top h1 em { font-style: italic; color: var(--orange); }
+    .top p {
+      color: var(--ink-soft);
+      margin: 0;
+      max-width: 640px;
+      font-size: 17px;
+    }
+    .top-meta {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--grey);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .top-meta a { color: var(--ink); }
+
+    .intro {
+      padding: 36px 0 12px;
+      max-width: 880px;
+    }
+    .intro p { font-size: 16px; color: var(--ink-soft); margin: 0 0 12px; }
+    .intro strong { color: var(--ink); }
+
+    .grid {
+      padding: 36px 0 80px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 36px;
+    }
+    @media (max-width: 920px) { .grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      text-decoration: none;
+      color: inherit;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 24px 60px -28px rgba(0,0,0,0.25);
+      text-decoration: none;
+    }
+    .card-thumb {
+      height: 280px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 30px;
+    }
+    .card-thumb-inner {
+      width: 100%;
+      max-width: 90%;
+    }
+    .card-thumb h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      line-height: 1.1;
+      font-weight: 700;
+    }
+    .card-thumb p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Per-thumb visual previews — match each mock's actual aesthetic */
+    .card.warm .card-thumb {
+      background: linear-gradient(170deg, #f9f3e9 0%, #f6e5d2 100%);
+      color: #1a1612;
+      font-family: var(--serif);
+    }
+    .card.warm .card-thumb h2 { font-style: italic; }
+    .card.warm .card-thumb h2 em { color: #d65a1f; font-style: italic; }
+    .card.warm .ribbon {
+      font-family: var(--sans);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #a8421a;
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .card.bold .card-thumb {
+      background: #fafaf6;
+      color: #0a0a0a;
+      border-bottom: 2px solid #0a0a0a;
+      font-family: var(--sans);
+    }
+    .card.bold .card-thumb h2 {
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      font-size: 28px;
+    }
+    .card.bold .card-thumb h2 .hi { background: #ff4d00; color: #0a0a0a; padding: 0 6px; }
+    .card.bold .ribbon {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #0a0a0a;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: inline-block;
+      background: #ff4d00;
+      padding: 4px 10px;
+    }
+
+    .card.clinical .card-thumb {
+      background: linear-gradient(180deg, #f1f5f6 0%, #ffffff 100%);
+      color: #14213d;
+      font-family: var(--sans);
+    }
+    .card.clinical .card-thumb h2 { font-family: var(--serif); font-weight: 500; }
+    .card.clinical .card-thumb h2 em { font-style: italic; color: #0e5c5c; }
+    .card.clinical .ribbon {
+      display: inline-block;
+      background: #e6f0f0;
+      color: #0e5c5c;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 5px 14px;
+      border-radius: 999px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+
+    .card.dark .card-thumb {
+      background:
+        radial-gradient(circle at 80% -10%, rgba(255,107,91,0.20) 0%, transparent 50%),
+        radial-gradient(circle at -10% 40%, rgba(139,140,255,0.10) 0%, transparent 50%),
+        #0a0b10;
+      color: #f5f5f7;
+      font-family: var(--sans);
+    }
+    .card.dark .card-thumb h2 {
+      font-weight: 700;
+      background: linear-gradient(180deg, #fff 0%, #bdc1d0 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: -0.03em;
+      font-size: 28px;
+    }
+    .card.dark .card-thumb h2 em {
+      font-style: normal;
+      background: linear-gradient(135deg, #ff6b5b 0%, #ffae8b 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .card.dark .ribbon {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: #ff6b5b;
+      font-weight: 600;
+      margin-bottom: 12px;
+      padding: 4px 10px;
+      border: 1px solid rgba(255,255,255,0.16);
+      border-radius: 999px;
+      display: inline-block;
+      background: rgba(20,23,31,0.6);
+    }
+    .card.dark .card-thumb p { color: #a3a8b8; }
+
+    .card-body {
+      padding: 26px 28px 28px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-body h3 {
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 20px;
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
+    .card-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--grey);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    .card-body p {
+      color: var(--ink-soft);
+      margin: 0 0 16px;
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    .card-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 18px;
+    }
+    .tag {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      padding: 4px 9px;
+      border-radius: 6px;
+      color: var(--ink-soft);
+      letter-spacing: 0.04em;
+    }
+    .card-actions {
+      display: flex;
+      gap: 10px;
+      margin-top: auto;
+      flex-wrap: wrap;
+    }
+    .btn {
+      font-size: 14px;
+      font-weight: 600;
+      padding: 10px 18px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--paper);
+      color: var(--ink);
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-primary { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .btn-primary:hover { background: var(--orange); border-color: var(--orange); text-decoration: none; }
+    .btn:hover { border-color: var(--ink); text-decoration: none; }
+
+    /* Featured card — Dusk synthesis */
+    .featured-wrap {
+      padding: 24px 0 12px;
+    }
+    .featured {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr;
+      gap: 0;
+      background: linear-gradient(180deg, #2c241d 0%, #1a1612 100%);
+      border-radius: 22px;
+      overflow: hidden;
+      box-shadow: 0 40px 100px -30px rgba(0,0,0,0.40), 0 0 0 1px rgba(255,122,82,0.15);
+      position: relative;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .featured:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 50px 120px -30px rgba(0,0,0,0.50), 0 0 0 1px rgba(255,122,82,0.30);
+      text-decoration: none;
+    }
+    @media (max-width: 860px) { .featured { grid-template-columns: 1fr; } }
+    .featured::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%;
+      transform: translateX(-50%);
+      width: 60%; height: 1px;
+      background: linear-gradient(90deg, transparent 0%, #ff7a52 50%, transparent 100%);
+    }
+    .featured-preview {
+      padding: 56px 48px;
+      color: #faf3e6;
+      background:
+        radial-gradient(circle at 85% 10%, rgba(255,122,82,0.18) 0%, transparent 50%),
+        radial-gradient(circle at 15% 80%, rgba(155,191,156,0.08) 0%, transparent 55%);
+    }
+    .featured-ribbon {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #ff7a52;
+      font-weight: 700;
+      padding: 6px 14px;
+      background: rgba(255,122,82,0.12);
+      border: 1px solid rgba(255,122,82,0.30);
+      border-radius: 999px;
+      margin-bottom: 24px;
+    }
+    .featured-ribbon::before {
+      content: '★';
+      font-size: 14px;
+    }
+    .featured-preview h2 {
+      font-family: 'Inter', sans-serif;
+      font-weight: 700;
+      font-size: clamp(30px, 4vw, 44px);
+      line-height: 1.04;
+      letter-spacing: -0.025em;
+      margin: 0 0 18px;
+      background: linear-gradient(180deg, #fffaf0 0%, #c8b9a4 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .featured-preview h2 em {
+      font-family: 'Source Serif 4', Georgia, serif;
+      font-style: italic;
+      font-weight: 500;
+      background: linear-gradient(135deg, #ff7a52 0%, #ffae8b 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .featured-preview p {
+      color: #c8b9a4;
+      font-size: 17px;
+      line-height: 1.6;
+      margin: 0 0 26px;
+      max-width: 480px;
+    }
+    .featured-tags {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px;
+    }
+    .featured-tags span {
+      font-size: 12px;
+      background: rgba(255,243,230,0.08);
+      border: 1px solid rgba(255,243,230,0.16);
+      color: #c8b9a4;
+      padding: 5px 11px;
+      border-radius: 999px;
+      letter-spacing: 0.02em;
+    }
+    .featured-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #faf3e6;
+      color: #1a1612 !important;
+      padding: 12px 22px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .featured-cta:hover { background: #ff7a52; color: #1a1612 !important; }
+    .featured-side {
+      padding: 56px 48px;
+      border-left: 1px solid rgba(255,243,230,0.10);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 18px;
+    }
+    @media (max-width: 860px) {
+      .featured-side { border-left: 0; border-top: 1px solid rgba(255,243,230,0.10); padding: 32px 48px; }
+    }
+    .featured-side h3 {
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #9bbf9c;
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+    .featured-side ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+    .featured-side li {
+      color: #faf3e6;
+      font-size: 14.5px;
+      line-height: 1.5;
+      padding-left: 22px;
+      position: relative;
+    }
+    .featured-side li::before {
+      content: '→';
+      position: absolute;
+      left: 0;
+      color: #ff7a52;
+      font-weight: 700;
+    }
+    .featured-side li strong { color: #fff; font-weight: 600; }
+
+    /* Color variant strip */
+    .variants-head {
+      padding: 32px 0 8px;
+    }
+    .variants-head h2 {
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: clamp(22px, 3vw, 30px);
+      margin: 0 0 10px;
+      letter-spacing: -0.01em;
+    }
+    .variants-head h2 em { font-style: italic; color: var(--orange); }
+    .variants-head p { color: var(--ink-soft); margin: 0; max-width: 720px; }
+
+    .variants {
+      padding: 20px 0 64px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 18px;
+    }
+    @media (max-width: 920px) { .variants { grid-template-columns: 1fr; } }
+
+    .variant {
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+    }
+    .variant:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 24px 60px -28px rgba(0,0,0,0.25);
+      text-decoration: none;
+    }
+    .variant-thumb {
+      height: 220px;
+      padding: 28px 26px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .variant-thumb::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 30%;
+      width: 40%; height: 1px;
+    }
+    .variant-name {
+      display: inline-block;
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-bottom: 18px;
+    }
+    .variant-thumb h3 {
+      margin: 0 0 6px;
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 22px;
+      line-height: 1.1;
+      letter-spacing: -0.02em;
+    }
+    .variant-thumb h3 em {
+      font-family: var(--serif);
+      font-style: italic;
+      font-weight: 500;
+    }
+    .variant-thumb p {
+      font-size: 13.5px;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    /* Midnight thumb — lighter navy */
+    .variant.midnight .variant-thumb {
+      background:
+        radial-gradient(circle at 85% 10%, rgba(255,122,82,0.16) 0%, transparent 50%),
+        radial-gradient(circle at 15% 80%, rgba(109,191,176,0.08) 0%, transparent 55%),
+        #243558;
+      color: #f4f7ff;
+    }
+    .variant.midnight .variant-name {
+      background: rgba(255,122,82,0.18); color: #ffa085; border: 1px solid rgba(255,122,82,0.35);
+    }
+    .variant.midnight h3 { background: linear-gradient(180deg, #f4f7ff 0%, #c0cce8 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .variant.midnight h3 em { background: linear-gradient(135deg, #ff7a52 0%, #ffae8b 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .variant.midnight p { color: #c0cce8; }
+    .variant.midnight .variant-thumb::before { background: linear-gradient(90deg, transparent 0%, #ff7a52 50%, transparent 100%); }
+
+    /* Forest thumb — ~50% less opaque green */
+    .variant.forest .variant-thumb {
+      background:
+        radial-gradient(circle at 85% 10%, rgba(255,133,82,0.06) 0%, transparent 50%),
+        radial-gradient(circle at 15% 80%, rgba(168,214,160,0.04) 0%, transparent 55%),
+        #4a7a62;
+      color: #f8fbf2;
+    }
+    .variant.forest .variant-name {
+      background: rgba(255,133,82,0.20); color: #ffae8b; border: 1px solid rgba(255,133,82,0.40);
+    }
+    .variant.forest h3 { background: linear-gradient(180deg, #f8fbf2 0%, #d4e3cf 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .variant.forest h3 em { background: linear-gradient(135deg, #ff8552 0%, #ffb892 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .variant.forest p { color: #d4e3cf; }
+    .variant.forest .variant-thumb::before { background: linear-gradient(90deg, transparent 0%, #ff8552 50%, transparent 100%); }
+
+    /* Parchment thumb */
+    .variant.parchment .variant-thumb {
+      background:
+        radial-gradient(circle at 85% 10%, rgba(200,69,31,0.08) 0%, transparent 50%),
+        radial-gradient(circle at 15% 80%, rgba(79,122,89,0.06) 0%, transparent 55%),
+        #f7efde;
+      color: #1a1612;
+    }
+    .variant.parchment .variant-name {
+      background: rgba(200,69,31,0.10); color: #c8451f; border: 1px solid rgba(200,69,31,0.24);
+    }
+    .variant.parchment h3 { color: #1a1612; }
+    .variant.parchment h3 em { color: #c8451f; }
+    .variant.parchment p { color: #5a4d3b; }
+    .variant.parchment .variant-thumb::before { background: linear-gradient(90deg, transparent 0%, #c8451f 50%, transparent 100%); }
+
+    .variant-body {
+      padding: 20px 22px 22px;
+      background: var(--paper);
+    }
+    .variant-body h4 {
+      margin: 0 0 6px;
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.01em;
+    }
+    .variant-body p {
+      margin: 0 0 12px;
+      color: var(--ink-soft);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+    .variant-body p:last-child { margin-bottom: 0; }
+    .variant-body .swatches {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .variant-body .swatch {
+      width: 18px; height: 18px;
+      border-radius: 5px;
+      border: 1px solid var(--line);
+    }
+
+    .matrix-wrap {
+      padding: 24px 0 80px;
+      max-width: 1080px;
+    }
+    .matrix-wrap h2 {
+      font-family: var(--serif);
+      font-weight: 600;
+      font-size: 28px;
+      margin: 0 0 12px;
+      letter-spacing: -0.01em;
+    }
+    .matrix-wrap > p {
+      color: var(--ink-soft);
+      margin: 0 0 24px;
+    }
+    table.matrix {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      font-size: 14px;
+    }
+    table.matrix th, table.matrix td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    table.matrix tr:last-child td { border-bottom: 0; }
+    table.matrix th { background: var(--bg); font-weight: 700; font-size: 13px; }
+    table.matrix th:first-child { width: 180px; }
+    table.matrix td.lbl { font-weight: 600; color: var(--ink); }
+
+    .footer-note {
+      padding: 28px 0 64px;
+      color: var(--grey);
+      font-size: 13px;
+      border-top: 1px solid var(--line);
+    }
+    .footer-note p { margin: 0 0 4px; }
+  </style>
+</head>
+<body>
+
+<section class="top">
+  <div class="wrap top-inner">
+    <div>
+      <h1>Five directions for the <em>narraterx.ai</em> home page.</h1>
+      <p>Originally four mocks, plus one synthesis (<strong>05 Dusk</strong>) built from your specific feedback: dark hero from 04, six-card grid from 04, asymmetric stat panel from 02, warmth from 03, zero monospace artifacts. <strong>That's the recommended pick now</strong> — the others stay live so you can sanity-check.</p>
+    </div>
+    <p class="top-meta">Built for <a href="mailto:drq@narraterx.ai">Dr. Q</a> · stakeholder review only · <a href="/">live site</a></p>
+  </div>
+</section>
+
+<section class="wrap intro">
+  <p><strong>How to read these.</strong> Each mock is a complete home-page direction — header, hero, one signature section, and footer — using the same product story but a totally different visual voice. The body pages (how-it-works, features, compare, etc.) on the live site would be restyled to whichever direction you pick.</p>
+  <p><strong>Updated recommendation:</strong> <strong>05 Dusk</strong> (below) is the synthesis built from your specific feedback after reviewing the first four. It keeps the dark hero gradient and six-card feature grid from Dark, borrows the asymmetric stat panel from Bold, takes the warmth and italic-serif emphasis from Clinical, and strips out every <code style="background:rgba(0,0,0,0.06);padding:1px 4px;border-radius:3px;">//</code> mono artifact. The original four stay below for sanity-checking.</p>
+</section>
+
+<section class="wrap featured-wrap">
+  <a class="featured" href="/mock-dusk">
+    <div class="featured-preview">
+      <div class="featured-ribbon">Direction 05 · Recommended synthesis</div>
+      <h2>One interview.<br>A month of content<br><em>— in your actual voice.</em></h2>
+      <p>Dark hero from 04 · Six-card feature grid from 04 · Asymmetric stat panel from 02 · Warmth + italic serif from 03 · Zero monospace artifacts. Built from your exact feedback after reviewing the first four.</p>
+      <div class="featured-tags">
+        <span>warm dark #1a1612</span>
+        <span>coral #ff7a52</span>
+        <span>sage accents</span>
+        <span>Inter + italic serif</span>
+        <span>no // anywhere</span>
+      </div>
+      <span class="featured-cta">Open the original Dusk (warm brown) →</span>
+    </div>
+    <div class="featured-side">
+      <h3>What it pulls from</h3>
+      <ul>
+        <li><strong>From 04 Dark:</strong> gradient headline, product-window preview, six-card feature grid layout</li>
+        <li><strong>From 02 Bold:</strong> asymmetric hero with side stat panel, the "leverage" framing</li>
+        <li><strong>From 03 Clinical:</strong> warmth, sage trust accent, italic-serif for emphasis instead of code mono</li>
+        <li><strong>Removed:</strong> every // mono prefix, JetBrains/IBM Plex Mono fonts, cool blue-black background</li>
+      </ul>
+    </div>
+  </a>
+</section>
+
+<section class="wrap variants-head">
+  <h2>Color variants — <em>same Dusk layout, three different backgrounds.</em></h2>
+  <p>You flagged the warm brown background as not quite right. Here are three alternatives on the exact same Dusk structure — pick a background and I'll lock it in. (Or tell me what to push: more saturation, less, different hue, different lightness.)</p>
+</section>
+
+<section class="wrap variants">
+
+  <a class="variant midnight" href="/mock-dusk-midnight">
+    <div class="variant-thumb">
+      <span class="variant-name">Variant A · Midnight</span>
+      <h3>One interview.<br>A month <em>— in your voice.</em></h3>
+      <p>Deep navy. Coral pops harder. Cool but not cold.</p>
+    </div>
+    <div class="variant-body">
+      <div class="swatches">
+        <span class="swatch" style="background:#243558"></span>
+        <span class="swatch" style="background:#324672"></span>
+        <span class="swatch" style="background:#ff7a52"></span>
+        <span class="swatch" style="background:#6dbfb0"></span>
+        <span class="swatch" style="background:#f4f7ff"></span>
+      </div>
+      <h4>Midnight — `#243558`</h4>
+      <p>Lightened navy — more breathable than the deep version, same hue family. Coral still pops, but the page feels less heavy. Closest comp: Vercel × Stripe, two clicks lighter.</p>
+    </div>
+  </a>
+
+  <a class="variant forest" href="/mock-dusk-forest">
+    <div class="variant-thumb">
+      <span class="variant-name">Variant B · Forest</span>
+      <h3>One interview.<br>A month <em>— in your voice.</em></h3>
+      <p>Deep evergreen. Distinctively healthcare-grounded.</p>
+    </div>
+    <div class="variant-body">
+      <div class="swatches">
+        <span class="swatch" style="background:#4a7a62"></span>
+        <span class="swatch" style="background:#588f7a"></span>
+        <span class="swatch" style="background:#ff8552"></span>
+        <span class="swatch" style="background:#a8d6a0"></span>
+        <span class="swatch" style="background:#f8fbf2"></span>
+      </div>
+      <h4>Forest — `#4a7a62`</h4>
+      <p>Same green hue, lifted about halfway toward a "transparent on white" feel. Reads as solid sage-forest rather than deep evergreen. Light text still clears AA contrast on this base.</p>
+    </div>
+  </a>
+
+  <a class="variant parchment" href="/mock-dusk-parchment">
+    <div class="variant-thumb">
+      <span class="variant-name">Variant C · Parchment</span>
+      <h3>One interview.<br>A month <em>— in your voice.</em></h3>
+      <p>Light cream. The "what if dark isn't right" flip.</p>
+    </div>
+    <div class="variant-body">
+      <div class="swatches">
+        <span class="swatch" style="background:#f7efde"></span>
+        <span class="swatch" style="background:#ffffff"></span>
+        <span class="swatch" style="background:#c8451f"></span>
+        <span class="swatch" style="background:#4f7a59"></span>
+        <span class="swatch" style="background:#1a1612"></span>
+      </div>
+      <h4>Parchment — `#f7efde`</h4>
+      <p>Same layout, light skin. Worth a click to know whether dark is even the right answer. If this feels right, the "warmth" came from the cream all along, not the dark. Closest comp: Substack × Stripe Atlas.</p>
+    </div>
+  </a>
+
+</section>
+
+<section class="wrap grid">
+
+  <a class="card warm" href="/mock-warm">
+    <div class="card-thumb">
+      <div class="card-thumb-inner">
+        <div class="ribbon">Direction 01</div>
+        <h2>One interview.<br>A month of content<br><em>— in your actual voice.</em></h2>
+        <p style="margin-top:12px;color:#4a4138;">A field manual for owner-operators</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="card-num">01 / Warm Editorial</p>
+      <h3>Magazine-grade. Lit-clinic-owner.</h3>
+      <p>A refined evolution of what's live today: warm cream + orange + sage, serif display headlines, drop caps, magazine-grid layouts. Feels like an essay you'd subscribe to.</p>
+      <div class="card-tags">
+        <span class="tag">serif display</span>
+        <span class="tag">orange + sage</span>
+        <span class="tag">asymmetric</span>
+        <span class="tag">drop caps</span>
+      </div>
+      <div class="card-actions">
+        <span class="btn btn-primary">Open mock →</span>
+        <span class="btn">CSS · mock-warm.css</span>
+      </div>
+    </div>
+  </a>
+
+  <a class="card bold" href="/mock-bold">
+    <div class="card-thumb">
+      <div class="card-thumb-inner">
+        <div class="ribbon">// Direction 02</div>
+        <h2>Stop sounding like<br><span class="hi">every other clinic</span><br>on the internet.</h2>
+        <p style="margin-top:14px;color:#0a0a0a;font-family:var(--mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;">// v0.9 founding cohort open</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="card-num">02 / Bold Brutalist</p>
+      <h3>Black on white. Neon orange. Loud on purpose.</h3>
+      <p>Oversized type, no rounded corners, asymmetric block layouts, mono details. Confident, almost aggressive. Stands out completely from every other healthcare SaaS landing page on the internet.</p>
+      <div class="card-tags">
+        <span class="tag">800-weight sans</span>
+        <span class="tag">#ff4d00 accent</span>
+        <span class="tag">monospace details</span>
+        <span class="tag">hard edges</span>
+      </div>
+      <div class="card-actions">
+        <span class="btn btn-primary">Open mock →</span>
+        <span class="btn">CSS · mock-bold.css</span>
+      </div>
+    </div>
+  </a>
+
+  <a class="card clinical" href="/mock-clinical">
+    <div class="card-thumb">
+      <div class="card-thumb-inner">
+        <div class="ribbon">● Trusted by three clinical practices</div>
+        <h2>Voice-faithful content,<br>built around <em>clinician time.</em></h2>
+        <p style="margin-top:12px;color:#3a4659;">The content engine clinical owner-operators trust</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="card-num">03 / Clinical Trust</p>
+      <h3>Calm. Credible. The "we belong in healthcare" look.</h3>
+      <p>Soft whites, deep teal primary, sage accents, generous spacing. Looks like a serious medical software tool. The first impression a referring colleague would screenshot.</p>
+      <div class="card-tags">
+        <span class="tag">teal + sage</span>
+        <span class="tag">centered hero</span>
+        <span class="tag">pill buttons</span>
+        <span class="tag">Newsreader serif</span>
+      </div>
+      <div class="card-actions">
+        <span class="btn btn-primary">Open mock →</span>
+        <span class="btn">CSS · mock-clinical.css</span>
+      </div>
+    </div>
+  </a>
+
+  <a class="card dark" href="/mock-dark">
+    <div class="card-thumb">
+      <div class="card-thumb-inner">
+        <div class="ribbon">● v0.9 · founding cohort open →</div>
+        <h2>The marketing engine that <em>sounds like you.</em></h2>
+        <p style="margin-top:14px;font-family:var(--mono);font-size:11px;letter-spacing:0.06em;color:#6c7088;">// 10 founding seats · permanent founding rate</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <p class="card-num">04 / Dark Product</p>
+      <h3>Linear / Vercel energy. Speaks to operators who buy serious software.</h3>
+      <p>Near-black background, coral accent, mono code touches, gradient text, glass cards, a faux-product-window preview in the hero. Signals "this is a real software product."</p>
+      <div class="card-tags">
+        <span class="tag">#0a0b10 bg</span>
+        <span class="tag">#ff6b5b coral</span>
+        <span class="tag">JetBrains Mono</span>
+        <span class="tag">gradient text</span>
+      </div>
+      <div class="card-actions">
+        <span class="btn btn-primary">Open mock →</span>
+        <span class="btn">CSS · mock-dark.css</span>
+      </div>
+    </div>
+  </a>
+
+</section>
+
+<section class="wrap matrix-wrap">
+  <h2>Quick decision matrix</h2>
+  <p>If you want to short-circuit the comparison, here's the one-screen version.</p>
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th></th>
+        <th style="background:#fff5ec;color:#a8421a;">05 Dusk (rec.)</th>
+        <th>01 Warm Editorial</th>
+        <th>02 Bold Brutalist</th>
+        <th>03 Clinical Trust</th>
+        <th>04 Dark Product</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="lbl">Speaks loudest to</td>
+        <td><strong>Clinical owner-operators who buy serious software</strong></td>
+        <td>Owner-clinicians who read</td>
+        <td>Operators tired of soft brands</td>
+        <td>Referring colleagues, MDs</td>
+        <td>Tech-fluent buyers, coaches</td>
+      </tr>
+      <tr>
+        <td class="lbl">Distinctiveness</td>
+        <td><strong>High</strong></td>
+        <td>Medium</td>
+        <td>Very high</td>
+        <td>Low–medium</td>
+        <td>High</td>
+      </tr>
+      <tr>
+        <td class="lbl">"Healthcare trust" read</td>
+        <td><strong>Strong (warmth + sage)</strong></td>
+        <td>Good</td>
+        <td>Risky (anti-establishment)</td>
+        <td>Strongest</td>
+        <td>Weakest (looks tech-y)</td>
+      </tr>
+      <tr>
+        <td class="lbl">"Software product" read</td>
+        <td><strong>Strong (product window)</strong></td>
+        <td>Weakest (feels editorial)</td>
+        <td>Medium</td>
+        <td>Medium</td>
+        <td>Strongest</td>
+      </tr>
+      <tr>
+        <td class="lbl">Closest comp</td>
+        <td><strong>Vercel + Linear, but warm</strong></td>
+        <td>The Atlantic / Substack</td>
+        <td>Liquid Death / Off-White</td>
+        <td>Hims, One Medical</td>
+        <td>Linear, Vercel, Cursor</td>
+      </tr>
+      <tr>
+        <td class="lbl">Effort to convert full site</td>
+        <td><strong>Medium (new system)</strong></td>
+        <td>Lowest (extends current)</td>
+        <td>Medium (new system)</td>
+        <td>Medium (new system)</td>
+        <td>Medium-high (new system)</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="wrap footer-note">
+  <p>All four mocks are no-index and live only at /mock-warm, /mock-bold, /mock-clinical, /mock-dark. Linked from this page only. They share none of the live site's CSS — what you see is what you'd get if we converted the whole site to that direction.</p>
+  <p>Once you pick a direction, the conversion work is: 1) port the chosen mock's tokens (colors, typography, button styles) into shared variables, 2) restyle the existing eight marketing pages using those tokens, 3) retire the other three mocks. Roughly a half-day's work per pick.</p>
+</section>
+
+</body>
+</html>

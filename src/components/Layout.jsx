@@ -1,42 +1,47 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
-import { Plus, Settings, Building2, Menu, Palette } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Images, Layers } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
 } from '@/components/ui/dialog'
 import { CampaignModeChip } from '@/components/CampaignWidget'
-import { workspace } from '@/lib/workspace'
+import { workspace as STATIC_WORKSPACE } from '@/lib/workspace'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
 
-// Match() handles the multi-prefix Content Hub case — /hub, /review, /calendar
-// all light up the same nav item since they're a single publishing surface.
+// App-level byline shown under the "NarrateRx" wordmark in the header.
+// Intentionally NOT the workspace tagline — that belongs to the tenant's brand,
+// not to the product. Keep this short so it doesn't wrap on small headers.
+const APP_BYLINE = 'Interview-driven patient content'
+import TrialBanner from '@/components/TrialBanner'
+
 const NAV_ITEMS = [
-  { to: '/',         label: 'Interviews',  match: (p) => p === '/' },
-  { to: '/hub',      label: 'Content Hub', match: (p) => p.startsWith('/hub') || p.startsWith('/review') || p.startsWith('/calendar') },
-  { to: '/media',    label: 'Media',       match: (p) => p.startsWith('/media') },
-  { to: '/strategy', label: 'Strategy',    match: (p) => p === '/strategy' },
+  { to: '/',        label: 'Home',    match: (p) => p === '/' },
+  { to: '/stories', label: 'Stories', match: (p) => p.startsWith('/stories') },
 ]
 
 export default function Layout({ children }) {
   const location = useLocation()
-  const isHome = location.pathname === '/'
   const { role } = useUserRole()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const ws = useWorkspace()
+  const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
+  const logoAlt = ws?.display_name || ws?.name || STATIC_WORKSPACE.name
 
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-40 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm">
         <div className="container flex h-14 items-center gap-3 sm:gap-4">
           <Link to="/" className="flex items-center gap-3 min-w-0">
-            <img src={workspace.logo.main} alt={workspace.name} className="h-9 w-auto shrink-0" />
+            <img src={logoSrc} alt={logoAlt} className="h-9 w-auto shrink-0" />
             <div className="hidden sm:block border-l border-border pl-3 min-w-0">
               <p className="text-xs font-semibold leading-none text-foreground truncate" style={{ fontFamily: "'Titillium Web', sans-serif" }}>
                 NarrateRx
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 leading-none truncate" title={workspace.tagline}>
-                {workspace.tagline}
+              <p className="text-[10px] text-muted-foreground mt-0.5 leading-none truncate" title={APP_BYLINE}>
+                {APP_BYLINE}
               </p>
             </div>
           </Link>
@@ -52,6 +57,14 @@ export default function Layout({ children }) {
           </nav>
           <div className="hidden md:flex items-center gap-3">
             <CampaignModeChip />
+            <Link to="/library" title="Media library" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors">
+              <Images className="h-4 w-4" />
+            </Link>
+            {role === 'admin' && (
+              <Link to="/synthesis" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors" title="Knowledge synthesis">
+                <Layers className="h-4 w-4" />
+              </Link>
+            )}
             {role === 'admin' && (
               <Link to="/settings/workspace" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors" title="Workspace settings">
                 <Building2 className="h-4 w-4" />
@@ -62,17 +75,14 @@ export default function Layout({ children }) {
             </Link>
           </div>
 
-          {/* New Interview is the primary action — visible on every breakpoint
-              when we're on Dashboard. Collapses to an icon-only button below sm. */}
-          {isHome && (
-            <Button asChild size="sm">
-              <Link to="/new">
-                <Plus className="h-4 w-4 sm:mr-1.5" />
-                <span className="hidden sm:inline">New Interview</span>
-                <span className="sr-only sm:hidden">New Interview</span>
-              </Link>
-            </Button>
-          )}
+          {/* New Interview — primary action, visible on every page */}
+          <Button asChild size="sm">
+            <Link to="/new">
+              <Plus className="h-4 w-4 sm:mr-1.5" />
+              <span className="hidden sm:inline">New Interview</span>
+              <span className="sr-only sm:hidden">New Interview</span>
+            </Link>
+          </Button>
 
           <UserButton afterSignOutUrl="/" />
 
@@ -107,6 +117,18 @@ export default function Layout({ children }) {
             ))}
           </div>
           <div className="pt-3 border-t space-y-1">
+            <DialogClose asChild>
+              <Link to="/library" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+                <Images className="h-4 w-4" /> Media library
+              </Link>
+            </DialogClose>
+            {role === 'admin' && (
+              <DialogClose asChild>
+                <Link to="/synthesis" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+                  <Layers className="h-4 w-4" /> Knowledge synthesis
+                </Link>
+              </DialogClose>
+            )}
             {role === 'admin' && (
               <DialogClose asChild>
                 <Link to="/settings/workspace" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
@@ -132,6 +154,8 @@ export default function Layout({ children }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <TrialBanner />
 
       <main className="container py-8">
         {children}

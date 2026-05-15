@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Plus, FileText, Clock, Trash2, ChevronRight, MessageSquare, Loader2, AlertCircle } from 'lucide-react'
+import {
+  ArrowLeft, Plus, FileText, Clock, Trash2, ChevronRight, MessageSquare, Loader2, AlertCircle,
+  Facebook, Instagram, Globe, Mail, BookOpen, TrendingUp, Flame, BarChart2,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -11,18 +14,23 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { useClinician, useDeleteClinician, useDeleteInterview } from '@/lib/queries'
+import VoiceNotesPanel from '@/components/VoiceNotesPanel'
 import { getInitials, formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { useUserRole } from '@/lib/useUserRole'
+import { fetchClinicianArc } from '@/lib/api'
 
 export default function ClinicianProfile() {
   useDocumentTitle('Clinician')
   const { clinicianId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
+  const { role } = useUserRole()
   const { data: clinician, isLoading: loading, error: loadError } = useClinician(clinicianId)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteError, setDeleteError] = useState('')
+  const [arc, setArc] = useState(null)
 
   const deleteClinicianMut = useDeleteClinician()
   const deleteInterviewMut = useDeleteInterview()
@@ -35,6 +43,17 @@ export default function ClinicianProfile() {
       navigate('/')
     }
   }, [loading, loadError, clinician, navigate])
+
+  // Fetch arc data once the clinician (with interviews) is loaded, but only
+  // when the viewer is the profile owner or an admin.
+  useEffect(() => {
+    if (!clinician) return
+    const isOwner = clinician.created_by_id === user?.id
+    if (!isOwner && role !== 'admin') return
+    fetchClinicianArc(clinicianId, clinician.interviews || [])
+      .then(setArc)
+      .catch(() => {}) // non-fatal — dashboard just stays hidden
+  }, [clinician, clinicianId, user?.id, role])
 
   async function handleDeleteInterview(interviewId) {
     setDeleteError('')
@@ -72,6 +91,7 @@ export default function ClinicianProfile() {
   const completed = interviews.filter((i) => i.status === 'completed')
   const inProgress = interviews.filter((i) => i.status === 'in_progress')
   const isMyClinicianProfile = clinician.created_by_id === user?.id
+  const showArc = isMyClinicianProfile || role === 'admin'
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -115,6 +135,10 @@ export default function ClinicianProfile() {
       </div>
 
       <Separator />
+
+      {/* Voice Memory — distilled edit patterns. Only shown to the owner so
+          analyzing edits of other people's work is opt-in via their own page. */}
+      {isMyClinicianProfile && <VoiceNotesPanel clinician={clinician} />}
 
       {interviews.length === 0 ? (
         <div className="text-center py-16">
@@ -161,6 +185,8 @@ export default function ClinicianProfile() {
         </div>
       )}
 
+      {showArc && arc && <ClinicianArcDashboard arc={arc} clinicianName={clinician.name} />}
+
       <Dialog open={!!deleteTarget} onOpenChange={(o) => { if (!o) { setDeleteTarget(null); setDeleteError('') } }}>
         <DialogContent>
           <DialogHeader>
@@ -197,6 +223,144 @@ export default function ClinicianProfile() {
     </div>
   )
 }
+
+// ── Channel icon map ─────────────────────────────────────────────────────────
+
+const CHANNEL_ICON = {
+  facebook:      <Facebook className="h-3.5 w-3.5" />,
+  instagram:     <Instagram className="h-3.5 w-3.5" />,
+  gbp:           <Globe className="h-3.5 w-3.5" />,
+  email:         <Mail className="h-3.5 w-3.5" />,
+  blog:          <BookOpen className="h-3.5 w-3.5" />,
+  youtube:       <TrendingUp className="h-3.5 w-3.5" />,
+  landing_page:  <Globe className="h-3.5 w-3.5" />,
+  google_ads:    <Globe className="h-3.5 w-3.5" />,
+}
+
+function ChannelBadge({ platform }) {
+  const icon = CHANNEL_ICON[platform] ?? <Globe className="h-3.5 w-3.5" />
+  return (
+    <Badge variant="outline" className="text-xs gap-1 capitalize shrink-0">
+      {icon}
+      {platform?.replace(/_/g, ' ')}
+    </Badge>
+  )
+}
+
+// ── Arc Dashboard ─────────────────────────────────────────────────────────────
+
+function ClinicianArcDashboard({ arc, clinicianName }) {
+  const { stats, recentPosts, standoutQuote } = arc
+  const firstName = clinicianName?.split(' ')[0] ?? 'them'
+
+  return (
+    <div className="space-y-6 pt-2">
+      <Separator />
+
+      <section>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Voice impact
+        </h2>
+
+        {/* Part 1 — Stat chips */}
+        <div className="grid grid-cols-3 gap-3">
+          <StatChip
+            label="Interviews"
+            value={stats.interviews}
+            icon={<BarChart2 className="h-4 w-4 text-primary" />}
+          />
+          <StatChip
+            label="Posts published"
+            value={stats.posts}
+            icon={<FileText className="h-4 w-4 text-primary" />}
+          />
+          <StatChip
+            label="Week streak"
+            value={stats.streak}
+            icon={<Flame className={`h-4 w-4 ${stats.streak > 0 ? 'text-orange-500' : 'text-muted-foreground'}`} />}
+          />
+        </div>
+      </section>
+
+      {/* Part 2 — Recent published posts */}
+      <section>
+        <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+          Published from this voice
+        </h2>
+        {recentPosts.length === 0 ? (
+          <p className="text-sm text-muted-foreground italic">
+            {`Your first interview will become a post — keep going.`}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {recentPosts.map((post) => (
+              <PublishedPostRow key={post.id} post={post} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Part 3 — Standout quote */}
+      {standoutQuote && (
+        <section>
+          <h2 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
+            Standout quote
+          </h2>
+          <blockquote className="border-l-4 border-primary pl-4 py-1 space-y-1">
+            <p className="text-sm italic text-foreground leading-relaxed">
+              &ldquo;{standoutQuote.text}&rdquo;
+            </p>
+            <footer className="text-xs text-muted-foreground">
+              — {firstName}
+              {standoutQuote.interviewTopic && (
+                <span className="ml-1 text-muted-foreground/60">· {standoutQuote.interviewTopic}</span>
+              )}
+            </footer>
+          </blockquote>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function StatChip({ label, value, icon }) {
+  return (
+    <Card>
+      <CardContent className="p-3 flex flex-col items-start gap-1">
+        <div className="flex items-center gap-1.5">
+          {icon}
+          <span className="text-xl font-bold tabular-nums">{value}</span>
+        </div>
+        <span className="text-xs text-muted-foreground">{label}</span>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PublishedPostRow({ post }) {
+  const title = post.topic
+    || (post.content ? post.content.slice(0, 60) + (post.content.length > 60 ? '…' : '') : 'Untitled post')
+  const date = post.published_at || post.created_at
+
+  return (
+    <Card className="hover:shadow-sm transition-shadow">
+      <CardContent className="p-3 flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate" title={title}>{title}</p>
+          <p className="text-xs text-muted-foreground">{formatRelativeDate(date)}</p>
+        </div>
+        <ChannelBadge platform={post.platform} />
+        <Button asChild variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+          <Link to={`/review/${post.id}`}>
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Interview row ─────────────────────────────────────────────────────────────
 
 function InterviewRow({ interview, clinicianId, currentUserId, onDelete }) {
   const isOwner = interview.owner_id === currentUserId

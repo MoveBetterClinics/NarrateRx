@@ -62,8 +62,22 @@ const VOCAB = {
   animals: 'companion-animal anatomy: hip, stifle, shoulder, neck, spine, tail, gait, senior-dog, working-dog, agility, hiking-companion, post-surgical, mobility, dog, cat',
 }
 
-function buildSystemPrompt(kind, scope) {
+// Per-purpose framing that nudges the model to tag for how the asset will
+// actually get used. Tag vocabulary is the same across purposes — the prompt
+// just changes what "subject" the model is looking for. Interview clips care
+// about clinical/demonstration content; B-roll cares about scene and motion;
+// photo / brand asset shots care about composition and subject identity.
+const PURPOSE_FRAMING = {
+  interview: 'This is an interview / on-camera capture: a clinician, admin, or patient guest is speaking on camera. Focus tags on the topic of conversation, anatomy/condition being discussed, and the demonstration if any.',
+  broll:     'This is B-roll: video of treatment, interaction, or atmosphere with no spoken narrative. Focus tags on the scene (treatment room, gym floor, paddock), the activity (assessment, demo, handling), and the subject (anatomy, equipment, animal/patient type). No speaker is expected.',
+  photo:     'This is a photograph of the clinic, team, equipment, before/after, or social moment. Focus tags on the subject, setting, and any clinically relevant detail visible.',
+  brand:     'This is a brand asset (logo, headshot, graphic, icon). Focus tags on the asset type and recognizable subject. Skip clinical vocabulary unless the asset literally depicts treatment.',
+}
+
+function buildSystemPrompt(asset, scope) {
   const ws = scope.workspace
+  const kind = asset.kind
+  const purpose = asset.asset_purpose || (kind === 'video' ? 'interview' : 'photo')
   // VOCAB key resolution: workspace_id scopes use the workspace slug. Move
   // Better workspaces use slugs prefixed `movebetter-<paradigm>` (per memory:
   // animals slug is `movebetter-animals` with the s). External tenants fall
@@ -81,15 +95,30 @@ function buildSystemPrompt(kind, scope) {
     `Relevant context: ${ws.activity_context}.`,
     `Anatomy / scene vocabulary to prefer: ${vocab}.`,
     '',
+    PURPOSE_FRAMING[purpose] || PURPOSE_FRAMING.photo,
+    '',
     'Return 4–8 short, lowercase, kebab-case tags that describe what is visibly happening in this clip. Use single tokens or short phrases (e.g. "low-back", "post-op", "senior-dog", "lead-refusal"). Avoid filler tags like "video", "photo", "person", or generic camera/edit terms.',
   ]
   if (kind === 'video') {
-    lines.push(
-      '',
-      'If the clip contains spoken word, also return a clean transcription with light punctuation. Skip filler, music notes, or onscreen text. If there is no speech, return an empty string.',
-      '',
-      'Also return a short visual_narrative (1–3 sentences) describing what the camera shows beat-by-beat — the demonstration, the patient movement, the clinician\'s hands, what is being taught visually. This is paired with the transcript downstream so an editor can spot moments where the visual is the primary signal. If the clip is unremarkable visually, return a single sentence summarizing what is shown.',
-    )
+    // B-roll videos still get a visual_narrative pass (useful for search +
+    // for the contractor's quick read), but the transcript ask is softened
+    // because non-interview B-roll usually has no speech. The schema still
+    // requires the field — model returns '' when there's nothing to hear.
+    if (purpose === 'interview') {
+      lines.push(
+        '',
+        'If the clip contains spoken word, also return a clean transcription with light punctuation. Skip filler, music notes, or onscreen text. If there is no speech, return an empty string.',
+        '',
+        'Also return a short visual_narrative (1–3 sentences) describing what the camera shows beat-by-beat — the demonstration, the patient movement, the clinician\'s hands, what is being taught visually. This is paired with the transcript downstream so an editor can spot moments where the visual is the primary signal. If the clip is unremarkable visually, return a single sentence summarizing what is shown.',
+      )
+    } else {
+      lines.push(
+        '',
+        'This clip is not an interview, so any spoken word is incidental — return an empty transcription unless the clip contains a clearly intentional spoken phrase worth surfacing.',
+        '',
+        'Return a short visual_narrative (1–3 sentences) describing what the camera shows beat-by-beat — the activity, the subject, the setting. This is what shows up in search and on the contractor\'s queue.',
+      )
+    }
   }
   return lines.join('\n')
 }
@@ -195,7 +224,7 @@ async function callModel(asset, scope) {
   const { object } = await generateObject({
     model: MODEL,
     schema: isVideo ? videoSchema : photoSchema,
-    system: buildSystemPrompt(asset.kind, scope),
+    system: buildSystemPrompt(asset, scope),
     messages: [{ role: 'user', content: userParts }],
     temperature: 0.2,
   })
@@ -254,7 +283,7 @@ export async function tagAndPersist(asset, scope) {
 export async function tagById(id, scope) {
   const s = requireScope(scope)
   const where = `id=eq.${id}&${s.column}=eq.${s.id}`
-  const lookup = await sb(`media_assets?${where}&select=id,${s.column},kind,status,blob_url,mime_type,size_bytes,tags,notes`)
+  const lookup = await sb(`media_assets?${where}&select=id,${s.column},kind,status,blob_url,mime_type,size_bytes,tags,notes,asset_purpose`)
   if (!lookup.ok) throw new Error('Database error')
   const rows = await lookup.json()
   const asset = rows[0]

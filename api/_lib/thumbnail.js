@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { put as blobPut } from '@vercel/blob'
+import { put as blobPut, del as blobDel } from '@vercel/blob'
 import ffmpegStaticPath from 'ffmpeg-static'
 
 // Generates a JPEG poster frame for a video asset and persists thumbnail_url.
@@ -60,12 +60,51 @@ function runFfmpeg(args) {
   })
 }
 
+// Read the display-rotation metadata so the thumbnail can be transposed to
+// match what a video player would render. Returns 0/90/180/270 CW. ffmpeg's
+// `-vf scale=…` does NOT auto-rotate reliably across versions when a custom
+// filter chain is supplied, so we apply it explicitly under `-noautorotate`.
+function probeRotation(inPath) {
+  return new Promise((resolve) => {
+    const proc = spawn(FFMPEG_BIN, ['-i', inPath], { stdio: ['ignore', 'ignore', 'pipe'] })
+    let stderr = ''
+    proc.stderr.on('data', (d) => { stderr += d.toString() })
+    proc.on('close', () => {
+      const rot = stderr.match(/rotate\s*:\s*(-?\d+)/i)
+      const dm  = stderr.match(/displaymatrix:\s*rotation of (-?[\d.]+)/i)
+      // displaymatrix reports CCW (negative = CW); legacy rotate atom is CW.
+      // Convert displaymatrix to the same CW sign before normalizing.
+      const raw = rot
+        ? parseInt(rot[1], 10)
+        : (dm ? -Math.round(parseFloat(dm[1])) : 0)
+      resolve(((raw % 360) + 360) % 360)
+    })
+    proc.on('error', () => resolve(0))
+  })
+}
+
+function transposeForRotation(deg) {
+  switch (deg) {
+    case 90:  return 'transpose=1'
+    case 180: return 'transpose=1,transpose=1'
+    case 270: return 'transpose=2'
+    default:  return ''
+  }
+}
+
 async function extractFrame(inPath, outPath) {
+  const rotation = await probeRotation(inPath)
+  const filters = [transposeForRotation(rotation), `scale=${THUMB_WIDTH}:-2`]
+    .filter(Boolean)
+    .join(',')
+  // `-noautorotate` disables ffmpeg's implicit rotation so the explicit
+  // transpose below is the sole source of orientation — keeps behavior
+  // deterministic across ffmpeg versions.
   const baseArgs = [
-    '-y',
+    '-y', '-noautorotate',
     '-ss', SEEK_SECONDS, '-i', inPath,
     '-vframes', '1',
-    '-vf', `scale=${THUMB_WIDTH}:-2`,
+    '-vf', filters,
     '-q:v', JPEG_QUALITY,
     outPath,
   ]
@@ -77,9 +116,9 @@ async function extractFrame(inPath, outPath) {
   } catch {
     // Seek past EOF or short clip — retry from the very beginning.
     const fallback = [
-      '-y', '-i', inPath,
+      '-y', '-noautorotate', '-i', inPath,
       '-vframes', '1',
-      '-vf', `scale=${THUMB_WIDTH}:-2`,
+      '-vf', filters,
       '-q:v', JPEG_QUALITY,
       outPath,
     ]
@@ -87,40 +126,36 @@ async function extractFrame(inPath, outPath) {
   }
 }
 
-// Derive a deterministic blob path for the thumbnail so re-running on the
-// same asset overwrites the previous frame instead of accumulating stale
-// blobs. Uses the asset id as the stable key.
+// Base path for thumbnail blobs. addRandomSuffix=true in blobPut appends a
+// unique segment so every regen produces a fresh URL — same cache-bust
+// reasoning as the edit endpoint's replace-master blob. Old thumbnail blobs
+// are deleted fire-and-forget after the DB row is updated.
 function thumbPathname(asset) {
   return `media/thumbs/${asset.id}.jpg`
 }
 
-// Extract + upload + PATCH. Returns the new thumbnail_url, or null if the
-// asset is not a video / has no source blob to read from.
-export async function generateAndPersistThumbnail(asset, scope) {
-  if (!asset || asset.kind !== 'video') return null
-  if (!asset.blob_url) return null
+// Core: upload a JPEG from a local path, PATCH thumbnail_url, clean up the
+// old blob. Used both by generateAndPersistThumbnail (after download) and
+// directly by the edit endpoint (re-uses the re-encoded outPath already in
+// /tmp, avoiding a second blob fetch).
+export async function generateThumbnailFromPath(videoPath, asset, scope) {
   const s = requireScope(scope)
 
-  const dir     = await mkdtemp(join(tmpdir(), 'thumb-'))
-  const inPath  = join(dir, 'in.bin')
+  const dir     = await mkdtemp(join(tmpdir(), 'thumbout-'))
   const outPath = join(dir, 'out.jpg')
   try {
-    const res = await fetch(asset.blob_url)
-    if (!res.ok) throw new Error(`Source download failed: ${res.status}`)
-    // Stream to disk instead of buffering — videos can be 500MB+ and
-    // arrayBuffer() materializes the whole file in RAM, OOMing the function.
-    await pipeline(Readable.fromWeb(res.body), createWriteStream(inPath))
-
-    await extractFrame(inPath, outPath)
+    await extractFrame(videoPath, outPath)
     const jpeg = await readFile(outPath)
 
-    // allowOverwrite + deterministic pathname → regenerating the thumbnail
-    // replaces the old blob in place; no orphan cleanup needed.
+    // Fresh pathname on every regen — CDN + browser cache by full URL, so an
+    // in-place overwrite (same URL) keeps serving the pre-rotation frame until
+    // the CDN TTL expires. addRandomSuffix guarantees a new URL.
+    const oldThumbnailUrl = asset.thumbnail_url || null
     const uploaded = await blobPut(thumbPathname(asset), jpeg, {
       access: 'public',
       contentType: 'image/jpeg',
-      addRandomSuffix: false,
-      allowOverwrite: true,
+      addRandomSuffix: true,
+      allowOverwrite: false,
     })
 
     const where = `id=eq.${asset.id}&${s.column}=eq.${s.id}`
@@ -131,7 +166,35 @@ export async function generateAndPersistThumbnail(asset, scope) {
     if (!upd.ok) {
       throw new Error(`thumbnail PATCH failed: ${upd.status} ${await upd.text()}`)
     }
+
+    if (oldThumbnailUrl && oldThumbnailUrl !== uploaded.url) {
+      blobDel(oldThumbnailUrl).catch((e) => {
+        console.error('[thumbnail] stale blob delete failed:', e?.message)
+      })
+    }
+
     return uploaded.url
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+// Extract + upload + PATCH. Returns the new thumbnail_url, or null if the
+// asset is not a video / has no source blob to read from.
+export async function generateAndPersistThumbnail(asset, scope) {
+  if (!asset || asset.kind !== 'video') return null
+  if (!asset.blob_url) return null
+  requireScope(scope) // validate early before the expensive download
+
+  const dir    = await mkdtemp(join(tmpdir(), 'thumb-'))
+  const inPath = join(dir, 'in.bin')
+  try {
+    const res = await fetch(asset.blob_url)
+    if (!res.ok) throw new Error(`Source download failed: ${res.status}`)
+    // Stream to disk instead of buffering — videos can be 500MB+ and
+    // arrayBuffer() materializes the whole file in RAM, OOMing the function.
+    await pipeline(Readable.fromWeb(res.body), createWriteStream(inPath))
+    return await generateThumbnailFromPath(inPath, asset, scope)
   } finally {
     await rm(dir, { recursive: true, force: true }).catch(() => {})
   }

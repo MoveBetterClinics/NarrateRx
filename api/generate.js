@@ -4,7 +4,8 @@ import { enforceLimit } from './_lib/ratelimit.js'
 
 // Pinned to Node runtime so the Edge whole-graph bundler doesn't follow
 // the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
-export const config = { runtime: 'nodejs', maxDuration: 60 }
+// 300s — sync generation (pull quotes, topic suggestions) can be slow on Opus.
+export const config = { runtime: 'nodejs', maxDuration: 300 }
 
 // Generates a Claude completion via the Vercel AI Gateway.
 //
