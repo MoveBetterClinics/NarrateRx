@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Instagram, MapPin, Quote } from 'lucide-react'
 import { queryKeys } from '@/lib/queries'
+import { toast } from '@/lib/toast'
 
 /**
  * TranscriptHighlighter — wraps transcript content and intercepts text
@@ -100,7 +101,7 @@ export default function TranscriptHighlighter({ story, children }) {
         }),
       })
       if (!r.ok) {
-        console.error('[TranscriptHighlighter] POST failed', r.status)
+        toast.error('Failed to create content piece')
         return
       }
       // Refresh caches so AssetsPane picks up the new piece
@@ -113,7 +114,7 @@ export default function TranscriptHighlighter({ story, children }) {
         setConfirmed(null)
       }, 1500)
     } catch (err) {
-      console.error('[TranscriptHighlighter] fetch error', err)
+      toast.error('Failed to create content piece', { description: err.message })
     }
   }
 

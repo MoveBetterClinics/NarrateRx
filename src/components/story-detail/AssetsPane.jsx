@@ -140,10 +140,14 @@ function ApprovalPanel({ piece }) {
   const handleRequestChanges = async (e) => {
     e.preventDefault()
     if (!changeRequestBody.trim()) return
-    await addComment.mutateAsync({ body: changeRequestBody, kind: 'change_request' })
-    await updateStatus.mutateAsync({ id: piece.id, status: 'draft' })
-    setChangeRequestBody('')
-    setChangeRequestOpen(false)
+    try {
+      await addComment.mutateAsync({ body: changeRequestBody, kind: 'change_request' })
+      await updateStatus.mutateAsync({ id: piece.id, status: 'draft' })
+      setChangeRequestBody('')
+      setChangeRequestOpen(false)
+    } catch (err) {
+      toast.error('Failed to submit change request', { description: err.message })
+    }
   }
 
   const handlePublish = async () => {
