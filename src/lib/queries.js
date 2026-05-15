@@ -582,12 +582,16 @@ export function useUpdateContentItemStatus() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't update status",
-    mutationFn: ({ id, status, approvedBy, approvedAt, reviewedBy }) =>
-      apiFetch(`/api/db/content?id=${encodeURIComponent(id)}`, {
+    mutationFn: ({ id, status, approvedBy, approvedAt, reviewedBy, resolvedUrl, publishedAt }) => {
+      const body = { id, status, approvedBy, approvedAt, reviewedBy }
+      if (resolvedUrl !== undefined) body.resolvedUrl = resolvedUrl
+      if (publishedAt !== undefined) body.publishedAt = publishedAt
+      return apiFetch(`/api/db/content?id=${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, approvedBy, approvedAt, reviewedBy }),
-      }),
+        body: JSON.stringify(body),
+      })
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })

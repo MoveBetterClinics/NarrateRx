@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
-  ChevronDown, MessageSquare, Eye, EyeOff, RotateCcw,
+  ChevronDown, MessageSquare, Eye, EyeOff, RotateCcw, ExternalLink,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -327,15 +327,19 @@ function ApprovalPanel({ piece }) {
         // webhook receives the manifest and is responsible for committing the
         // bytes into the destination repo. See src/lib/publishImageMirror.js.
         const manifest = buildImagesManifest({ markdown, mediaUrls: piece.media_urls, slug })
-        const result = await publishBlogToWebsite({
-          slug,
-          title,
-          description,
-          pubDate,
-          markdown,
-          ...manifest,
+        const payload = { slug, title, description, pubDate, markdown, ...manifest }
+        if (piece.clinician_name) payload.author = piece.clinician_name
+        if (piece.topic) {
+          const topicSlug = piece.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+          if (topicSlug) payload.topic = topicSlug
+        }
+        const result = await publishBlogToWebsite(payload)
+        await updateStatus.mutateAsync({
+          id: piece.id,
+          status: 'published',
+          publishedAt: new Date().toISOString(),
+          resolvedUrl: result.postUrl || undefined,
         })
-        await updateStatus.mutateAsync({ id: piece.id, status: 'published' })
         toast.success('Published to website', {
           description: result.postUrl ? `View at ${result.postUrl}` : 'Post is live.',
         })
@@ -458,6 +462,19 @@ function ApprovalPanel({ piece }) {
             <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
             {piece.platform === 'blog' ? 'Published to Website' : 'Published to Buffer'}
           </Button>
+        )}
+
+        {/* Live link — shown once the website publish round-trip captures a URL */}
+        {piece.status === 'published' && piece.platform === 'blog' && piece.resolved_url && (
+          <a
+            href={piece.resolved_url}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline self-center"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            View live post
+          </a>
         )}
       </div>
 
