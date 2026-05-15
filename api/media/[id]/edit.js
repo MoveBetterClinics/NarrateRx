@@ -313,19 +313,27 @@ async function handler(req, res) {
   const outPath = join(dir, `out${outExt}`)
 
   try {
-    // For VIDEO we pass the blob URL straight to ffmpeg (it reads via HTTP
-    // with Range support), saving ~the source size in /tmp. The output still
-    // lands in /tmp/out.mp4 so the upload-stream stage has something seekable
-    // to hand to @vercel/blob. For IMAGES we still download — sharp wants a
-    // local path or a Buffer, and image sizes don't strain /tmp.
-    const videoInputArg = source.kind === 'video' ? source.blob_url : inPath
+    // For VIDEO we pass the blob URL straight to ffmpeg (it reads via HTTP),
+    // saving ~the source size in /tmp. Exception: when a crop is requested
+    // and dims aren't in the DB, we must probe dimensions first. Probing via
+    // HTTP URL is unreliable for moov-at-tail files (no +faststart) because
+    // ffmpeg needs to seek backward to find the moov atom — this works for
+    // local files but fails silently over HTTP in practice. In that case we
+    // download to inPath first and probe (and encode) from the local copy.
+    // Rotate-only never needs dims and always streams from the URL.
+    const needsLocalForDimProbe = source.kind === 'video' && crop && (!srcW || !srcH)
     if (source.kind !== 'video') {
       await downloadToTmp(source.blob_url, inPath)
+    } else if (needsLocalForDimProbe) {
+      await downloadToTmp(source.blob_url, inPath)
     }
+    const videoInputArg = source.kind === 'video'
+      ? (needsLocalForDimProbe ? inPath : source.blob_url)
+      : inPath
 
     if (crop && (!srcW || !srcH)) {
       const probed = source.kind === 'video'
-        ? await probeVideoDims(videoInputArg)
+        ? await probeVideoDims(inPath)   // inPath guaranteed populated when dims unknown
         : await probeImageDims(inPath)
       srcW = probed.width
       srcH = probed.height
