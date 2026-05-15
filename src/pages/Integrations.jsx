@@ -13,6 +13,7 @@ import CredentialForm from '@/components/CredentialForm'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { apiFetch } from '@/lib/api'
 
 // Customer-facing publishing connect page. Per-workspace credentials are
 // stored encrypted via /api/workspace/credentials. Buffer is the recommended
@@ -116,20 +117,14 @@ export default function Integrations() {
 
   async function reload() {
     try {
-      const r = await fetch('/api/workspace/credentials', {
-        headers: { Authorization: `Bearer ${await getToken({ skipCache: true })}` },
-      })
-      if (!r.ok) {
-        setServices([])
-        setLoadError(r.status === 403 ? 'Admins only.' : `Couldn't load (${r.status}).`)
-        return
-      }
-      const data = await r.json()
+      const data = await apiFetch('/api/workspace/credentials')
       setServices(Array.isArray(data?.services) ? data.services : [])
       setLoadError(null)
-    } catch {
+    } catch (err) {
       setServices([])
-      setLoadError('Network error loading credentials.')
+      if (err?.status === 403) setLoadError('Admins only.')
+      else if (err?.status === 401) setLoadError('Your session expired — reload the page.')
+      else setLoadError(err?.message || 'Network error loading credentials.')
     }
   }
 

@@ -1,9 +1,4 @@
-async function apiFetch(path, init = {}) {
-  const res = await fetch(path, init)
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || `Request failed: ${res.status}`)
-  return json
-}
+import { apiFetch } from '@/lib/api'
 
 export function fetchTopicBacklog(status) {
   const qs = status ? `?status=${encodeURIComponent(status)}` : ''

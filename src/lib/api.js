@@ -1,11 +1,47 @@
 import { throwApiError } from '@/lib/apiError'
 
-// Canonical fetch wrapper for our own /api routes. Routes error responses
-// through throwApiError (rich 429 handling + payload.message/error parsing),
-// guards the JSON success path so a 200-but-invalid-JSON body doesn't
-// silently return undefined to callers (FUNC-01, PR #304).
+// Canonical fetch wrapper for our own /api routes. Three jobs:
+//   1. Auto-inject the Clerk bearer token so callers never have to thread it
+//      manually. Eliminates a whole class of "missing Authorization header"
+//      bugs (PRs #424, #427) where the API returns 401 and the UI misreports
+//      it as "admin only." Opt out per-call with `init.auth = false` (for
+//      public endpoints like /api/share/* or /api/embed/*).
+//   2. Default `credentials: 'include'` so Clerk's __session cookie also
+//      reaches the server — the cookie is the fallback when getToken() races
+//      with sign-in (component renders before Clerk hydrates).
+//   3. Route !res.ok through throwApiError (401 toast, 429 toast, ApiError
+//      with status). Guards the JSON success path so a 200-but-invalid-JSON
+//      body doesn't silently return undefined to callers (FUNC-01, PR #304).
+
+async function getClerkToken() {
+  if (typeof window === 'undefined') return null
+  try {
+    return await window.Clerk?.session?.getToken?.()
+  } catch {
+    return null
+  }
+}
+
+function hasAuthHeader(headers) {
+  if (!headers) return false
+  if (headers instanceof Headers) {
+    return headers.has('Authorization') || headers.has('authorization')
+  }
+  return Object.keys(headers).some((k) => k.toLowerCase() === 'authorization')
+}
+
 export async function apiFetchResponse(path, init = {}) {
-  const res = await fetch(path, init)
+  const { auth = true, headers, credentials, ...rest } = init
+  const mergedHeaders = { ...(headers || {}) }
+  if (auth && !hasAuthHeader(mergedHeaders)) {
+    const token = await getClerkToken()
+    if (token) mergedHeaders.Authorization = `Bearer ${token}`
+  }
+  const res = await fetch(path, {
+    ...rest,
+    credentials: credentials ?? 'include',
+    headers: mergedHeaders,
+  })
   if (!res.ok) await throwApiError(res)
   return res
 }
