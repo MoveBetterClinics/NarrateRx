@@ -87,12 +87,12 @@ em { font-family: var(--serif); font-style: italic; font-weight: 500; }
   display: inline-flex;
   align-items: center; justify-content: center;
   width: 30px; height: 30px;
-  background: linear-gradient(135deg, var(--coral) 0%, #ffb892 100%);
+  background: var(--bg-card);
   border-radius: 9px;
-  color: #1c4d37;
+  color: var(--coral);
   font-weight: 700;
   font-size: 15px;
-  box-shadow: 0 4px 16px -4px var(--glow);
+  box-shadow: 0 4px 16px -4px rgba(28,77,55,0.35);
 }
 .uhdr-logo .rx {
   color: var(--coral);
