@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useParams } from 'react-router-dom'
+import PrivacyPolicy from '@/pages/PrivacyPolicy'
+import TermsOfService from '@/pages/TermsOfService'
 import {
   ClerkProvider,
   SignedIn,
@@ -289,6 +291,10 @@ function ProtectedApp() {
                 },
               }}
             />
+            <div className="flex gap-4 justify-center mt-6 text-xs text-muted-foreground">
+              <Link to="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+              <Link to="/terms" className="hover:text-foreground transition-colors">Terms of Service</Link>
+            </div>
           </div>
         </div>
       </SignedOut>
@@ -351,6 +357,9 @@ export default function App() {
                   the new subdomain and needs WorkspaceProvider + OrgGate, so
                   it routes through ProtectedAppWithProvider rather than the
                   apex onboarding shell. */}
+              {/* Public pages — no auth required */}
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/terms" element={<TermsOfService />} />
               <Route path="/onboard/brand-kit" element={<ProtectedAppWithProvider />} />
               <Route path="/onboard/*" element={<OnboardingShell />} />
               <Route path="*" element={<ProtectedAppWithProvider />} />
