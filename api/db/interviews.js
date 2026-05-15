@@ -135,34 +135,47 @@ export default async function handler(req, res) {
     if (!r.ok) return dbErr(res, r, 'Update failed')
     const data = await r.json()
 
-    // Auto-create content_items when outputs are saved for the first time
+    // Auto-create content_items + content_plan_atoms + extract concepts when
+    // outputs are saved for the first time. Each block is independently
+    // try/catch'd with explicit logging so a single failure (e.g. a
+    // misconfigured platform map, a missing column, a Supabase 4xx) cannot
+    // silently leave a new tenant's first completed interview with no
+    // content downstream. Without per-block diagnostics, a clinician sees
+    // "Interview complete!" but Stories + Plan stay empty and there's
+    // nothing in vercel logs to root-cause from. The interview row itself
+    // already saved before this branch ran — we never want any of the
+    // enrichment paths to bubble up and 500 the PATCH.
     if (body.outputs && body.status === 'completed') {
-      try {
-        const { clinician_id, topic, location_id } = rows[0]
-        const o = body.outputs
+      const { clinician_id, topic, location_id } = rows[0]
+      const o = body.outputs
 
-        // Fetch clinician name. Workspace filter is defense-in-depth: clinician_id
-        // came from the interview row that's already workspace-filtered above, so
-        // any belonging-to-this-workspace clinician is reachable, but an explicit
-        // filter prevents a stale FK from another workspace leaking a name string
-        // into a content_item insert below.
-        let clinicianName = ''
+      // Fetch clinician name once for the inserts below. Workspace filter
+      // is defense-in-depth: clinician_id came from the interview row that's
+      // already workspace-filtered above, so any belonging-to-this-workspace
+      // clinician is reachable, but an explicit filter prevents a stale FK
+      // from another workspace leaking a name into a content_item insert.
+      let clinicianName = ''
+      try {
         const clinRes = await sb(`clinicians?id=eq.${clinician_id}&${wsFilter}&select=name`)
         if (clinRes.ok) {
           const clinRows = await clinRes.json()
           clinicianName = clinRows[0]?.name ?? ''
+        } else {
+          console.error(`[db/interviews] post-complete clinician name fetch ${clinRes.status} for interview=${id} ws=${ws.slug}`)
         }
+      } catch (e) {
+        console.error(`[db/interviews] post-complete clinician name fetch threw for interview=${id} ws=${ws.slug}: ${e?.message}`)
+      }
 
-        // Check if content_items already exist for this interview to avoid duplicates.
-        // workspace filter is defense-in-depth (interview_id is already workspace-filtered).
+      // content_items insert
+      try {
         const existsRes = await sb(`content_items?interview_id=eq.${id}&${wsFilter}&select=id&limit=1`)
         const existsRows = existsRes.ok ? await existsRes.json() : []
 
         if (existsRows.length === 0) {
-          // Map outputs keys → platform identifiers. Platforms covered by
-          // the on-demand content plan (instagram, facebook, linkedin, gbp,
-          // pinterest, tiktok) are intentionally NOT in this map — the Plan
-          // tab handles those via content_plan_atoms.
+          // Platforms covered by the on-demand content plan (instagram,
+          // facebook, linkedin, gbp, pinterest, tiktok) are intentionally
+          // NOT in this map — the Plan tab handles those via content_plan_atoms.
           const platformMap = [
             { key: 'blogPost',        platform: 'blog' },
             { key: 'googleAds',       platform: 'google_ads' },
@@ -190,36 +203,55 @@ export default async function handler(req, res) {
             }))
 
           if (items.length > 0) {
-            await sb('content_items', {
+            const insRes = await sb('content_items', {
               method: 'POST',
               body: JSON.stringify(items),
               headers: { Prefer: 'return=minimal' },
             })
+            if (!insRes.ok) {
+              const body = await insRes.text().catch(() => '')
+              console.error(`[db/interviews] content_items insert ${insRes.status} for interview=${id} ws=${ws.slug}: ${body.slice(0, 500)}`)
+            }
           }
         }
+      } catch (e) {
+        console.error(`[db/interviews] content_items block threw for interview=${id} ws=${ws.slug}: ${e?.message}`)
+      }
 
-        // Fire-and-forget concept extraction from clinician's transcript turns.
-        // Uses cleaned_messages if available (cleanup-transcript pass), else raw messages.
-        const interviewForExtract = await sb(
+      // Concept extraction from clinician's transcript turns.
+      // Uses cleaned_messages if available (cleanup-transcript pass), else raw messages.
+      try {
+        const extractRes = await sb(
           `interviews?id=eq.${id}&${wsFilter}&select=cleaned_messages,messages`
-        ).then(r => r.ok ? r.json() : []).then(rows => rows[0])
-
-        if (interviewForExtract) {
-          const turns = interviewForExtract.cleaned_messages?.length
-            ? interviewForExtract.cleaned_messages
-            : interviewForExtract.messages
-          const interviewText = buildInterviewText(turns)
-          extractConcepts({
-            workspaceId:  ws.id,
-            sourceKind:   'interview_turn',
-            sourceId:     id,
-            text:         interviewText,
-            clinicianId:  rows[0].clinician_id ?? null,
-            weightDelta:  1.0,
-          })
+        )
+        if (!extractRes.ok) {
+          console.error(`[db/interviews] concept extraction lookup ${extractRes.status} for interview=${id} ws=${ws.slug}`)
+        } else {
+          const lookupRows = await extractRes.json()
+          const interviewForExtract = lookupRows[0]
+          if (interviewForExtract) {
+            const turns = interviewForExtract.cleaned_messages?.length
+              ? interviewForExtract.cleaned_messages
+              : interviewForExtract.messages
+            const interviewText = buildInterviewText(turns)
+            // extractConcepts is intentionally fire-and-forget — it runs its
+            // own async pipeline and shouldn't block the PATCH response.
+            extractConcepts({
+              workspaceId:  ws.id,
+              sourceKind:   'interview_turn',
+              sourceId:     id,
+              text:         interviewText,
+              clinicianId:  rows[0].clinician_id ?? null,
+              weightDelta:  1.0,
+            })
+          }
         }
+      } catch (e) {
+        console.error(`[db/interviews] concept extraction block threw for interview=${id} ws=${ws.slug}: ${e?.message}`)
+      }
 
-        // Auto-create content plan atoms once per interview (idempotent).
+      // Auto-create content_plan_atoms once per interview (idempotent).
+      try {
         const planExistsRes = await sb(
           `content_plan_atoms?interview_id=eq.${id}&${wsFilter}&select=id&limit=1`
         )
@@ -227,15 +259,19 @@ export default async function handler(req, res) {
         if (!planExists) {
           const planRows = buildPlanRows(id, ws.id, ws.enabled_outputs ?? [])
           if (planRows.length > 0) {
-            await sb('content_plan_atoms', {
+            const atomRes = await sb('content_plan_atoms', {
               method: 'POST',
               body: JSON.stringify(planRows),
               headers: { Prefer: 'return=minimal' },
             })
+            if (!atomRes.ok) {
+              const body = await atomRes.text().catch(() => '')
+              console.error(`[db/interviews] content_plan_atoms insert ${atomRes.status} for interview=${id} ws=${ws.slug}: ${body.slice(0, 500)}`)
+            }
           }
         }
-      } catch (_) {
-        // Non-fatal — interview update already succeeded
+      } catch (e) {
+        console.error(`[db/interviews] content_plan_atoms block threw for interview=${id} ws=${ws.slug}: ${e?.message}`)
       }
     }
 
