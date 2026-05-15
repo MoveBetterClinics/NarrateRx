@@ -188,6 +188,22 @@ export default function InterviewSession() {
   const sessionSaveTimerRef = useRef(null)
   const userIdRef = useRef(null)
   const interviewCompleteRef = useRef(false)
+  // Seeding guard: messages restoration runs exactly once per interview-id
+  // mount. Without this, every React Query background refetch (window focus,
+  // network reconnect, post-save invalidation) re-fires the seeding effect
+  // with a stale DB row and clobbers in-flight local state — which is how
+  // clinicians lost 5–6 saved responses mid-session and got bounced back to
+  // question 1.
+  const hasSeededRef = useRef(false)
+  const seededForIdRef = useRef(null)
+  // Reset the guard when the interview id changes so navigating between
+  // interviews still re-seeds the new one correctly. This runs synchronously
+  // during render — that's intentional: by the time the seeding effect
+  // below reads hasSeededRef, the flag must already be cleared for the new id.
+  if (seededForIdRef.current !== interviewId) {
+    seededForIdRef.current = interviewId
+    hasSeededRef.current = false
+  }
 
   function saveMessages(interviewId, patch, userId) {
     // Always mirror to localStorage FIRST so the data survives even if the
@@ -297,7 +313,12 @@ export default function InterviewSession() {
   useEffect(() => {
     if (interviewLoading) return
     if (!interviewData) { navigate('/'); return }
+    // Always refresh the interview metadata object (topic, status, outputs,
+    // location, owner) — that's safe to track from server. But messages
+    // restoration is one-shot per mount, guarded below.
     setInterview(interviewData)
+    if (hasSeededRef.current) return
+    hasSeededRef.current = true
     setGenerationStyle(interviewData.generation_style || 'blog_post')
 
     // Resume from session_state if available (paused mid-interview).
