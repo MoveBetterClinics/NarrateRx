@@ -37,14 +37,18 @@ function defaultLabelFor(ratioId, rotate) {
  */
 export default function MediaEditModal({ asset, onClose, onSaved, inline = false }) {
   const cropperRef = useRef(null)
+  // cropReady gates onChange so the cropper's automatic init fire doesn't mark
+  // the crop as user-touched before they've done anything.
+  const cropReady = useRef(false)
   const [rotate, setRotate]       = useState(0)
   const [aspect, setAspect]       = useState('free')
   const [label,  setLabel]        = useState('')
   const [saving, setSaving]       = useState(false)
   const [error,  setError]        = useState('')
-  // Whether the user has interacted with the crop box. If they only rotated
-  // and never touched the crop, we send crop=null so the server skips the
-  // re-encode crop pass and just rotates the full frame.
+  // Whether the user has intentionally interacted with the crop box.
+  // Stays false until cropReady fires — keeps "Fix the original" visible
+  // for pure rotation ops even though react-advanced-cropper emits onChange
+  // once on mount.
   const [cropTouched, setCropTouched] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
@@ -54,6 +58,7 @@ export default function MediaEditModal({ asset, onClose, onSaved, inline = false
 
   // Reset transient state if the modal opens against a different asset.
   useEffect(() => {
+    cropReady.current = false
     setRotate(0)
     setAspect('free')
     setLabel('')
@@ -183,7 +188,10 @@ export default function MediaEditModal({ asset, onClose, onSaved, inline = false
                 src={previewSrc}
                 className="h-full w-full"
                 stencilProps={ratio ? { aspectRatio: ratio } : {}}
-                onChange={() => setCropTouched(true)}
+                onChange={() => {
+                  if (!cropReady.current) { cropReady.current = true; return }
+                  setCropTouched(true)
+                }}
               />
             </div>
 
