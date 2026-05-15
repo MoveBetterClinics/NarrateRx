@@ -169,12 +169,17 @@ async function editVideo({ inPath, outPath, rotate, crop, srcW, srcH }) {
 // the new flag is the sum mod 360 so chained rotations compose correctly.
 async function editVideoRotateOnly({ inPath, outPath, rotate, existingRotate }) {
   const finalRotate = (((existingRotate || 0) + rotate) % 360 + 360) % 360
+  // No `-movflags +faststart`: ffmpeg's faststart pass writes the output,
+  // reads it back, and rewrites with the moov atom moved to the front —
+  // peak /tmp usage hits ~3× the file size and exploded the 512 MB Fluid
+  // Compute disk on a 176 MB clip ("No space left on device", 2026-05-15).
+  // Stream-copy preserves whatever faststart layout the source already had;
+  // phone / camera uploads ship with it by default.
   await runFfmpeg([
     '-y',
     '-i', inPath,
     '-c', 'copy',
     '-metadata:s:v:0', `rotate=${finalRotate}`,
-    '-movflags', '+faststart',
     outPath,
   ])
   const s = await stat(outPath).catch(() => null)
