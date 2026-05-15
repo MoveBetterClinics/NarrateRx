@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Website publish endpoint — Node.js runtime.
 //
 // Two receiving modes are supported, dispatched on which credential the
@@ -147,6 +148,8 @@ async function publishToWordPress(res, payload, cred) {
     headers: { Authorization: authHeader, ...(init.headers || {}) },
   })
 
+  const tag = `[publish/website slug=${payload.slug}]`
+
   // 1. Slug collision check — WP auto-suffixes duplicate slugs by default;
   // we explicitly reject so the UI can prompt for a rename, matching the
   // animals-side "never overwrite" contract.
@@ -155,12 +158,15 @@ async function publishToWordPress(res, payload, cred) {
     if (collisionRes.ok) {
       const existing = await collisionRes.json()
       if (Array.isArray(existing) && existing.length) {
+        console.error(tag, 'slug_taken')
         return res.status(409).json({ error: 'slug_taken', slug: payload.slug, message: `The slug "${payload.slug}" is already used on the website. Rename and try again.` })
       }
     } else if (collisionRes.status === 401 || collisionRes.status === 403) {
+      console.error(tag, 'auth_failed on collision check:', collisionRes.status)
       return res.status(502).json({ error: 'auth_failed', message: 'The WordPress site rejected the credentials. Re-paste WordPress user / app password in Workspace Settings.' })
     }
   } catch (e) {
+    console.error(tag, 'network_error on collision check:', e.message)
     return res.status(502).json({ error: 'network_error', message: `Could not reach WordPress: ${e.message}` })
   }
 
@@ -172,6 +178,7 @@ async function publishToWordPress(res, payload, cred) {
       const media = await uploadMedia(wp, payload.heroImage, payload.heroImageAlt)
       featuredMediaId = media.id
     } catch (e) {
+      console.error(tag, 'media_upload_failed (hero):', e.message)
       return res.status(502).json({ error: 'media_upload_failed', message: `Hero image upload failed: ${e.message}` })
     }
   }
@@ -182,6 +189,7 @@ async function publishToWordPress(res, payload, cred) {
     try {
       tagIds = await resolveTags(wp, payload.tags)
     } catch (e) {
+      console.error(tag, 'tag_resolve_failed:', e.message)
       return res.status(502).json({ error: 'tag_resolve_failed', message: `Tag resolution failed: ${e.message}` })
     }
   }
@@ -200,6 +208,7 @@ async function publishToWordPress(res, payload, cred) {
         const wpMediaUrl = await uploadMediaForRewrite(wp, img.url, img.alt)
         if (wpMediaUrl) urlMap[img.url] = wpMediaUrl
       } catch (e) {
+        console.error(tag, 'media_upload_failed (inline):', img.url, e.message)
         return res.status(502).json({ error: 'media_upload_failed', message: `Inline image upload failed for ${img.url}: ${e.message}` })
       }
     }
@@ -227,6 +236,7 @@ async function publishToWordPress(res, payload, cred) {
       body:    JSON.stringify(postBody),
     })
   } catch (e) {
+    console.error(tag, 'network_error on post create:', e.message)
     return res.status(502).json({ error: 'network_error', message: `Could not reach WordPress: ${e.message}` })
   }
 
@@ -242,11 +252,14 @@ async function publishToWordPress(res, payload, cred) {
     })
   }
   if (postRes.status === 401 || postRes.status === 403) {
+    console.error(tag, 'auth_failed on post create:', postRes.status)
     return res.status(502).json({ error: 'auth_failed', message: 'WordPress rejected the credentials. The Application Password may be revoked or the user lacks publish_posts permission.' })
   }
   if (postRes.status === 400) {
+    console.error(tag, 'invalid_payload on post create:', postData.message, postData.code)
     return res.status(400).json({ error: 'invalid_payload', message: postData.message || 'WordPress rejected the post as invalid.', code: postData.code })
   }
+  console.error(tag, 'upstream_error on post create:', postRes.status, postData.message)
   return res.status(502).json({ error: 'upstream_error', message: postData.message || `WordPress returned ${postRes.status}.`, status: postRes.status })
 }
 

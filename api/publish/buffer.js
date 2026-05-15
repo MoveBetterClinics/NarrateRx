@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Buffer publish endpoint — Node.js runtime.
 //
 // Resolves the Buffer access token per-workspace via getCredential() so each
