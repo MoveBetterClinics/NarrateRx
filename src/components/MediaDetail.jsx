@@ -16,7 +16,7 @@ import {
 } from '@/lib/mediaLib'
 import { listContentPieces, createContentPiece, segmentMediaAsset } from '@/lib/contentLib'
 import { useUserRole } from '@/lib/useUserRole'
-import { toast } from '@/lib/toast'
+import { toast, runWithToast } from '@/lib/toast'
 import ContentBriefDetail from './ContentBriefDetail'
 import CollectionPicker from './CollectionPicker'
 import MediaEditModal from './MediaEditModal'
@@ -200,7 +200,13 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   async function handleTag() {
     setTagging(true); setError('')
     try {
-      const updated = await tagMediaAsset(asset.id)
+      const updated = await runWithToast(tagMediaAsset(asset.id), {
+        loading: asset.kind === 'video'
+          ? 'Tagging with AI… (10–60s for video)'
+          : 'Tagging with AI…',
+        success: 'Tagged with AI',
+        error: (e) => ({ message: 'Tagging failed', description: e.message }),
+      })
       if (updated) {
         setAiTags(updated.ai_tags || [])
         if (updated.transcription !== undefined) setTranscription(updated.transcription || '')
@@ -218,7 +224,11 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   async function handleRegenerateThumbnail() {
     setThumbing(true); setError('')
     try {
-      await regenerateThumbnail(asset.id)
+      await runWithToast(regenerateThumbnail(asset.id), {
+        loading: 'Regenerating thumbnail…',
+        success: 'Thumbnail updated',
+        error: (e) => ({ message: 'Thumbnail failed', description: e.message }),
+      })
       onChange?.()
     } catch (e) {
       setError(e.message)
@@ -230,7 +240,11 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   async function handleSegment() {
     setSegmenting(true); setError('')
     try {
-      await segmentMediaAsset(asset.id)
+      await runWithToast(segmentMediaAsset(asset.id), {
+        loading: 'Segmenting… this can take a few minutes',
+        success: 'Segmenter finished',
+        error: (e) => ({ message: 'Segmenting failed', description: e.message }),
+      })
       await refreshBriefs()
       onChange?.()
     } catch (e) {

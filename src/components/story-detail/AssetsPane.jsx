@@ -18,7 +18,7 @@ import {
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
 import { buildImagesManifest } from '@/lib/publishImageMirror'
-import { toast } from '@/lib/toast'
+import { toast, runWithToast } from '@/lib/toast'
 import BufferMetricsRow from './BufferMetricsRow'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
 import MediaAttachmentPanel from './MediaAttachmentPanel'
@@ -180,12 +180,9 @@ function ContentEditor({ piece }) {
             className="h-7 text-xs"
             onClick={handleSave}
             disabled={saving}
+            loading={saving}
           >
-            {saving ? (
-              <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Saving…</>
-            ) : (
-              'Save changes'
-            )}
+            {saving ? 'Saving…' : 'Save changes'}
           </Button>
         </div>
       )}
@@ -338,32 +335,47 @@ function ApprovalPanel({ piece }) {
           const topicSlug = piece.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
           if (topicSlug) payload.topic = topicSlug
         }
-        const result = await publishBlogToWebsite(payload)
+        // The WordPress publish path is multi-step (slug check, hero upload,
+        // tag resolve, inline image mirror, post create) and routinely takes
+        // 30–90s. The persistent loading toast keeps the user oriented even
+        // when the in-button spinner is offscreen.
+        const result = await runWithToast(publishBlogToWebsite(payload), {
+          loading: 'Publishing to website… this can take 30–90s',
+          success: (r) => ({
+            message: 'Published to website',
+            description: r.postUrl ? `View at ${r.postUrl}` : 'Post is live.',
+          }),
+          error: (e) => ({ message: 'Publish failed', description: e.message }),
+        })
         await updateStatus.mutateAsync({
           id: piece.id,
           status: 'published',
           publishedAt: new Date().toISOString(),
           resolvedUrl: result.postUrl || undefined,
         })
-        toast.success('Published to website', {
-          description: result.postUrl ? `View at ${result.postUrl}` : 'Post is live.',
-        })
       } else {
-        await publishAndTrack(
+        await runWithToast(
+          publishAndTrack(
+            {
+              id: piece.id,
+              platform: piece.platform,
+              content: markdown,
+              mediaUrls: piece.media_urls || [],
+              scheduledAt: null,
+            },
+            userEmail,
+          ),
           {
-            id: piece.id,
-            platform: piece.platform,
-            content: markdown,
-            mediaUrls: piece.media_urls || [],
-            scheduledAt: null,
+            loading: 'Sending to Buffer…',
+            success: 'Sent to Buffer',
+            error: (e) => ({ message: 'Publish failed', description: e.message }),
           },
-          userEmail,
         )
         await updateStatus.mutateAsync({ id: piece.id, status: 'published' })
-        toast.success('Sent to Buffer')
       }
-    } catch (e) {
-      toast.error('Publish failed', { description: e.message })
+    } catch {
+      // runWithToast already surfaced the error toast; swallow so we don't
+      // double-toast and so the finally block resets the spinner.
     } finally {
       setPublishing(false)
     }
@@ -414,12 +426,9 @@ function ApprovalPanel({ piece }) {
             variant="outline"
             onClick={handleSendForReview}
             disabled={isBusy}
+            loading={isBusy && updateStatus.isPending}
           >
-            {isBusy && updateStatus.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Send className="h-3.5 w-3.5 mr-1.5" />
-            )}
+            {!(isBusy && updateStatus.isPending) && <Send className="h-3.5 w-3.5 mr-1.5" />}
             Send for review
           </Button>
         )}
@@ -431,13 +440,10 @@ function ApprovalPanel({ piece }) {
             size="sm"
             onClick={handleApprove}
             disabled={isBusy}
+            loading={isBusy && updateStatus.isPending}
             className="bg-green-600 hover:bg-green-700 text-white"
           >
-            {isBusy && updateStatus.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-            )}
+            {!(isBusy && updateStatus.isPending) && <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
             Approve
           </Button>
         )}
@@ -462,13 +468,10 @@ function ApprovalPanel({ piece }) {
             size="sm"
             onClick={handlePublish}
             disabled={publishing || isBusy}
+            loading={publishing}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
-            {publishing ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Send className="h-3.5 w-3.5 mr-1.5" />
-            )}
+            {!publishing && <Send className="h-3.5 w-3.5 mr-1.5" />}
             {piece.platform === 'blog' ? 'Publish to Website' : 'Publish to Buffer'}
           </Button>
         )}
@@ -518,9 +521,9 @@ function ApprovalPanel({ piece }) {
               size="sm"
               variant="outline"
               disabled={!changeRequestBody.trim() || isBusy}
+              loading={isBusy}
               className="border-amber-400 text-amber-700 hover:bg-amber-50"
             >
-              {isBusy ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               Submit request
             </Button>
             <Button
