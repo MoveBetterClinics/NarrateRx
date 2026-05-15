@@ -258,7 +258,7 @@ function RegenerateButton({ piece }) {
 
 function ApprovalPanel({ piece }) {
   const { user } = useUser()
-  const { canReview, canPublish } = useUserRole()
+  const { canReview } = useUserRole()
   const workspace = useWorkspace()
   const skipReview = !!workspace?.skip_review
   const updateStatus = useUpdateContentItemStatus()
@@ -376,25 +376,9 @@ function ApprovalPanel({ piece }) {
           </Button>
         )}
 
-        {/* Publish from draft — when workspace skips the review step */}
-        {piece.status === 'draft' && skipReview && canPublish && (
-          <Button
-            size="sm"
-            onClick={handlePublish}
-            disabled={publishing || isBusy}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            {publishing ? (
-              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-            ) : (
-              <Send className="h-3.5 w-3.5 mr-1.5" />
-            )}
-            {piece.platform === 'blog' ? 'Publish to Website' : 'Publish to Buffer'}
-          </Button>
-        )}
-
-        {/* Approve — reviewer only, in_review */}
-        {piece.status === 'in_review' && canReview && (
+        {/* Approve — on draft when workspace skips the review step, or on in_review */}
+        {((piece.status === 'draft' && skipReview && canReview) ||
+          (piece.status === 'in_review' && canReview)) && (
           <Button
             size="sm"
             onClick={handleApprove}
