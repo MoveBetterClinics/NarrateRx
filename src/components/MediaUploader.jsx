@@ -174,6 +174,20 @@ export default function MediaUploader({ onUploaded, createdBy }) {
 
   const purposeMeta = PURPOSES.find((p) => p.id === purpose) || PURPOSES[0]
   const showSpeakerRole = purpose === 'interview'
+  // Clinician picker shows for non-interview uploads (broll/photo/brand) and
+  // for interview uploads where the speaker IS the clinician. Admin-staff and
+  // patient-guest interviews don't get the picker — the clip isn't "of" a
+  // clinician in those cases, so attribution would be misleading.
+  const showClinicianPicker = ((!showSpeakerRole) || speakerRole === 'clinician') && clinicians.length > 0
+  // Build a continuous 1-N step numbering regardless of which optional
+  // sections actually render. Purpose is always step 1; the counter starts
+  // at 2 so the next-shown section gets 2. DOM order is: purpose → speaker
+  // role → clinician → collection → drop zone.
+  let stepCounter = 2
+  const stepSpeakerRole = showSpeakerRole ? stepCounter++ : null
+  const stepClinician = showClinicianPicker ? stepCounter++ : null
+  const stepCollection = collections.length > 0 ? stepCounter++ : null
+  const stepDrop = stepCounter
 
   // Fetch active collections and clinicians once on mount.
   useEffect(() => {
@@ -300,7 +314,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
       {showSpeakerRole && (
         <div className="mb-3 rounded-xl border bg-card p-4">
           <div className="flex items-center gap-2 mb-2.5">
-            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">2</span>
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">{stepSpeakerRole}</span>
             <div>
               <div className="text-sm font-semibold">
                 Who&apos;s speaking in these clips? <span className="text-destructive">*</span>
@@ -347,6 +361,62 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         </div>
       )}
 
+      {/* Clinician picker — optional. Shows for non-interview uploads
+          (broll/photo/brand) and for interview clips where the speaker is the
+          clinician. Hidden for admin-staff and patient-guest interviews where
+          clinician attribution would be misleading. Links the asset to a
+          specific clinician so Library filters and staff attribution work. */}
+      {showClinicianPicker && (
+        <div className="mb-3 rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
+              {stepClinician}
+            </span>
+            <div>
+              <div className="text-sm font-semibold">
+                Who&apos;s in this?
+                <span className="ml-1.5 inline-block text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium uppercase tracking-wide">
+                  Optional
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tag a clinician so this asset shows up on their profile and in searches.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setClinicianId('')}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                !clinicianId
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+              }`}
+            >
+              — Not sure / multiple
+            </button>
+            {clinicians.map((c) => (
+              <button
+                type="button"
+                key={c.id}
+                onClick={() => setClinicianId(c.id === clinicianId ? '' : c.id)}
+                className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  clinicianId === c.id
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                }`}
+              >
+                <span className="inline-flex h-4 w-4 rounded-full bg-current/20 items-center justify-center text-3xs font-semibold shrink-0">
+                  {c.name?.[0] || '?'}
+                </span>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Collection picker — optional. Pre-assigns uploaded assets to a
           campaign / series / session collection in one shot, replacing the
           two-step "upload, then Select → Add to collection" flow for the
@@ -355,7 +425,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         <div className="mb-3 rounded-xl border bg-card p-4">
           <div className="flex items-center gap-2 mb-2.5">
             <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
-              {showSpeakerRole ? 3 : 2}
+              {stepCollection}
             </span>
             <div>
               <div className="text-sm font-semibold">
@@ -391,7 +461,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
                   collectionId === c.id
                     ? 'bg-primary text-white border-primary'
                     : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-                }`}
+              }`}
               >
                 <Folder className="h-3 w-3" />
                 <span className="truncate max-w-[200px]">{c.name}</span>
@@ -401,65 +471,12 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         </div>
       )}
 
-      {/* Clinician picker — optional, photo/broll only. Links the asset to a
-          specific clinician so Library filters and staff attribution work. */}
-      {!showSpeakerRole && clinicians.length > 0 && (
-        <div className="mb-3 rounded-xl border bg-card p-4">
-          <div className="flex items-center gap-2 mb-2.5">
-            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
-              {(collections.length > 0 ? 1 : 0) + 2}
-            </span>
-            <div>
-              <div className="text-sm font-semibold">
-                Who&apos;s in this?
-                <span className="ml-1.5 inline-block text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium uppercase tracking-wide">
-                  Optional
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Tag a clinician so this asset shows up on their profile and in searches.
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setClinicianId('')}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                !clinicianId
-                  ? 'bg-primary text-white border-primary'
-                  : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-              }`}
-            >
-              — No clinician
-            </button>
-            {clinicians.map((c) => (
-              <button
-                type="button"
-                key={c.id}
-                onClick={() => setClinicianId(c.id === clinicianId ? '' : c.id)}
-                className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  clinicianId === c.id
-                    ? 'bg-primary text-white border-primary'
-                    : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-                }`}
-              >
-                <span className="inline-flex h-4 w-4 rounded-full bg-current/20 items-center justify-center text-3xs font-semibold shrink-0">
-                  {c.name?.[0] || '?'}
-                </span>
-                {c.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Final step — drop zone. Step number walks based on which optional
-          steps showed (speaker role, collection, clinician). */}
+          steps showed (speaker role, clinician, collection). */}
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-center gap-2 mb-2.5">
           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
-            {(showSpeakerRole ? 1 : 0) + (collections.length > 0 ? 1 : 0) + (!showSpeakerRole && clinicians.length > 0 ? 1 : 0) + 2}
+            {stepDrop}
           </span>
           <div>
             <div className="text-sm font-semibold">Drop your files</div>
