@@ -1,114 +1,200 @@
 import { useSearchParams } from 'react-router-dom'
-import { useStories, useOnboardingProgress, useCampaigns } from '@/lib/queries'
+import { Target, X } from 'lucide-react'
+import { useStories, useOnboardingProgress, useCampaigns, useClinicians, useLocations } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
+import { useWorkspace } from '@/lib/WorkspaceContext'
+import { getPatientPrototypesUi } from '@/lib/prompts'
+import { PLATFORM_META } from '@/lib/contentMeta'
 import StoriesViewToggle from '@/components/stories/StoriesViewToggle'
-import StoriesSidebar from '@/components/stories/StoriesSidebar'
-import StoriesFilters from '@/components/stories/StoriesFilters'
 import StoriesCardsView from '@/components/stories/StoriesCardsView'
 import StoriesPipelineView from '@/components/stories/StoriesPipelineView'
 import StoriesCalendarView from '@/components/stories/StoriesCalendarView'
 import StoriesThemesView from '@/components/stories/StoriesThemesView'
+import CampaignProgressStrip from '@/components/stories/CampaignProgressStrip'
 import UsageGate from '@/components/billing/UsageGate'
+
+const PLATFORMS = Object.keys(PLATFORM_META)
+
+const STAGES = [
+  { key: 'capture',   label: 'Capture' },
+  { key: 'drafting',  label: 'Drafting' },
+  { key: 'review',    label: 'Review' },
+  { key: 'scheduled', label: 'Scheduled' },
+  { key: 'published', label: 'Published' },
+]
+
+const SELECT_CLS =
+  'rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground ' +
+  'cursor-pointer hover:bg-accent/50 transition-colors focus:outline-none focus:ring-1 focus:ring-ring'
 
 /**
  * Stories page — top-level IA surface.
  *
- * Reads `?view=` (cards | pipeline | calendar | themes) and dispatches to the
- * appropriate view component. Default view is role-aware: Publisher/staff land
- * on the Kanban pipeline since that's their primary working surface; clinicians
- * land on the cards grid. All views share the same useStories() data.
- *
- * The Themes view requires the Practice plan (cross_staff_synthesis feature).
+ * Filter controls live in a horizontal chip-row above the grid (no sidebar).
+ * The campaign progress strip renders at page level so it's visible in all views.
  */
 export default function Stories() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { isStaff } = useUserRole()
   const defaultView = isStaff ? 'pipeline' : 'cards'
   const view = searchParams.get('view') || defaultView
-  const activeCampaign = searchParams.get('campaign') || ''
+
+  const platformFilter = searchParams.get('platform') || ''
+  const stageFilter    = searchParams.get('stage')    || ''
+  const locationFilter = searchParams.get('location') || ''
+  const campaignFilter = searchParams.get('campaign') || ''
 
   const { data: stories = [], isLoading } = useStories()
   const { data: progress } = useOnboardingProgress()
   const { data: campaigns = [] } = useCampaigns()
+  const { data: clinicians = [] } = useClinicians({ enabled: !!campaignFilter })
+  const { data: locations = [] } = useLocations()
+  const workspace = useWorkspace()
   const currentPlan = progress?.plan
   const awaitingReviewCount = stories.filter((s) => s.story_stage === 'review').length
 
-  // Only surface active campaigns in the dropdown. Archived/complete still
-  // resolve from the URL (so a shared link stays meaningful), but we don't
-  // clutter the selector with them.
-  const selectableCampaigns = campaigns.filter(
-    (c) => c.status === 'active' || c.id === activeCampaign,
-  )
+  const prototypes = getPatientPrototypesUi(workspace).filter((p) => p.id != null)
+  const showLocations  = locations.length > 1
+  const showArchetypes = prototypes.length > 0
 
-  function onCampaignChange(e) {
-    const value = e.target.value
-    const next = new URLSearchParams(searchParams)
-    if (value) next.set('campaign', value)
-    else next.delete('campaign')
-    setSearchParams(next, { replace: true })
+  const selectableCampaigns = campaigns.filter(
+    (c) => c.status === 'active' || c.id === campaignFilter,
+  )
+  const activeCampaignObj = campaignFilter
+    ? campaigns.find((c) => c.id === campaignFilter) || null
+    : null
+
+  function setParam(key, value) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set(key, value)
+      else next.delete(key)
+      return next
+    }, { replace: true })
+  }
+
+  function clearCampaign() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('campaign')
+      return next
+    }, { replace: true })
   }
 
   return (
-    <div className="flex gap-8 min-h-[calc(100vh-3.5rem)]">
-      {/* Sidebar — md+ only. Filter chips below act as the mobile fallback. */}
-      <aside className="hidden md:block w-56 shrink-0 pt-6 pr-2 border-r border-border">
-        <StoriesSidebar />
-      </aside>
-
-      <main className="flex-1 min-w-0 py-6">
-        <div className="flex flex-col gap-4">
-          {/* Header */}
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-baseline gap-3 min-w-0">
-              <h1 className="text-xl font-semibold text-foreground">Stories</h1>
-              {!isLoading && stories.length > 0 ? (
-                <span className="text-xs text-muted-foreground truncate">
-                  {stories.length === 1 ? '1 story' : `${stories.length} stories`}
-                  {awaitingReviewCount > 0
-                    ? ` · ${awaitingReviewCount} awaiting review`
-                    : ''}
-                </span>
-              ) : null}
-            </div>
-            <div className="flex items-center gap-2">
-              {selectableCampaigns.length > 0 && (
-                <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="hidden sm:inline">Campaign</span>
-                  <select
-                    value={activeCampaign}
-                    onChange={onCampaignChange}
-                    className="rounded-md border border-border bg-background px-2 py-1 text-sm text-foreground"
-                  >
-                    <option value="">All</option>
-                    {selectableCampaigns.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <StoriesViewToggle />
-            </div>
-          </div>
-
-          {/* Mobile-only horizontal chip filters. Sidebar replaces these on md+. */}
-          <div className="md:hidden">
-            <StoriesFilters />
-          </div>
-
-          {/* View dispatch */}
-          {view === 'pipeline' ? (
-            <StoriesPipelineView stories={stories} isLoading={isLoading} />
-          ) : view === 'calendar' ? (
-            <StoriesCalendarView stories={stories} isLoading={isLoading} />
-          ) : view === 'themes' ? (
-            <UsageGate feature="cross_staff_synthesis" currentPlan={currentPlan}>
-              <StoriesThemesView stories={stories} isLoading={isLoading} />
-            </UsageGate>
-          ) : (
-            <StoriesCardsView stories={stories} isLoading={isLoading} />
-          )}
+    <main className="py-6 px-6 flex flex-col gap-4">
+      {/* Header */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-baseline gap-3 min-w-0">
+          <h1 className="text-xl font-semibold text-foreground">Stories</h1>
+          {!isLoading && stories.length > 0 ? (
+            <span className="text-xs text-muted-foreground truncate">
+              {stories.length === 1 ? '1 story' : `${stories.length} stories`}
+              {awaitingReviewCount > 0 ? ` · ${awaitingReviewCount} awaiting review` : ''}
+            </span>
+          ) : null}
         </div>
-      </main>
-    </div>
+        <StoriesViewToggle />
+      </div>
+
+      {/* Campaign progress strip — shown whenever a campaign filter is active */}
+      {activeCampaignObj ? (
+        <CampaignProgressStrip campaign={activeCampaignObj} clinicians={clinicians} />
+      ) : null}
+
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Campaign — active chip or selector */}
+        {activeCampaignObj ? (
+          <button
+            type="button"
+            onClick={clearCampaign}
+            className="inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 text-warning px-3 py-1 text-xs font-medium hover:bg-warning/20 transition-colors"
+          >
+            <Target className="h-3 w-3" aria-hidden="true" />
+            Campaign: {activeCampaignObj.name}
+            <X className="h-3 w-3" aria-hidden="true" />
+          </button>
+        ) : selectableCampaigns.length > 0 ? (
+          <select
+            value=""
+            onChange={(e) => setParam('campaign', e.target.value)}
+            className={SELECT_CLS}
+          >
+            <option value="">Campaign: All</option>
+            {selectableCampaigns.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        ) : null}
+
+        {/* Platform */}
+        <select
+          value={platformFilter}
+          onChange={(e) => setParam('platform', e.target.value)}
+          className={SELECT_CLS}
+        >
+          <option value="">Platform: All</option>
+          {PLATFORMS.map((p) => (
+            <option key={p} value={p}>{PLATFORM_META[p].label}</option>
+          ))}
+        </select>
+
+        {/* Stage */}
+        <select
+          value={stageFilter}
+          onChange={(e) => setParam('stage', e.target.value)}
+          className={SELECT_CLS}
+        >
+          <option value="">Stage: All</option>
+          {STAGES.map(({ key, label }) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+
+        {/* Location — only when workspace has multiple */}
+        {showLocations ? (
+          <select
+            value={locationFilter}
+            onChange={(e) => setParam('location', e.target.value)}
+            className={SELECT_CLS}
+          >
+            <option value="">Location: All</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>{loc.label || loc.city}</option>
+            ))}
+          </select>
+        ) : null}
+
+        {/* Archetype — only when workspace has defined prototypes */}
+        {showArchetypes ? (
+          <select
+            value={searchParams.get('archetype') || ''}
+            onChange={(e) => setParam('archetype', e.target.value)}
+            className={SELECT_CLS}
+          >
+            <option value="">Archetype: All</option>
+            {prototypes.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.emoji ? `${p.emoji} ${p.label}` : p.label}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+
+      {/* View dispatch */}
+      {view === 'pipeline' ? (
+        <StoriesPipelineView stories={stories} isLoading={isLoading} />
+      ) : view === 'calendar' ? (
+        <StoriesCalendarView stories={stories} isLoading={isLoading} />
+      ) : view === 'themes' ? (
+        <UsageGate feature="cross_staff_synthesis" currentPlan={currentPlan}>
+          <StoriesThemesView stories={stories} isLoading={isLoading} />
+        </UsageGate>
+      ) : (
+        <StoriesCardsView stories={stories} isLoading={isLoading} />
+      )}
+    </main>
   )
 }
