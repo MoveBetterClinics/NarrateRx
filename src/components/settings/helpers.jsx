@@ -36,7 +36,7 @@ export function Field({ label, value, onChange, placeholder, hint, type = 'text'
   )
 }
 
-export function Textarea2({ label, value, onChange, rows = 4, hint }) {
+export function Textarea2({ label, value, onChange, rows = 4, hint, mono = false }) {
   return (
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
@@ -44,7 +44,7 @@ export function Textarea2({ label, value, onChange, rows = 4, hint }) {
         value={value}
         onChange={e => onChange(e.target.value)}
         rows={rows}
-        className="text-sm font-mono resize-y"
+        className={`text-sm resize-y ${mono ? 'font-mono' : 'font-sans'}`}
       />
       {hint && <p className="text-2xs text-muted-foreground">{hint}</p>}
     </div>

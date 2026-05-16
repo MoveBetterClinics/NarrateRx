@@ -271,6 +271,7 @@ export default function VoiceSettings() {
             value={form.interview_context_json}
             onChange={set('interview_context_json')}
             rows={18}
+            mono
           />
         </div>
       </details>
@@ -489,7 +490,7 @@ function PatientContextEditor({ value, onChange }) {
     return (
       <div className="space-y-2">
         <p className="text-xs text-destructive">JSON parse error — editing as raw JSON until fixed: {parseError}</p>
-        <Textarea2 label="Patient context (raw JSON)" value={value} onChange={onChange} rows={14} />
+        <Textarea2 label="Patient context (raw JSON)" value={value} onChange={onChange} rows={14} mono />
       </div>
     )
   }
@@ -760,7 +761,7 @@ function TopicSuggestionsEditor({ topicsJson, patientContextJson, onChange }) {
     return (
       <div className="space-y-2">
         <p className="text-xs text-destructive">JSON parse error — editing as raw JSON until fixed: {parseError}</p>
-        <Textarea2 label="Topic suggestions (raw JSON)" value={topicsJson} onChange={onChange} rows={14} />
+        <Textarea2 label="Topic suggestions (raw JSON)" value={topicsJson} onChange={onChange} rows={14} mono />
       </div>
     )
   }
