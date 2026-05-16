@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { formatRelativeDate } from '@/lib/utils'
 import { queryKeys, fetchStory } from '@/lib/queries'
 import { getStageToken } from '@/lib/stageTokens'
+import { ClinicianChip } from '@/components/ClinicianChip'
 
 // Short labels for platform chips shown on the card.
 const PLATFORM_SHORT = {
@@ -45,6 +46,7 @@ export default function StoryCard({ story }) {
   const qc = useQueryClient()
   const {
     id,
+    clinician_id,
     clinician_name,
     topic,
     pieces,
@@ -68,11 +70,16 @@ export default function StoryCard({ story }) {
       })}
       className="block bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-gray-200 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
     >
-      {/* Top row: clinician name + stage badge */}
+      {/* Top row: clinician chip + stage badge */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="font-medium text-gray-900 text-sm leading-tight truncate">
-          {clinician_name || 'Unknown clinician'}
-        </span>
+        <ClinicianChip
+          id={clinician_id}
+          name={clinician_name}
+          size="sm"
+          showName
+          className="min-w-0"
+          nameClassName="font-medium text-gray-900 leading-tight"
+        />
         <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
           {stageLabel}
         </span>

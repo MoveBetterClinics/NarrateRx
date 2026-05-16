@@ -47,6 +47,19 @@
     --verbatim-accent:   38 92% 50%;   /* amber-500 equivalent */
     --agreement-signal: 152 76% 40%;   /* emerald-600 equivalent */
     --contrast-signal:  199 95% 40%;   /* sky-600 equivalent */
+
+    /* ── General status tokens ─────────────────────────────────────────────
+       Use these for generic UI status — toasts, completed states, warning
+       banners, info callouts. They intentionally overlap in hue with the
+       voice-fidelity tokens above (success == agreement-signal == emerald-600,
+       warning == verbatim-accent == amber-500) but carry different semantics:
+       the voice-fidelity tokens are reserved for cross-staff probe signals
+       in interview/approval surfaces, while these are for everyday status.
+       Keep them separate so a tenant theme can rebrand probe signals without
+       affecting the rest of the app's status UI. */
+    --success: 152 76% 40%;   /* emerald-600 equivalent */
+    --warning:  38 92% 50%;   /* amber-500 equivalent */
+    --info:    199 95% 40%;   /* sky-600 equivalent */
   }
 }
 
