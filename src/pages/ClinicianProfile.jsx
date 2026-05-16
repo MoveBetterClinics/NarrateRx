@@ -9,15 +9,15 @@ import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Separator } from '@/components/ui/separator'
+import { ClinicianChip } from '@/components/ClinicianChip'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { useClinician, useDeleteClinician, useDeleteInterview } from '@/lib/queries'
 import VoiceNotesPanel from '@/components/VoiceNotesPanel'
 import VoiceFreshnessCard from '@/components/VoiceFreshnessCard'
-import { getInitials, formatDate, formatRelativeDate } from '@/lib/utils'
+import { formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUserRole } from '@/lib/useUserRole'
@@ -99,11 +99,7 @@ export default function ClinicianProfile() {
       </Button>
 
       <div className="flex items-center gap-5">
-        <Avatar className="h-16 w-16 text-xl">
-          <AvatarFallback className="bg-primary/10 text-primary font-bold text-lg">
-            {getInitials(clinician.name)}
-          </AvatarFallback>
-        </Avatar>
+        <ClinicianChip id={clinician.id} name={clinician.name} size="xl" />
         <div className="flex-1">
           <h1 className="text-2xl font-bold">{clinician.name}</h1>
           <p className="text-sm text-muted-foreground">
