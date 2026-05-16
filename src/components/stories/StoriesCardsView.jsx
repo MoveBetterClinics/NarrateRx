@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
-import { BookOpen, FileText, Target, X } from 'lucide-react'
+import { BookOpen, FileText, Target, X, ChevronDown, ChevronUp } from 'lucide-react'
 import StoryCard from './StoryCard'
 import EmptyState from '@/components/EmptyState'
 import { Badge } from '@/components/ui/badge'
-import { useCampaigns } from '@/lib/queries'
+import { ClinicianChip } from '@/components/ClinicianChip'
+import { useCampaigns, useClinicians } from '@/lib/queries'
 
 function SkeletonCard() {
   return (
@@ -25,18 +27,31 @@ function SkeletonCard() {
 
 /**
  * Renders the amber-tinted progress strip shown at the top of the Stories grid
- * when a campaign filter is active. Shows progress against
- * `target_clinician_ids.length` and exposes a placeholder "View who's pending"
- * link (inert this PR — the modal/view is a follow-up).
+ * when a campaign filter is active. Shows progress and an expandable list of
+ * clinicians who haven't yet contributed.
  */
-function CampaignProgressStrip({ campaign }) {
-  const targetTotal = Array.isArray(campaign.target_clinician_ids)
-    ? campaign.target_clinician_ids.length
-    : 0
+function CampaignProgressStrip({ campaign, clinicians = [] }) {
+  const [showPending, setShowPending] = useState(false)
+
+  const targetIds = Array.isArray(campaign.target_clinician_ids)
+    ? campaign.target_clinician_ids
+    : []
+  const contributedIds = new Set(
+    Array.isArray(campaign.contributed_clinician_ids)
+      ? campaign.contributed_clinician_ids
+      : [],
+  )
+  const targetTotal = targetIds.length
   const contributed = campaign.contributed_count || 0
   const pct = targetTotal > 0
     ? Math.min(100, Math.round((contributed / targetTotal) * 100))
     : 0
+
+  const pendingIds = targetIds.filter((id) => !contributedIds.has(id))
+  const pendingClinicians = pendingIds.map((id) => {
+    const match = clinicians.find((c) => c.id === id)
+    return { id, name: match?.name || match?.full_name || 'Unknown clinician' }
+  })
 
   return (
     <div className="rounded-lg border border-warning/30 bg-warning/10 text-warning p-4">
@@ -55,14 +70,35 @@ function CampaignProgressStrip({ campaign }) {
               style={{ width: `${pct}%` }}
             />
           </div>
-          {/* TODO(campaigns): wire to a "who's pending" modal/view in a follow-up PR. */}
-          <a
-            href="#"
-            onClick={(e) => e.preventDefault()}
-            className="mt-2 inline-block text-xs font-medium text-warning hover:underline"
-          >
-            View who&apos;s pending →
-          </a>
+          {pendingClinicians.length > 0 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowPending((v) => !v)}
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-warning hover:underline"
+              >
+                {showPending ? 'Hide pending' : `View who's pending`}
+                {showPending
+                  ? <ChevronUp className="h-3 w-3" aria-hidden="true" />
+                  : <ChevronDown className="h-3 w-3" aria-hidden="true" />}
+              </button>
+              {showPending ? (
+                <ul className="mt-3 flex flex-col gap-1.5">
+                  {pendingClinicians.map(({ id, name }) => (
+                    <li key={id} className="flex items-center gap-2">
+                      <ClinicianChip id={id} name={name} size="sm" showName
+                        nameClassName="text-warning/90 text-xs font-medium"
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          ) : (
+            <p className="mt-2 text-xs font-medium text-warning/90">
+              All targeted clinicians have contributed.
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -82,6 +118,7 @@ export default function StoriesCardsView({ stories = [], isLoading = false }) {
   const campaignFilter = searchParams.get('campaign') || ''
 
   const { data: campaigns = [] } = useCampaigns({ enabled: !!campaignFilter })
+  const { data: clinicians = [] } = useClinicians({ enabled: !!campaignFilter })
   const activeCampaign = campaignFilter
     ? campaigns.find((c) => c.id === campaignFilter) || null
     : null
@@ -116,7 +153,7 @@ export default function StoriesCardsView({ stories = [], isLoading = false }) {
     if (platformFilter || stageFilter || campaignFilter) {
       return (
         <div className="flex flex-col gap-4">
-          {activeCampaign ? <CampaignProgressStrip campaign={activeCampaign} /> : null}
+          {activeCampaign ? <CampaignProgressStrip campaign={activeCampaign} clinicians={clinicians} /> : null}
           {activeCampaign ? (
             <div>
               <Badge
