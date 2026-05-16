@@ -35,7 +35,7 @@ const INTEGRATIONS = [
     setupSteps: [
       'Sign in (or sign up) at buffer.com.',
       'In Buffer, connect every channel you want NarrateRx to publish to (Instagram, Facebook Page, LinkedIn, X, TikTok, etc.).',
-      'Open buffer.com/api and go to the Personal Keys tab.',
+      'Open publish.buffer.com/settings/api and go to the Personal Keys tab.',
       'Click + New Key, give it a name (e.g. "NarrateRx"), and copy the token.',
       'Paste it below and Save — your token is stored encrypted and used only at publish time.',
     ],
