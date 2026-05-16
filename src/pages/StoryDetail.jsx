@@ -1,8 +1,9 @@
-import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useStory } from '@/lib/queries'
+import { apiFetch } from '@/lib/api'
 import { getStageToken } from '@/lib/stageTokens'
 import TranscriptPane from '@/components/story-detail/TranscriptPane'
 import AssetsPane from '@/components/story-detail/AssetsPane'
@@ -22,6 +23,7 @@ import { ClinicianChip } from '@/components/ClinicianChip'
  */
 export default function StoryDetail() {
   const { storyId } = useParams()
+  const navigate = useNavigate()
   const { data: story, isLoading, isError, isPlaceholderData } = useStory(storyId)
 
   // Provenance highlight — lifted here so TranscriptPane and AssetsPane can
@@ -29,6 +31,23 @@ export default function StoryDetail() {
   // paragraph attribution row; TranscriptPane reacts by scrolling + highlighting
   // the corresponding user message.
   const [provenanceHighlight, setProvenanceHighlight] = useState(null)
+
+  // Fallback: if the URL param is actually a content_item id (legacy bookmark
+  // or stale link from /review/:itemId redirect), resolve it to its parent
+  // interview and redirect. Keeps "Story not found" reserved for genuinely
+  // missing rows.
+  const notFound = !isLoading && (isError || !story)
+  useEffect(() => {
+    if (!notFound || !storyId) return
+    let cancelled = false
+    apiFetch(`/api/db/content?id=${encodeURIComponent(storyId)}`)
+      .then((row) => {
+        if (cancelled) return
+        if (row?.interview_id) navigate(`/stories/${row.interview_id}`, { replace: true })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [notFound, storyId, navigate])
 
   if (isLoading) return <LoadingState />
 
