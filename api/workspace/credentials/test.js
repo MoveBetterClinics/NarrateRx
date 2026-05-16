@@ -36,7 +36,9 @@ function fetchWithTimeout(url, init = {}) {
 }
 
 async function testBuffer(secret) {
-  const r = await fetchWithTimeout(`https://api.bufferapp.com/1/user.json?access_token=${encodeURIComponent(secret)}`)
+  const r = await fetchWithTimeout('https://api.bufferapp.com/1/user.json', {
+    headers: { Authorization: `Bearer ${secret}` },
+  })
   if (!r.ok) {
     const bodyText = await r.text().catch(() => '')
     console.error('[credentials/test] buffer rejected', r.status, bodyText)

@@ -104,7 +104,9 @@ async function handler(req, res) {
       })
     }
   } else {
-    const profilesRes = await fetch(`${BUFFER_API}/profiles.json?access_token=${BUFFER_TOKEN}`)
+    const profilesRes = await fetch(`${BUFFER_API}/profiles.json`, {
+      headers: { Authorization: `Bearer ${BUFFER_TOKEN}` },
+    })
     if (!profilesRes.ok) {
       const bodyText = await profilesRes.text().catch(() => '')
       console.error('[publish/buffer] profiles fetch failed', profilesRes.status, bodyText)
@@ -121,7 +123,6 @@ async function handler(req, res) {
 
   // 2. Build the update payload
   const params = new URLSearchParams()
-  params.append('access_token', BUFFER_TOKEN)
   for (const pid of profileIds) params.append('profile_ids[]', pid)
   params.append('text', content)
 
@@ -145,7 +146,10 @@ async function handler(req, res) {
   // 3. Create the update
   const updateRes = await fetch(`${BUFFER_API}/updates/create.json`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Authorization: `Bearer ${BUFFER_TOKEN}`,
+    },
     body: params.toString(),
   })
   const update = await updateRes.json()
