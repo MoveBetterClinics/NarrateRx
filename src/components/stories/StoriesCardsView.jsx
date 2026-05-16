@@ -1,7 +1,9 @@
 import { useSearchParams, Link } from 'react-router-dom'
-import { BookOpen, FileText } from 'lucide-react'
+import { BookOpen, FileText, Target, X } from 'lucide-react'
 import StoryCard from './StoryCard'
 import EmptyState from '@/components/EmptyState'
+import { Badge } from '@/components/ui/badge'
+import { useCampaigns } from '@/lib/queries'
 
 function SkeletonCard() {
   return (
@@ -22,14 +24,67 @@ function SkeletonCard() {
 }
 
 /**
+ * Renders the amber-tinted progress strip shown at the top of the Stories grid
+ * when a campaign filter is active. Shows progress against
+ * `target_clinician_ids.length` and exposes a placeholder "View who's pending"
+ * link (inert this PR — the modal/view is a follow-up).
+ */
+function CampaignProgressStrip({ campaign }) {
+  const targetTotal = Array.isArray(campaign.target_clinician_ids)
+    ? campaign.target_clinician_ids.length
+    : 0
+  const contributed = campaign.contributed_count || 0
+  const pct = targetTotal > 0
+    ? Math.min(100, Math.round((contributed / targetTotal) * 100))
+    : 0
+
+  return (
+    <div className="rounded-lg border border-warning/30 bg-warning/10 text-warning p-4">
+      <div className="flex items-start gap-3">
+        <Target className="h-5 w-5 mt-0.5 shrink-0" aria-hidden="true" />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="font-medium">{campaign.name} campaign</span>
+            <span className="text-sm text-warning/90">
+              {contributed} of {targetTotal} {targetTotal === 1 ? 'clinician has' : 'clinicians have'} contributed
+            </span>
+          </div>
+          <div className="mt-2 h-1.5 w-full rounded-full bg-warning/20 overflow-hidden">
+            <div
+              className="h-full bg-warning transition-all duration-300"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          {/* TODO(campaigns): wire to a "who's pending" modal/view in a follow-up PR. */}
+          <a
+            href="#"
+            onClick={(e) => e.preventDefault()}
+            className="mt-2 inline-block text-xs font-medium text-warning hover:underline"
+          >
+            View who&apos;s pending →
+          </a>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
  * StoriesCardsView — responsive grid of StoryCard components.
  *
  * @param {{ stories: Array, isLoading: boolean }} props
  */
 export default function StoriesCardsView({ stories = [], isLoading = false }) {
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const platformFilter = searchParams.get('platform') || ''
   const stageFilter = searchParams.get('stage') || ''
+  const locationFilter = searchParams.get('location') || ''
+  const campaignFilter = searchParams.get('campaign') || ''
+
+  const { data: campaigns = [] } = useCampaigns({ enabled: !!campaignFilter })
+  const activeCampaign = campaignFilter
+    ? campaigns.find((c) => c.id === campaignFilter) || null
+    : null
 
   if (isLoading) {
     return (
@@ -41,23 +96,45 @@ export default function StoriesCardsView({ stories = [], isLoading = false }) {
     )
   }
 
-  const locationFilter = searchParams.get('location') || ''
-
   const filtered = stories.filter((s) => {
     if (platformFilter && !s.pieces?.some((p) => p.platform === platformFilter)) return false
     if (stageFilter && s.story_stage !== stageFilter) return false
     if (locationFilter && s.location_id !== locationFilter) return false
+    if (campaignFilter && s.campaign_id !== campaignFilter) return false
     return true
   })
 
+  function clearCampaign() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('campaign')
+    setSearchParams(next, { replace: true })
+  }
+
+  const showHeader = !!activeCampaign
+
   if (filtered.length === 0) {
-    if (platformFilter || stageFilter) {
+    if (platformFilter || stageFilter || campaignFilter) {
       return (
-        <EmptyState
-          icon={BookOpen}
-          title="No stories match"
-          description="No stories match the current filters. Try clearing a filter."
-        />
+        <div className="flex flex-col gap-4">
+          {activeCampaign ? <CampaignProgressStrip campaign={activeCampaign} /> : null}
+          {activeCampaign ? (
+            <div>
+              <Badge
+                variant="outline"
+                className="cursor-pointer gap-1.5 border-warning/40 bg-warning/10 text-warning hover:bg-warning/20"
+                onClick={clearCampaign}
+              >
+                Campaign: {activeCampaign.name}
+                <X className="h-3 w-3" aria-hidden="true" />
+              </Badge>
+            </div>
+          ) : null}
+          <EmptyState
+            icon={BookOpen}
+            title="No stories match"
+            description="No stories match the current filters. Try clearing a filter."
+          />
+        </div>
       )
     }
 
@@ -80,10 +157,25 @@ export default function StoriesCardsView({ stories = [], isLoading = false }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      {filtered.map((story) => (
-        <StoryCard key={story.id} story={story} />
-      ))}
+    <div className="flex flex-col gap-4">
+      {showHeader ? <CampaignProgressStrip campaign={activeCampaign} /> : null}
+      {showHeader ? (
+        <div>
+          <Badge
+            variant="outline"
+            className="cursor-pointer gap-1.5 border-warning/40 bg-warning/10 text-warning hover:bg-warning/20"
+            onClick={clearCampaign}
+          >
+            Campaign: {activeCampaign.name}
+            <X className="h-3 w-3" aria-hidden="true" />
+          </Badge>
+        </div>
+      ) : null}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((story) => (
+          <StoryCard key={story.id} story={story} />
+        ))}
+      </div>
     </div>
   )
 }

@@ -171,6 +171,8 @@ export function buildStories(clinicians, contentItems) {
         owner_email: interview.owner_email ?? null,
         location_id: interview.location_id ?? null,
         prototype_id: interview.prototype_id ?? null,
+        campaign_id: interview.campaign_id ?? null,
+        campaign_name: interview.campaign?.name ?? null,
         created_at: interview.created_at,
         updated_at: interview.updated_at,
         has_outputs: !!interview.outputs && Object.keys(interview.outputs).length > 0,
