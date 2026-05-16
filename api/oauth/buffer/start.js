@@ -6,7 +6,6 @@ export const config = { runtime: 'nodejs' }
 
 import crypto from 'node:crypto'
 import { workspaceContext } from '../../_lib/workspaceContext.js'
-import { requireRole } from '../../_lib/auth.js'
 
 const CLIENT_ID = process.env.BUFFER_CLIENT_ID
 const CLIENT_SECRET = process.env.BUFFER_CLIENT_SECRET
@@ -30,13 +29,6 @@ async function handler(req, res) {
   if (!workspace) {
     res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'no-workspace-context' }))
-    return
-  }
-
-  const auth = await requireRole(req, ['admin'], { orgId: workspace.clerk_org_id })
-  if (!auth.ok) {
-    res.writeHead(auth.reason === 'forbidden' ? 403 : 401, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ error: auth.reason }))
     return
   }
 
