@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Copy, Check, FileText, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Copy, Check, FileText, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -47,7 +47,14 @@ function hasContrastSignal(text) {
   return text.includes('[CONTRAST]')
 }
 
-function stripAgreementToken(text) { return text.replace(/\[AGREEMENT\]/g, '').trim() }
+// Token format: [AGREEMENT][ClinicianName] or legacy [AGREEMENT]
+// Extract the embedded clinician name if present, e.g. [AGREEMENT][Sarah] → "Sarah"
+function extractAgreementName(text) {
+  const m = text.match(/\[AGREEMENT\]\[([^\]]+)\]/)
+  return m ? m[1] : null
+}
+
+function stripAgreementToken(text) { return text.replace(/\[AGREEMENT\](\[[^\]]*\])?/g, '').trim() }
 function hasAgreementSignal(text)   { return text.includes('[AGREEMENT]') }
 
 function stripGapToken(text) { return text.replace(/\[GAP\]/g, '').trim() }
@@ -1547,7 +1554,8 @@ function MessageBubble({ message, clinicianName, isStreaming }) {
   const isContrast  = isAI && hasContrastSignal(message.content)
   const isAgreement = isAI && hasAgreementSignal(message.content)
   const isGap       = isAI && hasGapSignal(message.content)
-  const contrastName = isContrast ? extractContrastName(message.content) : null
+  const contrastName  = isContrast  ? extractContrastName(message.content)  : null
+  const agreementName = isAgreement ? extractAgreementName(message.content) : null
   const displayContent = isAI
     ? stripGapToken(stripAgreementToken(stripContrastToken(message.content)))
     : message.content
@@ -1566,19 +1574,19 @@ function MessageBubble({ message, clinicianName, isStreaming }) {
         {isContrast && (
           <span className="self-start inline-flex items-center gap-1.5 text-xs font-medium text-contrast-signal bg-contrast-signal/10 border border-contrast-signal/30 rounded-full px-2.5 py-0.5">
             <ArrowLeftRight className="h-3 w-3 shrink-0" aria-hidden="true" />
-            {contrastName ? `Different angle than ${contrastName}` : 'A colleague saw this differently'}
+            {contrastName ? `Different angle than ${contrastName}'s interview` : 'Different angle from this practice'}
           </span>
         )}
         {isAgreement && (
           <span className="self-start inline-flex items-center gap-1.5 text-xs font-medium text-agreement-signal bg-agreement-signal/10 border border-agreement-signal/30 rounded-full px-2.5 py-0.5">
-            <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
-            Shared view across your practice
+            <Check className="h-3 w-3 shrink-0" aria-hidden="true" />
+            {agreementName ? `Aligns with ${agreementName}'s recent interview` : 'Aligns with prior interviews here'}
           </span>
         )}
         {isGap && (
           <span className="self-start inline-flex items-center gap-1.5 text-xs font-medium text-verbatim-accent bg-verbatim-accent/10 border border-verbatim-accent/30 rounded-full px-2.5 py-0.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-verbatim-accent shrink-0" aria-hidden="true" />
-            Your take on this not yet captured
+            <Circle className="h-3 w-3 shrink-0" aria-hidden="true" />
+            New ground
           </span>
         )}
         <div
