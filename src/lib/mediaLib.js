@@ -275,6 +275,7 @@ export async function uploadMedia(file, meta = {}, options = {}) {
       notes: meta.notes || null,
       assetPurpose: meta.assetPurpose || null,
       speakerRole: meta.assetPurpose === 'interview' ? (meta.speakerRole || 'clinician') : null,
+      clinicianId: meta.clinicianId || null,
       parentId: meta.parentId || null,
       contentPieceId: meta.contentPieceId || null,
     }),

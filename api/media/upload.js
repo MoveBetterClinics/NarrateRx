@@ -276,6 +276,7 @@ async function handler(req, res) {
           created_by: meta.createdBy || null,
           asset_purpose: assetPurpose,
           speaker_role: speakerRole,
+          clinician_id: (assetPurpose === 'interview' && meta.clinicianId) ? meta.clinicianId : null,
           parent_id: meta.parentId || null,
         }
 

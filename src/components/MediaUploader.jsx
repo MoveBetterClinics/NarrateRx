@@ -5,6 +5,7 @@ import {
   Mic, Film, Image as ImageIcon, Sparkles,
 } from 'lucide-react'
 import { useUploadProgress } from '@/lib/UploadProgressContext'
+import { useClinicians } from '@/lib/queries'
 
 // Asset purpose is the primary fork — it decides which downstream pipeline
 // the upload feeds. We render the choice as deliberate cards (not a dropdown)
@@ -127,10 +128,13 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   const [rejected, setRejected]    = useState([])
   const [purpose, setPurpose]      = useState('interview')
   const [speakerRole, setSpeakerRole] = useState('clinician')
+  const [clinicianId, setClinicianId] = useState('')
   const { startUpload } = useUploadProgress()
+  const { data: clinicians = [] } = useClinicians()
 
   const purposeMeta = PURPOSES.find((p) => p.id === purpose) || PURPOSES[0]
   const showSpeakerRole = purpose === 'interview'
+  const showClinicianPicker = showSpeakerRole && speakerRole === 'clinician' && clinicians.length > 0
 
   async function handleFiles(fileList) {
     const files = Array.from(fileList || [])
@@ -157,6 +161,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
       // mediaLib enforces null speakerRole on non-interview, but pass
       // explicitly anyway so the wire payload reads cleanly in logs.
       speakerRole: showSpeakerRole ? speakerRole : null,
+      clinicianId: showClinicianPicker && clinicianId ? clinicianId : null,
     })))
 
     if (results.some((r) => r)) onUploaded?.()
@@ -268,13 +273,47 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         </div>
       )}
 
-      {/* Final step — drop zone. Step number adjusts based on whether the
-          speaker-role step is showing, so the user always sees a continuous
-          1 → 2 (→ 3) sequence. */}
+      {/* Step 3 (conditional) — which clinician? Only appears for interview + clinician role. */}
+      {showClinicianPicker && (
+        <div className="mb-3 rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">3</span>
+            <div>
+              <div className="text-sm font-semibold">Which clinician? <span className="text-muted-foreground font-normal text-xs">(optional)</span></div>
+              <p className="text-[11px] text-muted-foreground">Links this clip to their voice profile and interview history.</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => setClinicianId('')}
+              className={`text-left rounded-lg border-2 p-2 transition-colors text-xs ${
+                !clinicianId ? 'border-primary bg-primary/5 font-medium' : 'border-border hover:border-primary/40 text-muted-foreground'
+              }`}
+            >
+              Not sure / multiple
+            </button>
+            {clinicians.map((c) => (
+              <button
+                type="button"
+                key={c.id}
+                onClick={() => setClinicianId(c.id)}
+                className={`text-left rounded-lg border-2 p-2 transition-colors text-xs ${
+                  clinicianId === c.id ? 'border-primary bg-primary/5 font-medium' : 'border-border hover:border-primary/40'
+                }`}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Final step — drop zone. Step number adjusts based on prior steps. */}
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-center gap-2 mb-2.5">
           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
-            {showSpeakerRole ? 3 : 2}
+            {showClinicianPicker ? 4 : showSpeakerRole ? 3 : 2}
           </span>
           <div>
             <div className="text-sm font-semibold">Drop your files</div>
