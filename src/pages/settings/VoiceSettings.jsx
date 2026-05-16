@@ -319,12 +319,9 @@ function PatientContextEditor({ value, onChange }) {
           rows={3}
           hint="One paragraph Bernard uses to orient tone and framing across all content."
         />
-        <Textarea2
-          label="Primary avatar"
-          value={pc.primaryAvatar || ''}
+        <PrimaryAvatarEditor
+          value={pc.primaryAvatar}
           onChange={v => update({ primaryAvatar: v })}
-          rows={3}
-          hint="The archetypal patient in plain language — who Bernard is always writing for."
         />
       </div>
 
@@ -364,6 +361,80 @@ function PatientContextEditor({ value, onChange }) {
         rows={4}
         hint="One per line. Bernard uses these to frame 'what this clinic does differently.'"
       />
+    </div>
+  )
+}
+
+// Primary avatar field can be either a string (simple tenant shape) or a
+// structured object with name/story/whatTheyWant + list fields (legacy
+// paradigm shape used by Move Better workspaces). Detect the shape and
+// render the right editor — passing the raw value back through onChange.
+function PrimaryAvatarEditor({ value, onChange }) {
+  const isObject = value != null && typeof value === 'object' && !Array.isArray(value)
+  if (!isObject) {
+    return (
+      <Textarea2
+        label="Primary avatar"
+        value={typeof value === 'string' ? value : ''}
+        onChange={onChange}
+        rows={3}
+        hint="The archetypal patient in plain language — who Bernard is always writing for."
+      />
+    )
+  }
+
+  const av = value
+  const update = (patch) => onChange({ ...av, ...patch })
+  const listFields = ['fears', 'beliefs', 'painPoints', 'demographics']
+
+  return (
+    <div className="rounded-lg border border-input bg-card p-3 space-y-3">
+      <div className="flex items-center justify-between">
+        <Label className="text-sm font-medium">Primary avatar</Label>
+        <span className="text-[10px] text-muted-foreground italic">structured</span>
+      </div>
+      <div>
+        <Label className="text-xs mb-1 block">Name</Label>
+        <input
+          className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm"
+          value={av.name || ''}
+          onChange={e => update({ name: e.target.value })}
+          placeholder="e.g. The Frustrated Active Adult"
+        />
+      </div>
+      <Textarea2
+        label="Their story"
+        value={av.story || ''}
+        onChange={v => update({ story: v })}
+        rows={4}
+        hint="A short narrative of where this patient is coming from."
+      />
+      <Textarea2
+        label="What they want"
+        value={av.whatTheyWant || ''}
+        onChange={v => update({ whatTheyWant: v })}
+        rows={3}
+        hint="The outcome this patient is reaching for."
+      />
+      <details className="rounded border border-input">
+        <summary className="cursor-pointer px-3 py-2 text-xs text-muted-foreground hover:bg-accent/30 list-none">
+          ▾ Fears, beliefs, pain points, demographics (one per line)
+        </summary>
+        <div className="p-3 pt-0 space-y-3">
+          {listFields.map((key) => {
+            const arr = Array.isArray(av[key]) ? av[key] : []
+            return (
+              <Textarea2
+                key={key}
+                label={key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}
+                value={arr.join('\n')}
+                onChange={v => update({ [key]: v.split('\n').map(s => s.trim()).filter(Boolean) })}
+                rows={3}
+              />
+            )
+          })}
+        </div>
+      </details>
     </div>
   )
 }
