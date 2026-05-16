@@ -280,6 +280,9 @@ export async function uploadMedia(file, meta = {}, options = {}) {
       // Optional pre-assigned collection. Server verifies scope before
       // inserting into collection_items.
       collectionId: meta.collectionId || null,
+      // Optional clinician attribution. Server validates clinician belongs to
+      // the workspace before writing clinician_id on the asset row.
+      clinicianId: meta.clinicianId || null,
     }),
   })
 

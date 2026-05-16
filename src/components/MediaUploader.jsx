@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import { useUploadProgress } from '@/lib/UploadProgressContext'
 import { listCollections } from '@/lib/collectionsLib'
+import { fetchClinicians } from '@/lib/api'
 
 // Asset purpose is the primary fork — it decides which downstream pipeline
 // the upload feeds. We render the choice as deliberate cards (not a dropdown)
@@ -164,6 +165,8 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   const [speakerRole, setSpeakerRole] = useState('clinician')
   const [collectionId, setCollectionId] = useState('')
   const [collections, setCollections] = useState([])
+  const [clinicianId, setClinicianId] = useState('')
+  const [clinicians, setClinicians] = useState([])
   // Smart-preview tray — files pending upload, with detected duration + any
   // purpose mismatch flags. Cleared after a successful upload kick-off.
   const [pending, setPending] = useState([])
@@ -172,14 +175,15 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   const purposeMeta = PURPOSES.find((p) => p.id === purpose) || PURPOSES[0]
   const showSpeakerRole = purpose === 'interview'
 
-  // Fetch active collections once so the publisher can pre-assign uploads.
-  // Errors stay silent — the picker just shows "No collection" if the fetch
-  // fails (the asset still uploads; user can add to a collection later).
+  // Fetch active collections and clinicians once on mount.
   useEffect(() => {
     let cancelled = false
     listCollections({ status: 'active', limit: 100 })
       .then((rows) => { if (!cancelled) setCollections(Array.isArray(rows) ? rows : []) })
       .catch(() => { if (!cancelled) setCollections([]) })
+    fetchClinicians()
+      .then((rows) => { if (!cancelled) setClinicians(Array.isArray(rows) ? rows : []) })
+      .catch(() => { if (!cancelled) setClinicians([]) })
     return () => { cancelled = true }
   }, [])
 
@@ -231,6 +235,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
       speakerRole: showSpeakerRole ? speakerRole : null,
       // Optional — server verifies workspace scope before linking.
       collectionId: collectionId || null,
+      clinicianId: clinicianId || null,
     })))
 
     if (results.some((r) => r)) onUploaded?.()
@@ -396,12 +401,65 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         </div>
       )}
 
-      {/* Final step — drop zone. Step number walks 1 → 2 → 3 → 4 depending
-          on which optional steps showed (speaker role, collection). */}
+      {/* Clinician picker — optional, photo/broll only. Links the asset to a
+          specific clinician so Library filters and staff attribution work. */}
+      {!showSpeakerRole && clinicians.length > 0 && (
+        <div className="mb-3 rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
+              {(collections.length > 0 ? 1 : 0) + 2}
+            </span>
+            <div>
+              <div className="text-sm font-semibold">
+                Who&apos;s in this?
+                <span className="ml-1.5 inline-block text-xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium uppercase tracking-wide">
+                  Optional
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Tag a clinician so this asset shows up on their profile and in searches.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setClinicianId('')}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                !clinicianId
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+              }`}
+            >
+              — No clinician
+            </button>
+            {clinicians.map((c) => (
+              <button
+                type="button"
+                key={c.id}
+                onClick={() => setClinicianId(c.id === clinicianId ? '' : c.id)}
+                className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                  clinicianId === c.id
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                }`}
+              >
+                <span className="inline-flex h-4 w-4 rounded-full bg-current/20 items-center justify-center text-[9px] font-semibold shrink-0">
+                  {c.name?.[0] || '?'}
+                </span>
+                {c.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Final step — drop zone. Step number walks based on which optional
+          steps showed (speaker role, collection, clinician). */}
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-center gap-2 mb-2.5">
           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
-            {(showSpeakerRole ? 1 : 0) + (collections.length > 0 ? 1 : 0) + 2}
+            {(showSpeakerRole ? 1 : 0) + (collections.length > 0 ? 1 : 0) + (!showSpeakerRole && clinicians.length > 0 ? 1 : 0) + 2}
           </span>
           <div>
             <div className="text-sm font-semibold">Drop your files</div>
@@ -428,6 +486,9 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             {showSpeakerRole ? ` · ${labelForSpeaker(speakerRole)}` : ''}
             {collectionId && collections.find((c) => c.id === collectionId)
               ? ` · ${collections.find((c) => c.id === collectionId).name}`
+              : ''}
+            {clinicianId && clinicians.find((c) => c.id === clinicianId)
+              ? ` · ${clinicians.find((c) => c.id === clinicianId).name}`
               : ''}.
           </p>
         </div>

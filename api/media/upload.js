@@ -207,6 +207,10 @@ async function handler(req, res) {
             collectionId: typeof meta.collectionId === 'string' && meta.collectionId
               ? meta.collectionId
               : null,
+            // Optional clinician attribution — which clinician appears in this asset.
+            clinicianId: typeof meta.clinicianId === 'string' && meta.clinicianId
+              ? meta.clinicianId
+              : null,
           }),
         }
       },
@@ -283,6 +287,7 @@ async function handler(req, res) {
           asset_purpose: assetPurpose,
           speaker_role: speakerRole,
           parent_id: meta.parentId || null,
+          clinician_id: meta.clinicianId || null,
         }
 
         const ins = await sb('media_assets', { method: 'POST', body: JSON.stringify(row) })
