@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { ArrowLeft, Loader2 } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useStory } from '@/lib/queries'
 import { getStageToken } from '@/lib/stageTokens'
 import TranscriptPane from '@/components/story-detail/TranscriptPane'
 import AssetsPane from '@/components/story-detail/AssetsPane'
 import TranscriptExport from '@/components/story-detail/TranscriptExport'
+import LoadingState from '@/components/LoadingState'
+import ErrorState from '@/components/ErrorState'
 
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
@@ -27,13 +29,7 @@ export default function StoryDetail() {
   // the corresponding user message.
   const [provenanceHighlight, setProvenanceHighlight] = useState(null)
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  if (isLoading) return <LoadingState />
 
   if (isError || !story) {
     return (
@@ -45,7 +41,7 @@ export default function StoryDetail() {
           <ArrowLeft className="h-4 w-4" />
           Back to Stories
         </Link>
-        <p className="text-sm text-muted-foreground">Story not found.</p>
+        <ErrorState message="Story not found." />
       </div>
     )
   }
