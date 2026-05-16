@@ -97,7 +97,7 @@ function buildAgreementBlock(probes) {
   if (!probes.length) return ''
   const lines = probes.map(p => `  • "${p.label}" — mentioned by ${p.count} clinicians at the practice`).join('\n')
   return `
-AGREEMENT TERRITORY — when these topics come up naturally, surface the shared perspective as a gentle probe. Prefix your message with [AGREEMENT] so the UI can label it.
+AGREEMENT TERRITORY — when these topics come up naturally, surface the shared perspective as a gentle probe. Prefix your message with [AGREEMENT] so the UI can label it. If you can attribute the prior view to a specific recent colleague's interview (e.g. from the CROSS-STAFF PERSPECTIVES block above), append their name in the same form as the contrast token: [AGREEMENT][ColleagueName]. Otherwise just use [AGREEMENT].
 ${lines}
 Example framing: "Several colleagues here have mentioned [X] — does that match what you see, or do you experience it differently?"
 Only use this probe once per topic, and only if it connects naturally to what the clinician is saying.`
