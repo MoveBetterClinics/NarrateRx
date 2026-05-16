@@ -278,7 +278,7 @@ function RolePickerModal({ role, assets, currentAssetId, onPick, onClose }) {
   )
   return (
     <div className="fixed inset-0 z-40 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-background rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-background rounded-xl shadow-xl w-full max-w-5xl max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
         <div className="p-4 border-b flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold">Pick {def?.label}</div>
@@ -292,7 +292,7 @@ function RolePickerModal({ role, assets, currentAssetId, onPick, onClose }) {
             <button onClick={onClose} className="ml-2 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>
           </div>
         </div>
-        <div className="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        <div className="p-4 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-4">
           {scored.map(({ a, c }) => {
             const isCurrent = currentAssetId === a.id
             return (
@@ -304,7 +304,7 @@ function RolePickerModal({ role, assets, currentAssetId, onPick, onClose }) {
                   isCurrent ? 'border-success ring-2 ring-success/30' : 'border-border hover:border-primary/50'
                 }`}
               >
-                <AssetPreview asset={a} size="sm" backdrop={backdrop} />
+                <AssetPreview asset={a} size="lg" backdrop={backdrop} />
                 <div className="p-2 space-y-1">
                   <div className="text-3xs font-medium truncate" title={a.filename}>{a.filename}</div>
                   {c > 0 && (
