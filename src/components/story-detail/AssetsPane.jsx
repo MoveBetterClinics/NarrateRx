@@ -115,7 +115,55 @@ function CommentThread({ pieceId }) {
 // Inline editor for a content_item's body. Always-editable textarea that
 // auto-grows with content. Save / Reset only appear when the local buffer
 // differs from the saved value, so the unedited path stays clean.
-function ContentEditor({ piece }) {
+// ── AttributedView ────────────────────────────────────────────────────────────
+// Read-mode paragraph view that color-codes each block by its provenance type
+// and fires a transcript highlight on click. Replaces the textarea in
+// "attributed" view mode.
+
+const BLOCK_BORDER = {
+  verbatim:        'border-l-emerald-400',
+  close_paraphrase: 'border-l-sky-400',
+  synthesis:       'border-l-slate-200',
+}
+
+function AttributedView({ content, blocks, onHighlight }) {
+  const paragraphs = (typeof content === 'string' ? content : '')
+    .split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+
+  return (
+    <div className="rounded-md border bg-muted/20 p-3 space-y-3 text-xs leading-relaxed text-foreground/90">
+      {paragraphs.map((para, i) => {
+        const block  = blocks?.[i]
+        const border = BLOCK_BORDER[block?.source_type] ?? 'border-l-slate-200'
+        const clickable = block?.source_msg_index != null
+        return (
+          <p
+            key={i}
+            className={`pl-3 border-l-2 ${border} py-0.5 whitespace-pre-wrap transition-colors duration-150 ${
+              clickable ? 'cursor-pointer hover:bg-accent/30 rounded-r' : ''
+            }`}
+            title={clickable ? 'Click to see source in transcript ↳' : undefined}
+            onClick={clickable ? () => onHighlight?.({
+              msgIndex: block.source_msg_index,
+              start: block.source_span?.[0] ?? null,
+              end:   block.source_span?.[1] ?? null,
+            }) : undefined}
+          >
+            {para}
+          </p>
+        )
+      })}
+      <div className="flex items-center gap-3 pt-1 border-t border-border/50 text-muted-foreground">
+        <span className="flex items-center gap-1.5"><span className="h-3 w-0.5 rounded bg-emerald-400" />Verbatim</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-0.5 rounded bg-sky-400" />Paraphrase</span>
+        <span className="flex items-center gap-1.5"><span className="h-3 w-0.5 rounded bg-slate-300" />Synthesis</span>
+        <span className="ml-auto italic">Click a paragraph to jump to its source in the transcript</span>
+      </div>
+    </div>
+  )
+}
+
+function ContentEditor({ piece, onProvenanceHighlight }) {
   // JSONB platforms (rare — currently none in production) round-trip through
   // a JSON string so the textarea isn't [object Object]. Edits stay as plain
   // text — we don't try to re-parse on save; if the user mangled the JSON,
@@ -125,8 +173,10 @@ function ContentEditor({ piece }) {
     : piece.content == null ? '' : JSON.stringify(piece.content, null, 2)
 
   const [value, setValue] = useState(initial)
+  const [viewMode, setViewMode] = useState('edit')
   const taRef = useRef(null)
   const updateItem = useUpdateContentItem()
+  const hasProvenance = !!(piece.provenance?.blocks?.length)
 
   // Re-sync local buffer when the saved row changes from elsewhere
   // (regenerate, server roundtrip after Save). Without this the textarea
@@ -156,15 +206,51 @@ function ContentEditor({ piece }) {
 
   return (
     <div className="space-y-2">
-      <textarea
-        ref={taRef}
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        spellCheck
-        className="w-full min-h-[160px] max-h-[480px] rounded-md border bg-muted/20 p-3 text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground/90 break-words resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
-        placeholder="No draft content yet."
-      />
-      {dirty && (
+      {/* View-mode toggle — only shown when provenance data exists */}
+      {hasProvenance && (
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setViewMode('edit')}
+            className={`px-2 py-0.5 rounded text-xs transition-colors ${
+              viewMode === 'edit'
+                ? 'bg-muted text-foreground font-medium'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('attributed')}
+            className={`px-2 py-0.5 rounded text-xs transition-colors ${
+              viewMode === 'attributed'
+                ? 'bg-muted text-foreground font-medium'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            ↳ Attributed
+          </button>
+        </div>
+      )}
+
+      {viewMode === 'attributed' && hasProvenance ? (
+        <AttributedView
+          content={value}
+          blocks={piece.provenance.blocks}
+          onHighlight={onProvenanceHighlight}
+        />
+      ) : (
+        <textarea
+          ref={taRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          spellCheck
+          className="w-full min-h-[160px] max-h-[480px] rounded-md border bg-muted/20 p-3 text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground/90 break-words resize-none focus:outline-none focus:ring-1 focus:ring-primary/50"
+          placeholder="No draft content yet."
+        />
+      )}
+      {dirty && viewMode === 'edit' && (
         <div className="flex items-center justify-end gap-2">
           <Button
             size="sm"
@@ -575,42 +661,37 @@ function ProvenanceTracePanel({ piece, onHighlight }) {
     .split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
 
   return (
-    <details className="group mt-1">
-      <summary className="cursor-pointer list-none flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground select-none py-1">
-        <span className="transition-transform group-open:rotate-90 inline-block">▶</span>
-        Voice attribution
-      </summary>
-      <div className="mt-1 space-y-0.5 pl-1">
-        {blocks.map((b) => {
-          const preview = (paragraphs[b.ordinal] || b.text_prefix || '').slice(0, 70)
-          const dot = SOURCE_DOT[b.source_type] ?? 'bg-slate-300'
-          const label = SOURCE_LABEL[b.source_type] ?? b.source_type
-          const clickable = b.source_msg_index != null
-          return (
-            <button
-              key={b.ordinal}
-              type="button"
-              disabled={!clickable}
-              onClick={() => clickable && onHighlight({
-                msgIndex: b.source_msg_index,
-                start: b.source_span?.[0] ?? null,
-                end: b.source_span?.[1] ?? null,
-              })}
-              className={`w-full text-left flex items-start gap-2 rounded px-2 py-1 text-xs transition-colors ${
-                clickable
-                  ? 'hover:bg-muted/60 cursor-pointer'
-                  : 'cursor-default opacity-60'
-              }`}
-              title={clickable ? `Click to highlight source in transcript` : 'No transcript source (synthesis)'}
-            >
-              <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${dot}`} aria-hidden="true" />
-              <span className="text-muted-foreground truncate flex-1">{preview}{preview.length >= 70 ? '…' : ''}</span>
-              <span className="shrink-0 text-muted-foreground/60">{label}</span>
-            </button>
-          )
-        })}
-      </div>
-    </details>
+    <div className="mt-1 space-y-0.5">
+      <p className="text-2xs text-muted-foreground uppercase tracking-wide mb-1 px-1">
+        Paragraph sources — click to jump to transcript
+      </p>
+      {blocks.map((b) => {
+        const preview  = (paragraphs[b.ordinal] || b.text_prefix || '').slice(0, 70)
+        const dot      = SOURCE_DOT[b.source_type] ?? 'bg-slate-300'
+        const label    = SOURCE_LABEL[b.source_type] ?? b.source_type
+        const clickable = b.source_msg_index != null
+        return (
+          <button
+            key={b.ordinal}
+            type="button"
+            disabled={!clickable}
+            onClick={() => clickable && onHighlight({
+              msgIndex: b.source_msg_index,
+              start: b.source_span?.[0] ?? null,
+              end:   b.source_span?.[1] ?? null,
+            })}
+            className={`w-full text-left flex items-start gap-2 rounded px-2 py-1 text-xs transition-colors ${
+              clickable ? 'hover:bg-muted/60 cursor-pointer' : 'cursor-default opacity-50'
+            }`}
+            title={clickable ? 'Click to highlight source in transcript' : 'No transcript source (synthesis)'}
+          >
+            <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${dot}`} aria-hidden="true" />
+            <span className="text-muted-foreground truncate flex-1">{preview}{preview.length >= 70 ? '…' : ''}</span>
+            <span className="shrink-0 text-muted-foreground/60">{label}</span>
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -731,7 +812,7 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
           )}
         </div>
 
-        {active && <ContentEditor key={active.id} piece={active} />}
+        {active && <ContentEditor key={active.id} piece={active} onProvenanceHighlight={onProvenanceHighlight} />}
 
         {/* Provenance attribution — paragraph-level voice trace to transcript source */}
         {active && <ProvenanceTracePanel piece={active} onHighlight={onProvenanceHighlight} />}
