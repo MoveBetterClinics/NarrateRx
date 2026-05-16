@@ -147,16 +147,25 @@ function ThemeCard({ topic, stories, workspace }) {
   }
   const stagesPresent = Object.entries(stageCounts).filter(([, n]) => n > 0)
 
-  // Contrasting perspectives: first 3 stories when there are multiple.
-  // isVerbatim distinguishes actual pull-quote voice from topic-label fallback.
-  const perspectives = stories.slice(0, 3).map((s) => ({
+  // Perspectives: prioritise stories with a verbatim pull-quote so the section
+  // shows actual clinician voice rather than topic labels. Sort verbatim entries
+  // first, then fill to 3 from the rest.
+  const withQuote    = stories.filter((s) => !!s.verbatim_snippet)
+  const withoutQuote = stories.filter((s) => !s.verbatim_snippet)
+  const perspSources = [...withQuote, ...withoutQuote].slice(0, 3)
+  const perspectives = perspSources.map((s) => ({
     clinicianId: s.clinician_id,
-    name: s.clinician_name || 'Clinician',
-    snippet: firstSentence(storySnippet(s)),
-    isVerbatim: !!s.verbatim_snippet,
+    name:        s.clinician_name || 'Clinician',
+    snippet:     firstSentence(storySnippet(s)),
+    isVerbatim:  !!s.verbatim_snippet,
   }))
 
-  const hasContrast = stories.length >= 2
+  // Label is "Contrasting views" only when ≥2 actual verbatim quotes exist
+  // (meaning two clinicians said something we can genuinely contrast). Otherwise
+  // "Perspectives" — accurate but no false-contrast claim.
+  const verbatimCount = perspectives.filter((p) => p.isVerbatim).length
+  const perspLabel    = verbatimCount >= 2 ? 'Contrasting views' : 'Perspectives'
+  const hasContrast   = stories.length >= 2
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-5 flex flex-col gap-4">
@@ -211,7 +220,7 @@ function ThemeCard({ topic, stories, workspace }) {
       {hasContrast && (
         <div>
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
-            Contrasting views
+            {perspLabel}
           </p>
           <div className="space-y-2">
             {perspectives.map((p, i) => (
