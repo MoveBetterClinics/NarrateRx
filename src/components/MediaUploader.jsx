@@ -1,10 +1,12 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Upload, AlertCircle,
   Stethoscope, Briefcase, UserCircle, AlertTriangle,
   Mic, Film, Image as ImageIcon, Sparkles,
+  Folder, CheckCircle2,
 } from 'lucide-react'
 import { useUploadProgress } from '@/lib/UploadProgressContext'
+import { listCollections } from '@/lib/collectionsLib'
 
 // Asset purpose is the primary fork — it decides which downstream pipeline
 // the upload feeds. We render the choice as deliberate cards (not a dropdown)
@@ -117,7 +119,40 @@ function checkFile(file, purpose) {
   return null
 }
 
-// Drag-drop / click uploader for the Media Hub.
+// Probe a video file's duration without a network round-trip — used in the
+// smart-preview tray so the publisher sees clip length before upload. Resolves
+// to null on any failure (codec issues, autoplay restrictions) so the preview
+// degrades gracefully.
+function probeVideoDurationSeconds(file) {
+  return new Promise((resolve) => {
+    try {
+      const url = URL.createObjectURL(file)
+      const v = document.createElement('video')
+      v.preload = 'metadata'
+      v.muted = true
+      const cleanup = () => { URL.revokeObjectURL(url); v.remove() }
+      v.onloadedmetadata = () => { const d = v.duration; cleanup(); resolve(Number.isFinite(d) ? d : null) }
+      v.onerror = () => { cleanup(); resolve(null) }
+      v.src = url
+    } catch { resolve(null) }
+  })
+}
+
+function fmtDuration(secs) {
+  if (!secs || !Number.isFinite(secs)) return ''
+  const m = Math.floor(secs / 60)
+  const s = Math.floor(secs % 60).toString().padStart(2, '0')
+  return `${m}:${s}`
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return ''
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+// Drag-drop / click uploader for the Library.
 // Multiple files supported; uploads run in parallel.
 export default function MediaUploader({ onUploaded, createdBy }) {
   const inputRef = useRef(null)
@@ -127,10 +162,42 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   const [rejected, setRejected]    = useState([])
   const [purpose, setPurpose]      = useState('interview')
   const [speakerRole, setSpeakerRole] = useState('clinician')
+  const [collectionId, setCollectionId] = useState('')
+  const [collections, setCollections] = useState([])
+  // Smart-preview tray — files pending upload, with detected duration + any
+  // purpose mismatch flags. Cleared after a successful upload kick-off.
+  const [pending, setPending] = useState([])
   const { startUpload } = useUploadProgress()
 
   const purposeMeta = PURPOSES.find((p) => p.id === purpose) || PURPOSES[0]
   const showSpeakerRole = purpose === 'interview'
+
+  // Fetch active collections once so the publisher can pre-assign uploads.
+  // Errors stay silent — the picker just shows "No collection" if the fetch
+  // fails (the asset still uploads; user can add to a collection later).
+  useEffect(() => {
+    let cancelled = false
+    listCollections({ status: 'active', limit: 100 })
+      .then((rows) => { if (!cancelled) setCollections(Array.isArray(rows) ? rows : []) })
+      .catch(() => { if (!cancelled) setCollections([]) })
+    return () => { cancelled = true }
+  }, [])
+
+  async function buildPendingEntry(file) {
+    const t = file.type || ''
+    const kind = kindFromType(t)
+    const mismatch = kind && !acceptsKind(purpose, kind)
+    const duration = kind === 'video' ? await probeVideoDurationSeconds(file) : null
+    return {
+      id: crypto.randomUUID(),
+      file,
+      name: file.name,
+      size: file.size,
+      kind,
+      duration,
+      mismatch,
+    }
+  }
 
   async function handleFiles(fileList) {
     const files = Array.from(fileList || [])
@@ -151,12 +218,19 @@ export default function MediaUploader({ onUploaded, createdBy }) {
     if (newRejected.length) setRejected((prev) => [...newRejected, ...prev])
     if (!accepted.length) return
 
+    // Build preview entries first (probes video durations) so the tray
+    // populates before uploads kick off. Probes run in parallel.
+    const entries = await Promise.all(accepted.map(buildPendingEntry))
+    setPending(entries)
+
     const results = await Promise.all(accepted.map((file) => startUpload(file, {
       createdBy: createdBy || null,
       assetPurpose: purpose,
       // mediaLib enforces null speakerRole on non-interview, but pass
       // explicitly anyway so the wire payload reads cleanly in logs.
       speakerRole: showSpeakerRole ? speakerRole : null,
+      // Optional — server verifies workspace scope before linking.
+      collectionId: collectionId || null,
     })))
 
     if (results.some((r) => r)) onUploaded?.()
@@ -268,13 +342,66 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         </div>
       )}
 
-      {/* Final step — drop zone. Step number adjusts based on whether the
-          speaker-role step is showing, so the user always sees a continuous
-          1 → 2 (→ 3) sequence. */}
+      {/* Collection picker — optional. Pre-assigns uploaded assets to a
+          campaign / series / session collection in one shot, replacing the
+          two-step "upload, then Select → Add to collection" flow for the
+          campaign-style cadence. */}
+      {collections.length > 0 && (
+        <div className="mb-3 rounded-xl border bg-card p-4">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
+              {showSpeakerRole ? 3 : 2}
+            </span>
+            <div>
+              <div className="text-sm font-semibold">
+                Add to a collection?
+                <span className="ml-1.5 inline-block text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium uppercase tracking-wide">
+                  Optional
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Group with related uploads now. You can always add to one later via Select &gt; Add to collection.
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setCollectionId('')}
+              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                !collectionId
+                  ? 'bg-primary text-white border-primary'
+                  : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+              }`}
+            >
+              — No collection
+            </button>
+            {collections.map((c) => (
+              <button
+                type="button"
+                key={c.id}
+                onClick={() => setCollectionId(c.id === collectionId ? '' : c.id)}
+                title={c.description || c.name}
+                className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                  collectionId === c.id
+                    ? 'bg-primary text-white border-primary'
+                    : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                }`}
+              >
+                <Folder className="h-3 w-3" />
+                <span className="truncate max-w-[200px]">{c.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Final step — drop zone. Step number walks 1 → 2 → 3 → 4 depending
+          on which optional steps showed (speaker role, collection). */}
       <div className="rounded-xl border bg-card p-4">
         <div className="flex items-center gap-2 mb-2.5">
           <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
-            {showSpeakerRole ? 3 : 2}
+            {(showSpeakerRole ? 1 : 0) + (collections.length > 0 ? 1 : 0) + 2}
           </span>
           <div>
             <div className="text-sm font-semibold">Drop your files</div>
@@ -298,9 +425,52 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           </p>
           <p className="text-xs text-muted-foreground">
             Marked as <span className="font-medium">{purposeMeta.label.toLowerCase()}</span>
-            {showSpeakerRole ? ` · ${labelForSpeaker(speakerRole)}` : ''}.
+            {showSpeakerRole ? ` · ${labelForSpeaker(speakerRole)}` : ''}
+            {collectionId && collections.find((c) => c.id === collectionId)
+              ? ` · ${collections.find((c) => c.id === collectionId).name}`
+              : ''}.
           </p>
         </div>
+
+        {/* Smart-preview tray — populated after files drop. Shows size +
+            duration (videos) and any purpose mismatch so the publisher sees
+            what's about to go up before the progress tray takes over. */}
+        {pending.length > 0 && (
+          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 mb-2">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {pending.length} file{pending.length === 1 ? '' : 's'} detected · uploading now
+            </div>
+            <div className="space-y-1.5">
+              {pending.map((p) => (
+                <div key={p.id} className="flex items-center gap-2.5 bg-white rounded-md px-2.5 py-1.5 text-xs">
+                  <span className="w-8 h-8 rounded bg-muted flex items-center justify-center text-base shrink-0">
+                    {p.kind === 'video' ? '▶' : p.kind === 'image' ? '📷' : '?'}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate" title={p.name}>{p.name}</div>
+                    <div className="text-muted-foreground text-[11px]">
+                      {p.kind || 'unknown'} · {fmtSize(p.size)}
+                      {p.duration ? ` · ${fmtDuration(p.duration)}` : ''}
+                    </div>
+                  </div>
+                  {p.mismatch ? (
+                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                      type mismatch
+                    </span>
+                  ) : (
+                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                      {purposeMeta.label.toLowerCase()}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[10px] text-muted-foreground">
+              AI tags every upload for search. Interview clips also feed the editor brief queue.
+            </p>
+          </div>
+        )}
       </div>
       <input
         ref={inputRef}

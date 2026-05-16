@@ -201,6 +201,12 @@ async function handler(req, res) {
             speakerRole: meta.speakerRole || null,
             parentId: meta.parentId || null,
             contentPieceId: meta.contentPieceId || null,
+            // Optional collection assignment from the upload modal. The
+            // completion webhook validates membership against the scoped
+            // workspace before inserting into collection_items.
+            collectionId: typeof meta.collectionId === 'string' && meta.collectionId
+              ? meta.collectionId
+              : null,
           }),
         }
       },
@@ -295,6 +301,35 @@ async function handler(req, res) {
           const inserted = await ins.json()
           insertedRow = inserted?.[0]
         } catch { /* empty */ }
+
+        // Optional pre-assigned collection. We verify the collection belongs
+        // to the same workspace before inserting into the junction table so a
+        // forged collectionId in clientPayload can't link an asset across
+        // tenants. Failures here are logged but don't fail the upload — the
+        // asset row is already created and the user can drop it into the
+        // collection later via Select → Add to collection.
+        if (insertedRow?.id && meta.collectionId) {
+          try {
+            const verify = await sb(
+              `collections?id=eq.${encodeURIComponent(meta.collectionId)}&${scopeColumn}=eq.${scopeId}&select=id&limit=1`,
+            )
+            const verifyRows = verify.ok ? await verify.json().catch(() => []) : []
+            if (verifyRows.length === 1) {
+              await sb('collection_items', {
+                method: 'POST',
+                body: JSON.stringify({
+                  collection_id: meta.collectionId,
+                  asset_id:      insertedRow.id,
+                  added_by:      meta.createdBy || null,
+                }),
+              })
+            } else {
+              console.warn(`media upload: collection ${meta.collectionId} not in workspace ${scopeId}; skipping link`)
+            }
+          } catch (e) {
+            console.error('Pre-assign to collection failed:', e?.message)
+          }
+        }
 
         if (isReturnUpload && insertedRow?.id && meta.contentPieceId) {
           try {
