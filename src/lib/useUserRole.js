@@ -1,5 +1,6 @@
 import { useAuth, useUser } from '@clerk/clerk-react'
 import { ROLE_ADMIN, ROLE_CLINICIAN, isStaff } from '@/lib/roles'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 
 // Hook for reading the current user's NarrateRx role. The role is stored in
 // Clerk's publicMetadata.role and synced when an admin sets it on the user.
@@ -20,13 +21,18 @@ import { ROLE_ADMIN, ROLE_CLINICIAN, isStaff } from '@/lib/roles'
 export function useUserRole() {
   const { user, isLoaded } = useUser()
   const { orgRole } = useAuth()
+  const workspace = useWorkspace()
   // Clerk Organization admins are treated as NarrateRx admins for the active
   // workspace, regardless of their publicMetadata.role. Mirrors the server-side
   // gate in api/_lib/auth.js.
-  const metadataRole = (user?.publicMetadata?.role || ROLE_CLINICIAN).toLowerCase()
-  const isOrgAdmin   = orgRole === 'org:admin'
-  const role         = isOrgAdmin ? ROLE_ADMIN : metadataRole
-  const isLoading    = !isLoaded
+  //
+  // 'internal' plan workspaces (Move Better-owned tenants) grant admin to
+  // every org member — full feature + admin access without per-user grants.
+  const metadataRole   = (user?.publicMetadata?.role || ROLE_CLINICIAN).toLowerCase()
+  const isOrgAdmin     = orgRole === 'org:admin'
+  const internalBypass = workspace?.plan === 'internal'
+  const role           = (isOrgAdmin || internalBypass) ? ROLE_ADMIN : metadataRole
+  const isLoading      = !isLoaded
 
   // "Staff" = admin or publisher. Most write/edit/review gates collapse
   // to this — admin is a superset of publisher in every capability below

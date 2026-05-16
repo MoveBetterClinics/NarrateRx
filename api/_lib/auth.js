@@ -52,6 +52,35 @@ function setCachedUser(userId, user) {
   _userCache.set(userId, { user, expiresAt: Date.now() + USER_TTL_MS })
 }
 
+// Workspace-plan lookup by Clerk org id. Used to grant admin-equivalent role
+// to every member of an 'internal' workspace (Move Better-owned tenants).
+// Same 60s TTL as user cache — plan changes are operational and rare.
+const _orgPlanCache = new Map() // clerkOrgId → { plan, expiresAt }
+const ORG_PLAN_TTL_MS = 60_000
+
+async function lookupWorkspacePlanByOrgId(orgId) {
+  if (!orgId) return null
+  const cached = _orgPlanCache.get(orgId)
+  if (cached && Date.now() < cached.expiresAt) return cached.plan
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseKey = process.env.SUPABASE_SERVICE_KEY
+  if (!supabaseUrl || !supabaseKey) return null
+  const url = `${supabaseUrl}/rest/v1/workspaces?clerk_org_id=eq.${encodeURIComponent(orgId)}&select=plan&limit=1`
+  try {
+    const r = await fetch(url, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    })
+    if (!r.ok) return null
+    const rows = await r.json().catch(() => null)
+    const plan = Array.isArray(rows) && rows[0] ? (rows[0].plan || null) : null
+    _orgPlanCache.set(orgId, { plan, expiresAt: Date.now() + ORG_PLAN_TTL_MS })
+    return plan
+  } catch (e) {
+    console.error('[auth] lookupWorkspacePlanByOrgId failed:', e?.message)
+    return null
+  }
+}
+
 export async function requireRole(req, allowedRoles = null, { orgId = null } = {}) {
   if (!CLERK_SECRET) {
     // Fail closed. A missing secret is an ops misconfiguration, not a reason
@@ -97,9 +126,14 @@ export async function requireRole(req, allowedRoles = null, { orgId = null } = {
   // Clerk Organization admins are treated as NarrateRx admins for the active
   // workspace, regardless of their publicMetadata.role. This lets workspace
   // owners modify settings without a separate user-level role grant.
-  const metadataRole = (user.publicMetadata?.role || 'clinician').toLowerCase()
-  const isOrgAdmin   = payload.org_role === 'org:admin'
-  const role = isOrgAdmin ? 'admin' : metadataRole
+  //
+  // 'internal' plan workspaces (Move Better-owned tenants) grant admin to
+  // every org member — full feature + admin access without per-user grants.
+  const metadataRole   = (user.publicMetadata?.role || 'clinician').toLowerCase()
+  const isOrgAdmin     = payload.org_role === 'org:admin'
+  const wsPlan         = await lookupWorkspacePlanByOrgId(payload.org_id)
+  const internalBypass = wsPlan === 'internal'
+  const role = (isOrgAdmin || internalBypass) ? 'admin' : metadataRole
   if (allowedRoles && allowedRoles.length && !allowedRoles.includes(role)) {
     return { ok: false, reason: 'forbidden', role, userId }
   }
