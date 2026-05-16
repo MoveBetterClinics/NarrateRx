@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
-import { Loader2, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, Sparkles, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
 import { Section, Field, Textarea2, SaveBar } from '@/components/settings/helpers'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { useUserRole } from '@/lib/useUserRole'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
@@ -162,13 +163,11 @@ export default function VoiceSettings() {
         </p>
       </div>
 
-      {/* ── Preview panel ── */}
-      <BernardPreviewPanel
-        form={form}
-        interviewerName={interviewerName}
-      />
+      {/* ── Bernard's working summary (P0-E) ── */}
+      <WorkingSummaryCallout form={form} interviewerName={interviewerName} />
 
       {/* ── How your practice sounds ── */}
+      <div id="voice-context-anchor" className="scroll-mt-20" />
       <Section
         title={`How ${clinicName} sounds`}
         description={`The core brief ${interviewerName} uses to stay on-brand in every piece of content.`}
@@ -295,6 +294,9 @@ export default function VoiceSettings() {
         </div>
       </div>
 
+      {/* ── Preview Bernard's voice (P1-F) ── */}
+      <PreviewBernardCard interviewerName={interviewerName} />
+
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}
         onSave={handleSave}
@@ -304,26 +306,71 @@ export default function VoiceSettings() {
   )
 }
 
-// ── Bernard Preview Panel ────────────────────────────────────────────────────
+// ── Working summary callout (P0-E) ───────────────────────────────────────────
 
-function BernardPreviewPanel({ form, interviewerName }) {
-  const [tone, setTone]     = useState('smart')
-  const [protoId, setProtoId] = useState('')
+function buildWorkingSummary(form) {
+  const brandVoice = (form?.brand_voice || '').trim()
+  if (!brandVoice) return null
+  const tones = [form?.tone_active, form?.tone_clinical, form?.tone_warm, form?.tone_smart]
+    .map(t => (t || '').trim()).filter(Boolean)
+  // Paraphrase into a short "you" voiced summary. Keep it short: 2–3 sentences
+  // drawn from existing settings — this is a mirror, not a generator.
+  const sentences = []
+  sentences.push(`You sound like this: ${brandVoice.replace(/\s+/g, ' ').slice(0, 240)}${brandVoice.length > 240 ? '…' : ''}`)
+  if (tones.length) {
+    sentences.push(`You shift tone deliberately — ${tones.length} mode${tones.length === 1 ? '' : 's'} tuned so each piece lands the way you intend.`)
+  }
+  if ((form?.audience_short || '').trim()) {
+    sentences.push(`You're writing for ${form.audience_short.trim()}.`)
+  }
+  return sentences.join(' ')
+}
+
+function WorkingSummaryCallout({ form, interviewerName }) {
+  const summary = buildWorkingSummary(form)
+  function scrollToVoiceContext(e) {
+    e.preventDefault()
+    document.getElementById('voice-context-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  return (
+    <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-widest text-amber-700">
+          {interviewerName}&apos;s working summary
+        </p>
+        <a
+          href="#voice-context-anchor"
+          onClick={scrollToVoiceContext}
+          className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900"
+        >
+          <Pencil className="h-3 w-3" /> Edit
+        </a>
+      </div>
+      {summary ? (
+        <p className="text-sm text-foreground mt-1.5 leading-relaxed">{summary}</p>
+      ) : (
+        <p className="text-sm italic text-foreground/70 mt-1.5 leading-relaxed">
+          {interviewerName} hasn&apos;t learned your voice yet — fill in the sections below and he&apos;ll mirror it back.
+        </p>
+      )}
+    </div>
+  )
+}
+
+// ── Preview Bernard's voice card (P1-F) ──────────────────────────────────────
+
+function PreviewBernardCard({ interviewerName }) {
   const [opener, setOpener] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [err, setErr]       = useState(null)
-
-  const prototypes = (() => {
-    try { return JSON.parse(form?.patient_context_json || '{}')?.prototypes || [] } catch { return [] }
-  })()
+  const [err, setErr] = useState(null)
 
   async function generate() {
-    setLoading(true); setErr(null); setOpener(null)
+    setLoading(true); setErr(null)
     try {
-      const data = await apiFetch('/api/interviews/preview', {
+      const data = await apiFetch('/api/voice-preview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tone, prototypeId: protoId || null, clinicianName: 'your clinician' }),
+        body: JSON.stringify({}),
       })
       setOpener(data.opener)
     } catch (e) {
@@ -334,71 +381,26 @@ function BernardPreviewPanel({ form, interviewerName }) {
   }
 
   return (
-    <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium">Hear {interviewerName} right now</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Generate a sample opening question with the current voice config.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={generate}
-          disabled={loading}
-          className="gap-1.5 shrink-0"
-        >
-          {loading
-            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            : <Sparkles className="h-3.5 w-3.5" />
-          }
-          {loading ? 'Generating…' : 'Generate'}
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <div className="flex items-center gap-1.5">
-          <Label className="text-xs text-muted-foreground shrink-0">Tone</Label>
-          <select
-            value={tone}
-            onChange={e => { setTone(e.target.value); setOpener(null) }}
-            className="text-xs rounded-md border border-input bg-background px-2 py-1"
-          >
-            {TONES.map(t => (
-              <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
-            ))}
-          </select>
-        </div>
-        {prototypes.length > 0 && (
-          <div className="flex items-center gap-1.5">
-            <Label className="text-xs text-muted-foreground shrink-0">Archetype</Label>
-            <select
-              value={protoId}
-              onChange={e => { setProtoId(e.target.value); setOpener(null) }}
-              className="text-xs rounded-md border border-input bg-background px-2 py-1"
-            >
-              <option value="">Any</option>
-              {prototypes.map(p => (
-                <option key={p.id} value={p.id}>{p.emoji} {p.label}</option>
-              ))}
-            </select>
+    <Card>
+      <CardContent className="pt-5 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold">Preview {interviewerName}&apos;s voice</p>
+            <p className="text-xs text-muted-foreground mt-0.5">See a sample opener given the current settings.</p>
           </div>
+          <Button onClick={generate} disabled={loading} size="sm" className="shrink-0 gap-1.5">
+            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            {loading ? 'Generating preview…' : 'Try a preview'}
+          </Button>
+        </div>
+        {opener && (
+          <blockquote className="border-l-2 border-primary/40 pl-3 text-base italic text-foreground/80 leading-relaxed">
+            &ldquo;You&apos;d open with: {opener}&rdquo;
+          </blockquote>
         )}
-      </div>
-
-      {opener && (
-        <div className="flex items-start gap-2.5 bg-background rounded-lg border border-border px-3 py-2.5">
-          <div className="h-7 w-7 rounded-full bg-white border border-border flex items-center justify-center shrink-0 p-1 mt-0.5">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-          </div>
-          <p className="text-sm leading-relaxed italic text-foreground/80">&ldquo;{opener}&rdquo;</p>
-        </div>
-      )}
-      {err && (
-        <p className="text-xs text-destructive">{err}</p>
-      )}
-    </div>
+        {err && <p className="text-xs text-destructive">{err}</p>}
+      </CardContent>
+    </Card>
   )
 }
 
