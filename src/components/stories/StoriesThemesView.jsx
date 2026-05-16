@@ -36,14 +36,6 @@ function groupByTopic(stories) {
   return [...map.values()].sort((a, b) => b.stories.length - a.stories.length)
 }
 
-/**
- * Best verbatim quote for a story. Uses the first pull_quote_candidate when
- * available (actual clinician voice), falls back to the topic label.
- */
-function storySnippet(story) {
-  return story.verbatim_snippet || story.topic || 'Interview completed'
-}
-
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 
 function SkeletonThemeCard() {
@@ -147,23 +139,22 @@ function ThemeCard({ topic, stories, workspace }) {
   }
   const stagesPresent = Object.entries(stageCounts).filter(([, n]) => n > 0)
 
-  // Perspectives: prioritise stories with a verbatim pull-quote so the section
-  // shows actual clinician voice rather than topic labels. Sort verbatim entries
-  // first, then fill to 3 from the rest.
+  // Perspectives: only stories with an actual verbatim pull-quote count as a
+  // perspective. Topic-text fallbacks were misleading (every clinician with a
+  // story would appear as a "perspective" even though we had nothing to quote),
+  // so drop them entirely. When there's nothing to quote, the section shows a
+  // muted "no verbatim yet" line instead of fake contrast.
   const withQuote    = stories.filter((s) => !!s.verbatim_snippet)
-  const withoutQuote = stories.filter((s) => !s.verbatim_snippet)
-  const perspSources = [...withQuote, ...withoutQuote].slice(0, 3)
-  const perspectives = perspSources.map((s) => ({
+  const perspectives = withQuote.slice(0, 3).map((s) => ({
     clinicianId: s.clinician_id,
     name:        s.clinician_name || 'Clinician',
-    snippet:     firstSentence(storySnippet(s)),
-    isVerbatim:  !!s.verbatim_snippet,
+    snippet:     firstSentence(s.verbatim_snippet),
   }))
 
   // Label is "Contrasting views" only when ≥2 actual verbatim quotes exist
   // (meaning two clinicians said something we can genuinely contrast). Otherwise
   // "Perspectives" — accurate but no false-contrast claim.
-  const verbatimCount = perspectives.filter((p) => p.isVerbatim).length
+  const verbatimCount = perspectives.length
   const perspLabel    = verbatimCount >= 2 ? 'Contrasting views' : 'Perspectives'
   const hasContrast   = stories.length >= 2
 
@@ -222,16 +213,37 @@ function ThemeCard({ topic, stories, workspace }) {
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
             {perspLabel}
           </p>
-          <div className="space-y-2">
-            {perspectives.map((p, i) => (
-              <div key={i} className="flex items-start gap-2 border-l-2 border-indigo-200 pl-3">
-                <ClinicianChip id={p.clinicianId} name={p.name} size="sm" className="mt-0.5 shrink-0" />
-                <p className={`text-sm leading-snug ${p.isVerbatim ? 'text-gray-800 italic' : 'text-gray-500'}`}>
-                  {p.isVerbatim ? `"${p.snippet}"` : p.snippet}
-                </p>
+          {verbatimCount === 0 ? (
+            <p className="text-sm italic text-gray-400 leading-snug">
+              No verbatim quotes captured yet — keep interviewing to see contrast.
+            </p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                {perspectives.map((p, i) => (
+                  <div
+                    key={i}
+                    className="flex items-start gap-2 border-l-2 border-agreement-signal pl-3"
+                  >
+                    <ClinicianChip
+                      id={p.clinicianId}
+                      name={p.name}
+                      size="sm"
+                      className="mt-0.5 shrink-0"
+                    />
+                    <p className="text-sm leading-snug text-gray-800 italic">
+                      &ldquo;{p.snippet}&rdquo;
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+              {verbatimCount === 1 && (
+                <p className="text-xs text-gray-400 mt-2">
+                  Contrast emerges when 2+ clinicians weigh in.
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
 
