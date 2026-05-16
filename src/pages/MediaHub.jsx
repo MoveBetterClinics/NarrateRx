@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film, FolderOpen } from 'lucide-react'
+import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film, ChevronDown, ChevronRight } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -18,7 +18,7 @@ import MediaHubHelp from '@/components/MediaHubHelp'
 import LibraryReadyStrip from '@/components/LibraryReadyStrip'
 import { getMediaAsset, backfillThumbnails } from '@/lib/mediaLib'
 import { toast } from '@/lib/toast'
-import { useMediaInfinite, useStories, queryKeys } from '@/lib/queries'
+import { useMediaInfinite, useStories, useClinicians, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -104,11 +104,13 @@ export default function MediaHub() {
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [uploadOpen, setUploadOpen] = useState(false)
-  // Curated (workflow-lifecycle sections) vs. flat chronological view. The
-  // escape hatch flips this to true so editors can find untagged/older assets
-  // that the curated buckets hide. URL-persisted so the choice survives reloads.
-  const showAll = searchParams.get('view') === 'all'
-  const setShowAll = (v) => setParam('view', v ? 'all' : '')
+  // Date-grouped (default) vs. workflow-lifecycle sections. Date grouping
+  // matches the Library mockup — Recent / This month / Earlier — and is the
+  // mental model most users bring to a media library. The opt-in workflow
+  // view keeps the lifecycle buckets (?view=workflow) for editors who want
+  // them. URL-persisted so the choice survives reloads.
+  const showAll = (searchParams.get('view') ?? '') !== 'workflow'
+  const setShowAll = (v) => setParam('view', v ? '' : 'workflow')
 
   // Debounce search input.
   useEffect(() => {
@@ -194,6 +196,19 @@ export default function MediaHub() {
     return hasMore ? `${n}+` : `${n}`
   }
 
+  // Pull the workspace clinician roster so we can resolve `created_by` (Clerk
+  // user id) → human name on the clinician filter chips. Falls back to the
+  // last-6-chars Clerk id stub when we can't find a match (e.g. an admin
+  // uploaded an asset and isn't in the clinicians table).
+  const { data: clinicianRoster = [] } = useClinicians()
+  const clinicianNameByUserId = useMemo(() => {
+    const m = new Map()
+    for (const c of clinicianRoster) {
+      if (c.created_by_id && c.name) m.set(c.created_by_id, c.name)
+    }
+    return m
+  }, [clinicianRoster])
+
   // Unique uploaders visible in the current (unfiltered) page set, for the
   // clinician chip row. We use allAssets so changing the clinician chip
   // doesn't hide the other chips.
@@ -206,6 +221,11 @@ export default function MediaHub() {
     }
     return [...seen.values()]
   }, [allAssets])
+
+  // Visible secondary surfaces — Collections + (admin) Backfill — start
+  // collapsed so the Library opens with just the search + chip strip + grid.
+  // The Edit briefs pane is collapsed via ContentBriefList's own prop.
+  const [collectionsOpen, setCollectionsOpen] = useState(false)
 
   // Stable callback name so the existing IntersectionObserver effect keeps
   // working without churn.
@@ -407,26 +427,21 @@ export default function MediaHub() {
         </Dialog>
       )}
 
-      {/* Edit briefs (AI suggestions + manual overrides) */}
-      <ContentBriefList refreshKey={briefRefreshKey} />
+      {/* Edit briefs — collapsed by default so the Library opens visual-first.
+          Pending-count badge stays visible on the collapsed header so nothing
+          gets buried. */}
+      <ContentBriefList refreshKey={briefRefreshKey} expandedDefault={false} />
 
-      {/* Collections — editorial groupings; click a chip to filter the library */}
-      <CollectionsBar
-        selectedId={collectionId}
-        onSelect={setCollectionId}
-        refreshKey={collectionRefreshKey}
-      />
-
-      {/* Filters */}
-      <div className="space-y-2">
-        {/* Row 1: search + status dropdown + action buttons */}
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative flex-1 min-w-[220px]">
+      {/* Filters — search + actions on top; one chip strip below */}
+      <div className="space-y-3">
+        {/* Search field, status, and primary actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[240px]">
             <Search className="absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search filename, notes, condition, patient…"
+              placeholder="Search by name, clinician, notes…"
               className="pl-8 pr-8 h-8 text-sm"
             />
             {search && (
@@ -487,82 +502,103 @@ export default function MediaHub() {
               title="Generate missing thumbnails for older videos"
             >
               {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
-              {backfilling ? 'Backfilling…' : 'Backfill video thumbnails'}
+              {backfilling ? 'Backfilling…' : 'Backfill thumbnails'}
             </Button>
           )}
         </div>
 
-        {/* Row 2: purpose + kind filter chips with live counts */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
-          <div className="flex items-center gap-1.5">
-            {[
-              { id: '',          label: 'All',        count: counts.total },
-              { id: 'interview', label: 'Interviews', count: counts.interview },
-              { id: 'broll',     label: 'B-roll',     count: counts.broll },
-              { id: 'photo',     label: 'Photos',     count: counts.photo_p },
-              { id: 'brand',     label: 'Brand',      count: counts.brand },
-            ].map((p) => (
-              <button
-                key={p.id || 'all-purpose'}
-                onClick={() => setPurpose(p.id)}
-                className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
-                  purpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-                }`}
-              >
-                {p.label}
-                {!loading && <span className="ml-1 opacity-70">· {countLabel(p.count)}</span>}
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-1.5">
-            {[
-              { id: '',      label: 'All kinds', count: counts.total },
-              { id: 'video', label: 'Video',     count: counts.video },
-              { id: 'photo', label: 'Photo',     count: counts.photo },
-            ].map((k) => (
-              <button
-                key={k.id || 'all-kind'}
-                onClick={() => setKind(k.id)}
-                className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
-                  kind === k.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-                }`}
-              >
-                {k.label}
-                {!loading && <span className="ml-1 opacity-70">· {countLabel(k.count)}</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Row 3: clinician chips — shown only when there are multiple uploaders */}
-        {clinicianOptions.length > 1 && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-2xs text-muted-foreground mr-0.5">Clinician:</span>
+        {/* Single consolidated chip strip: kind · purpose · clinician.
+            Pipe separators delimit the groups the way the mockup envisions. */}
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
+          {[
+            { id: '',      label: 'All',      icon: null,  count: counts.total, group: 'kind' },
+            { id: 'video', label: 'Video',    icon: '🎬',  count: counts.video, group: 'kind' },
+            { id: 'photo', label: 'Photos',   icon: '📷',  count: counts.photo, group: 'kind' },
+          ].map((k) => (
             <button
-              onClick={() => setClinicianFilter('')}
-              className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
-                !clinicianFilter ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+              key={k.id || 'all-kind'}
+              onClick={() => setKind(k.id)}
+              className={`text-2xs px-2.5 py-1 rounded-full border transition-colors inline-flex items-center gap-1 ${
+                kind === k.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
               }`}
             >
-              All
+              {k.icon && <span>{k.icon}</span>}
+              <span>{k.label}</span>
+              {!loading && <span className="opacity-70">· {countLabel(k.count)}</span>}
             </button>
-            {clinicianOptions.map((uid) => {
-              // Show last 6 chars of Clerk user ID as an identifier since we
-              // don't resolve names in the list query. Tooltip shows full ID.
-              const label = uid.startsWith('user_') ? uid.slice(-6) : uid.slice(0, 8)
-              return (
-                <button
-                  key={uid}
-                  onClick={() => setClinicianFilter(uid === clinicianFilter ? '' : uid)}
-                  title={uid}
-                  className={`text-2xs px-2.5 py-1 rounded-full border transition-colors font-mono ${
-                    clinicianFilter === uid ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-muted text-muted-foreground border-border hover:border-indigo-400'
-                  }`}
-                >
-                  …{label}
-                </button>
-              )
-            })}
+          ))}
+
+          <span className="w-px h-4 bg-border mx-1" aria-hidden />
+
+          {[
+            { id: 'interview', label: 'From interviews', count: counts.interview },
+            { id: 'broll',     label: 'B-roll',          count: counts.broll },
+            { id: 'photo',     label: 'Patient photos',  count: counts.photo_p },
+            { id: 'brand',     label: 'Brand assets',    count: counts.brand },
+          ].map((p) => (
+            <button
+              key={p.id || 'all-purpose'}
+              onClick={() => setPurpose(purpose === p.id ? '' : p.id)}
+              className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
+                purpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+              }`}
+            >
+              {p.label}
+              {!loading && <span className="ml-1 opacity-70">· {countLabel(p.count)}</span>}
+            </button>
+          ))}
+
+          {clinicianOptions.length > 1 && (
+            <>
+              <span className="w-px h-4 bg-border mx-1" aria-hidden />
+              {clinicianOptions.map((uid) => {
+                // Prefer the resolved clinician name; fall back to the last 6
+                // chars of a Clerk id when the uploader isn't in the roster
+                // (e.g. an admin without a clinicians row).
+                const name = clinicianNameByUserId.get(uid)
+                const label = name || (uid.startsWith('user_') ? `…${uid.slice(-6)}` : uid.slice(0, 12))
+                return (
+                  <button
+                    key={uid}
+                    onClick={() => setClinicianFilter(uid === clinicianFilter ? '' : uid)}
+                    title={name ? `${name} · ${uid}` : uid}
+                    className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
+                      clinicianFilter === uid ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                    } ${name ? '' : 'font-mono'}`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Collections — editorial groupings; collapsed by default so the chip
+          strip above isn't competing with another chip row. Header shows the
+          active selection so it remains discoverable when collapsed. */}
+      <div className="rounded-lg border bg-card">
+        <button
+          onClick={() => setCollectionsOpen((v) => !v)}
+          className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-muted/40 transition-colors rounded-t-lg"
+        >
+          <div className="flex items-center gap-2 text-2xs">
+            {collectionsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+            <span className="font-semibold text-foreground">Collections</span>
+            {collectionId && (
+              <span className="text-muted-foreground">· filtered</span>
+            )}
+          </div>
+          <span className="text-2xs text-muted-foreground">Editorial groupings — campaigns, series, ad-hoc sets</span>
+        </button>
+        {collectionsOpen && (
+          <div className="border-t px-3 py-2">
+            <CollectionsBar
+              selectedId={collectionId}
+              onSelect={setCollectionId}
+              refreshKey={collectionRefreshKey}
+            />
           </div>
         )}
       </div>
@@ -586,35 +622,20 @@ export default function MediaHub() {
         />
       )}
 
-      {/* Curated ↔ chronological toggle. The curated view groups assets by
-          workflow lifecycle (NEW / pipeline / available / shipped); the
-          "All media" view falls back to plain date-grouping so editors can
-          dig through untagged or older items that the curated buckets hide. */}
+      {/* Date-grouped (default) ↔ workflow-lifecycle toggle. Date grouping is
+          the photo-app default; the workflow view is opt-in for editors who
+          want the NEW / pipeline / available / shipped buckets. */}
       {!loading && allAssets.length > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-accent/30 px-3 py-2">
-          <div className="text-xs text-muted-foreground">
-            {showAll ? (
-              <>
-                <span className="font-medium text-foreground">Browsing all media</span> ·
-                chronological, includes untagged and archived items.
-              </>
-            ) : (
-              <>
-                <span className="font-medium text-foreground">Workflow view</span> ·
-                grouped by where each asset is in the content pipeline.
-                Looking for something specific?
-              </>
-            )}
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
+        <div className="flex items-center justify-between gap-3 text-2xs text-muted-foreground">
+          <span>
+            {allAssets.length} asset{allAssets.length === 1 ? '' : 's'} loaded{hasMore ? ' · more available' : ''}
+          </span>
+          <button
             onClick={() => setShowAll(!showAll)}
-            className="h-7 gap-1.5 text-2xs rounded-full shrink-0"
+            className="text-2xs underline-offset-2 hover:underline hover:text-foreground transition-colors"
           >
-            <FolderOpen className="h-3.5 w-3.5" />
-            {showAll ? 'Back to workflow view' : `All media · ${countLabel(allAssets.length)}`}
-          </Button>
+            {showAll ? 'Switch to workflow view' : 'Switch to date view'}
+          </button>
         </div>
       )}
 
