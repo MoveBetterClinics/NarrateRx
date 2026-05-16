@@ -23,6 +23,16 @@ import {
 } from '@/lib/mediaLib'
 import { useUserRole } from '@/lib/useUserRole'
 
+// Separator between pill action groups.
+function Sep() {
+  return <span className="w-px h-4 bg-slate-700 shrink-0" aria-hidden />
+}
+
+// Dark pill button style helper — returns a className string.
+function pillBtn(extraClass = '') {
+  return `text-xs text-slate-200 hover:text-emerald-300 transition-colors disabled:opacity-50 ${extraClass}`
+}
+
 const STATUS_OPTIONS = [
   { id: 'raw',      label: 'Raw' },
   { id: 'tagged',   label: 'Tagged' },
@@ -260,269 +270,255 @@ export default function BulkActionBar({
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="sticky top-14 z-30">
-      <div className="rounded-lg border-2 border-primary/30 bg-background/95 backdrop-blur shadow-md p-3 space-y-2">
-        {/* Row 1: count + select-all + primary CTA + clear/done */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-semibold pl-1">
-            {count === 0
-              ? `0 of ${visibleCount} selected`
-              : `${count} selected${count < visibleCount ? ` of ${visibleCount}` : ''}`}
-          </span>
+    // Fixed bottom-center dark pill. Sub-panels open upward via absolute
+    // bottom-full so they don't push the pill off screen.
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2">
+      {/* Sub-panels open above the pill ------------------------------------ */}
 
-          {visibleCount > 0 && onSelectAll && (
-            <Button
-              size="sm"
-              variant="outline"
+      {/* Status submenu */}
+      {panel === 'status' && canEdit && count > 0 && (
+        <div className="rounded-xl border border-slate-700 bg-slate-900 shadow-2xl p-3 space-y-2 min-w-[260px]">
+          <div className="text-2xs text-slate-400 px-1">
+            Set status on {count} item{count === 1 ? '' : 's'}:
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {STATUS_OPTIONS.map((s) => {
+              const isBusy = busy === `status:${s.id}`
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setStatus(s.id)}
+                  disabled={!!busy}
+                  className="text-2xs px-2.5 py-1 rounded-full border border-slate-600 bg-slate-800 text-slate-200 hover:border-emerald-500 hover:text-emerald-300 disabled:opacity-60 flex items-center gap-1.5"
+                >
+                  {isBusy
+                    ? <Icon as={Loader2} size="xs" className="animate-spin" />
+                    : <Icon as={Tag} size="xs" />}
+                  {s.label}
+                </button>
+              )
+            })}
+          </div>
+          <button onClick={() => setPanel(null)} className="text-2xs text-slate-500 hover:text-slate-300 px-1">Close</button>
+        </div>
+      )}
+
+      {/* Add-to-collection submenu */}
+      {panel === 'collection' && canEdit && count > 0 && (
+        <div className="rounded-xl border border-slate-700 bg-slate-900 shadow-2xl p-3 space-y-2 min-w-[280px] max-w-[380px]">
+          {loadingList ? (
+            <span className="text-2xs text-slate-400 flex items-center gap-1.5">
+              <Icon as={Loader2} size="xs" className="animate-spin" /> Loading…
+            </span>
+          ) : collections.length === 0 && !creating ? (
+            <div className="text-2xs text-slate-400 italic">No collections yet — create one below.</div>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {collections.map((c) => {
+                const isBusy = busy === c.id
+                const wasAdded = justAdded === c.id
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => addToExisting(c)}
+                    disabled={isBusy}
+                    className="text-2xs px-2.5 py-1 rounded-full border border-slate-600 bg-slate-800 text-slate-200 hover:border-emerald-500 hover:text-emerald-300 disabled:opacity-60 flex items-center gap-1.5"
+                    title={c.description || c.name}
+                  >
+                    {isBusy
+                      ? <Icon as={Loader2} size="xs" className="animate-spin" />
+                      : wasAdded
+                        ? <Icon as={Check} size="xs" className="text-emerald-400" />
+                        : <Icon as={Plus} size="xs" />}
+                    <span className="truncate max-w-[160px]">{c.name}</span>
+                    {c.item_count > 0 && <span className="text-slate-500">· {c.item_count}</span>}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {!creating ? (
+            <div className="flex gap-2">
+              <button onClick={() => setCreating(true)} className="text-2xs text-slate-400 hover:text-emerald-300 flex items-center gap-1">
+                <Icon as={FolderPlus} size="xs" /> New collection…
+              </button>
+              <button onClick={() => setPanel(null)} className="text-2xs text-slate-500 hover:text-slate-300 ml-auto">Close</button>
+            </div>
+          ) : (
+            <div className="flex gap-2 items-center">
+              <input
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submitNewCollection()
+                  if (e.key === 'Escape') { setCreating(false); setNewName('') }
+                }}
+                placeholder="New collection name"
+                className="h-7 px-2 text-xs flex-1 rounded-md border border-slate-600 bg-slate-800 text-white placeholder:text-slate-500"
+              />
+              <button onClick={submitNewCollection} disabled={busy === 'new' || !newName.trim()} className="text-2xs text-emerald-400 hover:text-emerald-300 disabled:opacity-50 flex items-center gap-1">
+                {busy === 'new' && <Icon as={Loader2} size="xs" className="animate-spin" />}
+                Create + add
+              </button>
+              <button onClick={() => { setCreating(false); setNewName('') }} className="text-2xs text-slate-500 hover:text-slate-300">Cancel</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Result / error toasts */}
+      {(message || error) && (
+        <div className={`rounded-xl px-4 py-2 text-xs shadow-xl ${message ? 'bg-emerald-800 text-emerald-100' : 'bg-rose-900 text-rose-100'}`}>
+          {message || error}
+        </div>
+      )}
+
+      {/* Primary dark pill ------------------------------------------------- */}
+      <div className="rounded-full bg-slate-900 border border-slate-700 shadow-2xl px-4 py-2.5 flex items-center gap-3 text-xs select-none">
+        {/* Count */}
+        <span className="font-semibold text-white whitespace-nowrap">
+          {count === 0 ? `0 of ${visibleCount}` : count} selected
+        </span>
+
+        {/* Select-all */}
+        {visibleCount > 0 && onSelectAll && (
+          <>
+            <Sep />
+            <button
+              className={pillBtn()}
               onClick={async () => {
                 if (allVisibleSelected) { onClear?.(); return }
                 setSelectingAll(true)
                 try { await onSelectAll() } finally { setSelectingAll(false) }
               }}
               disabled={selectingAll}
-              className="h-8 gap-1.5 text-xs rounded-full"
-              title={allVisibleSelected
-                ? 'Deselect all currently loaded items'
-                : hasMore
-                  ? 'Load every remaining page in the current filter and select all of them'
-                  : 'Select every item in the current filter'}
+              title={allVisibleSelected ? 'Deselect all' : hasMore ? 'Select all matching' : `Select all ${visibleCount}`}
             >
               {selectingAll
-                ? <Icon as={Loader2} size="sm" className="animate-spin" />
-                : <Icon as={CheckCheck} size="sm" />}
-              {selectingAll
-                ? 'Selecting all…'
-                : allVisibleSelected
-                  ? 'Deselect all'
-                  : hasMore
-                    ? `Select all matching${visibleCount ? ` (${visibleCount}+)` : ''}`
-                    : `Select all ${visibleCount}`}
-            </Button>
-          )}
+                ? <Icon as={Loader2} size="sm" className="animate-spin inline" />
+                : <Icon as={CheckCheck} size="sm" className="inline mr-0.5" />}
+              {allVisibleSelected ? 'Deselect all' : `All ${visibleCount}${hasMore ? '+' : ''}`}
+            </button>
+          </>
+        )}
 
-          {canEdit && (
-            <Button
-              size="sm"
-              onClick={() => setPanel(panel === 'collection' ? null : 'collection')}
-              disabled={count === 0}
-              className="h-8 gap-1.5 text-xs rounded-full px-3"
-            >
-              <Icon as={Plus} size="md" />
-              {count === 0
-                ? 'Add to collection…'
-                : `Add ${count} to collection…`}
-            </Button>
-          )}
+        {count > 0 && (
+          <>
+            <Sep />
 
-          <div className="ml-auto flex items-center gap-1.5">
-            {count > 0 && (
-              <Button size="sm" variant="ghost" onClick={onClear} className="h-8 text-xs">
-                Clear
-              </Button>
-            )}
-            <Button
-              size="sm" variant="ghost" onClick={onExit}
-              className="h-8 text-xs gap-1" title="Exit selection mode"
-            >
-              <Icon as={X} size="sm" />
-              Done
-            </Button>
-          </div>
-        </div>
-
-        {/* Row 2: secondary bulk actions (only meaningful when items are selected) */}
-        {canEdit && count > 0 && (
-          <div className="flex flex-wrap items-center gap-1.5 pl-1">
-            <Button
-              size="sm" variant="outline"
-              onClick={() => setPanel(panel === 'status' ? null : 'status')}
-              className="h-7 gap-1.5 text-2xs rounded-full"
-            >
-              <Icon as={Tag} size="sm" />
-              Set status…
-            </Button>
-
-            {inCollection && (
-              <Button
-                size="sm" variant="outline"
-                onClick={removeFromCurrentCollection}
-                disabled={busy === 'remove-collection'}
-                className="h-7 gap-1.5 text-2xs rounded-full"
+            {/* Status */}
+            {canEdit && (
+              <button
+                className={pillBtn(panel === 'status' ? 'text-emerald-300' : '')}
+                onClick={() => setPanel(panel === 'status' ? null : 'status')}
               >
-                {busy === 'remove-collection'
-                  ? <Icon as={Loader2} size="sm" className="animate-spin" />
-                  : <Icon as={FolderMinus} size="sm" />}
-                Remove from this collection
-              </Button>
+                <Icon as={Tag} size="sm" className="inline mr-0.5" />
+                Tag
+              </button>
             )}
 
-            <Button
-              size="sm" variant="outline"
-              onClick={tagAll}
-              disabled={busy === 'tag'}
-              className="h-7 gap-1.5 text-2xs rounded-full"
-              title="Re-run vision + transcription tagging. Slow (10–60s per video)."
-            >
-              {busy === 'tag'
-                ? <Icon as={Loader2} size="sm" className="animate-spin" />
-                : <Icon as={Sparkles} size="sm" />}
-              Re-run AI tags
-            </Button>
+            {/* Add to collection */}
+            {canEdit && (
+              <button
+                className={pillBtn(panel === 'collection' ? 'text-emerald-300' : '')}
+                onClick={() => setPanel(panel === 'collection' ? null : 'collection')}
+              >
+                <Icon as={Plus} size="sm" className="inline mr-0.5" />
+                Collection
+              </button>
+            )}
 
+            {/* AI re-tag */}
+            {canEdit && (
+              <button
+                className={pillBtn()}
+                onClick={tagAll}
+                disabled={busy === 'tag'}
+                title="Re-run vision + transcription tagging (slow)"
+              >
+                {busy === 'tag'
+                  ? <Icon as={Loader2} size="sm" className="animate-spin inline mr-0.5" />
+                  : <Icon as={Sparkles} size="sm" className="inline mr-0.5" />}
+                AI tags
+              </button>
+            )}
+
+            {/* Archive / Restore */}
             {viewingArchived ? (
               canRestore && (
-                <Button
-                  size="sm" variant="outline"
+                <button
+                  className={pillBtn()}
                   onClick={restoreAll}
                   disabled={busy === 'restore'}
-                  className="h-7 gap-1.5 text-2xs rounded-full"
                 >
                   {busy === 'restore'
-                    ? <Icon as={Loader2} size="sm" className="animate-spin" />
-                    : <Icon as={ArchiveRestore} size="sm" />}
+                    ? <Icon as={Loader2} size="sm" className="animate-spin inline mr-0.5" />
+                    : <Icon as={ArchiveRestore} size="sm" className="inline mr-0.5" />}
                   Restore
-                </Button>
+                </button>
               )
             ) : (
               canArchive && (
-                <Button
-                  size="sm" variant="outline"
+                <button
+                  className={pillBtn()}
                   onClick={archiveAll}
                   disabled={busy === 'archive'}
-                  className="h-7 gap-1.5 text-2xs rounded-full"
                 >
                   {busy === 'archive'
-                    ? <Icon as={Loader2} size="sm" className="animate-spin" />
-                    : <Icon as={Archive} size="sm" />}
+                    ? <Icon as={Loader2} size="sm" className="animate-spin inline mr-0.5" />
+                    : <Icon as={Archive} size="sm" className="inline mr-0.5" />}
                   Archive
-                </Button>
+                </button>
               )
             )}
 
+            {/* Remove from collection */}
+            {inCollection && canEdit && (
+              <button
+                className={pillBtn()}
+                onClick={removeFromCurrentCollection}
+                disabled={busy === 'remove-collection'}
+              >
+                {busy === 'remove-collection'
+                  ? <Icon as={Loader2} size="sm" className="animate-spin inline mr-0.5" />
+                  : <Icon as={FolderMinus} size="sm" className="inline mr-0.5" />}
+                Remove
+              </button>
+            )}
+
+            {/* Delete permanently */}
             {viewingArchived && canPurge && (
-              <Button
-                size="sm" variant="outline"
+              <button
+                className="text-xs text-rose-400 hover:text-rose-300 transition-colors"
                 onClick={() => setPurgeOpen(true)}
                 disabled={busy === 'purge'}
-                className="h-7 gap-1.5 text-2xs rounded-full text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
               >
-                <Icon as={Trash2} size="sm" />
-                Delete permanently…
-              </Button>
-            )}
-          </div>
-        )}
-
-        {/* Status submenu */}
-        {panel === 'status' && canEdit && count > 0 && (
-          <div className="rounded-md border bg-muted/40 p-2 space-y-2">
-            <div className="text-2xs text-muted-foreground px-1">
-              Set status on {count} item{count === 1 ? '' : 's'}:
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {STATUS_OPTIONS.map((s) => {
-                const isBusy = busy === `status:${s.id}`
-                return (
-                  <button
-                    key={s.id}
-                    onClick={() => setStatus(s.id)}
-                    disabled={!!busy}
-                    className="text-2xs px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {isBusy
-                      ? <Icon as={Loader2} size="xs" className="animate-spin" />
-                      : <Icon as={Tag} size="xs" />}
-                    {s.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Add-to-collection submenu */}
-        {panel === 'collection' && canEdit && count > 0 && (
-          <div className="rounded-md border bg-muted/40 p-2 space-y-2">
-            {loadingList ? (
-              <span className="text-2xs text-muted-foreground flex items-center gap-1.5">
-                <Icon as={Loader2} size="xs" className="animate-spin" /> Loading collections…
-              </span>
-            ) : collections.length === 0 && !creating ? (
-              <div className="text-2xs text-muted-foreground italic">
-                No collections yet — create one below.
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {collections.map((c) => {
-                  const isBusy = busy === c.id
-                  const wasAdded = justAdded === c.id
-                  return (
-                    <button
-                      key={c.id}
-                      onClick={() => addToExisting(c)}
-                      disabled={isBusy}
-                      className="text-2xs px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
-                      title={c.description || c.name}
-                    >
-                      {isBusy
-                        ? <Icon as={Loader2} size="xs" className="animate-spin" />
-                        : wasAdded
-                          ? <Icon as={Check} size="xs" className="text-success" />
-                          : <Icon as={Plus} size="xs" />}
-                      <span className="truncate max-w-[160px]" title={c.name}>{c.name}</span>
-                      {c.item_count > 0 && (
-                        <span className="text-muted-foreground">· {c.item_count}</span>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
+                <Icon as={Trash2} size="sm" className="inline mr-0.5" />
+                Delete…
+              </button>
             )}
 
-            {!creating ? (
-              <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setCreating(true)} className="h-7 gap-1.5 text-2xs">
-                  <Icon as={FolderPlus} size="sm" />
-                  New collection…
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => setPanel(null)} className="h-7 text-2xs">
-                  Close
-                </Button>
-              </div>
-            ) : (
-              <div className="flex gap-2 items-center">
-                <input
-                  autoFocus
-                  value={newName}
-                  onChange={(e) => setNewName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') submitNewCollection()
-                    if (e.key === 'Escape') { setCreating(false); setNewName('') }
-                  }}
-                  placeholder="New collection name"
-                  className="h-8 px-2 text-sm flex-1 rounded-md border border-border bg-background"
-                />
-                <Button size="sm" onClick={submitNewCollection} disabled={busy === 'new' || !newName.trim()} className="h-8">
-                  {busy === 'new' && <Icon as={Loader2} size="sm" className="animate-spin mr-1.5" />}
-                  Create + add
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => { setCreating(false); setNewName('') }} className="h-8">
-                  Cancel
-                </Button>
-              </div>
-            )}
-          </div>
+            <Sep />
+          </>
         )}
 
-        {message && (
-          <div className="text-xs text-success bg-success/10 border border-success/30 rounded-md px-2 py-1">
-            {message}
-          </div>
+        {/* Clear + Done */}
+        {count > 0 && (
+          <button className={pillBtn()} onClick={onClear}>Clear</button>
         )}
-        {error && <div className="text-2xs text-destructive px-1">{error}</div>}
+        <button
+          className="text-xs text-slate-400 hover:text-slate-200 transition-colors flex items-center gap-1"
+          onClick={onExit}
+          title="Exit selection mode (Esc)"
+        >
+          <Icon as={X} size="sm" />
+          Done
+          <span className="text-3xs bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-slate-400 font-mono">esc</span>
+        </button>
       </div>
 
-      {/* Purge confirmation — typed-confirm gate matching the per-asset UX */}
+      {/* Purge confirmation dialog — stays portal-rendered outside the pill */}
       <Dialog open={purgeOpen} onOpenChange={(v) => { setPurgeOpen(v); if (!v) setPurgeConfirm('') }}>
         <DialogContent>
           <DialogHeader>
@@ -549,9 +545,7 @@ export default function BulkActionBar({
             />
           </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setPurgeOpen(false)} disabled={busy === 'purge'}>
-              Cancel
-            </Button>
+            <Button variant="ghost" onClick={() => setPurgeOpen(false)} disabled={busy === 'purge'}>Cancel</Button>
             <Button
               variant="destructive"
               onClick={purgeAll}
