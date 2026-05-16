@@ -195,12 +195,13 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
         </div>
       )}
 
-      {/* Lifecycle / usage badge — bottom right. When the consumer injects a
-          _lifecycle marker (Library view), we render a lifecycle-aware chip
-          (NEW / ● active / ✓ shipped). Otherwise we fall back to the raw
-          usage count so the badge still has meaning in callers that don't
-          opt into lifecycle (e.g. asset picker drawers). */}
-      <div className="absolute bottom-6 right-1.5 z-10">
+      {/* Lifecycle / usage badge — top right. When the consumer injects a
+          _lifecycle marker (Library workflow view), we render a lifecycle-aware
+          chip (NEW / ● active / ✓ shipped). In the default date-grouped view
+          (_lifecycle is absent) we show "used ×N" on assets that have been
+          linked to stories, and nothing on unused assets so unused tiles stay
+          clean. Both are clickable and navigate to the first linked story. */}
+      <div className="absolute top-1.5 right-1.5 z-10">
         {asset._lifecycle === 'new' && (
           <span className="text-3xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full leading-none">
             NEW
@@ -230,23 +231,17 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
             ✓ shipped
           </button>
         )}
-        {!asset._lifecycle && (
-          firstStoryId ? (
-            <button
-              className="text-3xs bg-success text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-success/90 transition-colors"
-              title={usageCount === 1 ? 'Used in 1 story — click to open' : `Used in ${usageCount} stories — click to open the first`}
-              onClick={(e) => {
-                e.stopPropagation()
-                navigate(`/stories/${firstStoryId}`)
-              }}
-            >
-              used ×{usageCount}
-            </button>
-          ) : (
-            <span className="text-3xs bg-black/40 text-white/70 px-1.5 py-0.5 rounded-full leading-none">
-              ×0
-            </span>
-          )
+        {!asset._lifecycle && firstStoryId && (
+          <button
+            className="text-3xs bg-primary text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-primary/90 transition-colors"
+            title={usageCount === 1 ? 'Used in 1 story — click to open' : `Used in ${usageCount} stories — click to open the first`}
+            onClick={(e) => {
+              e.stopPropagation()
+              navigate(`/stories/${firstStoryId}`)
+            }}
+          >
+            used ×{usageCount}
+          </button>
         )}
       </div>
 
