@@ -170,8 +170,11 @@ export default function Home() {
       {/* Greeting */}
       <h1 className="text-xl font-semibold text-foreground">{greeting}</h1>
 
-      {/* Plan next interview — top of page so it's the first thing seen */}
-      {unfilteredGaps.length > 0 && (
+      {/* Pre-roll: one section at a time. Priority: resume in-progress >
+          coverage gaps (active workspace) > getting started (new workspace). */}
+      {resumeInterviews.length > 0 ? (
+        <ResumeStrip interviews={resumeInterviews} currentUserId={user?.id} />
+      ) : unfilteredGaps.length > 0 && stories.length > 0 ? (
         <PlanNextInterview
           gaps={topicGaps}
           isEmpty={allInterviews.length === 0}
@@ -179,14 +182,8 @@ export default function Home() {
           activePrototypeId={topicFilterPrototype}
           onPrototypeChange={setTopicFilterPrototype}
         />
-      )}
-
-      {/* Getting Started (auto-hides when complete or dismissed) */}
-      <GettingStarted />
-
-      {/* Resume strip — in-progress interviews within 14 days */}
-      {resumeInterviews.length > 0 && (
-        <ResumeStrip interviews={resumeInterviews} currentUserId={user?.id} />
+      ) : (
+        <GettingStarted />
       )}
 
       {/* Main content: task buckets left, right rail right */}
@@ -208,7 +205,7 @@ export default function Home() {
                   <p className="text-sm font-medium truncate">{s.clinicianName}</p>
                   <p className="text-xs text-muted-foreground truncate">{s.topic}</p>
                 </div>
-                <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span className="text-xs font-medium text-primary text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
                   Start drafting <ChevronRight className="h-3 w-3" />
                 </span>
               </Link>
@@ -238,7 +235,7 @@ export default function Home() {
                     </p>
                     <p className="text-xs text-muted-foreground truncate">{s.topic}</p>
                   </div>
-                  <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                  <span className="text-xs font-medium text-primary text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
                     Review <ChevronRight className="h-3 w-3" />
                   </span>
                 </Link>
@@ -266,7 +263,7 @@ export default function Home() {
                       : 'Last interview over 30 days ago'}
                   </p>
                 </div>
-                <span className="text-xs font-medium text-primary opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5">
+                <span className="text-xs font-medium text-primary text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
                   Schedule <ChevronRight className="h-3 w-3" />
                 </span>
               </Link>

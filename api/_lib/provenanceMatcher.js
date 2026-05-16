@@ -11,13 +11,27 @@
 //   classifyParagraph(paragraph, userMessages) → one block (verbatim|close_paraphrase|synthesis)
 //   summarize(blocks, source) → { verbatim_pct, paraphrase_pct, synthesis_pct, … }
 //
-// Thresholds are placeholders here. PR4 (P0-A.2) calibrates them against a
-// labeled sample of real generated content + transcripts.
+// Thresholds calibrated by scripts/calibrate-provenance-thresholds.mjs against
+// 452 real paragraphs (PR4 / P0-A.2, May 2026). The original placeholders
+// (0.80 / 0.45) labelled 99.6% of production paragraphs as `synthesis` — the
+// voice-fidelity scorecard was effectively dark. New cutoffs sit at the
+// natural cliffs of the real-data score distribution:
+//   • [0.10, 0.15) holds 33 paragraphs of function-word noise; [0.15, 0.20)
+//     drops to 4 — paraphrase floor lives here.
+//   • Above 0.30 we see clean clinic-voice rewrites of clinician statements
+//     (e.g. "I tell my patients X" → "We tell our patients X" scores 0.647).
+//
+// Known limitation: bigram-Jaccard is surface-form. A true semantic paraphrase
+// (same idea, completely different wording) scores near 0 — see synthetic
+// test Case C. Catching those requires a semantic feature (embeddings or a
+// model-emitted label via the validator pipeline). Until then the
+// "close_paraphrase" band primarily captures surface rewordings, not
+// semantic ones; deeper recall lives with the model-emit path.
 //
 // No deps — pure functions on strings + arrays. Browser-safe and Node-safe.
 
-const VERBATIM_THRESHOLD   = 0.80
-const PARAPHRASE_THRESHOLD = 0.45
+const VERBATIM_THRESHOLD   = 0.30
+const PARAPHRASE_THRESHOLD = 0.15
 const TEXT_PREFIX_LEN      = 80
 
 // ─── public ────────────────────────────────────────────────────────────────
@@ -34,16 +48,24 @@ export function computeProvenance(content, userMessages, { source = 'algorithmic
   }
 }
 
-export function classifyParagraph(paragraph, userMessages, ordinal = 0) {
-  const text_prefix = paragraph.slice(0, TEXT_PREFIX_LEN)
-  if (!paragraph.trim() || !userMessages.length) {
-    return baseBlock(ordinal, text_prefix, 'synthesis')
+/**
+ * Compute the raw best-match score for a paragraph against a user-message
+ * array. Returns `{ msg, score, spanStart, spanEnd }`. `score` is the best
+ * bigram-Jaccard across all (message, window) combinations. This is the
+ * underlying signal that `classifyParagraph` thresholds into categories;
+ * exposed separately so calibration tooling and tests can inspect the raw
+ * value without re-running the algorithm.
+ *
+ * Returns `{ msg: -1, score: 0, spanStart: -1, spanEnd: -1 }` for empty inputs.
+ */
+export function scoreParagraph(paragraph, userMessages) {
+  if (!paragraph?.trim() || !Array.isArray(userMessages) || userMessages.length === 0) {
+    return { msg: -1, score: 0, spanStart: -1, spanEnd: -1 }
   }
-
-  // Tokenize once per paragraph — caller may pass many paragraphs against the
-  // same transcript so this work is local, not amortized. Fine for v0.
   const paraTokens = tokenize(paragraph)
-  if (paraTokens.length === 0) return baseBlock(ordinal, text_prefix, 'synthesis')
+  if (paraTokens.length === 0) {
+    return { msg: -1, score: 0, spanStart: -1, spanEnd: -1 }
+  }
 
   let best = { msg: -1, score: 0, spanStart: -1, spanEnd: -1 }
   for (let i = 0; i < userMessages.length; i += 1) {
@@ -55,6 +77,13 @@ export function classifyParagraph(paragraph, userMessages, ordinal = 0) {
       best = { msg: i, score, spanStart, spanEnd }
     }
   }
+  return best
+}
+
+export function classifyParagraph(paragraph, userMessages, ordinal = 0) {
+  const text_prefix = paragraph.slice(0, TEXT_PREFIX_LEN)
+  const best = scoreParagraph(paragraph, userMessages)
+  if (best.score === 0) return baseBlock(ordinal, text_prefix, 'synthesis')
 
   if (best.score >= VERBATIM_THRESHOLD) {
     return {

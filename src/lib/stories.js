@@ -151,6 +151,14 @@ export function buildStories(clinicians, contentItems) {
       const pieceUpdates = pieces.map((p) => p.updated_at).filter(Boolean)
       const lastActivityAt = maxTimestamp([interview.updated_at, ...pieceUpdates])
 
+      // Best verbatim quote for Themes contrasting-views display.
+      // pull_quote_candidates is an array of { text, score } objects stored
+      // by /api/interviews/pull-quotes when the interview completes.
+      const pqc = Array.isArray(interview.pull_quote_candidates) ? interview.pull_quote_candidates : []
+      const verbatim_snippet = pqc.length > 0
+        ? (pqc[0].text || pqc[0].quote || null)
+        : null
+
       stories.push({
         id: interview.id,
         workspace_id: interview.workspace_id || clinician.workspace_id || null,
@@ -165,6 +173,7 @@ export function buildStories(clinicians, contentItems) {
         created_at: interview.created_at,
         updated_at: interview.updated_at,
         has_outputs: !!interview.outputs && Object.keys(interview.outputs).length > 0,
+        verbatim_snippet,
         pieces,
         pieces_count: pieces.length,
         pieces_by_status: piecesByStatus,

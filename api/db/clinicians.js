@@ -42,7 +42,7 @@ const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_e
 // Slim shape for the Stories list. Drops the heavy `messages` and `session_state`
 // JSON columns (full transcript per interview) which the list views never render —
 // they are fetched separately by useStory() when a detail page opens.
-const INTERVIEW_FIELDS_CARD = 'id,workspace_id,topic,status,session_state,created_at,updated_at,owner_id,owner_email,location_id,prototype_id'
+const INTERVIEW_FIELDS_CARD = 'id,workspace_id,topic,status,session_state,created_at,updated_at,owner_id,owner_email,location_id,prototype_id,pull_quote_candidates'
 const CLINICIAN_FIELDS_CARD = 'id,workspace_id,name,created_at'
 
 export default async function handler(req, res) {

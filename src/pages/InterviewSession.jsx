@@ -1067,7 +1067,7 @@ export default function InterviewSession() {
         {interviewComplete
           ? <Badge variant="secondary" className="text-xs">Interview Complete</Badge>
           : isOwner && (
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -1080,24 +1080,35 @@ export default function InterviewSession() {
                 <Sparkles className="h-3.5 w-3.5" />
                 Finish
               </Button>
-              <Button variant="outline" size="sm" onClick={handlePause} className="gap-1.5 text-muted-foreground">
-                <PauseCircle className="h-3.5 w-3.5" />
-                Pause
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handlePause}
+                title="Save and pause — you can resume later"
+                aria-label="Pause interview"
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+              >
+                <PauseCircle className="h-4 w-4" />
               </Button>
             </div>
           )
         }
       </div>
 
-      <div className="flex items-center gap-1.5 pb-3 -mt-1 shrink-0">
-        <span className="text-[11px] text-muted-foreground">{toneObj.emoji} {toneObj.label}</span>
-        <span className="text-[11px] text-muted-foreground/40">·</span>
-        <span className="text-[11px] text-muted-foreground">{voiceObj.emoji} {voiceObj.label}</span>
+      <div className="flex items-center gap-1.5 pb-3 -mt-1 shrink-0 flex-wrap">
+        <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+          {toneObj.emoji} {toneObj.label}
+        </Badge>
+        <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+          {voiceObj.emoji} {voiceObj.label}
+        </Badge>
         {prototypeObj && (
-          <>
-            <span className="text-[11px] text-muted-foreground/40">·</span>
-            <span className="text-[11px] text-muted-foreground">{prototypeObj.emoji} {prototypeObj.label}</span>
-          </>
+          <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+            {prototypeObj.emoji} {prototypeObj.label}
+          </Badge>
+        )}
+        {!interviewComplete && userMessageCount > 0 && (
+          <InterviewProgress count={userMessageCount} />
         )}
       </div>
 
@@ -1463,6 +1474,31 @@ function InlineOutputPanel({ clinicianId: _clinicianId, interviewId: _interviewI
         </p>
       </div>
     </div>
+  )
+}
+
+// Thin progress chip shown in the meta-badge row. Gives the clinician a
+// sense of how far through the interview they are without a hard question
+// count (Bernard adapts depth to the answers, so ~6 is an estimate, not a
+// gate). Hidden before the first answer and after the interview completes.
+const TYPICAL_QUESTION_COUNT = 6
+function InterviewProgress({ count }) {
+  const pct = Math.min(100, Math.round((count / TYPICAL_QUESTION_COUNT) * 100))
+  const label =
+    count >= TYPICAL_QUESTION_COUNT
+      ? 'Wrapping up'
+      : `~${Math.max(1, TYPICAL_QUESTION_COUNT - count)} more`
+
+  return (
+    <span className="inline-flex items-center gap-1.5 ml-auto text-[10px] text-muted-foreground shrink-0">
+      <span className="relative h-1 w-14 rounded-full bg-muted overflow-hidden">
+        <span
+          className="absolute inset-y-0 left-0 rounded-full bg-indigo-400 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      {label}
+    </span>
   )
 }
 
