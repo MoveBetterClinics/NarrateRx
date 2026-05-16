@@ -1,4 +1,5 @@
 import { useAuth, useUser } from '@clerk/clerk-react'
+import { ROLE_ADMIN, ROLE_CLINICIAN, isStaff } from '@/lib/roles'
 
 // Hook for reading the current user's NarrateRx role. The role is stored in
 // Clerk's publicMetadata.role and synced when an admin sets it on the user.
@@ -11,37 +12,43 @@ import { useAuth, useUser } from '@clerk/clerk-react'
 // 403 anyone who calls a privileged endpoint without the matching role, even
 // if the UI somehow surfaces the action to them.
 //
-// Roles (HANDOFF.md → Locked decisions):
-//   admin     → upload, edit, archive, restore, purge
-//   editor    → upload, edit, archive, restore
-//   clinician → upload (own metadata only — server-side scoping is a future
-//               refinement; v1 just blocks edit/archive at the role layer)
+// Roles (see src/lib/roles.js for the canonical persona model):
+//   admin     → workspace owner; configures NarrateRx; can purge
+//   publisher → publishes content (attach media, schedule, publish, monitor)
+//               LEGACY ALIAS: 'editor' still authorizes via isStaff()
+//   clinician → owns voice; records interviews, reviews drafts; upload only
 export function useUserRole() {
   const { user, isLoaded } = useUser()
   const { orgRole } = useAuth()
   // Clerk Organization admins are treated as NarrateRx admins for the active
   // workspace, regardless of their publicMetadata.role. Mirrors the server-side
   // gate in api/_lib/auth.js.
-  const metadataRole = (user?.publicMetadata?.role || 'clinician').toLowerCase()
+  const metadataRole = (user?.publicMetadata?.role || ROLE_CLINICIAN).toLowerCase()
   const isOrgAdmin   = orgRole === 'org:admin'
-  const role         = isOrgAdmin ? 'admin' : metadataRole
+  const role         = isOrgAdmin ? ROLE_ADMIN : metadataRole
   const isLoading    = !isLoaded
+
+  // "Staff" = admin or publisher. Most write/edit/review gates collapse
+  // to this — admin is a superset of publisher in every capability below
+  // except canPurge.
+  const staff = isStaff(role)
 
   return {
     role,
     isLoading,
+    isStaff:    staff,
     canUpload:  true,                                  // any signed-in user
-    canEdit:    role === 'admin' || role === 'editor',
-    canArchive: role === 'admin' || role === 'editor',
-    canRestore: role === 'admin' || role === 'editor',
-    canPurge:   role === 'admin',
+    canEdit:    staff,
+    canArchive: staff,
+    canRestore: staff,
+    canPurge:   role === ROLE_ADMIN,
     // Approval workflow gates. canReview = the user is allowed to approve
     // or request changes on a content item that's in_review. canPublish
-    // mirrors the "Publish" button visibility: only reviewers can publish
+    // mirrors the "Publish" button visibility: only staff can publish
     // from in_review or approved states. Clinicians can still publish
     // from a draft when the workspace.skip_review escape hatch is on
     // (the consumer applies that override on top of this hook's value).
-    canReview:  role === 'admin' || role === 'editor',
-    canPublish: role === 'admin' || role === 'editor',
+    canReview:  staff,
+    canPublish: staff,
   }
 }

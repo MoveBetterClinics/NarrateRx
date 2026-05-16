@@ -1,17 +1,18 @@
 import { withSentry } from '../_lib/sentry.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Per-method role requirements (HANDOFF.md → Locked decisions):
 //   GET    → any authenticated user
-//   PATCH  → admin or editor (metadata edits + restore)
-//   DELETE → admin or editor (soft-archive)
+//   PATCH  → admin or publisher (metadata edits + restore)
+//   DELETE → admin or publisher (soft-archive)
 //   purge  → admin only (lives in api/media/[id]/purge.js)
 const ROLE_REQUIREMENTS = {
   GET:    null,
-  PATCH:  ['admin', 'editor'],
-  DELETE: ['admin', 'editor'],
+  PATCH:  STAFF_ROLES,
+  DELETE: STAFF_ROLES,
 }
 
 // Runs on Node (Fluid Compute) — @vercel/blob's server bits aren't edge-safe.

@@ -9,6 +9,7 @@ import { segmentAndPersist } from '../_lib/segmentInterview.js'
 import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
+import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import { workspaceById } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
@@ -25,7 +26,7 @@ import { enforceLimit } from '../_lib/ratelimit.js'
 // the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
 export const config = { runtime: 'nodejs' }
 
-const HANDSHAKE_ALLOWED_ROLES = ['admin', 'editor', 'clinician']
+const HANDSHAKE_ALLOWED_ROLES = ALL_KNOWN_ROLES
 
 // Client-direct upload to Vercel Blob using a token issued by this endpoint.
 //

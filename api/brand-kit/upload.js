@@ -2,6 +2,7 @@ import { withSentry } from '../_lib/sentry.js'
 import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
 import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import { workspaceById } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
@@ -29,7 +30,7 @@ export const config = { runtime: 'nodejs' }
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-const HANDSHAKE_ALLOWED_ROLES = ['admin', 'editor']
+const HANDSHAKE_ALLOWED_ROLES = STAFF_ROLES
 
 const ALLOWED_MIME = [
   'image/svg+xml',

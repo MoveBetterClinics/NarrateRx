@@ -1,5 +1,6 @@
 import { withSentry } from '../../_lib/sentry.js'
 import { requireRole } from '../../_lib/auth.js'
+import { STAFF_ROLES } from '../../_lib/roles.js'
 import { workspaceScope } from '../../_lib/workspaceScope.js'
 
 // Assign or clear a role within the current workspace's Brand Kit.
@@ -26,7 +27,7 @@ const VALID_ROLES = new Set([
   'brand_book',
 ])
 
-const ROLE_WRITE_ROLES = ['admin', 'editor']
+const ROLE_WRITE_ROLES = STAFF_ROLES
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {

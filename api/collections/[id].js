@@ -3,10 +3,11 @@ import { withSentry } from '../_lib/sentry.js'
 //   GET    → any authenticated user; embeds the asset list (id, blob_url,
 //            thumbnail_url, kind, status, filename) so the detail view can
 //            render without a second hop.
-//   PATCH  → admin or editor; rename, re-describe, change cover, archive.
-//   DELETE → admin or editor; cascades collection_items but leaves assets.
+//   PATCH  → admin or publisher; rename, re-describe, change cover, archive.
+//   DELETE → admin or publisher; cascades collection_items but leaves assets.
 
 import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -14,8 +15,8 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 const ROLE_REQUIREMENTS = {
   GET:    null,
-  PATCH:  ['admin', 'editor'],
-  DELETE: ['admin', 'editor'],
+  PATCH:  STAFF_ROLES,
+  DELETE: STAFF_ROLES,
 }
 
 const ALLOWED_KINDS    = new Set(['campaign', 'series', 'session', 'adhoc'])

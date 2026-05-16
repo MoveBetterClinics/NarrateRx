@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
-import { Plus, Settings, Building2, Menu, Palette, Images, Layers, ChevronDown } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
@@ -14,14 +14,18 @@ import TrialBanner from '@/components/TrialBanner'
 
 const APP_BYLINE = 'Voice-faithful clinical content'
 
+// Top-level nav. Library is a daily working surface for Publishers (media
+// attach + schedule + publish) and a frequent reference for Clinicians, so
+// it sits in the main bar rather than the settings dropdown.
 const NAV_ITEMS = [
   { to: '/',        label: 'Home',    match: (p) => p === '/' },
   { to: '/stories', label: 'Stories', match: (p) => p.startsWith('/stories') },
+  { to: '/library', label: 'Library', match: (p) => p.startsWith('/library') },
 ]
 
 export default function Layout({ children }) {
   const location = useLocation()
-  const { role } = useUserRole()
+  const { role, isStaff } = useUserRole()
   const [mobileOpen, setMobileOpen] = useState(false)
   const ws = useWorkspace()
   const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
@@ -53,7 +57,7 @@ export default function Layout({ children }) {
             ))}
           </nav>
           <div className="hidden md:flex items-center gap-1">
-            <SettingsMenu role={role} />
+            <SettingsMenu role={role} isStaff={isStaff} />
           </div>
 
           {/* New Interview — primary action, visible on every page */}
@@ -98,11 +102,6 @@ export default function Layout({ children }) {
             ))}
           </div>
           <div className="pt-3 border-t space-y-1">
-            <DialogClose asChild>
-              <Link to="/library" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
-                <Images className="h-4 w-4" /> Media library
-              </Link>
-            </DialogClose>
             {role === 'admin' && (
               <DialogClose asChild>
                 <Link to="/synthesis" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
@@ -117,7 +116,7 @@ export default function Layout({ children }) {
                 </Link>
               </DialogClose>
             )}
-            {(role === 'admin' || role === 'editor') && (
+            {isStaff && (
               <DialogClose asChild>
                 <Link to="/settings/brand-kit" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
                   <Palette className="h-4 w-4" /> Brand Kit
@@ -159,7 +158,7 @@ function NavLink({ to, label, active }) {
 // Single "⚙ Tools" dropdown that replaces the 4-icon pile in the desktop
 // header. Closes on outside click or Escape. All admin items are only
 // rendered when role === 'admin'.
-function SettingsMenu({ role }) {
+function SettingsMenu({ role, isStaff }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -192,19 +191,16 @@ function SettingsMenu({ role }) {
 
       {open && (
         <div className="absolute right-0 top-full mt-1 w-52 rounded-lg border border-border bg-white shadow-md py-1 z-50">
-          <Link to="/library" onClick={() => setOpen(false)} className={itemClass}>
-            <Images className="h-4 w-4 shrink-0" /> Media library
-          </Link>
           {role === 'admin' && (
             <Link to="/synthesis" onClick={() => setOpen(false)} className={itemClass}>
               <Layers className="h-4 w-4 shrink-0" /> Knowledge synthesis
             </Link>
           )}
-          <div className="border-t border-border my-1" />
+          {role === 'admin' && <div className="border-t border-border my-1" />}
           <Link to="/settings/integrations" onClick={() => setOpen(false)} className={itemClass}>
             <Settings className="h-4 w-4 shrink-0" /> Integrations
           </Link>
-          {(role === 'admin' || role === 'editor') && (
+          {isStaff && (
             <Link to="/settings/brand-kit" onClick={() => setOpen(false)} className={itemClass}>
               <Palette className="h-4 w-4 shrink-0" /> Brand Kit
             </Link>

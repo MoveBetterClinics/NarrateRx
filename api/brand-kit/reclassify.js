@@ -5,6 +5,7 @@
 export const config = { runtime: 'nodejs', maxDuration: 120 }
 
 import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import {
   parseFilenameTokens,
@@ -31,7 +32,7 @@ function sb(path, init = {}) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const auth = await requireRole(req, ['admin', 'editor'])
+  const auth = await requireRole(req, STAFF_ROLES)
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   const scope = await workspaceScope(req)

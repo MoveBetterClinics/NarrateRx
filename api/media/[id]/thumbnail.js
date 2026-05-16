@@ -1,6 +1,7 @@
 import { withSentry } from '../../_lib/sentry.js'
 import { thumbnailById } from '../../_lib/thumbnail.js'
 import { requireRole } from '../../_lib/auth.js'
+import { STAFF_ROLES } from '../../_lib/roles.js'
 import { workspaceScope } from '../../_lib/workspaceScope.js'
 
 // Manual / on-demand video thumbnail extraction.
@@ -20,7 +21,7 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await requireRole(req, ['admin', 'editor'])
+  const auth = await requireRole(req, STAFF_ROLES)
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }

@@ -5,10 +5,11 @@
 // object — the caller decides how to respond on failure so it can keep its own
 // shape (some endpoints want 401 vs 403 split, some want a generic 'forbidden').
 //
-// Roles (Locked decisions in HANDOFF.md):
-//   admin     — upload, edit, archive, restore, purge
-//   editor    — upload, edit, archive, restore
-//   clinician — upload, edit own metadata only
+// Roles (see api/_lib/roles.js for canonical persona model):
+//   admin     — workspace owner; configures NarrateRx; can purge
+//   publisher — publishes content (attach media, schedule, publish, monitor)
+//               LEGACY ALIAS: 'editor' — still authorizes via STAFF_ROLES
+//   clinician — owns voice; records interviews, reviews drafts; upload only
 //
 // Default role for users with no publicMetadata.role set is 'clinician' — the
 // least-privileged tier. Only an admin can grant elevated roles via Clerk.

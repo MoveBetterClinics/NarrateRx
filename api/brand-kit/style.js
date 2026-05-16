@@ -1,5 +1,6 @@
 import { withSentry } from '../_lib/sentry.js'
 import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Patch the workspace's brand_style jsonb. Accent color, secondary palette,
@@ -14,7 +15,7 @@ import { workspaceScope } from '../_lib/workspaceScope.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-const STYLE_WRITE_ROLES = ['admin', 'editor']
+const STYLE_WRITE_ROLES = STAFF_ROLES
 
 const HEX_RE = /^#[0-9a-fA-F]{6}$/
 

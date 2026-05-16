@@ -6,6 +6,7 @@ import { withSentry } from '../_lib/sentry.js'
 // "always-have-a-backdoor" override path. Brand-scoped.
 
 import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -29,8 +30,8 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Brief creation is the same gate as media metadata edits — admin/editor.
-  const auth = await requireRole(req, ['admin', 'editor'])
+  // Brief creation is the same gate as media metadata edits — admin/publisher.
+  const auth = await requireRole(req, STAFF_ROLES)
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }

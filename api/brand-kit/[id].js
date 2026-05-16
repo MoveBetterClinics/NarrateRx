@@ -1,6 +1,7 @@
 import { withSentry } from '../_lib/sentry.js'
 import { del as blobDel } from '@vercel/blob'
 import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // One brand asset by id.
@@ -20,7 +21,7 @@ import { workspaceScope } from '../_lib/workspaceScope.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-const WRITE_ROLES = ['admin', 'editor']
+const WRITE_ROLES = STAFF_ROLES
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
