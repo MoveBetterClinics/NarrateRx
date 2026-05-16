@@ -14,6 +14,7 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { TONES } from '@/lib/prompts'
 import { apiFetch } from '@/lib/api'
+import { useClinicians } from '@/lib/queries'
 
 function formFromWorkspace(ws) {
   return {
@@ -275,24 +276,8 @@ export default function VoiceSettings() {
         </div>
       </details>
 
-      {/* ── Per-clinician voice notes ── */}
-      <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 flex items-start gap-3">
-        <span className="text-base mt-0.5">🎙</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-indigo-900">Per-clinician voice fingerprints</p>
-          <p className="text-xs text-indigo-700 mt-0.5">
-            As clinicians edit AI drafts, {interviewerName} learns how each person writes — the phrases they keep,
-            the ones they cut, the way they naturally say things. These fingerprints automatically sharpen
-            every future draft for that clinician.
-          </p>
-          <Link
-            to="/stories"
-            className="inline-block mt-1.5 text-xs font-medium text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
-          >
-            View a story → open any story → visit the clinician&apos;s profile to see their voice notes →
-          </Link>
-        </div>
-      </div>
+      {/* ── Voice Memory ── */}
+      <VoiceMemorySection interviewerName={interviewerName} />
 
       {/* ── Preview Bernard's voice (P1-F) ── */}
       <PreviewBernardCard interviewerName={interviewerName} />
@@ -401,6 +386,69 @@ function PreviewBernardCard({ interviewerName }) {
         {err && <p className="text-xs text-destructive">{err}</p>}
       </CardContent>
     </Card>
+  )
+}
+
+// ── VoiceMemorySection ───────────────────────────────────────────────────────
+
+function VoiceMemorySection({ interviewerName }) {
+  const { data: clinicians, isLoading } = useClinicians()
+
+  return (
+    <div className="rounded-xl border bg-card p-5 space-y-3">
+      <div>
+        <h2 className="font-semibold text-base">Voice Memory</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          {interviewerName} learns each clinician&apos;s editing style by analyzing how they revise AI drafts.
+        </p>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Loading clinicians…
+        </div>
+      ) : !clinicians || clinicians.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">
+          Add clinicians in Workspace Settings to start building voice memory.
+        </p>
+      ) : (
+        <div className="divide-y divide-border rounded-lg border border-input overflow-hidden">
+          {clinicians.map(c => {
+            const hasNotes = c.voice_notes && c.voice_notes.trim().length > 0
+            const snippet = hasNotes
+              ? c.voice_notes.trim().slice(0, 80) + (c.voice_notes.trim().length > 80 ? '…' : '')
+              : null
+            return (
+              <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 bg-card">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{c.name}</p>
+                  {hasNotes ? (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{snippet}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground/60 italic mt-0.5">No patterns yet</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {hasNotes && (
+                    <span className="inline-flex items-center gap-1 text-xs text-emerald-700">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />
+                      Active
+                    </span>
+                  )}
+                  <Link
+                    to={`/clinician/${c.id}`}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    View →
+                  </Link>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 

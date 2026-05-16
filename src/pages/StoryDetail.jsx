@@ -10,6 +10,7 @@ import TranscriptExport from '@/components/story-detail/TranscriptExport'
 import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
 import { ClinicianChip } from '@/components/ClinicianChip'
+import { useUserRole } from '@/lib/useUserRole'
 
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
@@ -23,6 +24,7 @@ import { ClinicianChip } from '@/components/ClinicianChip'
 export default function StoryDetail() {
   const { storyId } = useParams()
   const { data: story, isLoading, isError, isPlaceholderData } = useStory(storyId)
+  const { isStaff } = useUserRole()
 
   // Provenance highlight — lifted here so TranscriptPane and AssetsPane can
   // share it. AssetsPane fires setProvenanceHighlight when the user clicks a
@@ -69,18 +71,28 @@ export default function StoryDetail() {
             </h1>
             {story.clinician_name && (
               story.clinician_id ? (
-                <Link
-                  to={`/clinician/${story.clinician_id}`}
-                  className="inline-flex text-muted-foreground hover:text-foreground"
-                >
-                  <ClinicianChip
-                    id={story.clinician_id}
-                    name={story.clinician_name}
-                    size="md"
-                    showName
-                    nameClassName="text-sm"
-                  />
-                </Link>
+                <div className="inline-flex items-center gap-2">
+                  <Link
+                    to={`/clinician/${story.clinician_id}`}
+                    className="inline-flex text-muted-foreground hover:text-foreground"
+                  >
+                    <ClinicianChip
+                      id={story.clinician_id}
+                      name={story.clinician_name}
+                      size="md"
+                      showName
+                      nameClassName="text-sm"
+                    />
+                  </Link>
+                  {isStaff && (
+                    <Link
+                      to={`/clinician/${story.clinician_id}`}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Voice Memory →
+                    </Link>
+                  )}
+                </div>
               ) : (
                 <ClinicianChip
                   id={story.clinician_id}
