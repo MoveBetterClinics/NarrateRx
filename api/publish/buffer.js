@@ -165,7 +165,16 @@ async function handler(req, res) {
     const r = await gql(BUFFER_TOKEN, `
       mutation CreatePost($input: CreatePostInput!) {
         createPost(input: $input) {
-          post { id status dueAt sentAt sharedNow }
+          __typename
+          ... on PostActionSuccess {
+            post { id status dueAt sentAt sharedNow }
+          }
+          ... on NotFoundError { message }
+          ... on UnauthorizedError { message }
+          ... on UnexpectedError { message }
+          ... on RestProxyError { message code link }
+          ... on LimitReachedError { message }
+          ... on InvalidInputError { message }
         }
       }
     `, { input })
@@ -173,7 +182,12 @@ async function handler(req, res) {
       console.error('[publish/buffer] createPost error', JSON.stringify(r.errors))
       return res.status(502).json({ error: r.errors[0]?.message || 'Buffer post failed' })
     }
-    posts.push(r.data?.createPost?.post)
+    const payload = r.data?.createPost
+    if (payload && payload.__typename !== 'PostActionSuccess') {
+      console.error('[publish/buffer] createPost rejected', JSON.stringify(payload))
+      return res.status(502).json({ error: payload.message || `Buffer post failed (${payload.__typename})` })
+    }
+    posts.push(payload?.post)
   }
 
   const first = posts[0]
