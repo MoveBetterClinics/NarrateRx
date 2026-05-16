@@ -24,18 +24,62 @@ function getInitials(name) {
     .join('') || '?'
 }
 
+const SIZE_CLASSES = {
+  xs: 'h-5 w-5 text-3xs',
+  sm: 'h-6 w-6 text-3xs',
+  md: 'h-7 w-7 text-xs',
+  lg: 'h-10 w-10 text-sm',
+  xl: 'h-16 w-16 text-lg',
+}
+
+const NAME_SIZE_CLASSES = {
+  xs: 'text-xs',
+  sm: 'text-xs',
+  md: 'text-sm',
+  lg: 'text-base',
+  xl: 'text-2xl font-bold',
+}
+
 /**
- * @param {{ id?: string, name?: string, size?: 'sm'|'md', className?: string }} props
+ * @param {{
+ *   id?: string,
+ *   name?: string,
+ *   size?: 'xs'|'sm'|'md'|'lg'|'xl',
+ *   className?: string,
+ *   showName?: boolean,
+ *   nameClassName?: string,
+ * }} props
  */
-export function ClinicianChip({ id, name, size = 'md', className = '' }) {
+export function ClinicianChip({
+  id,
+  name,
+  size = 'md',
+  className = '',
+  showName = false,
+  nameClassName = '',
+}) {
   const colorClass = colorFor(id || name)
-  const sizeClass = size === 'sm' ? 'h-6 w-6 text-3xs' : 'h-7 w-7 text-xs'
-  return (
+  const sizeClass = SIZE_CLASSES[size] ?? SIZE_CLASSES.md
+  const displayName = name || 'Unknown clinician'
+
+  const avatar = (
     <span
       title={name || id}
-      className={`inline-flex items-center justify-center rounded-full font-semibold select-none ${sizeClass} ${colorClass} ${className}`}
+      className={`inline-flex items-center justify-center rounded-full font-semibold select-none shrink-0 ${sizeClass} ${colorClass} ${showName ? '' : className}`}
     >
       {getInitials(name)}
+    </span>
+  )
+
+  if (!showName) return avatar
+
+  const nameSizeClass = NAME_SIZE_CLASSES[size] ?? NAME_SIZE_CLASSES.md
+  return (
+    <span className={`inline-flex items-center gap-2 min-w-0 ${className}`}>
+      {avatar}
+      <span className={`truncate ${nameSizeClass} ${nameClassName}`}>
+        {displayName}
+      </span>
     </span>
   )
 }
