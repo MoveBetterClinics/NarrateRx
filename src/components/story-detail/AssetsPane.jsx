@@ -221,6 +221,11 @@ function RegenerateButton({ piece }) {
       <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs">
         <span className="text-amber-800">
           Replace this draft with a fresh AI generation? Current text and approval state will be lost.
+          {piece.clinician_name && (
+            <span className="block mt-0.5 text-amber-700/80">
+              Bernard will apply {piece.clinician_name}&rsquo;s voice settings.
+            </span>
+          )}
         </span>
         <div className="ml-auto flex gap-1.5 shrink-0">
           <Button
@@ -366,8 +371,25 @@ function ApprovalPanel({ piece }) {
 
   const isBusy = updateStatus.isPending || addComment.isPending
 
+  const provSummary = piece.provenance?.summary
+  const ownWordsPct = provSummary ? provSummary.verbatim_pct + provSummary.paraphrase_pct : null
+
   return (
     <div className="mt-3 pt-3 border-t space-y-3">
+      {/* Voice-drift scorecard — sourced from provenance.summary (PR1 substrate) */}
+      {provSummary && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs text-emerald-700">
+            {ownWordsPct}% in clinician&rsquo;s voice
+          </span>
+          {provSummary.synthesis_pct > 40 && (
+            <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-700">
+              {provSummary.synthesis_pct}% synthesis — read closely
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Status + audit trail */}
       <div className="flex items-center gap-2 flex-wrap">
         <StatusBadge status={piece.status} />
