@@ -38,6 +38,8 @@ function fetchWithTimeout(url, init = {}) {
 async function testBuffer(secret) {
   const r = await fetchWithTimeout(`https://api.bufferapp.com/1/user.json?access_token=${encodeURIComponent(secret)}`)
   if (!r.ok) {
+    const bodyText = await r.text().catch(() => '')
+    console.error('[credentials/test] buffer rejected', r.status, bodyText)
     if (r.status === 401 || r.status === 403) return { ok: false, error: 'Token rejected by Buffer (401/403). Generate a fresh access token and try again.' }
     return { ok: false, error: `Buffer responded ${r.status}` }
   }
