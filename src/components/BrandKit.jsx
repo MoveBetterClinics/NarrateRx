@@ -74,7 +74,7 @@ function InlineSvgPreview({ url, label }) {
   const hostRef = useRef(null)
   useEffect(() => {
     let alive = true
-    fetch(url)
+    fetch(url, { mode: 'cors' })
       .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`fetch ${r.status}`))))
       .then((txt) => { if (alive) setMarkup(sanitizeSvg(txt)) })
       .catch(() => { if (alive) setMarkup('') })
@@ -84,26 +84,49 @@ function InlineSvgPreview({ url, label }) {
     if (!hostRef.current || !markup) return
     const svg = hostRef.current.querySelector('svg')
     if (!svg) return
-    try {
-      const bb = svg.getBBox()
-      if (bb && bb.width > 0 && bb.height > 0) {
-        const pad = Math.max(bb.width, bb.height) * 0.04
-        svg.setAttribute('viewBox', `${bb.x - pad} ${bb.y - pad} ${bb.width + pad * 2} ${bb.height + pad * 2}`)
-        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
-      }
-    } catch { /* getBBox can throw if svg is detached; ignore */ }
+    // Force the SVG to fill its container before measuring — some browsers
+    // won't return a sensible bbox until the element is laid out.
     svg.removeAttribute('width')
     svg.removeAttribute('height')
     svg.style.width = '100%'
     svg.style.height = '100%'
     svg.style.display = 'block'
+    let done = false
+    const applyCrop = () => {
+      if (done || !svg.isConnected) return
+      try {
+        const bb = svg.getBBox()
+        if (bb && bb.width > 0.5 && bb.height > 0.5) {
+          const pad = Math.max(bb.width, bb.height) * 0.05
+          svg.setAttribute('viewBox', `${bb.x - pad} ${bb.y - pad} ${bb.width + pad * 2} ${bb.height + pad * 2}`)
+          svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
+          done = true
+        }
+      } catch { /* ignore */ }
+    }
+    // Retry across a short ladder — getBBox can return 0 before layout,
+    // before fonts load, or before referenced raster images decode.
+    const timers = [0, 80, 200, 500].map((d) => setTimeout(applyCrop, d))
+    if (typeof document !== 'undefined' && document.fonts?.ready) {
+      document.fonts.ready.then(applyCrop).catch(() => {})
+    }
+    return () => { done = true; timers.forEach(clearTimeout) }
   }, [markup])
   if (markup === null) {
     return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
   }
   if (markup === '') {
-    // Fetch failed (CORS, 404). Fall back to <img>.
-    return <img src={url} alt={label} className="max-h-full max-w-full" />
+    // Fetch failed (likely CORS). Use <img> but give it explicit pixel
+    // dimensions so the browser uses those as intrinsic and CSS scales up.
+    return (
+      <img
+        src={url}
+        alt={label}
+        width="400"
+        height="200"
+        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+      />
+    )
   }
   return <div ref={hostRef} className="h-full w-full" aria-label={label} dangerouslySetInnerHTML={{ __html: markup }} />
 }
