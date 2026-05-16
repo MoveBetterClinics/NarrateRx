@@ -54,102 +54,38 @@ function backdropStyleFor(backdrop) {
   }
 }
 
-// Strip script tags and on* event handler attributes from fetched SVG markup.
-// Workspace admins upload these assets, so the risk surface is small, but
-// we're injecting into the DOM so be defensive.
-function sanitizeSvg(markup) {
-  return markup
-    .replace(/<script[\s\S]*?<\/script>/gi, '')
-    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
-    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '')
-}
-
-// Inline-SVG preview that auto-crops the viewBox to the actual artwork bounds.
-// Many uploaded logos ship with huge viewBoxes around tiny artwork (export
-// safe-area padding), which makes them look like specks at any tile size no
-// matter how aggressively the container scales them. Reading getBBox() after
-// inlining gives us the true content rect, so we can re-frame the viewBox.
-function InlineSvgPreview({ url, label }) {
-  const [markup, setMarkup] = useState(null)
-  const hostRef = useRef(null)
-  useEffect(() => {
-    let alive = true
-    fetch(url, { mode: 'cors' })
-      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`fetch ${r.status}`))))
-      .then((txt) => { if (alive) setMarkup(sanitizeSvg(txt)) })
-      .catch(() => { if (alive) setMarkup('') })
-    return () => { alive = false }
-  }, [url])
-  useEffect(() => {
-    if (!hostRef.current || !markup) return
-    const svg = hostRef.current.querySelector('svg')
-    if (!svg) return
-    // Force the SVG to fill its container before measuring — some browsers
-    // won't return a sensible bbox until the element is laid out.
-    svg.removeAttribute('width')
-    svg.removeAttribute('height')
-    svg.style.width = '100%'
-    svg.style.height = '100%'
-    svg.style.display = 'block'
-    let done = false
-    const applyCrop = () => {
-      if (done || !svg.isConnected) return
-      try {
-        const bb = svg.getBBox()
-        if (bb && bb.width > 0.5 && bb.height > 0.5) {
-          const pad = Math.max(bb.width, bb.height) * 0.05
-          svg.setAttribute('viewBox', `${bb.x - pad} ${bb.y - pad} ${bb.width + pad * 2} ${bb.height + pad * 2}`)
-          svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
-          done = true
-        }
-      } catch { /* ignore */ }
-    }
-    // Retry across a short ladder — getBBox can return 0 before layout,
-    // before fonts load, or before referenced raster images decode.
-    const timers = [0, 80, 200, 500].map((d) => setTimeout(applyCrop, d))
-    if (typeof document !== 'undefined' && document.fonts?.ready) {
-      document.fonts.ready.then(applyCrop).catch(() => {})
-    }
-    return () => { done = true; timers.forEach(clearTimeout) }
-  }, [markup])
-  if (markup === null) {
-    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-  }
-  if (markup === '') {
-    // Fetch failed (likely CORS). Use <img> but give it explicit pixel
-    // dimensions so the browser uses those as intrinsic and CSS scales up.
-    return (
-      <img
-        src={url}
-        alt={label}
-        width="400"
-        height="200"
-        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-      />
-    )
-  }
-  return <div ref={hostRef} className="h-full w-full" aria-label={label} dangerouslySetInnerHTML={{ __html: markup }} />
-}
-
 // Renders the asset preview. `backdrop` controls what's behind the artwork —
 // 'checker' (default) shows transparency, 'light'/'dark' show flat fills so
 // users can spot logos that would otherwise vanish against same-color bg.
 function AssetPreview({ asset, size = 'md', backdrop = 'checker' }) {
-  const h = size === 'sm' ? 'h-24' : size === 'lg' ? 'h-40' : 'h-32'
+  const heightPx = size === 'sm' ? 96 : size === 'lg' ? 200 : 128
   if (asset.mime_type === 'application/pdf') {
     return (
-      <div className={`${h} w-full rounded-md bg-rose-50 dark:bg-rose-950/30 flex flex-col items-center justify-center gap-1`}>
+      <div
+        className="w-full rounded-md bg-rose-50 dark:bg-rose-950/30 flex flex-col items-center justify-center gap-1"
+        style={{ height: `${heightPx}px` }}
+      >
         <FileText className="h-8 w-8 text-rose-600 dark:text-rose-300" />
         <span className="text-3xs text-rose-700 dark:text-rose-200 font-medium uppercase tracking-wide">PDF</span>
       </div>
     )
   }
-  const bg = backdropStyleFor(backdrop)
+  // Plain block container with definite pixel height + an <img> with explicit
+  // width:100%/height:100%/object-fit:contain inline styles. Previously we
+  // wrapped the img in `flex items-center justify-center` which can collapse
+  // the img to zero height when the source SVG has no intrinsic dimensions
+  // (only a viewBox). Inline styles also bypass any Tailwind preflight
+  // `img { height: auto }` precedence surprises.
   return (
-    <div className={`${h} w-full rounded-md p-2 flex items-center justify-center overflow-hidden`} style={bg}>
-      {asset.mime_type === 'image/svg+xml'
-        ? <InlineSvgPreview url={asset.blob_url} label={asset.filename} />
-        : <img src={asset.blob_url} alt={asset.filename} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
+    <div
+      className="w-full rounded-md overflow-hidden"
+      style={{ ...backdropStyleFor(backdrop), height: `${heightPx}px`, padding: '10px', boxSizing: 'border-box' }}
+    >
+      <img
+        src={asset.blob_url}
+        alt={asset.filename}
+        style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }}
+      />
     </div>
   )
 }
