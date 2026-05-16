@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { Target } from 'lucide-react'
 import { formatRelativeDate } from '@/lib/utils'
 import { queryKeys, fetchStory } from '@/lib/queries'
 import { getStageToken } from '@/lib/stageTokens'
@@ -53,6 +54,8 @@ export default function StoryCard({ story }) {
     pieces_count,
     story_stage,
     last_activity_at,
+    campaign_id,
+    campaign_name,
   } = story
 
   // Unique platforms represented in this story's pieces.
@@ -104,6 +107,12 @@ export default function StoryCard({ story }) {
             {PLATFORM_SHORT[p] ?? p}
           </span>
         ))}
+        {campaign_id && campaign_name ? (
+          <span className="inline-flex items-center gap-1 text-xs font-medium rounded px-1.5 py-0.5 border border-warning/30 bg-warning/10 text-warning">
+            <Target className="w-3 h-3" aria-hidden="true" />
+            {campaign_name}
+          </span>
+        ) : null}
       </div>
 
       {/* Last activity */}
