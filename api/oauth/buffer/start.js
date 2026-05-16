@@ -10,7 +10,7 @@ import { workspaceContext } from '../../_lib/workspaceContext.js'
 const CLIENT_ID = process.env.BUFFER_CLIENT_ID
 const CLIENT_SECRET = process.env.BUFFER_CLIENT_SECRET
 const REDIRECT_URI = 'https://narraterx.ai/api/oauth/buffer/callback'
-const AUTHORIZE_URL = 'https://bufferapp.com/oauth2/authorize'
+const AUTHORIZE_URL = 'https://api.bufferapp.com/1/oauth2/authorize'
 
 function signState(payload) {
   const data = Buffer.from(JSON.stringify(payload)).toString('base64url')
