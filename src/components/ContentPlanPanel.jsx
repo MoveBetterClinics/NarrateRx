@@ -128,6 +128,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
                     <AtomRow
                       key={atom.id}
                       atom={atom}
+                      interviewId={interviewId}
                       slotLabel={slotLabel}
                       dateHint={dateHint}
                       isDrafting={isDrafting}
@@ -148,7 +149,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
   )
 }
 
-function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip, onReset, onSelectPiece }) {
+function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, onDraft, onSkip, onReset, onSelectPiece }) {
   const isSkipped = atom.status === 'skipped'
   const isDrafted = atom.status === 'drafted'
 
@@ -183,7 +184,7 @@ function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip
             </Button>
           ) : (
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" asChild>
-              <Link to={`/review/${atom.content_piece_id}`}>
+              <Link to={interviewId ? `/stories/${interviewId}` : `/stories/${atom.content_piece_id}`}>
                 View draft
                 <IconPrim as={ExternalLink} size="xs" />
               </Link>

@@ -347,7 +347,7 @@ function PublishedPostRow({ post }) {
         </div>
         <ChannelBadge platform={post.platform} />
         <Button asChild variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-          <Link to={`/review/${post.id}`}>
+          <Link to={post.interview_id ? `/stories/${post.interview_id}` : `/stories/${post.id}`}>
             <ChevronRight className="h-4 w-4" />
           </Link>
         </Button>
