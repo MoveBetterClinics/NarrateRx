@@ -183,7 +183,20 @@ async function publishToWordPress(res, payload, cred) {
     }
   }
 
-  // 3. Tags — resolve each name to an ID, creating tags that don't exist.
+  // 3. Category — resolve the configured category name to a WP term ID.
+  // Defaults to "blog" so posts don't land in "Uncategorized". Override per
+  // workspace by setting config.category in the wordpress credential config.
+  let categoryIds = []
+  const categoryName = cred.config?.category ?? 'blog'
+  try {
+    const catId = await resolveCategory(wp, categoryName)
+    if (catId) categoryIds = [catId]
+  } catch (e) {
+    console.error(tag, 'category_resolve_failed:', e.message)
+    // Non-fatal — post will land in Uncategorized rather than failing entirely.
+  }
+
+  // 4. Tags — resolve each name to an ID, creating tags that don't exist.
   let tagIds = []
   if (Array.isArray(payload.tags) && payload.tags.length) {
     try {
@@ -194,7 +207,7 @@ async function publishToWordPress(res, payload, cred) {
     }
   }
 
-  // 4. Inline body images — mirror each into the WordPress Media Library and
+  // 5. Inline body images — mirror each into the WordPress Media Library and
   // build a {oldUrl → newWpUrl} map. The markdown body is rewritten so the
   // emitted HTML references WP-hosted images, severing the dependency on
   // NarrateRx blob storage. Non-mirrorable URLs (external CDNs, etc.) are
@@ -215,7 +228,7 @@ async function publishToWordPress(res, payload, cred) {
     mirroredMarkdown = rewriteMarkdownImageUrls(payload.markdown, urlMap)
   }
 
-  // 5. Create the post.
+  // 6. Create the post.
   const html = markdownToHtml(mirroredMarkdown)
   const postBody = {
     title:   payload.title,
@@ -225,8 +238,9 @@ async function publishToWordPress(res, payload, cred) {
     excerpt: payload.description,
     date:    isoDate(payload.pubDate),
   }
-  if (featuredMediaId) postBody.featured_media = featuredMediaId
-  if (tagIds.length)   postBody.tags = tagIds
+  if (featuredMediaId)    postBody.featured_media = featuredMediaId
+  if (categoryIds.length) postBody.categories = categoryIds
+  if (tagIds.length)      postBody.tags = tagIds
 
   let postRes
   try {
@@ -311,6 +325,14 @@ async function uploadMedia(wp, sourceUrl, altText, overrideFilename = null) {
 async function uploadMediaForRewrite(wp, sourceUrl, altText) {
   const media = await uploadMedia(wp, sourceUrl, altText)
   return media.source_url || null
+}
+
+async function resolveCategory(wp, name) {
+  const slug = name.toLowerCase().replace(/\s+/g, '-')
+  const r = await wp(`/wp/v2/categories?slug=${encodeURIComponent(slug)}&_fields=id,slug`)
+  if (!r.ok) return null
+  const list = await r.json()
+  return list[0]?.id ?? null
 }
 
 async function resolveTags(wp, names) {
