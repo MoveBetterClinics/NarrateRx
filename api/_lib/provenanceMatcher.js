@@ -30,9 +30,10 @@
 //
 // No deps — pure functions on strings + arrays. Browser-safe and Node-safe.
 
-const VERBATIM_THRESHOLD   = 0.30
-const PARAPHRASE_THRESHOLD = 0.15
-const TEXT_PREFIX_LEN      = 80
+const VERBATIM_THRESHOLD      = 0.30
+const PARAPHRASE_THRESHOLD    = 0.15
+const VOICE_PHRASE_THRESHOLD  = 0.20
+const TEXT_PREFIX_LEN         = 80
 
 // ─── public ────────────────────────────────────────────────────────────────
 
@@ -111,16 +112,78 @@ export function classifyParagraph(paragraph, userMessages, ordinal = 0) {
 export function summarize(blocks, source = 'algorithmic_fallback') {
   const total = blocks.length || 1
   const counts = { verbatim: 0, close_paraphrase: 0, synthesis: 0 }
+  let voiceEchoCount = 0
   for (const b of blocks) {
     if (counts[b.source_type] !== undefined) counts[b.source_type] += 1
+    if (b.voice_phrase_matches?.length) voiceEchoCount += 1
   }
   return {
-    verbatim_pct:   Math.round((counts.verbatim         / total) * 100),
-    paraphrase_pct: Math.round((counts.close_paraphrase / total) * 100),
-    synthesis_pct:  Math.round((counts.synthesis        / total) * 100),
-    computed_at:    new Date().toISOString(),
+    verbatim_pct:          Math.round((counts.verbatim         / total) * 100),
+    paraphrase_pct:        Math.round((counts.close_paraphrase / total) * 100),
+    synthesis_pct:         Math.round((counts.synthesis        / total) * 100),
+    voice_phrase_echo_pct: Math.round((voiceEchoCount          / total) * 100),
+    voice_phrase_echo_count: voiceEchoCount,
+    computed_at:           new Date().toISOString(),
     source,
   }
+}
+
+// Post-pass: match each paragraph against a clinician's voice phrases and
+// annotate matching blocks with `voice_phrase_matches`. Takes the full
+// content string (to access un-truncated paragraph text) and the already-
+// computed provenance object. Returns a new provenance object.
+//
+// Works on both model-emit-validated and algorithmic provenance objects —
+// runs after either path completes.
+export function enrichWithVoicePhrases(provenance, content, voicePhrases) {
+  const phrases = Array.isArray(voicePhrases) ? voicePhrases : []
+  if (!phrases.length || !provenance?.blocks?.length) return provenance
+
+  const paragraphs = splitParagraphs(content)
+  const enrichedBlocks = provenance.blocks.map((block, i) => {
+    const para = paragraphs[i] ?? block.text_prefix ?? ''
+    const matches = findPhraseMatches(para, phrases)
+    if (!matches.length) return block
+    return { ...block, voice_phrase_matches: matches }
+  })
+
+  return {
+    ...provenance,
+    blocks:  enrichedBlocks,
+    summary: summarize(enrichedBlocks, provenance.summary?.source ?? 'algorithmic_fallback'),
+  }
+}
+
+function findPhraseMatches(paragraph, phrases) {
+  if (!paragraph?.trim() || !phrases.length) return []
+  const sentences = splitSentences(paragraph)
+  const matches = []
+  for (const p of phrases) {
+    const phraseText = typeof p === 'string' ? p : (p.phrase || p.phrase_normalized || '')
+    if (!phraseText) continue
+    const phraseTokens = tokenize(phraseText)
+    if (phraseTokens.length < 2) continue
+    const phraseShingles = bigramSet(phraseTokens)
+    for (const sent of sentences) {
+      const sentTokens = tokenize(sent)
+      if (sentTokens.length < 2) continue
+      const sentShingles = bigramSet(sentTokens)
+      const score = jaccard(phraseShingles, sentShingles)
+      if (score >= VOICE_PHRASE_THRESHOLD) {
+        matches.push({ phrase: phraseText, score: round3(score) })
+        break
+      }
+    }
+  }
+  return matches
+}
+
+function splitSentences(text) {
+  if (!text) return []
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
 }
 
 // ─── internals ─────────────────────────────────────────────────────────────

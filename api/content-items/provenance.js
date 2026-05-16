@@ -27,6 +27,7 @@ import {
 import {
   computeProvenance,
   summarize,
+  enrichWithVoicePhrases,
 } from '../_lib/provenanceMatcher.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -66,26 +67,49 @@ export default async function handler(req, res) {
   if (!contentItemId) return err(res, 'Missing contentItemId')
 
   // Load the target content_item (workspace-scoped).
-  const itemRes = await sb(`content_items?id=eq.${contentItemId}&${wsFilter}&select=id,interview_id,content,platform`)
+  const itemRes = await sb(`content_items?id=eq.${contentItemId}&${wsFilter}&select=id,interview_id,clinician_id,content,platform`)
   if (!itemRes.ok) return dbErr(res, itemRes)
   const itemRows = await itemRes.json()
   if (!itemRows.length) return err(res, 'Content item not found', 404)
   const item = itemRows[0]
   if (!item.content?.trim()) return err(res, 'Content item has no body to attribute', 422)
 
-  // Load the originating interview's user messages (the only source of voice).
+  // Load interview messages + voice phrases in parallel (non-blocking on phrases).
   let userMessages = []
+  let voicePhrases = []
+
+  const parallelFetches = []
+
   if (item.interview_id) {
-    const ivRes = await sb(`interviews?id=eq.${item.interview_id}&${wsFilter}&select=messages,cleaned_messages`)
-    if (!ivRes.ok) return dbErr(res, ivRes)
-    const ivRows = await ivRes.json()
-    if (ivRows.length) {
-      const raw = ivRows[0].cleaned_messages || ivRows[0].messages || []
-      userMessages = raw
-        .filter((m) => m?.role === 'user' && typeof m?.content === 'string')
-        .map((m) => m.content)
-    }
+    parallelFetches.push(
+      sb(`interviews?id=eq.${item.interview_id}&${wsFilter}&select=messages,cleaned_messages`)
+        .then(async (r) => {
+          if (!r.ok) return
+          const rows = await r.json()
+          if (rows.length) {
+            const raw = rows[0].cleaned_messages || rows[0].messages || []
+            userMessages = raw
+              .filter((m) => m?.role === 'user' && typeof m?.content === 'string')
+              .map((m) => m.content)
+          }
+        })
+        .catch(() => {}),
+    )
   }
+
+  const clinicianId = item.clinician_id
+  if (clinicianId) {
+    parallelFetches.push(
+      sb(
+        `clinician_voice_phrases?clinician_id=eq.${clinicianId}&${wsFilter}` +
+        `&select=phrase&order=weight.desc,last_seen_at.desc&limit=12`,
+      )
+        .then(async (r) => { if (r.ok) voicePhrases = await r.json() })
+        .catch(() => {}),
+    )
+  }
+
+  await Promise.all(parallelFetches)
 
   // Pipeline: try model emission first, fall back to algorithmic.
   let provenance = null
@@ -111,6 +135,11 @@ export default async function handler(req, res) {
 
   if (!provenance) {
     provenance = computeProvenance(item.content, userMessages, { source: 'algorithmic_fallback' })
+  }
+
+  // Enrich all blocks with voice-phrase echo annotations (non-destructive post-pass).
+  if (voicePhrases.length) {
+    provenance = enrichWithVoicePhrases(provenance, item.content, voicePhrases)
   }
 
   // Persist.

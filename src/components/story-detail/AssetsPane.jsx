@@ -384,7 +384,8 @@ function ApprovalPanel({ piece }) {
   const isBusy = updateStatus.isPending || addComment.isPending
 
   const provSummary = piece.provenance?.summary
-  const ownWordsPct = provSummary ? provSummary.verbatim_pct + provSummary.paraphrase_pct : null
+  const ownWordsPct  = provSummary ? provSummary.verbatim_pct + provSummary.paraphrase_pct : null
+  const echoCount    = provSummary?.voice_phrase_echo_count ?? 0
 
   return (
     <div className="mt-3 pt-3 border-t space-y-3">
@@ -394,6 +395,11 @@ function ApprovalPanel({ piece }) {
           <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs text-emerald-700">
             {ownWordsPct}% in clinician&rsquo;s voice
           </span>
+          {echoCount > 0 && (
+            <span className="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-xs text-indigo-700">
+              {echoCount} phrase{echoCount === 1 ? '' : 's'} echo prior work
+            </span>
+          )}
           {provSummary.synthesis_pct > 40 && (
             <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-700">
               {provSummary.synthesis_pct}% synthesis — read closely
