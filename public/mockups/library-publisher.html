@@ -1,0 +1,1082 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Library — Publisher mock</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --background: 0 0% 100%;
+      --foreground: 0 0% 10%;
+      --card: 0 0% 100%;
+      --muted: 0 0% 95%;
+      --muted-foreground: 210 2% 44%;
+      --primary: 20 76% 52%;
+      --primary-foreground: 0 0% 100%;
+      --accent: 20 60% 95%;
+      --accent-foreground: 20 76% 38%;
+      --border: 210 5% 88%;
+      --radius: 0.5rem;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: 'Titillium Web', system-ui, sans-serif;
+      background: hsl(var(--background));
+      color: hsl(var(--foreground));
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .container { max-width: 1280px; margin: 0 auto; padding: 0 1.5rem; }
+    header.app-bar {
+      position: sticky; top: 0; z-index: 40;
+      background: hsla(0 0% 100% / .95);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid hsl(var(--border));
+    }
+    .bar { display: flex; align-items: center; gap: 1rem; height: 56px; }
+    .brand { display: flex; align-items: center; gap: .75rem; }
+    .brand-logo {
+      width: 36px; height: 36px; border-radius: var(--radius);
+      background: hsl(var(--primary)); color: white;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 16px;
+    }
+    .brand-name { font-weight: 600; font-size: 13px; line-height: 1; }
+    .brand-tag { font-size: 10px; color: hsl(var(--muted-foreground)); margin-top: 2px; line-height: 1; }
+    .spacer { flex: 1; }
+    nav { display: flex; gap: 1rem; }
+    nav a {
+      font-size: 14px; font-weight: 500; color: hsl(var(--muted-foreground));
+      text-decoration: none; padding: 4px;
+    }
+    nav a.active { color: hsl(var(--foreground)); }
+    .icon-btn {
+      width: 36px; height: 36px; border-radius: var(--radius);
+      display: flex; align-items: center; justify-content: center;
+      color: hsl(var(--muted-foreground));
+      border: 1px solid transparent;
+      background: transparent;
+    }
+    .icon-btn:hover { color: hsl(var(--foreground)); background: hsla(0 0% 95% / 1); }
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: hsl(var(--primary)); color: white;
+      padding: 6px 12px; border-radius: var(--radius);
+      font-size: 13px; font-weight: 500;
+      border: 0; cursor: pointer; text-decoration: none;
+    }
+    .btn-outline {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: white; color: hsl(var(--foreground));
+      padding: 6px 12px; border-radius: var(--radius);
+      font-size: 12px; font-weight: 500;
+      border: 1px solid hsl(var(--border)); cursor: pointer;
+    }
+    .btn-ghost {
+      background: transparent; color: hsl(var(--muted-foreground));
+      border: 0; font-size: 13px; cursor: pointer;
+    }
+    .avatar {
+      width: 32px; height: 32px; border-radius: 9999px;
+      background: hsl(20 60% 88%); color: hsl(20 76% 38%);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 13px; flex-shrink: 0;
+    }
+    .avatar-sm { width: 18px; height: 18px; font-size: 9px; }
+    main { padding: 2rem 0 4rem; }
+    h1 { font-size: 22px; font-weight: 600; margin: 0; letter-spacing: -.01em; }
+    .subtitle { color: hsl(var(--muted-foreground)); margin: 4px 0 0; font-size: 13px; }
+    .row-spread { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+    .actions { display: flex; gap: .5rem; align-items: center; }
+    /* ---- READY TO DISTRIBUTE STRIP ---- */
+    .ready-section {
+      margin-top: 1.5rem;
+      border: 1px solid hsl(220 60% 88%);
+      background: hsla(214 100% 97% / 0.5);
+      border-radius: 12px;
+      padding: 1rem 1.25rem 1.25rem;
+    }
+    .ready-head {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: .75rem;
+    }
+    .ready-title {
+      display: flex; align-items: center; gap: .5rem;
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .08em; color: hsl(220 50% 45%);
+    }
+    .ready-count {
+      font-size: 11px; color: hsl(220 30% 50%);
+      background: hsla(220 90% 92% / .8);
+      padding: 2px 8px; border-radius: 9999px;
+    }
+    .ready-cards {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: .75rem;
+    }
+    .ready-card {
+      background: white; border: 1px solid hsl(220 50% 90%);
+      border-radius: 10px; padding: .85rem; display: flex; flex-direction: column; gap: .5rem;
+    }
+    .platform-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 500;
+      padding: 2px 8px; border-radius: 9999px;
+      width: fit-content;
+    }
+    .pf-instagram { background: hsl(330 70% 95%); color: hsl(330 60% 40%); }
+    .pf-blog { background: hsl(220 50% 95%); color: hsl(220 50% 35%); }
+    .pf-email { background: hsl(160 50% 92%); color: hsl(160 50% 30%); }
+    .pf-facebook { background: hsl(220 70% 94%); color: hsl(220 60% 38%); }
+    .ready-clin { display: flex; align-items: center; gap: .5rem; }
+    .ready-clin-name { font-weight: 600; font-size: 13px; }
+    .ready-topic { font-size: 12px; color: hsl(var(--muted-foreground)); line-height: 1.35; }
+    .voice-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10px; font-weight: 500;
+      padding: 2px 6px; border-radius: 4px;
+      width: fit-content;
+    }
+    .voice-good { background: hsl(160 50% 94%); color: hsl(160 50% 25%); }
+    .voice-warn { background: hsl(40 90% 94%); color: hsl(40 70% 32%); }
+    .voice-low  { background: hsl(0 60% 95%); color: hsl(0 60% 35%); }
+    .media-note { font-size: 11px; color: hsl(var(--muted-foreground)); }
+    .media-note.has { color: hsl(160 50% 30%); }
+    .ready-cta {
+      display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+      background: hsl(var(--primary)); color: white;
+      padding: 6px 10px; border-radius: var(--radius);
+      font-size: 12px; font-weight: 500;
+      border: 0; cursor: pointer; margin-top: 4px;
+    }
+    .ready-cta.secondary {
+      background: white; color: hsl(220 50% 35%);
+      border: 1px solid hsl(220 50% 80%);
+    }
+    /* ---- BROWSE BAR ---- */
+    .browse-section { margin-top: 2rem; }
+    .browse-head { font-size: 12px; font-weight: 600; text-transform: uppercase;
+                   letter-spacing: .08em; color: hsl(var(--muted-foreground)); margin-bottom: .75rem; }
+    .search-row {
+      position: relative;
+    }
+    .search-input {
+      width: 100%;
+      padding: 8px 32px 8px 32px;
+      font-size: 13px;
+      border: 1px solid hsl(var(--border));
+      border-radius: var(--radius);
+      background: white;
+      font-family: inherit;
+    }
+    .search-input::placeholder { color: hsl(var(--muted-foreground)); }
+    .search-icon {
+      position: absolute; left: 10px; top: 9px; width: 14px; height: 14px;
+      color: hsl(var(--muted-foreground));
+    }
+    .chip-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      margin-top: .65rem;
+    }
+    .chip-label {
+      font-size: 11px; color: hsl(var(--muted-foreground));
+      margin-right: 4px;
+    }
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; padding: 3px 10px;
+      border-radius: 9999px; border: 1px solid hsl(var(--border));
+      background: hsl(var(--muted)); color: hsl(var(--muted-foreground));
+      cursor: pointer;
+    }
+    .chip.active {
+      background: hsl(var(--primary)); color: white; border-color: hsl(var(--primary));
+    }
+    .chip.clin-chip {
+      background: white; border-color: hsl(var(--border));
+    }
+    .chip.clin-chip.active {
+      background: hsl(220 70% 95%); color: hsl(220 70% 35%); border-color: hsl(220 70% 70%);
+    }
+    .chip-count { opacity: .7; }
+    /* ---- ASSET GRID ---- */
+    .grid-section { margin-top: 1.75rem; }
+    .grid-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      margin-bottom: .65rem;
+    }
+    .grid-title {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .08em; color: hsl(var(--muted-foreground));
+    }
+    .grid-meta { font-size: 11px; color: hsl(var(--muted-foreground)); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: .65rem;
+    }
+    .asset {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 10px;
+      overflow: hidden;
+      background: hsl(var(--muted));
+      cursor: pointer;
+      border: 1px solid hsl(var(--border));
+      transition: transform .12s ease;
+    }
+    .asset:hover { transform: translateY(-1px); border-color: hsl(var(--primary)); }
+    .asset-thumb {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      color: hsl(var(--muted-foreground)); font-size: 24px;
+    }
+    .asset-thumb.photo-a { background: linear-gradient(135deg, hsl(20 60% 88%), hsl(20 70% 78%)); }
+    .asset-thumb.photo-b { background: linear-gradient(135deg, hsl(160 30% 85%), hsl(180 35% 78%)); }
+    .asset-thumb.photo-c { background: linear-gradient(135deg, hsl(220 30% 88%), hsl(240 35% 78%)); }
+    .asset-thumb.photo-d { background: linear-gradient(135deg, hsl(330 40% 88%), hsl(290 35% 78%)); }
+    .asset-thumb.photo-e { background: linear-gradient(135deg, hsl(40 70% 88%), hsl(20 70% 78%)); }
+    .asset-thumb.video-a { background: hsl(0 0% 25%); color: hsla(0 0% 100% / .8); }
+    .asset-thumb.video-b { background: hsl(210 40% 28%); color: hsla(0 0% 100% / .8); }
+    .asset-thumb.video-c { background: hsl(20 50% 28%); color: hsla(0 0% 100% / .8); }
+    .asset-clin {
+      position: absolute; top: 6px; left: 6px;
+      display: flex; align-items: center; gap: 4px;
+      padding: 2px 6px 2px 2px;
+      background: hsla(0 0% 0% / .55); color: white;
+      border-radius: 9999px;
+      font-size: 10px; font-weight: 500;
+      backdrop-filter: blur(6px);
+    }
+    .asset-status {
+      position: absolute; top: 6px; right: 6px;
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 2px 6px;
+      border-radius: 9999px;
+      font-size: 9px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+    .status-new      { background: hsl(220 80% 60%); color: white; }
+    .status-pipeline { background: hsl(160 60% 38%); color: white; }
+    .status-used     { background: hsl(280 40% 50%); color: white; }
+    .status-shipped  { background: hsl(0 0% 25%); color: white; }
+    .asset-tag {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 6px 8px 7px;
+      background: linear-gradient(180deg, transparent, hsla(0 0% 0% / .6));
+      color: white; font-size: 11px;
+    }
+    .asset-dur {
+      position: absolute; bottom: 6px; right: 6px;
+      padding: 1px 5px;
+      background: hsla(0 0% 0% / .65); color: white;
+      border-radius: 3px;
+      font-size: 10px; font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+    .editing-queue {
+      margin-top: 2rem;
+      border-top: 1px solid hsl(var(--border));
+      padding-top: 1.25rem;
+    }
+    .queue-toggle {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .08em; color: hsl(var(--muted-foreground));
+      cursor: pointer; user-select: none;
+      background: none; border: 0; padding: 0;
+      font-family: inherit;
+    }
+    .queue-toggle .count {
+      font-size: 10px; padding: 1px 7px; background: hsl(var(--muted));
+      border-radius: 9999px; text-transform: none; letter-spacing: 0;
+      color: hsl(var(--muted-foreground));
+    }
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      font-size: 11px; color: hsl(var(--muted-foreground));
+      margin-top: 1rem; padding: .75rem 1rem;
+      border: 1px dashed hsl(var(--border)); border-radius: 8px;
+      background: hsla(0 0% 0% / .015);
+    }
+    .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 9999px; margin-right: 5px; vertical-align: middle; }
+    .footer-note {
+      margin-top: 3rem; padding: 1rem 1.25rem;
+      background: hsla(20 60% 95% / 0.4); border: 1px dashed hsl(20 60% 80%);
+      border-radius: 10px;
+      font-size: 12px; color: hsl(var(--muted-foreground));
+    }
+    .footer-note strong { color: hsl(20 76% 38%); }
+    /* ---- COLLECTIONS ROW ---- */
+    .collections-row {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+      margin-top: 1rem;
+      padding: .65rem .85rem;
+      background: hsla(0 0% 95% / .6);
+      border-radius: 8px;
+    }
+    .collections-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: hsl(var(--muted-foreground));
+      margin-right: 4px;
+    }
+    .col-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; padding: 3px 10px;
+      border-radius: 9999px; border: 1px solid hsl(var(--border));
+      background: white; color: hsl(var(--muted-foreground));
+      cursor: pointer;
+    }
+    .col-chip.active {
+      background: hsl(var(--primary)); color: white; border-color: hsl(var(--primary));
+    }
+    .col-chip .ct {
+      font-size: 10px; padding: 0 5px; background: hsla(0 0% 0% / .06);
+      border-radius: 9999px; margin-left: 2px;
+    }
+    .col-chip.active .ct { background: hsla(0 0% 100% / .25); }
+    .col-new {
+      font-size: 11px; padding: 3px 10px;
+      border: 1px dashed hsl(var(--border)); border-radius: 9999px;
+      background: transparent; color: hsl(var(--muted-foreground));
+      cursor: pointer;
+    }
+    /* ---- ALL MEDIA ESCAPE HATCH ---- */
+    .escape-bar {
+      margin-top: 1.5rem;
+      padding: .75rem 1rem;
+      background: linear-gradient(90deg, hsla(20 60% 95% / .6), hsla(20 60% 95% / .2));
+      border: 1px solid hsl(20 60% 88%);
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 1rem;
+    }
+    .escape-text { font-size: 13px; color: hsl(20 76% 32%); }
+    .escape-text strong { color: hsl(20 76% 28%); }
+    .escape-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: white; color: hsl(20 76% 38%);
+      padding: 6px 14px; border-radius: var(--radius);
+      font-size: 12px; font-weight: 500;
+      border: 1px solid hsl(20 60% 70%); cursor: pointer;
+    }
+    /* ---- UPLOAD MODAL MOCKUP ---- */
+    .upload-section {
+      margin-top: 3.5rem;
+      border-top: 2px dashed hsl(var(--border));
+      padding-top: 2.5rem;
+    }
+    .upload-banner {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .08em; color: hsl(var(--primary));
+      margin-bottom: 1rem;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .upload-banner::before, .upload-banner::after {
+      content: ''; flex: 1; height: 1px; background: hsl(var(--border));
+    }
+    .modal-backdrop {
+      background: hsla(0 0% 0% / .08);
+      border-radius: 12px;
+      padding: 1.5rem;
+    }
+    .modal-card {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px hsla(0 0% 0% / .12);
+      padding: 1.5rem;
+      max-width: 760px; margin: 0 auto;
+    }
+    .modal-head {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 1rem; margin-bottom: 1rem;
+    }
+    .modal-title { font-size: 18px; font-weight: 600; margin: 0; }
+    .modal-desc { font-size: 12px; color: hsl(var(--muted-foreground)); margin: 3px 0 0; }
+    .modal-close {
+      background: transparent; border: 0; font-size: 20px;
+      color: hsl(var(--muted-foreground)); cursor: pointer;
+    }
+    .step {
+      border: 1px solid hsl(var(--border));
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: .75rem;
+      background: white;
+    }
+    .step-head {
+      display: flex; align-items: flex-start; gap: 10px;
+      margin-bottom: .65rem;
+    }
+    .step-num {
+      width: 24px; height: 24px; border-radius: 9999px;
+      background: hsl(var(--primary)); color: white;
+      font-size: 12px; font-weight: 600;
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-title { font-size: 14px; font-weight: 600; }
+    .step-hint { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+    .purpose-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem;
+    }
+    @media (max-width: 720px) {
+      .purpose-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+    .purpose-card {
+      text-align: left;
+      border: 2px solid hsl(var(--border));
+      border-radius: 8px;
+      padding: .65rem;
+      background: white;
+      cursor: pointer;
+    }
+    .purpose-card.active {
+      border-color: hsl(var(--primary));
+      background: hsl(20 60% 97%);
+    }
+    .purpose-card-head { display: flex; align-items: center; gap: 6px; }
+    .purpose-card-icon { color: hsl(var(--muted-foreground)); font-size: 14px; }
+    .purpose-card.active .purpose-card-icon { color: hsl(var(--primary)); }
+    .purpose-card-label { font-size: 13px; font-weight: 500; }
+    .purpose-card.active .purpose-card-label { color: hsl(var(--primary)); }
+    .purpose-card-sub { font-size: 10px; color: hsl(var(--muted-foreground)); line-height: 1.35; margin-top: 3px; }
+    .speaker-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem;
+    }
+    @media (max-width: 720px) {
+      .speaker-grid { grid-template-columns: 1fr; }
+    }
+    /* The two new steps I'm proposing */
+    .optional-tag {
+      display: inline-block; font-size: 9px; padding: 1px 6px;
+      background: hsl(var(--muted)); color: hsl(var(--muted-foreground));
+      border-radius: 9999px; margin-left: 6px; font-weight: 500;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .picker-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .pick-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 12px; padding: 4px 12px;
+      border-radius: 9999px; border: 1px solid hsl(var(--border));
+      background: white; color: hsl(var(--muted-foreground));
+      cursor: pointer;
+    }
+    .pick-chip.active {
+      background: hsl(20 60% 95%); color: hsl(20 76% 38%);
+      border-color: hsl(20 76% 60%);
+    }
+    .drop-zone {
+      border: 2px dashed hsl(var(--border));
+      border-radius: 12px;
+      padding: 2rem 1rem;
+      text-align: center;
+      background: hsla(0 0% 95% / .3);
+    }
+    .drop-zone-icon { font-size: 28px; color: hsla(0 0% 0% / .25); }
+    .drop-zone-title { font-size: 13px; font-weight: 500; margin: 6px 0 2px; }
+    .drop-zone-sub { font-size: 11px; color: hsl(var(--muted-foreground)); }
+    /* Smart-detect preview after files dropped */
+    .preview-tray {
+      margin-top: .85rem;
+      border: 1px solid hsl(160 50% 80%);
+      background: hsl(160 50% 96%);
+      border-radius: 10px;
+      padding: .75rem 1rem;
+    }
+    .preview-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .05em; color: hsl(160 60% 28%); margin-bottom: 6px;
+    }
+    .preview-list { display: flex; flex-direction: column; gap: 6px; }
+    .preview-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 6px 8px;
+      background: white; border-radius: 6px;
+      font-size: 12px;
+    }
+    .preview-thumb {
+      width: 36px; height: 36px; border-radius: 4px;
+      background: hsl(var(--muted));
+      display: inline-flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 14px;
+    }
+    .preview-name { flex: 1; min-width: 0; font-weight: 500; }
+    .preview-meta { font-size: 11px; color: hsl(var(--muted-foreground)); }
+    .preview-pill {
+      font-size: 10px; padding: 1px 6px; border-radius: 9999px;
+      background: hsl(160 50% 92%); color: hsl(160 50% 25%);
+    }
+    .ai-tags {
+      margin-top: 8px;
+      font-size: 11px; color: hsl(var(--muted-foreground));
+      padding: 6px 10px;
+      background: hsla(220 50% 95% / .6);
+      border-left: 3px solid hsl(220 50% 70%);
+      border-radius: 4px;
+    }
+    .ai-tags strong { color: hsl(220 50% 30%); }
+  </style>
+</head>
+<body>
+  <header class="app-bar">
+    <div class="container">
+      <div class="bar">
+        <div class="brand">
+          <div class="brand-logo">N</div>
+          <div>
+            <div class="brand-name">NarrateRx</div>
+            <div class="brand-tag">Voice-faithful clinical content</div>
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <nav>
+          <a href="#">Home</a>
+          <a href="#">Stories</a>
+          <a href="#" class="active">Library</a>
+        </nav>
+        <button class="icon-btn" title="Settings">⚙</button>
+        <button class="btn-primary">+ New Interview</button>
+        <div class="avatar" title="Dr. Q">DQ</div>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <!-- Title + actions -->
+      <div class="row-spread">
+        <div>
+          <h1>Library</h1>
+          <p class="subtitle">Your clinic's media — interview clips, B-roll, photos, brand assets.</p>
+        </div>
+        <div class="actions">
+          <button class="btn-outline">☑ Select</button>
+          <button class="btn-primary">⬆ Upload</button>
+        </div>
+      </div>
+
+      <!-- Ready to distribute strip -->
+      <section class="ready-section">
+        <div class="ready-head">
+          <div class="ready-title">
+            ▶ Ready to distribute
+          </div>
+          <div class="ready-count">4 pieces · approved by clinician</div>
+        </div>
+        <div class="ready-cards">
+          <div class="ready-card">
+            <span class="platform-chip pf-instagram">📱 Instagram</span>
+            <div class="ready-clin">
+              <div class="avatar avatar-sm" style="background: hsl(20 60% 88%); color: hsl(20 76% 38%);">SR</div>
+              <div class="ready-clin-name">Dr. Sarah Reilly</div>
+            </div>
+            <div class="ready-topic">ACL recovery — when can I run again?</div>
+            <span class="voice-chip voice-good">✓ 78% voice preserved</span>
+            <div class="media-note">No media attached</div>
+            <button class="ready-cta">Attach media →</button>
+          </div>
+          <div class="ready-card">
+            <span class="platform-chip pf-blog">✍ Blog</span>
+            <div class="ready-clin">
+              <div class="avatar avatar-sm" style="background: hsl(160 40% 88%); color: hsl(160 60% 28%);">MA</div>
+              <div class="ready-clin-name">Dr. Maya Tran</div>
+            </div>
+            <div class="ready-topic">Patellofemoral pain &amp; loading progression</div>
+            <span class="voice-chip voice-warn">⚠ 62% voice — review tone</span>
+            <div class="media-note has">2 clips, 1 photo attached</div>
+            <button class="ready-cta secondary">Review &amp; ship →</button>
+          </div>
+          <div class="ready-card">
+            <span class="platform-chip pf-email">✉ Email</span>
+            <div class="ready-clin">
+              <div class="avatar avatar-sm" style="background: hsl(20 60% 88%); color: hsl(20 76% 38%);">SR</div>
+              <div class="ready-clin-name">Dr. Sarah Reilly</div>
+            </div>
+            <div class="ready-topic">ACL recovery — when can I run again?</div>
+            <span class="voice-chip voice-good">✓ 85% voice preserved</span>
+            <div class="media-note">No media attached</div>
+            <button class="ready-cta">Attach media →</button>
+          </div>
+          <div class="ready-card">
+            <span class="platform-chip pf-facebook">f Facebook</span>
+            <div class="ready-clin">
+              <div class="avatar avatar-sm" style="background: hsl(260 40% 88%); color: hsl(260 50% 30%);">LZ</div>
+              <div class="ready-clin-name">Dr. Liz Park</div>
+            </div>
+            <div class="ready-topic">Why I make every patient try single-leg work</div>
+            <span class="voice-chip voice-good">✓ 71% voice preserved</span>
+            <div class="media-note has">1 clip attached</div>
+            <button class="ready-cta secondary">Review &amp; ship →</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Browse -->
+      <section class="browse-section">
+        <div class="browse-head">Browse the library</div>
+        <div class="search-row">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="7"></circle><line x1="20" y1="20" x2="16.5" y2="16.5"></line>
+          </svg>
+          <input class="search-input" placeholder="Search filename, condition, patient, transcript phrase…" />
+        </div>
+
+        <div class="chip-row">
+          <span class="chip-label">Featuring:</span>
+          <button class="chip clin-chip active">
+            <span class="avatar avatar-sm" style="background: hsl(20 60% 88%); color: hsl(20 76% 38%);">SR</span>
+            Sarah Reilly <span class="chip-count">12</span>
+          </button>
+          <button class="chip clin-chip">
+            <span class="avatar avatar-sm" style="background: hsl(160 40% 88%); color: hsl(160 60% 28%);">MA</span>
+            Maya Tran <span class="chip-count">8</span>
+          </button>
+          <button class="chip clin-chip">
+            <span class="avatar avatar-sm" style="background: hsl(260 40% 88%); color: hsl(260 50% 30%);">LZ</span>
+            Liz Park <span class="chip-count">5</span>
+          </button>
+          <button class="chip clin-chip">
+            <span class="avatar avatar-sm" style="background: hsl(330 40% 88%); color: hsl(330 50% 30%);">JR</span>
+            Jordan Reyes <span class="chip-count">3</span>
+          </button>
+        </div>
+
+        <div class="chip-row">
+          <span class="chip-label">Purpose:</span>
+          <button class="chip active">All <span class="chip-count">28</span></button>
+          <button class="chip">Interviews <span class="chip-count">18</span></button>
+          <button class="chip">B-roll <span class="chip-count">6</span></button>
+          <button class="chip">Photos <span class="chip-count">4</span></button>
+          <button class="chip">Brand <span class="chip-count">2</span></button>
+        </div>
+
+        <div class="chip-row">
+          <span class="chip-label">Kind:</span>
+          <button class="chip active">All kinds <span class="chip-count">28</span></button>
+          <button class="chip">🎥 Video <span class="chip-count">22</span></button>
+          <button class="chip">📷 Photo <span class="chip-count">6</span></button>
+        </div>
+
+        <div class="collections-row">
+          <span class="collections-label">📁 Collections</span>
+          <button class="col-chip active">All</button>
+          <button class="col-chip">May 2026 promo <span class="ct">9</span></button>
+          <button class="col-chip">ACL series <span class="ct">6</span></button>
+          <button class="col-chip">Patellofemoral campaign <span class="ct">4</span></button>
+          <button class="col-chip">Clinic intro <span class="ct">3</span></button>
+          <button class="col-new">+ New collection</button>
+        </div>
+
+        <div class="escape-bar">
+          <div class="escape-text">
+            <strong>Looking for something specific?</strong> Browse every asset chronologically — incl. untagged, partially-tagged, and archived items that the curated view hides.
+          </div>
+          <button class="escape-btn">📂 All media · 142 items →</button>
+        </div>
+      </section>
+
+      <!-- JUST UPLOADED -->
+      <section class="grid-section">
+        <div class="grid-head">
+          <div class="grid-title">▣ Just uploaded · last 7 days</div>
+          <div class="grid-meta">6 fresh assets · not yet used</div>
+        </div>
+        <div class="grid">
+          <div class="asset">
+            <div class="asset-thumb video-a">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(20 60% 88%);color:hsl(20 76% 38%);">SR</span> Sarah</span>
+            <span class="asset-status status-new">NEW</span>
+            <span class="asset-dur">2:14</span>
+            <div class="asset-tag">ACL — "loaded carries early"</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb video-b">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(20 60% 88%);color:hsl(20 76% 38%);">SR</span> Sarah</span>
+            <span class="asset-status status-new">NEW</span>
+            <span class="asset-dur">1:48</span>
+            <div class="asset-tag">ACL — "running progression"</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb photo-b">📷</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(160 40% 88%);color:hsl(160 60% 28%);">MA</span> Maya</span>
+            <span class="asset-status status-new">NEW</span>
+            <div class="asset-tag">Single-leg balance demo</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb video-c">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(260 40% 88%);color:hsl(260 50% 30%);">LZ</span> Liz</span>
+            <span class="asset-status status-new">NEW</span>
+            <span class="asset-dur">3:02</span>
+            <div class="asset-tag">Patellofemoral — clinic intro</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb photo-e">📷</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(260 40% 88%);color:hsl(260 50% 30%);">LZ</span> Liz</span>
+            <span class="asset-status status-new">NEW</span>
+            <div class="asset-tag">Clinic — squat rack</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb video-a">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(330 40% 88%);color:hsl(330 50% 30%);">JR</span> Jordan</span>
+            <span class="asset-status status-new">NEW</span>
+            <span class="asset-dur">2:31</span>
+            <div class="asset-tag">Plyometric progression talk</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- IN YOUR PIPELINE -->
+      <section class="grid-section">
+        <div class="grid-head">
+          <div class="grid-title">⚙ In your pipeline</div>
+          <div class="grid-meta">attached to draft / in-review / approved pieces</div>
+        </div>
+        <div class="grid">
+          <div class="asset">
+            <div class="asset-thumb video-b">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(20 60% 88%);color:hsl(20 76% 38%);">SR</span> Sarah</span>
+            <span class="asset-status status-pipeline">● 2 posts</span>
+            <span class="asset-dur">1:25</span>
+            <div class="asset-tag">ACL — "patient story arc"</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb photo-a">📷</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(160 40% 88%);color:hsl(160 60% 28%);">MA</span> Maya</span>
+            <span class="asset-status status-pipeline">● 1 post</span>
+            <div class="asset-tag">Patellofemoral — clinic shot</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb video-c">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(20 60% 88%);color:hsl(20 76% 38%);">SR</span> Sarah</span>
+            <span class="asset-status status-pipeline">● 1 post</span>
+            <span class="asset-dur">2:08</span>
+            <div class="asset-tag">ACL — "milestones we look for"</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AVAILABLE -->
+      <section class="grid-section">
+        <div class="grid-head">
+          <div class="grid-title">○ Available</div>
+          <div class="grid-meta">tagged &amp; ready to pull into a post</div>
+        </div>
+        <div class="grid">
+          <div class="asset">
+            <div class="asset-thumb video-a">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(20 60% 88%);color:hsl(20 76% 38%);">SR</span> Sarah</span>
+            <span class="asset-dur">1:32</span>
+            <div class="asset-tag">ACL — "trust the protocol"</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb photo-c">📷</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(160 40% 88%);color:hsl(160 60% 28%);">MA</span> Maya</span>
+            <div class="asset-tag">Step-down portrait</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb video-b">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(330 40% 88%);color:hsl(330 50% 30%);">JR</span> Jordan</span>
+            <span class="asset-dur">1:50</span>
+            <div class="asset-tag">Hamstring eccentric demo</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb video-c">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(260 40% 88%);color:hsl(260 50% 30%);">LZ</span> Liz</span>
+            <span class="asset-dur">2:46</span>
+            <div class="asset-tag">"Why single leg" — clinic talk</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb photo-d">📷</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(160 40% 88%);color:hsl(160 60% 28%);">MA</span> Maya</span>
+            <div class="asset-tag">Lateral lunge — form check</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb video-a">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(330 40% 88%);color:hsl(330 50% 30%);">JR</span> Jordan</span>
+            <span class="asset-dur">2:01</span>
+            <div class="asset-tag">Return-to-sport criteria</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb photo-b">📷</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(20 60% 88%);color:hsl(20 76% 38%);">SR</span> Sarah</span>
+            <div class="asset-tag">Patient — running gait</div>
+          </div>
+          <div class="asset">
+            <div class="asset-thumb video-b">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(260 40% 88%);color:hsl(260 50% 30%);">LZ</span> Liz</span>
+            <span class="asset-dur">1:14</span>
+            <div class="asset-tag">Patellofemoral — pain talk</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ALREADY SHIPPED -->
+      <section class="grid-section">
+        <div class="grid-head">
+          <div class="grid-title">✓ Already shipped</div>
+          <div class="grid-meta">attached to published content — reuse with care</div>
+        </div>
+        <div class="grid">
+          <div class="asset" style="opacity: .78;">
+            <div class="asset-thumb video-a">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(20 60% 88%);color:hsl(20 76% 38%);">SR</span> Sarah</span>
+            <span class="asset-status status-shipped">✓ published</span>
+            <span class="asset-dur">1:08</span>
+            <div class="asset-tag">ACL — "first run back"</div>
+          </div>
+          <div class="asset" style="opacity: .78;">
+            <div class="asset-thumb photo-a">📷</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(160 40% 88%);color:hsl(160 60% 28%);">MA</span> Maya</span>
+            <span class="asset-status status-shipped">✓ published</span>
+            <div class="asset-tag">Clinic exterior</div>
+          </div>
+          <div class="asset" style="opacity: .78;">
+            <div class="asset-thumb video-c">▶</div>
+            <span class="asset-clin"><span class="avatar avatar-sm" style="background:hsl(20 60% 88%);color:hsl(20 76% 38%);">SR</span> Sarah</span>
+            <span class="asset-status status-shipped">✓ published</span>
+            <span class="asset-dur">2:18</span>
+            <div class="asset-tag">ACL — "first jog cue"</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Editing queue (collapsed by default) -->
+      <section class="editing-queue">
+        <button class="queue-toggle">
+          <span>▸ Editing queue</span>
+          <span class="count">2 briefs pending</span>
+        </button>
+      </section>
+
+      <!-- Legend -->
+      <div class="legend">
+        <span><span class="legend-dot" style="background: hsl(220 80% 60%);"></span> <strong>NEW</strong> — uploaded in last 7 days</span>
+        <span><span class="legend-dot" style="background: hsl(160 60% 38%);"></span> <strong>● n posts</strong> — currently in pipeline</span>
+        <span><span class="legend-dot" style="background: hsl(280 40% 50%);"></span> <strong>USED</strong> — in active draft</span>
+        <span><span class="legend-dot" style="background: hsl(0 0% 25%);"></span> <strong>✓ published</strong> — already shipped</span>
+      </div>
+
+      <div class="footer-note">
+        <strong>Mockup notes:</strong>
+        Hovering any asset shows "Used in: <em>2 posts · 1 published</em>" tooltip with linked piece titles.
+        Clicking the <em>Attach media →</em> button on a "Ready to distribute" card opens a side drawer with the asset picker
+        pre-filtered to that piece's clinician. <em>Editing queue</em> (ContentBriefList) is collapsed by default — only editors
+        expand it. The clinician chips up top are the new <code>ClinicianChip</code> primitive (avatar + name, not Clerk-hash).
+        <em>All media · 142</em> is the escape hatch — clicking switches the page to a flat chronological grid with no lifecycle
+        sections, including untagged and archived assets.
+      </div>
+
+      <!-- ================ UPLOAD MODAL MOCKUP ================ -->
+      <section class="upload-section">
+        <div class="upload-banner">Upload modal · opens from the <code style="background:hsl(var(--muted));padding:1px 5px;border-radius:4px;color:hsl(var(--primary));">+ Upload</code> button</div>
+
+        <div class="modal-backdrop">
+          <div class="modal-card">
+            <div class="modal-head">
+              <div>
+                <h2 class="modal-title">Upload media</h2>
+                <p class="modal-desc">Tag once on upload — Library search, edit briefs, and content suggestions all use these tags.</p>
+              </div>
+              <button class="modal-close" aria-label="Close">×</button>
+            </div>
+
+            <!-- Step 1 — Purpose -->
+            <div class="step">
+              <div class="step-head">
+                <div class="step-num">1</div>
+                <div>
+                  <div class="step-title">What kind of asset is this? <span style="color: hsl(var(--destructive));">*</span></div>
+                  <div class="step-hint">Picks the pipeline. Only interview clips feed the editor's brief queue.</div>
+                </div>
+              </div>
+              <div class="purpose-grid">
+                <button class="purpose-card active">
+                  <div class="purpose-card-head">
+                    <span class="purpose-card-icon">🎙</span>
+                    <span class="purpose-card-label">Interview clip</span>
+                  </div>
+                  <div class="purpose-card-sub">Someone speaking on camera</div>
+                </button>
+                <button class="purpose-card">
+                  <div class="purpose-card-head">
+                    <span class="purpose-card-icon">🎬</span>
+                    <span class="purpose-card-label">B-roll video</span>
+                  </div>
+                  <div class="purpose-card-sub">Treatment, atmosphere — no narrative</div>
+                </button>
+                <button class="purpose-card">
+                  <div class="purpose-card-head">
+                    <span class="purpose-card-icon">📷</span>
+                    <span class="purpose-card-label">Photo</span>
+                  </div>
+                  <div class="purpose-card-sub">Clinic, team, before/after, social</div>
+                </button>
+                <button class="purpose-card">
+                  <div class="purpose-card-head">
+                    <span class="purpose-card-icon">✨</span>
+                    <span class="purpose-card-label">Brand asset</span>
+                  </div>
+                  <div class="purpose-card-sub">Logos, headshots, icons</div>
+                </button>
+              </div>
+            </div>
+
+            <!-- Step 2 — Speaker role (only for interview) -->
+            <div class="step">
+              <div class="step-head">
+                <div class="step-num">2</div>
+                <div>
+                  <div class="step-title">Who's speaking? <span style="color: hsl(var(--destructive));">*</span></div>
+                  <div class="step-hint">Shapes the AI summary &amp; consent prompts.</div>
+                </div>
+              </div>
+              <div class="speaker-grid">
+                <button class="purpose-card active">
+                  <div class="purpose-card-head">
+                    <span class="purpose-card-icon">🩺</span>
+                    <span class="purpose-card-label">Clinician</span>
+                  </div>
+                  <div class="purpose-card-sub">In clinic, treating a patient</div>
+                </button>
+                <button class="purpose-card">
+                  <div class="purpose-card-head">
+                    <span class="purpose-card-icon">💼</span>
+                    <span class="purpose-card-label">Admin staff</span>
+                  </div>
+                  <div class="purpose-card-sub">Operations / business interview</div>
+                </button>
+                <button class="purpose-card">
+                  <div class="purpose-card-head">
+                    <span class="purpose-card-icon">👤</span>
+                    <span class="purpose-card-label">Patient guest</span>
+                  </div>
+                  <div class="purpose-card-sub">Patient story (consent required)</div>
+                </button>
+              </div>
+            </div>
+
+            <!-- NEW Step 3 — Clinician picker -->
+            <div class="step">
+              <div class="step-head">
+                <div class="step-num">3</div>
+                <div>
+                  <div class="step-title">
+                    Which clinician's content is this?
+                    <span class="optional-tag">NEW</span>
+                  </div>
+                  <div class="step-hint">Auto-defaults to you. Pick someone else if uploading on their behalf — drives the "Featuring" chip in Library and routes to the right voice profile.</div>
+                </div>
+              </div>
+              <div class="picker-row">
+                <button class="pick-chip active">
+                  <span class="avatar avatar-sm" style="background: hsl(20 60% 88%); color: hsl(20 76% 38%);">SR</span>
+                  Dr. Sarah Reilly <span style="opacity:.6;">(me)</span>
+                </button>
+                <button class="pick-chip">
+                  <span class="avatar avatar-sm" style="background: hsl(160 40% 88%); color: hsl(160 60% 28%);">MA</span>
+                  Dr. Maya Tran
+                </button>
+                <button class="pick-chip">
+                  <span class="avatar avatar-sm" style="background: hsl(260 40% 88%); color: hsl(260 50% 30%);">LZ</span>
+                  Dr. Liz Park
+                </button>
+                <button class="pick-chip">
+                  <span class="avatar avatar-sm" style="background: hsl(330 40% 88%); color: hsl(330 50% 30%);">JR</span>
+                  Dr. Jordan Reyes
+                </button>
+              </div>
+            </div>
+
+            <!-- NEW Step 4 — Optional Collection -->
+            <div class="step">
+              <div class="step-head">
+                <div class="step-num">4</div>
+                <div>
+                  <div class="step-title">
+                    Add to a collection?
+                    <span class="optional-tag">OPTIONAL · NEW</span>
+                  </div>
+                  <div class="step-hint">Group with related uploads upfront. You can always add to one later via Select &gt; Add to collection.</div>
+                </div>
+              </div>
+              <div class="picker-row">
+                <button class="pick-chip">— No collection</button>
+                <button class="pick-chip active">📁 May 2026 promo</button>
+                <button class="pick-chip">📁 ACL series</button>
+                <button class="pick-chip">📁 Patellofemoral campaign</button>
+                <button class="col-new">+ New collection</button>
+              </div>
+            </div>
+
+            <!-- Step 5 — Drop zone -->
+            <div class="step">
+              <div class="step-head">
+                <div class="step-num">5</div>
+                <div>
+                  <div class="step-title">Drop your files</div>
+                  <div class="step-hint">MP4, MOV, WebM — max 2 GB. Tagged as <strong>interview · clinician · Dr. Sarah Reilly · May 2026 promo</strong>.</div>
+                </div>
+              </div>
+              <div class="drop-zone">
+                <div class="drop-zone-icon">⬆</div>
+                <div class="drop-zone-title">Drop interview clips here, or click to browse</div>
+                <div class="drop-zone-sub">Mixed photos and videos? We'll separate them for you.</div>
+              </div>
+
+              <!-- Smart preview tray -->
+              <div class="preview-tray">
+                <div class="preview-title">✓ 3 files detected · ready to upload</div>
+                <div class="preview-list">
+                  <div class="preview-item">
+                    <div class="preview-thumb" style="background:hsl(0 0% 22%);color:white;">▶</div>
+                    <div class="preview-name">Sarah_ACL_chat_2026-05-15.mp4</div>
+                    <div class="preview-meta">video · 184 MB · 2:14</div>
+                    <span class="preview-pill">interview</span>
+                  </div>
+                  <div class="preview-item">
+                    <div class="preview-thumb" style="background:hsl(0 0% 22%);color:white;">▶</div>
+                    <div class="preview-name">Sarah_running_intake.mov</div>
+                    <div class="preview-meta">video · 96 MB · 1:48</div>
+                    <span class="preview-pill">interview</span>
+                  </div>
+                  <div class="preview-item">
+                    <div class="preview-thumb" style="background:linear-gradient(135deg, hsl(20 60% 88%), hsl(20 70% 78%));color:hsl(20 76% 38%);">📷</div>
+                    <div class="preview-name">clinic_runner_demo.jpg</div>
+                    <div class="preview-meta">image · 4.2 MB · 4032×3024</div>
+                    <span class="preview-pill" style="background:hsl(40 80% 92%); color:hsl(40 70% 32%);">photo · re-route</span>
+                  </div>
+                </div>
+                <div class="ai-tags">
+                  <strong>Auto-tagged on upload</strong> — AI will tag each clip with conditions mentioned, patient prototype, and key phrases. Edit briefs queued for the 2 interviews. The photo will route to <em>Photo</em> purpose automatically.
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem;">
+              <button class="btn-outline">Cancel</button>
+              <button class="btn-primary">⬆ Upload 3 files</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-note" style="margin-top: 1.5rem;">
+          <strong>What's new in upload</strong> vs. what ships today:
+          <ul style="margin: 6px 0 0 1rem; padding: 0;">
+            <li><strong>Step 3 — Clinician picker:</strong> assign who the content belongs to at upload, not after. Auto-defaults to the logged-in user; staff uploading on behalf of a clinician can pick any of them.</li>
+            <li><strong>Step 4 — Collection picker (optional):</strong> drop a file straight into a campaign / series collection instead of moving it later via Select &gt; Add to collection.</li>
+            <li><strong>Smart-preview tray:</strong> after files drop, show what will happen — file size, duration (videos), AI-detected mismatches (the photo in an "interview" upload gets flagged and auto-rerouted to <em>Photo</em>).</li>
+            <li><strong>Auto-tag explainer:</strong> the AI-tagging step gets visible promise text so the publisher knows tags will arrive automatically and what they'll cover.</li>
+          </ul>
+          <em>Existing behavior preserved:</em> step 1 (purpose) and step 2 (speaker role) unchanged; drop zone semantics and validation rules unchanged; patient-guest consent warning still fires when needed (would render between steps 2 and 3).
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
