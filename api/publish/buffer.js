@@ -78,6 +78,27 @@ function buildAssets(mediaUrls) {
   })
 }
 
+// Some Buffer services require `metadata.<service>.type`. Pick a sensible
+// default based on the media payload. Returns null when no metadata is needed.
+function buildMetadata(platform, mediaUrls) {
+  const imageCount = mediaUrls.filter((m) => !m.type?.startsWith('video')).length
+  const videoCount = mediaUrls.filter((m) => m.type?.startsWith('video')).length
+  if (platform === 'instagram') {
+    let type = 'post'
+    if (videoCount > 0 && imageCount === 0) type = 'reel'
+    else if (imageCount + videoCount > 1) type = 'carousel'
+    return { instagram: { type, shouldShareToFeed: true } }
+  }
+  if (platform === 'facebook') {
+    const type = videoCount > 0 && imageCount === 0 ? 'reel' : 'post'
+    return { facebook: { type } }
+  }
+  if (platform === 'gbp') {
+    return { google: { type: 'whats_new' } }
+  }
+  return null
+}
+
 async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
@@ -150,6 +171,7 @@ async function handler(req, res) {
   //    scheduledAt → customScheduled + dueAt; otherwise shareNow.
   const mode = scheduledAt ? 'customScheduled' : 'shareNow'
   const assets = buildAssets(mediaUrls)
+  const metadata = buildMetadata(platform, mediaUrls)
 
   // 3. Create one post per channel (fan-out for GBP multi-location).
   const posts = []
@@ -160,6 +182,7 @@ async function handler(req, res) {
       schedulingType: 'automatic',
       mode,
       assets,
+      ...(metadata ? { metadata } : {}),
       ...(scheduledAt ? { dueAt: new Date(scheduledAt).toISOString() } : {}),
     }
     const r = await gql(BUFFER_TOKEN, `
