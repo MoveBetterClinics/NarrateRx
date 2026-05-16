@@ -9,7 +9,7 @@ const FEATURE_PLANS = {
   buffer_analyze:        'solo',
 }
 
-const PLAN_RANK = { trial: 0, solo: 1, practice: 2, multi: 3 }
+const PLAN_RANK = { trial: 0, solo: 1, practice: 2, multi: 3, internal: 4 }
 
 // Human-readable plan names for upsell messaging.
 const PLAN_LABELS = {
