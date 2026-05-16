@@ -166,6 +166,18 @@ export default function VoiceSettings() {
       {/* ── Bernard's working summary (P0-E) ── */}
       <WorkingSummaryCallout form={form} interviewerName={interviewerName} />
 
+      {/* ── Patient archetypes — front-and-centre read/edit cards ── */}
+      <ArchetypeCardsSection
+        value={form.patient_context_json}
+        onChange={set('patient_context_json')}
+        interviewerName={interviewerName}
+      />
+
+      {/* ── Preview Bernard's voice (P1-F) — near the top, next to archetypes ── */}
+      <PreviewBernardCard interviewerName={interviewerName} />
+
+      <Separator />
+
       {/* ── How your practice sounds ── */}
       <div id="voice-context-anchor" className="scroll-mt-20" />
       <Section
@@ -228,19 +240,6 @@ export default function VoiceSettings() {
 
       <Separator />
 
-      {/* ── Patient archetypes ── */}
-      <Section
-        title="Who you're writing for"
-        description={`Archetypes tell ${interviewerName} how to frame content for different patient segments. Each interview can be tagged to a specific archetype.`}
-      >
-        <PatientContextEditor
-          value={form.patient_context_json}
-          onChange={set('patient_context_json')}
-        />
-      </Section>
-
-      <Separator />
-
       {/* ── Topic suggestions ── */}
       <Section
         title={`What ${interviewerName} asks about`}
@@ -252,6 +251,22 @@ export default function VoiceSettings() {
           onChange={set('topic_suggestions_json')}
         />
       </Section>
+
+      <Separator />
+
+      {/* ── Patient context details — avatar, pain points (advanced) ── */}
+      <details className="rounded-lg border border-input">
+        <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none hover:bg-accent/30 list-none flex items-center justify-between rounded-lg">
+          <span>Patient context details <span className="text-xs font-normal text-muted-foreground ml-1">(advanced)</span></span>
+          <span className="text-muted-foreground text-xs">▼</span>
+        </summary>
+        <div className="px-4 pb-4 pt-2">
+          <PatientContextEditor
+            value={form.patient_context_json}
+            onChange={set('patient_context_json')}
+          />
+        </div>
+      </details>
 
       <Separator />
 
@@ -294,9 +309,6 @@ export default function VoiceSettings() {
           </Link>
         </div>
       </div>
-
-      {/* ── Preview Bernard's voice (P1-F) ── */}
-      <PreviewBernardCard interviewerName={interviewerName} />
 
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}
@@ -501,23 +513,6 @@ function PatientContextEditor({ value, onChange }) {
     onChange(JSON.stringify({ ...pc, ...patch }, null, 2))
   }
 
-  function updatePrototype(idx, patch) {
-    const next = (pc.prototypes || []).map((p, i) => (i === idx ? { ...p, ...patch } : p))
-    update({ prototypes: next })
-  }
-
-  function addPrototype() {
-    const next = [
-      ...(pc.prototypes || []),
-      { id: `archetype_${Date.now()}`, label: '', shortLabel: '', emoji: '', coreDesire: '', characteristics: [] },
-    ]
-    update({ prototypes: next })
-  }
-
-  function removePrototype(idx) {
-    update({ prototypes: (pc.prototypes || []).filter((_, i) => i !== idx) })
-  }
-
   const painPointsText = (pc.priorProviderPainPoints || []).join('\n')
 
   return (
@@ -534,35 +529,6 @@ function PatientContextEditor({ value, onChange }) {
           value={pc.primaryAvatar}
           onChange={v => update({ primaryAvatar: v })}
         />
-      </div>
-
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <Label className="text-sm font-medium">Archetypes</Label>
-          <button
-            type="button"
-            onClick={addPrototype}
-            className="text-xs text-primary hover:underline"
-          >
-            + Add archetype
-          </button>
-        </div>
-        {(pc.prototypes || []).length === 0 ? (
-          <p className="text-sm text-muted-foreground italic">
-            No archetypes defined yet. Add one to enable archetype-aware topic tagging and content framing.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {(pc.prototypes || []).map((proto, idx) => (
-              <PrototypeCard
-                key={proto.id || idx}
-                proto={proto}
-                onChange={patch => updatePrototype(idx, patch)}
-                onRemove={() => removePrototype(idx)}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
       <Textarea2
@@ -646,8 +612,8 @@ function PrimaryAvatarEditor({ value, onChange }) {
   )
 }
 
-function PrototypeCard({ proto, onChange, onRemove }) {
-  const [expanded, setExpanded] = useState(false)
+function PrototypeCard({ proto, onChange, onRemove, defaultExpanded = true }) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
   const charsText = (proto.characteristics || []).join('\n')
 
   return (
@@ -919,6 +885,110 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── ArchetypeCardsSection ─────────────────────────────────────────────────────
+// Read-mode grid of patient archetypes shown near the top of Voice Settings.
+// Click any card to expand it into the full PrototypeCard edit form.
+// "+ Add an archetype" creates a new one and immediately opens its edit form.
+
+function buildArchetypeProbeText(proto, interviewerName) {
+  const chars = (proto.characteristics || []).slice(0, 4)
+  if (chars.length === 0 && !proto.coreDesire) {
+    return `Click to add what ${interviewerName} should probe for this archetype.`
+  }
+  const parts = []
+  if (chars.length > 0) {
+    const listed = chars.length <= 2
+      ? chars.join(' and ')
+      : `${chars.slice(0, -1).join(', ')}, and ${chars[chars.length - 1]}`
+    parts.push(`${interviewerName} probes about ${listed}.`)
+  }
+  if (proto.coreDesire) parts.push(proto.coreDesire)
+  return parts.join(' ')
+}
+
+function ArchetypeCardsSection({ value, onChange, interviewerName }) {
+  const [editingIdx, setEditingIdx] = useState(null)
+
+  let pc = {}
+  try { if (value?.trim()) pc = JSON.parse(value) } catch { /* invalid JSON — show empty state */ }
+  const prototypes = pc.prototypes || []
+
+  function update(patch) {
+    onChange(JSON.stringify({ ...pc, ...patch }, null, 2))
+  }
+  function updatePrototype(idx, patch) {
+    update({ prototypes: prototypes.map((p, i) => (i === idx ? { ...p, ...patch } : p)) })
+  }
+  function addPrototype() {
+    const next = [...prototypes, { id: `archetype_${Date.now()}`, label: '', shortLabel: '', emoji: '👤', coreDesire: '', characteristics: [] }]
+    update({ prototypes: next })
+    setEditingIdx(next.length - 1)
+  }
+  function removePrototype(idx) {
+    update({ prototypes: prototypes.filter((_, i) => i !== idx) })
+    setEditingIdx(null)
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+        Patient archetypes {interviewerName} knows
+      </p>
+
+      {prototypes.length === 0 ? (
+        <p className="text-sm text-muted-foreground italic">
+          No archetypes yet — add one to help {interviewerName} frame content for different patient groups.
+        </p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {prototypes.map((proto, idx) => {
+            if (editingIdx === idx) {
+              return (
+                <div key={proto.id || idx} className="col-span-1 sm:col-span-2 rounded-lg border border-primary/30 bg-card p-3 space-y-3">
+                  <PrototypeCard
+                    proto={proto}
+                    onChange={patch => updatePrototype(idx, patch)}
+                    onRemove={() => removePrototype(idx)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setEditingIdx(null)}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    ← Done editing
+                  </button>
+                </div>
+              )
+            }
+            return (
+              <button
+                key={proto.id || idx}
+                type="button"
+                onClick={() => setEditingIdx(idx)}
+                className="text-left rounded-lg border border-input bg-card p-4 hover:border-primary/40 hover:bg-accent/20 transition-colors"
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="text-lg shrink-0">{proto.emoji || '👤'}</span>
+                  <span className="text-sm font-semibold">
+                    {proto.label || <em className="font-normal text-muted-foreground">Untitled archetype</em>}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {buildArchetypeProbeText(proto, interviewerName)}
+                </p>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <button type="button" onClick={addPrototype} className="text-xs text-primary hover:underline">
+        + Add an archetype {interviewerName} should learn
+      </button>
     </div>
   )
 }
