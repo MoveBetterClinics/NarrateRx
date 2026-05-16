@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
-import { Loader2, Sparkles, Pencil, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, Sparkles, Pencil, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react'
 import { Section, Field, Textarea2, SaveBar } from '@/components/settings/helpers'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { TONES } from '@/lib/prompts'
 import { apiFetch } from '@/lib/api'
+import { useClinicians } from '@/lib/queries'
+import { ClinicianChip } from '@/components/ClinicianChip'
 
 function formFromWorkspace(ws) {
   return {
@@ -291,30 +293,65 @@ export default function VoiceSettings() {
         </div>
       </details>
 
-      {/* ── Per-clinician voice notes ── */}
-      <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 flex items-start gap-3">
-        <span className="text-base mt-0.5">🎙</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-indigo-900">Per-clinician voice fingerprints</p>
-          <p className="text-xs text-indigo-700 mt-0.5">
-            As clinicians edit AI drafts, {interviewerName} learns how each person writes — the phrases they keep,
-            the ones they cut, the way they naturally say things. These fingerprints automatically sharpen
-            every future draft for that clinician.
-          </p>
-          <Link
-            to="/stories"
-            className="inline-block mt-1.5 text-xs font-medium text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
-          >
-            View a story → open any story → visit the clinician&apos;s profile to see their voice notes →
-          </Link>
-        </div>
-      </div>
+      {/* ── Per-clinician voice memory ── */}
+      <VoiceMemorySection interviewerName={interviewerName} />
 
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}
         onSave={handleSave}
         onDiscard={() => { setForm(pristine); setError(null) }}
       />
+    </div>
+  )
+}
+
+// ── Per-clinician voice memory (P1-H) ────────────────────────────────────────
+
+function VoiceMemorySection({ interviewerName }) {
+  const { data: clinicians = [], isLoading } = useClinicians()
+
+  return (
+    <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-4">
+      <div className="flex items-start gap-3 mb-3">
+        <span className="text-base mt-0.5">🎙</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-indigo-900">Per-clinician voice memory</p>
+          <p className="text-xs text-indigo-700 mt-0.5">
+            As clinicians edit AI drafts, {interviewerName} learns how each person writes — phrases
+            they keep, ones they cut, the way they naturally say things. These fingerprints
+            sharpen every future draft for that clinician.
+          </p>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 py-2 pl-7">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-400" />
+          <span className="text-xs text-indigo-600">Loading clinicians…</span>
+        </div>
+      ) : clinicians.length === 0 ? (
+        <p className="text-xs text-indigo-600 pl-7">No clinicians yet — add one to start building voice memory.</p>
+      ) : (
+        <ul className="space-y-1 pl-7">
+          {clinicians.map(c => {
+            const hasNotes = !!(c.voice_notes || '').trim()
+            return (
+              <li key={c.id}>
+                <Link
+                  to={`/clinician/${c.id}`}
+                  className="flex items-center gap-2.5 py-1 group"
+                >
+                  <ClinicianChip id={c.id} name={c.name} size="sm" showName nameClassName="text-xs text-indigo-800 group-hover:text-indigo-950" />
+                  <span className={`text-3xs font-medium px-1.5 py-0.5 rounded-full ${hasNotes ? 'bg-indigo-200 text-indigo-800' : 'bg-indigo-100/60 text-indigo-500'}`}>
+                    {hasNotes ? 'voice notes' : 'no notes yet'}
+                  </span>
+                  <ChevronRight className="h-3 w-3 text-indigo-400 group-hover:text-indigo-700 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
