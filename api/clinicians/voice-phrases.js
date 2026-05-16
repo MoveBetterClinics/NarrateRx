@@ -65,21 +65,55 @@ async function handler(req, res) {
   const clinRows = await clinRes.json()
   if (!clinRows.length) return res.status(404).json({ error: 'Clinician not found' })
 
-  // Phrases ordered by weight desc (strongest preserved phrasings first),
-  // then last_seen_at desc as a tie-breaker so fresher signals win.
-  const phrasesRes = await sb(
-    `clinician_voice_phrases?clinician_id=eq.${clinicianId}&workspace_id=eq.${workspaceId}` +
-    `&select=phrase,weight,approve_count,reject_count,first_seen_at,last_seen_at` +
-    `&order=weight.desc,last_seen_at.desc` +
-    `&limit=${limit}`
-  )
+  // Three parallel queries: the top-N phrase rows, the total-count + last-seen
+  // summary, and the distinct-approved-pieces count. The last two power the
+  // voice-freshness card ("trained on N pieces, last updated X").
+  const [phrasesRes, summaryRes, piecesRes] = await Promise.all([
+    sb(
+      `clinician_voice_phrases?clinician_id=eq.${clinicianId}&workspace_id=eq.${workspaceId}` +
+      `&select=phrase,weight,approve_count,reject_count,first_seen_at,last_seen_at` +
+      `&order=weight.desc,last_seen_at.desc` +
+      `&limit=${limit}`
+    ),
+    // count=exact via Prefer header puts the total in Content-Range. Cheaper
+    // than fetching every row just to .length it.
+    sb(
+      `clinician_voice_phrases?clinician_id=eq.${clinicianId}&workspace_id=eq.${workspaceId}` +
+      `&select=last_seen_at&order=last_seen_at.desc&limit=1`,
+      { headers: { Prefer: 'count=exact' } }
+    ),
+    // Approved content_items used to grow this voice profile. Approximate —
+    // doesn't reflect content_items that produced zero voice-worthy phrases.
+    sb(
+      `content_items?clinician_id=eq.${clinicianId}&workspace_id=eq.${workspaceId}` +
+      `&status=in.(approved,published)&select=id&limit=1`,
+      { headers: { Prefer: 'count=exact' } }
+    ),
+  ])
   if (!phrasesRes.ok) return dbErr(res, phrasesRes, 'phrases query failed')
-  const phrases = await phrasesRes.json()
+  if (!summaryRes.ok) return dbErr(res, summaryRes, 'summary query failed')
+  if (!piecesRes.ok)  return dbErr(res, piecesRes,  'pieces count failed')
+
+  const phrases     = await phrasesRes.json()
+  const summaryRows = await summaryRes.json()
+
+  // Content-Range comes back as "0-0/N" (or "*/0" when the resource is empty).
+  function parseCount(rangeHeader) {
+    if (!rangeHeader) return 0
+    const m = rangeHeader.match(/\/(\d+)$/)
+    return m ? parseInt(m[1], 10) : 0
+  }
+  const totalPhrases  = parseCount(summaryRes.headers.get('Content-Range'))
+  const piecesCount   = parseCount(piecesRes.headers.get('Content-Range'))
+  const lastUpdatedAt = summaryRows[0]?.last_seen_at ?? null
 
   return res.status(200).json({
-    clinician_id: clinicianId,
-    count: phrases.length,
+    clinician_id:    clinicianId,
+    count:           phrases.length,
     limit,
+    total_phrases:   totalPhrases,
+    pieces_count:    piecesCount,
+    last_updated_at: lastUpdatedAt,
     phrases,
   })
 }
