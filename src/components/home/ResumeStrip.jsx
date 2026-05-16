@@ -67,7 +67,7 @@ function ResumeCard({ interview, currentUserId }) {
     >
       <div className="flex items-center gap-2 mb-1.5">
         <Avatar className="h-6 w-6">
-          <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-semibold">
+          <AvatarFallback className="bg-primary/10 text-primary text-3xs font-semibold">
             {getInitials(interview.clinicianName)}
           </AvatarFallback>
         </Avatar>
@@ -81,7 +81,7 @@ function ResumeCard({ interview, currentUserId }) {
       <p className="text-sm font-semibold text-foreground truncate" title={interview.topic}>
         {interview.topic}
       </p>
-      <p className="text-[11px] text-muted-foreground mt-0.5">
+      <p className="text-2xs text-muted-foreground mt-0.5">
         Updated {formatRelativeDate(interview.updated_at)}
         {!isOwner && interview.owner_email
           ? ` · by ${formatInterviewerName(interview.owner_email)}`

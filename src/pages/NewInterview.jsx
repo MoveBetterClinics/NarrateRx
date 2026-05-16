@@ -398,7 +398,7 @@ export default function NewInterview() {
                             <span className="text-base shrink-0 mt-0.5">{p.emoji}</span>
                             <div>
                               <p className="text-xs font-semibold leading-tight">{p.label}</p>
-                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{p.description}</p>
+                              <p className="text-2xs text-muted-foreground mt-0.5 leading-tight">{p.description}</p>
                             </div>
                           </button>
                         ))}
@@ -424,13 +424,13 @@ export default function NewInterview() {
                           <span className="text-base shrink-0 mt-0.5">{v.emoji}</span>
                           <div>
                             <p className="text-xs font-semibold leading-tight">{v.label}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{v.description}</p>
+                            <p className="text-2xs text-muted-foreground mt-0.5 leading-tight">{v.description}</p>
                           </div>
                         </button>
                       ))}
                     </div>
                     {voiceMode === 'personal' && (
-                      <p className="text-[11px] text-muted-foreground leading-snug">
+                      <p className="text-2xs text-muted-foreground leading-snug">
                         Personal interviews skip ad-style outputs (Instagram Ads, Google Ads, landing page, email newsletter).
                       </p>
                     )}
@@ -440,7 +440,7 @@ export default function NewInterview() {
                   {showLocationPicker && (
                     <div className="space-y-2">
                       <Label className="text-sm">Location</Label>
-                      <p className="text-[11px] text-muted-foreground leading-snug">
+                      <p className="text-2xs text-muted-foreground leading-snug">
                         Which clinic is this interview for? Affects local hashtags, &ldquo;near me&rdquo; copy,
                         and (for GBP posts) which Google Business Profile receives the post.
                       </p>
@@ -457,7 +457,7 @@ export default function NewInterview() {
                           <span className="text-base shrink-0 mt-0.5">🌐</span>
                           <div>
                             <p className="text-xs font-semibold leading-tight">All locations</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                            <p className="text-2xs text-muted-foreground mt-0.5 leading-tight">
                               Generic copy that fits every site
                             </p>
                           </div>
@@ -476,7 +476,7 @@ export default function NewInterview() {
                             <span className="text-base shrink-0 mt-0.5">📍</span>
                             <div>
                               <p className="text-xs font-semibold leading-tight">{loc.label || loc.city}</p>
-                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">
+                              <p className="text-2xs text-muted-foreground mt-0.5 leading-tight">
                                 {[loc.city, loc.region].filter(Boolean).join(', ')}
                                 {loc.location_hashtag ? ` · ${loc.location_hashtag}` : ''}
                               </p>
@@ -505,7 +505,7 @@ export default function NewInterview() {
                           <span className="text-base shrink-0 mt-0.5">{t.emoji}</span>
                           <div>
                             <p className="text-xs font-semibold leading-tight">{t.label}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5 leading-tight">{t.description}</p>
+                            <p className="text-2xs text-muted-foreground mt-0.5 leading-tight">{t.description}</p>
                           </div>
                         </button>
                       ))}
@@ -547,12 +547,12 @@ function TopicChip({ label, count, priority, onClick, disabled }) {
     >
       {label}
       {count > 0 && (
-        <span className="text-[10px] opacity-60 group-hover:opacity-80">
+        <span className="text-3xs opacity-60 group-hover:opacity-80">
           {count}×
         </span>
       )}
       {count === 0 && priority === 'high' && (
-        <span className="text-[10px] text-amber-500 group-hover:text-primary-foreground">new</span>
+        <span className="text-3xs text-amber-500 group-hover:text-primary-foreground">new</span>
       )}
     </button>
   )

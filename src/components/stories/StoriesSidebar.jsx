@@ -33,7 +33,7 @@ function Section({ title, children, defaultOpen = true }) {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between px-2.5 py-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70 hover:text-muted-foreground"
+        className="w-full flex items-center justify-between px-2.5 py-1 text-3xs font-semibold uppercase tracking-widest text-muted-foreground/70 hover:text-muted-foreground"
       >
         <span>{title}</span>
         <span className="text-muted-foreground/40">{open ? '−' : '+'}</span>

@@ -294,12 +294,12 @@ function LocationRow({ location, getToken, onChange, isOnlyLocation }) {
             {location.label || location.city}
           </div>
           {location.is_primary && (
-            <span className="text-[10px] uppercase tracking-wide bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
+            <span className="text-3xs uppercase tracking-wide bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 px-1.5 py-0.5 rounded inline-flex items-center gap-0.5">
               <Star className="h-2.5 w-2.5" /> Primary
             </span>
           )}
         </div>
-        <div className="text-[11px] text-muted-foreground truncate">
+        <div className="text-2xs text-muted-foreground truncate">
           {[location.city, location.region].filter(Boolean).join(', ')}
           {location.location_hashtag ? ` · ${location.location_hashtag}` : ''}
         </div>
@@ -364,7 +364,7 @@ function LocationFields({ draft, setDraft }) {
             placeholder="Portland"
             className="text-sm"
           />
-          <p className="text-[10px] text-muted-foreground">Used in copy and &apos;near me&apos; SEO.</p>
+          <p className="text-3xs text-muted-foreground">Used in copy and &apos;near me&apos; SEO.</p>
         </div>
         <div className="col-span-6 space-y-1">
           <Label className="text-xs">Location hashtag</Label>
@@ -395,7 +395,7 @@ function LocationFields({ draft, setDraft }) {
           placeholder="e.g. 6612a8c7d4e3f2b1a09f8765"
           className="text-sm font-mono"
         />
-        <p className="text-[10px] text-muted-foreground">
+        <p className="text-3xs text-muted-foreground">
           Buffer profile ID for this location&apos;s Google Business listing. Find it
           at <a className="underline" href="https://publish.buffer.com/" target="_blank" rel="noreferrer">publish.buffer.com</a> →
           select the GBP channel → copy the ID from the URL

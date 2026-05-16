@@ -5,6 +5,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
 import apiHandlerShape from './eslint/rules/api-handler-shape.js'
 import noRawUseMutation from './eslint/rules/no-raw-use-mutation.js'
+import noArbitraryTextSize from './eslint/rules/no-arbitrary-text-size.js'
 
 export default [
   { ignores: ['dist/**', 'node_modules/**', 'playwright-report/**'] },
@@ -59,10 +60,17 @@ export default [
   {
     files: ['src/**/*.{js,jsx}'],
     plugins: {
-      narraterx: { rules: { 'no-raw-use-mutation': noRawUseMutation } },
+      narraterx: {
+        rules: {
+          'no-raw-use-mutation': noRawUseMutation,
+          'no-arbitrary-text-size': noArbitraryTextSize,
+        },
+      },
     },
     rules: {
       'narraterx/no-raw-use-mutation': 'error',
+      // Ban text-[Npx] arbitrary sizes — use text-3xs/text-2xs/Tailwind scale.
+      'narraterx/no-arbitrary-text-size': 'error',
     },
   },
 ]

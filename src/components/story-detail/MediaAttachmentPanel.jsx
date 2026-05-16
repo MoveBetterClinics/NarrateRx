@@ -66,7 +66,7 @@ function VariantMenu({ family, currentId, onPick, onClose }) {
   if (!items.length) return null
   return (
     <div className="absolute right-0 top-full z-30 mt-1 w-44 rounded-md border bg-popover shadow-md">
-      <div className="px-2 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b">
+      <div className="px-2 py-1.5 text-3xs uppercase tracking-wide text-muted-foreground border-b">
         Use a different variant
       </div>
       <ul className="max-h-60 overflow-y-auto py-1">

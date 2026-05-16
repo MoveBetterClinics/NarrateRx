@@ -200,16 +200,16 @@ function IntegrationCard({ integration, row, loading, disabled, getToken, onChan
             <div className="flex items-center gap-2 flex-wrap">
               <p className="font-medium">{integration.label}</p>
               {integration.recommended && (
-                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">
+                <span className="inline-flex items-center gap-1 text-3xs uppercase tracking-wide bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">
                   <Sparkles className="h-3 w-3" /> Recommended
                 </span>
               )}
               {configured ? (
-                <span className="text-[10px] uppercase tracking-wide bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                <span className="text-3xs uppercase tracking-wide bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
                   Connected
                 </span>
               ) : !loading ? (
-                <span className="text-[10px] uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                <span className="text-3xs uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
                   Not connected
                 </span>
               ) : null}

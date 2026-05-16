@@ -29,7 +29,7 @@ function getInitials(name) {
  */
 export function ClinicianChip({ id, name, size = 'md', className = '' }) {
   const colorClass = colorFor(id || name)
-  const sizeClass = size === 'sm' ? 'h-6 w-6 text-[10px]' : 'h-7 w-7 text-xs'
+  const sizeClass = size === 'sm' ? 'h-6 w-6 text-3xs' : 'h-7 w-7 text-xs'
   return (
     <span
       title={name || id}

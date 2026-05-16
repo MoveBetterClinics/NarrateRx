@@ -307,7 +307,7 @@ export default function MediaPicker({ onSelect, onClose, multi = false }) {
                               ) : (
                                 <div className="h-full bg-slate-800 flex flex-col items-center justify-center gap-1 px-1">
                                   <Video className="h-5 w-5 text-slate-400 shrink-0" />
-                                  <span className="text-[9px] text-slate-400 text-center leading-tight line-clamp-3">{a.filename}</span>
+                                  <span className="text-3xs text-slate-400 text-center leading-tight line-clamp-3">{a.filename}</span>
                                 </div>
                               )}
                               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -325,7 +325,7 @@ export default function MediaPicker({ onSelect, onClose, multi = false }) {
                           )}
 
                           {a.status === 'rendered' || a.status === 'approved' ? (
-                            <span className="absolute top-1 left-1 text-[9px] font-medium px-1 py-0.5 rounded bg-violet-100 text-violet-700">
+                            <span className="absolute top-1 left-1 text-3xs font-medium px-1 py-0.5 rounded bg-violet-100 text-violet-700">
                               {a.status === 'approved' ? 'Approved' : 'Branded'}
                             </span>
                           ) : null}

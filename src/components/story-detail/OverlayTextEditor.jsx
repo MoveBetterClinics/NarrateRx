@@ -96,7 +96,7 @@ export default function OverlayTextEditor({ piece }) {
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             On-screen text
           </p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
+          <p className="mt-0.5 text-2xs text-muted-foreground">
             Overlay for video/image posts. Hook, subhead, and CTA stack top-to-bottom in the preview.
           </p>
         </div>
@@ -121,7 +121,7 @@ export default function OverlayTextEditor({ piece }) {
 
       <div className="space-y-2">
         <div>
-          <label className="mb-0.5 block text-[11px] font-medium text-muted-foreground">Hook</label>
+          <label className="mb-0.5 block text-2xs font-medium text-muted-foreground">Hook</label>
           <Input
             value={hook}
             onChange={(e) => setHook(e.target.value)}
@@ -131,7 +131,7 @@ export default function OverlayTextEditor({ piece }) {
           />
         </div>
         <div>
-          <label className="mb-0.5 block text-[11px] font-medium text-muted-foreground">Subhead</label>
+          <label className="mb-0.5 block text-2xs font-medium text-muted-foreground">Subhead</label>
           <Input
             value={subhead}
             onChange={(e) => setSubhead(e.target.value)}
@@ -141,7 +141,7 @@ export default function OverlayTextEditor({ piece }) {
           />
         </div>
         <div>
-          <label className="mb-0.5 block text-[11px] font-medium text-muted-foreground">CTA</label>
+          <label className="mb-0.5 block text-2xs font-medium text-muted-foreground">CTA</label>
           <Input
             value={cta}
             onChange={(e) => setCta(e.target.value)}
@@ -153,7 +153,7 @@ export default function OverlayTextEditor({ piece }) {
       </div>
 
       {hasMarkers && (
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-2xs text-muted-foreground">
           {markers.length} suggestion{markers.length === 1 ? '' : 's'} parsed from the draft.
         </p>
       )}

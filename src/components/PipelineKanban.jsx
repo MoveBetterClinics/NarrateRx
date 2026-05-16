@@ -87,16 +87,16 @@ function Lane({ lane, items, isPublisherInbox }) {
           <Icon className={`h-3.5 w-3.5 ${isPublisherInbox ? 'text-blue-600' : 'text-muted-foreground'}`} />
           <span className={`text-xs font-medium ${isPublisherInbox ? 'text-blue-700' : ''}`}>{lane.label}</span>
           {isPublisherInbox && items.length > 0 && (
-            <span className="text-[9px] font-semibold uppercase tracking-wide text-blue-500 ml-0.5">your queue</span>
+            <span className="text-3xs font-semibold uppercase tracking-wide text-blue-500 ml-0.5">your queue</span>
           )}
         </div>
-        <span className={`text-[10px] font-medium rounded-full px-1.5 py-0.5 ${lane.badge}`}>
+        <span className={`text-3xs font-medium rounded-full px-1.5 py-0.5 ${lane.badge}`}>
           {items.length}
         </span>
       </div>
       <div className="space-y-2 min-h-[80px]">
         {items.length === 0 && (
-          <p className="text-[11px] text-muted-foreground italic px-1">Nothing here yet.</p>
+          <p className="text-2xs text-muted-foreground italic px-1">Nothing here yet.</p>
         )}
         {items.map((item) => <Card key={item.id} item={item} />)}
       </div>
@@ -111,7 +111,7 @@ function VoiceDriftChip({ provenance }) {
   if (ownWords === 0) return null
   const color = ownWords >= 60 ? 'text-emerald-700 bg-emerald-50' : ownWords >= 35 ? 'text-amber-700 bg-amber-50' : 'text-slate-600 bg-slate-50'
   return (
-    <span className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[9px] font-medium ${color}`}>
+    <span className={`inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-3xs font-medium ${color}`}>
       {ownWords}% voice
     </span>
   )
@@ -138,7 +138,7 @@ function Card({ item }) {
       <div className="flex items-center justify-between gap-1.5">
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${pm.bg}`}>
           <Icon className={`h-2.5 w-2.5 ${pm.color}`} />
-          <span className={`text-[10px] font-medium ${pm.color}`}>{pm.label}</span>
+          <span className={`text-3xs font-medium ${pm.color}`}>{pm.label}</span>
         </div>
         <div className="flex items-center gap-1">
           {showVoiceDrift && <VoiceDriftChip provenance={item.provenance} />}
@@ -146,8 +146,8 @@ function Card({ item }) {
         </div>
       </div>
       <p className="font-medium leading-snug line-clamp-2">{item.topic}</p>
-      {snippet && <p className="text-muted-foreground text-[11px] line-clamp-2">{snippet}</p>}
-      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
+      {snippet && <p className="text-muted-foreground text-2xs line-clamp-2">{snippet}</p>}
+      <div className="flex items-center justify-between gap-2 text-3xs text-muted-foreground">
         <span className="truncate">
           {scheduledAt ? scheduledAt.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' }) : formatRelativeDate(item.updated_at)}
         </span>
@@ -162,7 +162,7 @@ function Card({ item }) {
         </Link>
       </div>
       {item.reviewed_by && (
-        <p className="text-[10px] text-muted-foreground truncate" title={item.reviewed_by}>Reviewer: {item.reviewed_by}</p>
+        <p className="text-3xs text-muted-foreground truncate" title={item.reviewed_by}>Reviewer: {item.reviewed_by}</p>
       )}
     </div>
   )

@@ -236,7 +236,7 @@ function ChannelTile({ channel, checked, onToggle }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium leading-tight truncate">{channel.label}</div>
-        <div className="text-[11px] text-muted-foreground mt-0.5 truncate">{badge}</div>
+        <div className="text-2xs text-muted-foreground mt-0.5 truncate">{badge}</div>
       </div>
     </label>
   )

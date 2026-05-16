@@ -442,7 +442,7 @@ export default function MediaHub() {
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               aria-label="Filter by status"
-              className="text-[11px] h-7 px-2 rounded-md border border-border bg-background text-foreground"
+              className="text-2xs h-7 px-2 rounded-md border border-border bg-background text-foreground"
             >
               {STATUS_FILTERS.map((s) => (
                 <option key={s.id || 'all-status'} value={s.id}>{s.label}</option>
@@ -454,7 +454,7 @@ export default function MediaHub() {
             <Button
               size="sm"
               onClick={() => setUploadOpen(true)}
-              className="h-7 gap-1.5 text-[11px] rounded-full"
+              className="h-7 gap-1.5 text-2xs rounded-full"
             >
               <UploadIcon className="h-3.5 w-3.5" />
               Upload
@@ -469,7 +469,7 @@ export default function MediaHub() {
                 if (multiSelectMode) exitMultiSelect()
                 else setMultiSelectMode(true)
               }}
-              className="h-7 gap-1.5 text-[11px] rounded-full"
+              className="h-7 gap-1.5 text-2xs rounded-full"
               title="Select multiple media for bulk actions"
             >
               <CheckSquare className="h-3.5 w-3.5" />
@@ -483,7 +483,7 @@ export default function MediaHub() {
               variant="outline"
               onClick={onBackfillThumbnails}
               disabled={backfilling}
-              className="h-7 gap-1.5 text-[11px] rounded-full"
+              className="h-7 gap-1.5 text-2xs rounded-full"
               title="Generate missing thumbnails for older videos"
             >
               {backfilling ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Film className="h-3.5 w-3.5" />}
@@ -505,7 +505,7 @@ export default function MediaHub() {
               <button
                 key={p.id || 'all-purpose'}
                 onClick={() => setPurpose(p.id)}
-                className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                   purpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                 }`}
               >
@@ -523,7 +523,7 @@ export default function MediaHub() {
               <button
                 key={k.id || 'all-kind'}
                 onClick={() => setKind(k.id)}
-                className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                   kind === k.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                 }`}
               >
@@ -537,10 +537,10 @@ export default function MediaHub() {
         {/* Row 3: clinician chips — shown only when there are multiple uploaders */}
         {clinicianOptions.length > 1 && (
           <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground mr-0.5">Clinician:</span>
+            <span className="text-2xs text-muted-foreground mr-0.5">Clinician:</span>
             <button
               onClick={() => setClinicianFilter('')}
-              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+              className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                 !clinicianFilter ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
               }`}
             >
@@ -555,7 +555,7 @@ export default function MediaHub() {
                   key={uid}
                   onClick={() => setClinicianFilter(uid === clinicianFilter ? '' : uid)}
                   title={uid}
-                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors font-mono ${
+                  className={`text-2xs px-2.5 py-1 rounded-full border transition-colors font-mono ${
                     clinicianFilter === uid ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-muted text-muted-foreground border-border hover:border-indigo-400'
                   }`}
                 >
@@ -610,7 +610,7 @@ export default function MediaHub() {
             size="sm"
             variant="outline"
             onClick={() => setShowAll(!showAll)}
-            className="h-7 gap-1.5 text-[11px] rounded-full shrink-0"
+            className="h-7 gap-1.5 text-2xs rounded-full shrink-0"
           >
             <FolderOpen className="h-3.5 w-3.5" />
             {showAll ? 'Back to workflow view' : `All media · ${countLabel(allAssets.length)}`}
@@ -696,12 +696,12 @@ export default function MediaHub() {
             .map((group, i) => (
               <div key={group.id} className={i > 0 ? 'mt-8' : undefined}>
                 <div className="flex items-baseline justify-between gap-2 mb-3">
-                  <p className="text-[11px] uppercase tracking-widest text-muted-foreground font-semibold">
+                  <p className="text-2xs uppercase tracking-widest text-muted-foreground font-semibold">
                     {group.label}
                     <span className="ml-1.5 normal-case tracking-normal font-medium text-muted-foreground/80">· {group.assets.length}</span>
                   </p>
                   {group.sub && (
-                    <p className="text-[11px] text-muted-foreground/80">{group.sub}</p>
+                    <p className="text-2xs text-muted-foreground/80">{group.sub}</p>
                   )}
                 </div>
                 <MediaGrid

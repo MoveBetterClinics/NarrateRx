@@ -255,7 +255,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             <div className="text-sm font-semibold">
               What kind of asset is this? <span className="text-destructive">*</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               Picks the right pipeline. Only interview clips go to the editor&apos;s brief queue.
             </p>
           </div>
@@ -279,7 +279,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
                   <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
                   <span className={`text-sm font-medium ${active ? 'text-primary' : ''}`}>{p.label}</span>
                 </div>
-                <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                <div className="text-2xs text-muted-foreground mt-0.5 leading-snug">
                   {p.sublabel}
                 </div>
               </button>
@@ -300,7 +300,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
               <div className="text-sm font-semibold">
                 Who&apos;s speaking in these clips? <span className="text-destructive">*</span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 This shapes how AI reviews the upload. Pick before dropping files.
               </p>
             </div>
@@ -324,7 +324,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
                     <Icon className={`h-4 w-4 ${active ? 'text-primary' : 'text-muted-foreground'}`} />
                     <span className={`text-sm font-medium ${active ? 'text-primary' : ''}`}>{r.label}</span>
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+                  <div className="text-2xs text-muted-foreground mt-0.5 leading-snug">
                     {r.sublabel}
                   </div>
                 </button>
@@ -355,11 +355,11 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             <div>
               <div className="text-sm font-semibold">
                 Add to a collection?
-                <span className="ml-1.5 inline-block text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium uppercase tracking-wide">
+                <span className="ml-1.5 inline-block text-3xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground font-medium uppercase tracking-wide">
                   Optional
                 </span>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 Group with related uploads now. You can always add to one later via Select &gt; Add to collection.
               </p>
             </div>
@@ -368,7 +368,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             <button
               type="button"
               onClick={() => setCollectionId('')}
-              className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+              className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                 !collectionId
                   ? 'bg-primary text-white border-primary'
                   : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
@@ -382,7 +382,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
                 key={c.id}
                 onClick={() => setCollectionId(c.id === collectionId ? '' : c.id)}
                 title={c.description || c.name}
-                className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                className={`inline-flex items-center gap-1 text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                   collectionId === c.id
                     ? 'bg-primary text-white border-primary'
                     : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
@@ -405,7 +405,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           </span>
           <div>
             <div className="text-sm font-semibold">Drop your files</div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {dropZoneHint(purpose)}
             </p>
           </div>
@@ -437,7 +437,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             what's about to go up before the progress tray takes over. */}
         {pending.length > 0 && (
           <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-800 mb-2">
+            <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-emerald-800 mb-2">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {pending.length} file{pending.length === 1 ? '' : 's'} detected · uploading now
             </div>
@@ -449,24 +449,24 @@ export default function MediaUploader({ onUploaded, createdBy }) {
                   </span>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate" title={p.name}>{p.name}</div>
-                    <div className="text-muted-foreground text-[11px]">
+                    <div className="text-muted-foreground text-2xs">
                       {p.kind || 'unknown'} · {fmtSize(p.size)}
                       {p.duration ? ` · ${fmtDuration(p.duration)}` : ''}
                     </div>
                   </div>
                   {p.mismatch ? (
-                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                    <span className="shrink-0 text-3xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
                       type mismatch
                     </span>
                   ) : (
-                    <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                    <span className="shrink-0 text-3xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
                       {purposeMeta.label.toLowerCase()}
                     </span>
                   )}
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-[10px] text-muted-foreground">
+            <p className="mt-2 text-3xs text-muted-foreground">
               AI tags every upload for search. Interview clips also feed the editor brief queue.
             </p>
           </div>
@@ -494,7 +494,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
               </div>
               <button
                 type="button"
-                className="text-[10px] text-muted-foreground hover:text-foreground"
+                className="text-3xs text-muted-foreground hover:text-foreground"
                 onClick={() => setRejected((prev) => prev.filter((x) => x.id !== r.id))}
               >
                 Dismiss

@@ -13,7 +13,7 @@ export default function TaskBucketCard({ id, title, icon, items = [], renderItem
         <span className="text-muted-foreground">{icon}</span>
         <h2 className="text-sm font-semibold flex-1">{title}</h2>
         {items.length > 0 && (
-          <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-primary/10 text-primary text-[11px] font-semibold px-1.5">
+          <span className="inline-flex items-center justify-center h-5 min-w-[20px] rounded-full bg-primary/10 text-primary text-2xs font-semibold px-1.5">
             {items.length}
           </span>
         )}

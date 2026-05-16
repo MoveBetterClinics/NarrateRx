@@ -359,7 +359,7 @@ function DangerZone({ workspace, getToken }) {
               <p className="text-xs text-muted-foreground mt-1">
                 Suspends this workspace immediately. All members lose access — the subdomain stops resolving and every API call returns 404. Content, media, and credentials stay in storage so the workspace can be restored manually via the database.
               </p>
-              <ul className="text-[11px] text-muted-foreground list-disc pl-4 mt-1.5 space-y-0.5">
+              <ul className="text-2xs text-muted-foreground list-disc pl-4 mt-1.5 space-y-0.5">
                 <li>Published posts on external channels (WordPress / Astro / Buffer) are <strong>not</strong> taken down.</li>
                 <li>Cron jobs that reference this workspace start no-op&apos;ing.</li>
                 <li>Your Clerk Organization is not deleted; members can still sign in elsewhere.</li>
@@ -398,7 +398,7 @@ function DangerZone({ workspace, getToken }) {
           </div>
         </div>
 
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           Rename, transfer ownership, and hard delete are not available in-app yet — each requires substantial server work. Contact the platform team (drq@narraterx.ai) for any of these.
         </p>
       </CardContent>

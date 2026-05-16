@@ -335,7 +335,7 @@ export default function BulkActionBar({
             <Button
               size="sm" variant="outline"
               onClick={() => setPanel(panel === 'status' ? null : 'status')}
-              className="h-7 gap-1.5 text-[11px] rounded-full"
+              className="h-7 gap-1.5 text-2xs rounded-full"
             >
               <Tag className="h-3.5 w-3.5" />
               Set status…
@@ -346,7 +346,7 @@ export default function BulkActionBar({
                 size="sm" variant="outline"
                 onClick={removeFromCurrentCollection}
                 disabled={busy === 'remove-collection'}
-                className="h-7 gap-1.5 text-[11px] rounded-full"
+                className="h-7 gap-1.5 text-2xs rounded-full"
               >
                 {busy === 'remove-collection'
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -359,7 +359,7 @@ export default function BulkActionBar({
               size="sm" variant="outline"
               onClick={tagAll}
               disabled={busy === 'tag'}
-              className="h-7 gap-1.5 text-[11px] rounded-full"
+              className="h-7 gap-1.5 text-2xs rounded-full"
               title="Re-run vision + transcription tagging. Slow (10–60s per video)."
             >
               {busy === 'tag'
@@ -374,7 +374,7 @@ export default function BulkActionBar({
                   size="sm" variant="outline"
                   onClick={restoreAll}
                   disabled={busy === 'restore'}
-                  className="h-7 gap-1.5 text-[11px] rounded-full"
+                  className="h-7 gap-1.5 text-2xs rounded-full"
                 >
                   {busy === 'restore'
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -388,7 +388,7 @@ export default function BulkActionBar({
                   size="sm" variant="outline"
                   onClick={archiveAll}
                   disabled={busy === 'archive'}
-                  className="h-7 gap-1.5 text-[11px] rounded-full"
+                  className="h-7 gap-1.5 text-2xs rounded-full"
                 >
                   {busy === 'archive'
                     ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -403,7 +403,7 @@ export default function BulkActionBar({
                 size="sm" variant="outline"
                 onClick={() => setPurgeOpen(true)}
                 disabled={busy === 'purge'}
-                className="h-7 gap-1.5 text-[11px] rounded-full text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
+                className="h-7 gap-1.5 text-2xs rounded-full text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
               >
                 <Trash2 className="h-3.5 w-3.5" />
                 Delete permanently…
@@ -415,7 +415,7 @@ export default function BulkActionBar({
         {/* Status submenu */}
         {panel === 'status' && canEdit && count > 0 && (
           <div className="rounded-md border bg-muted/40 p-2 space-y-2">
-            <div className="text-[11px] text-muted-foreground px-1">
+            <div className="text-2xs text-muted-foreground px-1">
               Set status on {count} item{count === 1 ? '' : 's'}:
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -426,7 +426,7 @@ export default function BulkActionBar({
                     key={s.id}
                     onClick={() => setStatus(s.id)}
                     disabled={!!busy}
-                    className="text-[11px] px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
+                    className="text-2xs px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
                   >
                     {isBusy
                       ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -443,11 +443,11 @@ export default function BulkActionBar({
         {panel === 'collection' && canEdit && count > 0 && (
           <div className="rounded-md border bg-muted/40 p-2 space-y-2">
             {loadingList ? (
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+              <span className="text-2xs text-muted-foreground flex items-center gap-1.5">
                 <Loader2 className="h-3 w-3 animate-spin" /> Loading collections…
               </span>
             ) : collections.length === 0 && !creating ? (
-              <div className="text-[11px] text-muted-foreground italic">
+              <div className="text-2xs text-muted-foreground italic">
                 No collections yet — create one below.
               </div>
             ) : (
@@ -460,7 +460,7 @@ export default function BulkActionBar({
                       key={c.id}
                       onClick={() => addToExisting(c)}
                       disabled={isBusy}
-                      className="text-[11px] px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
+                      className="text-2xs px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
                       title={c.description || c.name}
                     >
                       {isBusy
@@ -480,11 +480,11 @@ export default function BulkActionBar({
 
             {!creating ? (
               <div className="flex gap-2">
-                <Button size="sm" variant="ghost" onClick={() => setCreating(true)} className="h-7 gap-1.5 text-[11px]">
+                <Button size="sm" variant="ghost" onClick={() => setCreating(true)} className="h-7 gap-1.5 text-2xs">
                   <FolderPlus className="h-3.5 w-3.5" />
                   New collection…
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => setPanel(null)} className="h-7 text-[11px]">
+                <Button size="sm" variant="ghost" onClick={() => setPanel(null)} className="h-7 text-2xs">
                   Close
                 </Button>
               </div>
@@ -518,7 +518,7 @@ export default function BulkActionBar({
             {message}
           </div>
         )}
-        {error && <div className="text-[11px] text-destructive px-1">{error}</div>}
+        {error && <div className="text-2xs text-destructive px-1">{error}</div>}
       </div>
 
       {/* Purge confirmation — typed-confirm gate matching the per-asset UX */}

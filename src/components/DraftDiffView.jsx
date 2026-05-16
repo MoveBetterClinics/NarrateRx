@@ -164,7 +164,7 @@ function ChangeChip({ segment, accepted, onToggle }) {
       {isInsertion && (
         <span className={accepted ? 'text-emerald-800 font-medium' : 'text-muted-foreground/60 line-through'}>{newText}</span>
       )}
-      <span className="inline-flex items-center justify-center align-middle ml-0.5 w-3.5 h-3.5 rounded-full bg-white border text-[10px]">
+      <span className="inline-flex items-center justify-center align-middle ml-0.5 w-3.5 h-3.5 rounded-full bg-white border text-3xs">
         {accepted ? <Check className="h-2.5 w-2.5 text-emerald-700" /> : <X className="h-2.5 w-2.5 text-rose-500" />}
       </span>
     </button>

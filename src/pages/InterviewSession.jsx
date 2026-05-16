@@ -1211,7 +1211,7 @@ export default function InterviewSession() {
 
       {Array.isArray(interview.verbatim_flags) && interview.verbatim_flags.length > 0 && (
         <div className="py-2 shrink-0 border-t">
-          <p className="text-[11px] text-muted-foreground mb-1.5 flex items-center gap-1">
+          <p className="text-2xs text-muted-foreground mb-1.5 flex items-center gap-1">
             <Quote className="h-3 w-3" />
             Verbatim — these phrases will appear word-for-word in every draft
           </p>
@@ -1234,7 +1234,7 @@ export default function InterviewSession() {
       )}
 
       {interviewComplete && !isGenerating && isOwner && (
-        <p className="text-[11px] text-muted-foreground py-1 shrink-0">
+        <p className="text-2xs text-muted-foreground py-1 shrink-0">
           Tip: highlight a sentence above to flag it as verbatim — it will be preserved word-for-word in every draft.
         </p>
       )}
@@ -1495,7 +1495,7 @@ function InterviewProgress({ count }) {
       : `~${Math.max(1, TYPICAL_QUESTION_COUNT - count)} more`
 
   return (
-    <span className="inline-flex items-center gap-1.5 ml-auto text-[10px] text-muted-foreground shrink-0">
+    <span className="inline-flex items-center gap-1.5 ml-auto text-3xs text-muted-foreground shrink-0">
       <span className="relative h-1 w-14 rounded-full bg-muted overflow-hidden">
         <span
           className="absolute inset-y-0 left-0 rounded-full bg-indigo-400 transition-all duration-500"

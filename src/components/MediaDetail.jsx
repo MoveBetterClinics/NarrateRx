@@ -384,12 +384,12 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               Hub is being the canonical home for media; this row is the
               bridge to tools whose file pickers can't see Vercel Blob. */}
           <div className="px-5 pt-4 -mb-1 flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] text-muted-foreground mr-1">Use elsewhere:</span>
+            <span className="text-2xs text-muted-foreground mr-1">Use elsewhere:</span>
             <Button
               size="sm"
               variant="outline"
               onClick={copyLink}
-              className="h-7 gap-1.5 text-[11px]"
+              className="h-7 gap-1.5 text-2xs"
               title="Copy the public Vercel Blob URL for this asset"
             >
               {copied
@@ -401,7 +401,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               variant="outline"
               onClick={downloadAsset}
               disabled={downloading}
-              className="h-7 gap-1.5 text-[11px]"
+              className="h-7 gap-1.5 text-2xs"
               title="Download to your computer with the original filename"
             >
               {downloading
@@ -415,7 +415,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 variant="outline"
                 onClick={handleRegenerateThumbnail}
                 disabled={thumbing}
-                className="h-7 gap-1.5 text-[11px]"
+                className="h-7 gap-1.5 text-2xs"
                 title={asset.thumbnail_url
                   ? 'Re-extract poster frame from this video'
                   : 'Extract a poster frame so this video shows a thumbnail in the grid'}
@@ -433,7 +433,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                   variant="outline"
                   onClick={() => handleQuickRotate(270)}
                   disabled={rotatingQuick}
-                  className="h-7 gap-1.5 text-[11px]"
+                  className="h-7 gap-1.5 text-2xs"
                   title="Rotate 90° counter-clockwise — overwrites the original in place"
                   aria-label="Rotate left 90 degrees"
                 >
@@ -447,7 +447,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                   variant="outline"
                   onClick={() => handleQuickRotate(90)}
                   disabled={rotatingQuick}
-                  className="h-7 gap-1.5 text-[11px]"
+                  className="h-7 gap-1.5 text-2xs"
                   title="Rotate 90° clockwise — overwrites the original in place"
                   aria-label="Rotate right 90 degrees"
                 >
@@ -463,7 +463,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 size="sm"
                 variant="outline"
                 onClick={() => { setIsFullscreen(true); setShowEdit(true) }}
-                className="h-7 gap-1.5 text-[11px]"
+                className="h-7 gap-1.5 text-2xs"
                 title="Crop this asset — opens fullscreen crop editor"
               >
                 <Crop className="h-3.5 w-3.5" />
@@ -471,7 +471,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               </Button>
             )}
             {asset.kind === 'photo' && (
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-2xs text-muted-foreground">
                 · or drag the preview straight into another browser tab
               </span>
             )}
@@ -482,7 +482,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               show "variants of a variant" — the model is intentionally flat. */}
           {!asset.parent_id && variants.length > 0 && (
             <div className="px-5 pt-3">
-              <div className="text-[11px] uppercase tracking-wide font-medium text-muted-foreground mb-1.5">
+              <div className="text-2xs uppercase tracking-wide font-medium text-muted-foreground mb-1.5">
                 Variants ({variants.length})
               </div>
               <div className="flex gap-2 overflow-x-auto pb-1">
@@ -499,7 +499,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                           ? <img src={thumb} alt={v.variant_label || ''} className="h-full w-full object-cover" />
                           : <ImageIcon className="h-5 w-5 text-muted-foreground" />}
                       </div>
-                      <div className="px-2 py-1.5 text-[10px] truncate">
+                      <div className="px-2 py-1.5 text-3xs truncate">
                         {v.variant_label || 'Variant'}
                       </div>
                     </div>
@@ -511,7 +511,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
 
           <div className="p-5 space-y-4">
             {!canEdit && !isArchived && (
-              <div className="text-[11px] text-muted-foreground bg-muted/40 border border-border rounded-md px-3 py-2">
+              <div className="text-2xs text-muted-foreground bg-muted/40 border border-border rounded-md px-3 py-2">
                 View-only — your role can browse the library but cannot edit metadata or archive assets. Ask an admin to change your role in Clerk.
               </div>
             )}
@@ -527,7 +527,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                     <button
                       key={s}
                       onClick={() => setStatus(s)}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                      className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                         status === s ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                       }`}
                     >
@@ -543,7 +543,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                     <button
                       key={p.id}
                       onClick={() => setAssetPurpose(p.id)}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                      className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                         assetPurpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                       }`}
                       title={p.id === 'interview'
@@ -584,7 +584,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                     variant="ghost"
                     onClick={handleTag}
                     disabled={tagging}
-                    className="h-7 gap-1.5 text-[11px]"
+                    className="h-7 gap-1.5 text-2xs"
                     title={asset.kind === 'video'
                       ? 'Run AI tagging + transcription + visual narrative (10–60s)'
                       : 'Run AI tagging on this image'}
@@ -604,7 +604,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                 ))}
                 {aiTags.length > 0 && (
                   <span
-                    className="self-center inline-flex items-center gap-1 text-[10px] uppercase tracking-wide font-medium text-violet-700 dark:text-violet-300 ml-1 mr-0.5"
+                    className="self-center inline-flex items-center gap-1 text-3xs uppercase tracking-wide font-medium text-violet-700 dark:text-violet-300 ml-1 mr-0.5"
                     title="AI-generated suggestions — click an existing tag chip to remove, or type below to add your own."
                   >
                     <Sparkles className="h-3 w-3" />
@@ -663,10 +663,10 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                       <Sparkles className="h-3.5 w-3.5 text-primary" />
                       Edit briefs
                       {linkedBriefs.length > 0 && (
-                        <Badge variant="secondary" className="text-[10px]">{linkedBriefs.length}</Badge>
+                        <Badge variant="secondary" className="text-3xs">{linkedBriefs.length}</Badge>
                       )}
                     </div>
-                    <div className="text-[11px] text-muted-foreground">
+                    <div className="text-2xs text-muted-foreground">
                       Moments AI surfaced (or you added) for this clip.
                     </div>
                   </div>
@@ -683,7 +683,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                                 ? 'Re-run AI segmenter on this source'
                                 : 'Tag with AI first to enable'
                           }
-                          className="h-7 gap-1.5 text-[11px]"
+                          className="h-7 gap-1.5 text-2xs"
                         >
                           {segmenting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
                           {linkedBriefs.length ? 'Re-segment' : 'Segment'}
@@ -691,7 +691,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                         <Button
                           size="sm" variant="outline" onClick={handleNewBrief}
                           disabled={creatingBrief}
-                          className="h-7 gap-1.5 text-[11px]"
+                          className="h-7 gap-1.5 text-2xs"
                         >
                           {creatingBrief ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FilePlus2 className="h-3.5 w-3.5" />}
                           New brief
@@ -708,7 +708,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                         onClick={() => setOpenBrief(b)}
                         className="px-3 py-2 hover:bg-muted/40 cursor-pointer flex items-start gap-2"
                       >
-                        <Badge variant="outline" className="text-[10px] uppercase shrink-0 mt-0.5">{b.status}</Badge>
+                        <Badge variant="outline" className="text-3xs uppercase shrink-0 mt-0.5">{b.status}</Badge>
                         <div className="min-w-0 flex-1 text-xs">
                           <div className="truncate">
                             {b.target_platform && <span className="text-primary mr-1">[{b.target_platform}]</span>}
@@ -763,7 +763,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
             </div>
 
             {/* Metadata */}
-            <div className="text-[11px] text-muted-foreground space-y-0.5">
+            <div className="text-2xs text-muted-foreground space-y-0.5">
               <div>Uploaded {new Date(asset.created_at).toLocaleString()}</div>
               {asset.size_bytes && <div>{(asset.size_bytes / (1024 * 1024)).toFixed(1)} MB · {asset.mime_type}</div>}
               {asset.parent_id && <div>Edited from another source clip</div>}

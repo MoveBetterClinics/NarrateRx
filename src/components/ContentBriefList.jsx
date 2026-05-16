@@ -60,10 +60,10 @@ export default function ContentBriefList({ refreshKey, expandedDefault = true })
           <Sparkles className="h-4 w-4 text-primary" />
           <span className="font-semibold text-sm">Edit briefs</span>
           {pendingCount > 0 && (
-            <Badge variant="secondary" className="ml-1 text-[10px]">{pendingCount} active</Badge>
+            <Badge variant="secondary" className="ml-1 text-3xs">{pendingCount} active</Badge>
           )}
         </div>
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-2xs text-muted-foreground">
           AI suggestions and manual briefs that turn source clips into finished posts
         </span>
       </button>
@@ -77,7 +77,7 @@ export default function ContentBriefList({ refreshKey, expandedDefault = true })
               <button
                 key={s.id || 'all'}
                 onClick={() => setFilter(s.id)}
-                className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                   filter === s.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                 }`}
               >
@@ -104,17 +104,17 @@ export default function ContentBriefList({ refreshKey, expandedDefault = true })
                   onClick={() => setSelected(b)}
                   className="px-4 py-3 hover:bg-muted/40 cursor-pointer flex items-start gap-3"
                 >
-                  <Badge variant="outline" className="text-[10px] uppercase shrink-0 mt-0.5">{b.status}</Badge>
+                  <Badge variant="outline" className="text-3xs uppercase shrink-0 mt-0.5">{b.status}</Badge>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       {b.target_platform && (
-                        <span className="text-[10px] uppercase font-medium text-primary">{b.target_platform}</span>
+                        <span className="text-3xs uppercase font-medium text-primary">{b.target_platform}</span>
                       )}
                       <span className="text-xs text-muted-foreground truncate" title={b.source_quote || ''}>
                         {b.source_quote ? `"${b.source_quote.slice(0, 80)}${b.source_quote.length > 80 ? '…' : ''}"` : '(no quote)'}
                       </span>
                     </div>
-                    <div className="text-[11px] text-muted-foreground mt-0.5 truncate" title={b.final_caption || b.ai_caption || ''}>
+                    <div className="text-2xs text-muted-foreground mt-0.5 truncate" title={b.final_caption || b.ai_caption || ''}>
                       {b.final_caption?.slice(0, 120) || b.ai_caption?.slice(0, 120) || '(no caption draft)'}
                     </div>
                   </div>

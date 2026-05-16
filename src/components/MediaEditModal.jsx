@@ -121,7 +121,7 @@ export default function MediaEditModal({ asset, onClose, onSaved, inline = false
       <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
         <div className="min-w-0">
           <h2 className="font-semibold text-sm truncate">Crop · {asset.filename}</h2>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             Select an area to save as a new variant. The original stays untouched.
           </p>
         </div>
@@ -159,7 +159,7 @@ export default function MediaEditModal({ asset, onClose, onSaved, inline = false
                 <button
                   key={p.id}
                   onClick={() => handleAspect(p.id)}
-                  className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+                  className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
                     aspect === p.id
                       ? 'bg-primary text-white border-primary'
                       : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
@@ -187,7 +187,7 @@ export default function MediaEditModal({ asset, onClose, onSaved, inline = false
             </div>
 
             {isVideo && (
-              <p className="text-[11px] text-muted-foreground shrink-0">
+              <p className="text-2xs text-muted-foreground shrink-0">
                 Note: the crop area is drawn on the poster frame; it applies to every frame of the video.
               </p>
             )}
