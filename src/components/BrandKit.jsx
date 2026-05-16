@@ -42,12 +42,75 @@ function classifyChips(a) {
   return chips
 }
 
+function backdropStyleFor(backdrop) {
+  if (backdrop === 'dark') return { backgroundColor: '#111827' }
+  if (backdrop === 'light') return { backgroundColor: '#ffffff' }
+  return {
+    backgroundColor: '#fafafa',
+    backgroundImage:
+      'linear-gradient(45deg,#eef0f2 25%,transparent 25%),linear-gradient(-45deg,#eef0f2 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef0f2 75%),linear-gradient(-45deg,transparent 75%,#eef0f2 75%)',
+    backgroundSize: '12px 12px',
+    backgroundPosition: '0 0,0 6px,6px -6px,-6px 0',
+  }
+}
+
+// Strip script tags and on* event handler attributes from fetched SVG markup.
+// Workspace admins upload these assets, so the risk surface is small, but
+// we're injecting into the DOM so be defensive.
+function sanitizeSvg(markup) {
+  return markup
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, '')
+    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, '')
+}
+
+// Inline-SVG preview that auto-crops the viewBox to the actual artwork bounds.
+// Many uploaded logos ship with huge viewBoxes around tiny artwork (export
+// safe-area padding), which makes them look like specks at any tile size no
+// matter how aggressively the container scales them. Reading getBBox() after
+// inlining gives us the true content rect, so we can re-frame the viewBox.
+function InlineSvgPreview({ url, label }) {
+  const [markup, setMarkup] = useState(null)
+  const hostRef = useRef(null)
+  useEffect(() => {
+    let alive = true
+    fetch(url)
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`fetch ${r.status}`))))
+      .then((txt) => { if (alive) setMarkup(sanitizeSvg(txt)) })
+      .catch(() => { if (alive) setMarkup('') })
+    return () => { alive = false }
+  }, [url])
+  useEffect(() => {
+    if (!hostRef.current || !markup) return
+    const svg = hostRef.current.querySelector('svg')
+    if (!svg) return
+    try {
+      const bb = svg.getBBox()
+      if (bb && bb.width > 0 && bb.height > 0) {
+        const pad = Math.max(bb.width, bb.height) * 0.04
+        svg.setAttribute('viewBox', `${bb.x - pad} ${bb.y - pad} ${bb.width + pad * 2} ${bb.height + pad * 2}`)
+        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet')
+      }
+    } catch { /* getBBox can throw if svg is detached; ignore */ }
+    svg.removeAttribute('width')
+    svg.removeAttribute('height')
+    svg.style.width = '100%'
+    svg.style.height = '100%'
+    svg.style.display = 'block'
+  }, [markup])
+  if (markup === null) {
+    return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+  }
+  if (markup === '') {
+    // Fetch failed (CORS, 404). Fall back to <img>.
+    return <img src={url} alt={label} className="max-h-full max-w-full" />
+  }
+  return <div ref={hostRef} className="h-full w-full" aria-label={label} dangerouslySetInnerHTML={{ __html: markup }} />
+}
+
 // Renders the asset preview. `backdrop` controls what's behind the artwork —
 // 'checker' (default) shows transparency, 'light'/'dark' show flat fills so
 // users can spot logos that would otherwise vanish against same-color bg.
-// SVGs frequently ship with only a viewBox (no intrinsic width/height); we
-// render them as a background-image so `background-size: contain` scales the
-// vector to the container reliably across browsers.
 function AssetPreview({ asset, size = 'md', backdrop = 'checker' }) {
   const h = size === 'sm' ? 'h-24' : size === 'lg' ? 'h-40' : 'h-32'
   if (asset.mime_type === 'application/pdf') {
@@ -58,30 +121,13 @@ function AssetPreview({ asset, size = 'md', backdrop = 'checker' }) {
       </div>
     )
   }
-  const backdropStyle = backdrop === 'dark'
-    ? { backgroundColor: '#111827' }
-    : backdrop === 'light'
-      ? { backgroundColor: '#ffffff' }
-      : {
-          backgroundColor: '#fafafa',
-          backgroundImage:
-            'linear-gradient(45deg,#eef0f2 25%,transparent 25%),linear-gradient(-45deg,#eef0f2 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#eef0f2 75%),linear-gradient(-45deg,transparent 75%,#eef0f2 75%)',
-          backgroundSize: '12px 12px',
-          backgroundPosition: '0 0,0 6px,6px -6px,-6px 0',
-        }
+  const bg = backdropStyleFor(backdrop)
   return (
-    <div
-      className={`${h} w-full rounded-md p-2`}
-      style={{
-        ...backdropStyle,
-        backgroundImage: `url(${JSON.stringify(asset.blob_url)})${backdropStyle.backgroundImage ? ', ' + backdropStyle.backgroundImage : ''}`,
-        backgroundRepeat: backdropStyle.backgroundImage ? 'no-repeat, repeat' : 'no-repeat',
-        backgroundSize: backdropStyle.backgroundImage ? `contain, ${backdropStyle.backgroundSize}` : 'contain',
-        backgroundPosition: backdropStyle.backgroundImage ? `center, ${backdropStyle.backgroundPosition}` : 'center',
-      }}
-      role="img"
-      aria-label={asset.filename}
-    />
+    <div className={`${h} w-full rounded-md p-2 flex items-center justify-center overflow-hidden`} style={bg}>
+      {asset.mime_type === 'image/svg+xml'
+        ? <InlineSvgPreview url={asset.blob_url} label={asset.filename} />
+        : <img src={asset.blob_url} alt={asset.filename} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} />}
+    </div>
   )
 }
 
