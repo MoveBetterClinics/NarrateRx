@@ -105,7 +105,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
                     {PLATFORM_LABELS[p.platform] || p.platform}
                     {p.clinicianName ? ` · ${p.clinicianName}` : ''}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {formatScheduled(p.scheduled_at)}
                   </span>
                 </Link>
@@ -128,7 +128,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
                 <span className="text-xs font-medium text-foreground truncate leading-snug">
                   {item.topic || 'Untitled'}
                 </span>
-                <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-2 text-2xs text-muted-foreground">
                   <span>{PLATFORM_LABELS[item.platform] || item.platform}</span>
                   {item.buffer_metrics?.reach > 0 && (
                     <span className="font-medium text-emerald-600">
@@ -203,13 +203,13 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
                   <div className="min-w-0">
                     <p className="text-xs font-medium truncate">{loc.label || loc.city}</p>
                     {loc.city && loc.region && (
-                      <p className="text-[10px] text-muted-foreground">{loc.city}, {loc.region}</p>
+                      <p className="text-3xs text-muted-foreground">{loc.city}, {loc.region}</p>
                     )}
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-sm font-bold tabular-nums">{locStories.length}</p>
                     {thisMonth > 0 && (
-                      <p className="text-[10px] text-muted-foreground">+{thisMonth} mo</p>
+                      <p className="text-3xs text-muted-foreground">+{thisMonth} mo</p>
                     )}
                   </div>
                 </li>

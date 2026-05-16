@@ -174,11 +174,11 @@ function ThemeCard({ topic, stories, workspace }) {
           has no patient_context.prototypes[]. */}
       {showMix && (
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] uppercase tracking-wide text-gray-400 mr-1">Archetypes</span>
+          <span className="text-3xs uppercase tracking-wide text-gray-400 mr-1">Archetypes</span>
           {byArchetype.map((row) => (
             <span
               key={row.id}
-              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200"
+              className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200"
             >
               {row.emoji && <span>{row.emoji}</span>}
               {row.count} {row.label.toLowerCase()}
@@ -186,7 +186,7 @@ function ThemeCard({ topic, stories, workspace }) {
           ))}
           {untagged > 0 && (
             <span
-              className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200"
+              className="inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200"
               title="Story topics that didn't match any tagged topic_suggestions[] keyword"
             >
               untagged {untagged}

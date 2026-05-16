@@ -31,7 +31,7 @@ export function Field({ label, value, onChange, placeholder, hint, type = 'text'
         autoComplete={autoComplete}
         className="text-sm"
       />
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-2xs text-muted-foreground">{hint}</p>}
     </div>
   )
 }
@@ -46,7 +46,7 @@ export function Textarea2({ label, value, onChange, rows = 4, hint }) {
         rows={rows}
         className="text-sm font-mono resize-y"
       />
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-2xs text-muted-foreground">{hint}</p>}
     </div>
   )
 }

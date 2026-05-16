@@ -44,7 +44,7 @@ function Thumb({ asset }) {
       ) : (
         <div className="h-full bg-slate-800 flex flex-col items-center justify-center gap-1 px-1">
           <Video className="h-6 w-6 text-slate-400 shrink-0" />
-          <span className="text-[9px] text-slate-400 text-center leading-tight line-clamp-3">{asset.filename}</span>
+          <span className="text-3xs text-slate-400 text-center leading-tight line-clamp-3">{asset.filename}</span>
         </div>
       )}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
@@ -160,7 +160,7 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
 
       {/* Status pill — top left */}
       <div className="absolute top-1.5 left-1.5">
-        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${statusMeta.tone}`}>
+        <span className={`text-3xs font-medium px-1.5 py-0.5 rounded ${statusMeta.tone}`}>
           {statusMeta.label}
         </span>
       </div>
@@ -189,7 +189,7 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
       {/* Clinician initial badge — bottom left */}
       {asset.created_by && (
         <div className="absolute bottom-6 left-1.5 z-10" title={`Uploaded by: ${asset.created_by}`}>
-          <div className="bg-indigo-600 text-white text-[9px] font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none">
+          <div className="bg-indigo-600 text-white text-3xs font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none">
             {createdByInitials}
           </div>
         </div>
@@ -202,13 +202,13 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
           opt into lifecycle (e.g. asset picker drawers). */}
       <div className="absolute bottom-6 right-1.5 z-10">
         {asset._lifecycle === 'new' && (
-          <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.5 rounded-full leading-none">
+          <span className="text-3xs bg-blue-600 text-white px-1.5 py-0.5 rounded-full leading-none">
             NEW
           </span>
         )}
         {asset._lifecycle === 'in_pipeline' && firstStoryId && (
           <button
-            className="text-[9px] bg-emerald-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-emerald-600 transition-colors"
+            className="text-3xs bg-emerald-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-emerald-600 transition-colors"
             title={usageCount === 1 ? 'In 1 active post — click to open' : `In ${usageCount} active posts — click to open the first`}
             onClick={(e) => {
               e.stopPropagation()
@@ -220,7 +220,7 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
         )}
         {asset._lifecycle === 'shipped' && firstStoryId && (
           <button
-            className="text-[9px] bg-slate-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-slate-600 transition-colors"
+            className="text-3xs bg-slate-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-slate-600 transition-colors"
             title="Already published — click to open the post"
             onClick={(e) => {
               e.stopPropagation()
@@ -233,7 +233,7 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
         {!asset._lifecycle && (
           firstStoryId ? (
             <button
-              className="text-[9px] bg-emerald-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-emerald-600 transition-colors"
+              className="text-3xs bg-emerald-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-emerald-600 transition-colors"
               title={usageCount === 1 ? 'Used in 1 story — click to open' : `Used in ${usageCount} stories — click to open the first`}
               onClick={(e) => {
                 e.stopPropagation()
@@ -243,7 +243,7 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
               used ×{usageCount}
             </button>
           ) : (
-            <span className="text-[9px] bg-black/40 text-white/70 px-1.5 py-0.5 rounded-full leading-none">
+            <span className="text-3xs bg-black/40 text-white/70 px-1.5 py-0.5 rounded-full leading-none">
               ×0
             </span>
           )
@@ -276,7 +276,7 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
       )}
 
       {/* Filename caption */}
-      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-[10px] px-1.5 py-1 leading-tight truncate" title={asset.filename}>
+      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent text-white text-3xs px-1.5 py-1 leading-tight truncate" title={asset.filename}>
         {asset.filename}
       </div>
     </button>

@@ -96,13 +96,13 @@ export default function CollectionsBar({ selectedId, onSelect, refreshKey = 0 })
   return (
     <div className="space-y-1.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium pr-1">
+        <span className="text-2xs uppercase tracking-wide text-muted-foreground font-medium pr-1">
           Collections
         </span>
 
         <button
           onClick={() => onSelect?.(null)}
-          className={`text-[11px] px-2.5 py-1 rounded-full border transition-colors ${
+          className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
             !selectedId ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
           }`}
         >
@@ -110,7 +110,7 @@ export default function CollectionsBar({ selectedId, onSelect, refreshKey = 0 })
         </button>
 
         {loading ? (
-          <span className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+          <span className="text-2xs text-muted-foreground flex items-center gap-1.5">
             <Loader2 className="h-3 w-3 animate-spin" /> Loading…
           </span>
         ) : (
@@ -128,7 +128,7 @@ export default function CollectionsBar({ selectedId, onSelect, refreshKey = 0 })
                       if (e.key === 'Escape') setEditing(null)
                     }}
                     autoFocus
-                    className="h-7 w-36 text-[11px] px-2"
+                    className="h-7 w-36 text-2xs px-2"
                   />
                   <Button size="sm" variant="ghost" className="h-7 px-2" onClick={submitRename} disabled={submitting}>
                     Save
@@ -143,7 +143,7 @@ export default function CollectionsBar({ selectedId, onSelect, refreshKey = 0 })
               <span key={c.id} className="inline-flex items-stretch">
                 <button
                   onClick={() => onSelect?.(c.id)}
-                  className={`text-[11px] pl-2.5 pr-2 py-1 rounded-l-full border-l border-y transition-colors flex items-center gap-1.5 ${
+                  className={`text-2xs pl-2.5 pr-2 py-1 rounded-l-full border-l border-y transition-colors flex items-center gap-1.5 ${
                     active ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                   }`}
                   title={c.description || c.name}
@@ -152,7 +152,7 @@ export default function CollectionsBar({ selectedId, onSelect, refreshKey = 0 })
                   {c.item_count > 0 && (
                     <Badge
                       variant="secondary"
-                      className={`text-[10px] h-4 px-1 ${active ? 'bg-white/20 text-white' : ''}`}
+                      className={`text-3xs h-4 px-1 ${active ? 'bg-white/20 text-white' : ''}`}
                     >
                       {c.item_count}
                     </Badge>
@@ -192,7 +192,7 @@ export default function CollectionsBar({ selectedId, onSelect, refreshKey = 0 })
             size="sm"
             variant="outline"
             onClick={() => setCreating(true)}
-            className="h-7 gap-1.5 text-[11px] rounded-full"
+            className="h-7 gap-1.5 text-2xs rounded-full"
           >
             <FolderPlus className="h-3.5 w-3.5" />
             New
@@ -216,7 +216,7 @@ export default function CollectionsBar({ selectedId, onSelect, refreshKey = 0 })
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value)}
-            className="text-[11px] h-8 px-2 rounded-md border border-border bg-background text-foreground"
+            className="text-2xs h-8 px-2 rounded-md border border-border bg-background text-foreground"
           >
             {KIND_OPTIONS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
           </select>

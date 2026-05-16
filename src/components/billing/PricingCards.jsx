@@ -119,7 +119,7 @@ export default function PricingCards({ currentPlan = 'trial' }) {
               }`}
             >
               {isActive && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-orange-500 px-3 py-0.5 text-[11px] font-semibold text-white uppercase tracking-wide">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full bg-orange-500 px-3 py-0.5 text-2xs font-semibold text-white uppercase tracking-wide">
                   Current plan
                 </span>
               )}
@@ -187,7 +187,7 @@ export default function PricingCards({ currentPlan = 'trial' }) {
                 )}
 
                 {isActive && currentPlan !== 'trial' && (
-                  <p className="text-[11px] text-center text-muted-foreground">
+                  <p className="text-2xs text-center text-muted-foreground">
                     Billed monthly · cancel anytime
                   </p>
                 )}

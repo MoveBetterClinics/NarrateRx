@@ -54,7 +54,7 @@ function CoverageBar({ mentionedCount, totalCount }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[10px] text-muted-foreground tabular-nums w-8 text-right">
+      <span className="text-3xs text-muted-foreground tabular-nums w-8 text-right">
         {mentionedCount}/{totalCount}
       </span>
     </div>
@@ -79,7 +79,7 @@ function ConceptRow({ concept, totalClinicians, onDraft }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <span className="text-sm font-medium leading-snug">{concept.label}</span>
-            <Badge variant="outline" className={`ml-2 text-[10px] px-1.5 py-0 ${meta.color}`}>
+            <Badge variant="outline" className={`ml-2 text-3xs px-1.5 py-0 ${meta.color}`}>
               {meta.label}
             </Badge>
           </div>
@@ -97,12 +97,12 @@ function ConceptRow({ concept, totalClinicians, onDraft }) {
         {/* Clinician chips */}
         <div className="flex flex-wrap gap-1 mt-2">
           {concept.mentionedBy.map(c => (
-            <span key={c.id} className="inline-flex items-center gap-1 text-[11px] bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
+            <span key={c.id} className="inline-flex items-center gap-1 text-2xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
               <CheckCircle2 className="h-2.5 w-2.5" /> {c.name}
             </span>
           ))}
           {gaps.map(c => (
-            <span key={c.id} className="inline-flex items-center gap-1 text-[11px] bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">
+            <span key={c.id} className="inline-flex items-center gap-1 text-2xs bg-muted text-muted-foreground border border-border rounded-full px-2 py-0.5">
               <Circle className="h-2.5 w-2.5" /> {c.name}
             </span>
           ))}
@@ -129,7 +129,7 @@ function KindSection({ kind, concepts, totalClinicians, onDraft }) {
           <h2 className="text-sm font-semibold">{meta.label}</h2>
           <span className="text-xs text-muted-foreground">{concepts.length} concepts</span>
         </div>
-        <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-3 text-2xs text-muted-foreground">
           {agreed.length > 0 && <span className="text-emerald-600">≡ {agreed.length} shared</span>}
           {solo.length > 0  && <span className="text-amber-600">○ {solo.length} gaps</span>}
         </div>

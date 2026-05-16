@@ -161,7 +161,7 @@ export default function UploadTray() {
                 {r.status === 'uploading' && (
                   <div className="mt-1.5">
                     {r.transcoding ? (
-                      <div className="text-[11px] text-muted-foreground">Converting HEIC…</div>
+                      <div className="text-2xs text-muted-foreground">Converting HEIC…</div>
                     ) : (
                       <>
                         <div
@@ -176,7 +176,7 @@ export default function UploadTray() {
                             style={{ width: `${Math.min(100, Math.max(0, r.progress || 0))}%` }}
                           />
                         </div>
-                        <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground tabular-nums">
+                        <div className="mt-1 flex items-center justify-between text-2xs text-muted-foreground tabular-nums">
                           <span>
                             {formatBytes(r.loaded || 0)} / {formatBytes(r.total || r.size || 0)} · {r.progress || 0}%
                           </span>
@@ -190,15 +190,15 @@ export default function UploadTray() {
                   </div>
                 )}
                 {r.status === 'indexing' && (
-                  <div className="mt-1 text-[11px] text-muted-foreground">Adding to library…</div>
+                  <div className="mt-1 text-2xs text-muted-foreground">Adding to library…</div>
                 )}
                 {r.status === 'done' && (
-                  <div className="mt-1 text-[11px] text-muted-foreground">
+                  <div className="mt-1 text-2xs text-muted-foreground">
                     {r.slowIndex ? 'Still processing — will appear shortly.' : 'Done.'}
                   </div>
                 )}
                 {r.status === 'error' && (
-                  <div className="mt-1 text-[11px] text-destructive truncate" title={r.error}>
+                  <div className="mt-1 text-2xs text-destructive truncate" title={r.error}>
                     {r.error}
                   </div>
                 )}

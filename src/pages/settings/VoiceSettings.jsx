@@ -595,7 +595,7 @@ function PrimaryAvatarEditor({ value, onChange }) {
     <div className="rounded-lg border border-input bg-card p-3 space-y-3">
       <div className="flex items-center justify-between">
         <Label className="text-sm font-medium">Primary avatar</Label>
-        <span className="text-xs text-muted-foreground italic">structured</span>
+        <span className="text-3xs text-muted-foreground italic">structured</span>
       </div>
       <div>
         <Label className="text-xs mb-1 block">Name</Label>
@@ -840,7 +840,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
         <select
           value={row.priority || 'medium'}
           onChange={e => onUpdate({ priority: e.target.value })}
-          className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full border-0 cursor-pointer appearance-none ${PRIORITY_COLORS[row.priority] || PRIORITY_COLORS.medium}`}
+          className={`shrink-0 text-3xs px-1.5 py-0.5 rounded-full border-0 cursor-pointer appearance-none ${PRIORITY_COLORS[row.priority] || PRIORITY_COLORS.medium}`}
         >
           <option value="high">high</option>
           <option value="medium">medium</option>
@@ -849,7 +849,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
         <button
           type="button"
           onClick={() => setExpanded(e => !e)}
-          className="shrink-0 text-xs text-muted-foreground hover:text-foreground px-1"
+          className="shrink-0 text-3xs text-muted-foreground hover:text-foreground px-1"
         >
           {expanded ? '▲' : '▼'}
         </button>
@@ -865,7 +865,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
                 type="button"
                 onClick={() => onToggleArchetype(a.id)}
                 title={a.coreDesire || a.label}
-                className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-colors ${
+                className={`inline-flex items-center gap-0.5 text-3xs px-1.5 py-0.5 rounded-full border transition-colors ${
                   active
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'border-input hover:bg-accent/40'
@@ -882,7 +882,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
       {expanded && (
         <div className="mt-2.5 space-y-2">
           <div>
-            <Label className="text-xs mb-0.5 block text-muted-foreground">Category</Label>
+            <Label className="text-3xs mb-0.5 block text-muted-foreground">Category</Label>
             <input
               className="w-full text-xs rounded-md border border-input bg-background px-2 py-1"
               value={row.category || ''}
@@ -891,7 +891,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
             />
           </div>
           <div>
-            <Label className="text-xs mb-0.5 block text-muted-foreground">Keywords (comma-separated)</Label>
+            <Label className="text-3xs mb-0.5 block text-muted-foreground">Keywords (comma-separated)</Label>
             <input
               className="w-full text-xs rounded-md border border-input bg-background px-2 py-1"
               value={keywordsText}
@@ -903,7 +903,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
           </div>
           {'pnwNote' in row && (
             <div>
-              <Label className="text-xs mb-0.5 block text-muted-foreground">Regional note</Label>
+              <Label className="text-3xs mb-0.5 block text-muted-foreground">Regional note</Label>
               <input
                 className="w-full text-xs rounded-md border border-input bg-background px-2 py-1"
                 value={row.pnwNote || ''}
@@ -911,7 +911,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
               />
             </div>
           )}
-          <button type="button" onClick={onRemove} className="text-xs text-destructive hover:underline">
+          <button type="button" onClick={onRemove} className="text-3xs text-destructive hover:underline">
             Remove topic
           </button>
         </div>

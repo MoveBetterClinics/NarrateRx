@@ -60,6 +60,14 @@ export default {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      fontSize: {
+        // Extend Tailwind's scale with sub-xs sizes to replace text-[Npx]
+        // arbitrary values. Use these instead of text-[10px] / text-[11px].
+        //   text-3xs = 10px  (micro labels, badges, tags)
+        //   text-2xs = 11px  (secondary labels, dense UI)
+        '3xs': ['0.625rem', { lineHeight: '1rem' }],
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+      },
     },
   },
   plugins: [],

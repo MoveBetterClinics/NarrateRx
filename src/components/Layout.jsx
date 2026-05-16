@@ -41,7 +41,7 @@ export default function Layout({ children }) {
               <p className="text-xs font-semibold leading-none text-foreground truncate" style={{ fontFamily: "'Titillium Web', sans-serif" }}>
                 NarrateRx
               </p>
-              <p className="text-[10px] text-muted-foreground mt-0.5 leading-none truncate" title={APP_BYLINE}>
+              <p className="text-3xs text-muted-foreground mt-0.5 leading-none truncate" title={APP_BYLINE}>
                 {APP_BYLINE}
               </p>
             </div>

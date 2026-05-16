@@ -78,7 +78,7 @@ export function CampaignWidget({ campaign, saving, notesSaved, onModeChange, onN
             }`}
           >
             <p className="font-medium text-xs leading-snug">{def.label}</p>
-            <p className="text-[11px] text-muted-foreground mt-1 leading-snug line-clamp-2">{def.description}</p>
+            <p className="text-2xs text-muted-foreground mt-1 leading-snug line-clamp-2">{def.description}</p>
           </button>
         ))}
       </div>
@@ -92,7 +92,7 @@ export function CampaignWidget({ campaign, saving, notesSaved, onModeChange, onN
             placeholder={currentMode.notesPlaceholder}
             className="text-sm min-h-[72px] resize-none"
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             These details are injected into every content generation for this condition. Update them whenever event or campaign details change.
           </p>
         </div>
@@ -141,9 +141,9 @@ export function CampaignModeChip() {
         <div className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 w-[calc(100vw-1rem)] sm:w-[360px] rounded-xl border bg-white shadow-lg z-50 p-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Content Focus</p>
-            {saving && <span className="text-[11px] text-muted-foreground">Saving…</span>}
+            {saving && <span className="text-2xs text-muted-foreground">Saving…</span>}
             {!saving && notesSaved && (
-              <span className="flex items-center gap-1 text-[11px] text-green-600">
+              <span className="flex items-center gap-1 text-2xs text-green-600">
                 <Check className="h-3 w-3" /> Saved
               </span>
             )}
@@ -161,7 +161,7 @@ export function CampaignModeChip() {
                 }`}
               >
                 <p className="font-medium text-xs leading-snug">{def.label}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{def.description}</p>
+                <p className="text-2xs text-muted-foreground mt-0.5 leading-snug">{def.description}</p>
               </button>
             ))}
           </div>
@@ -177,7 +177,7 @@ export function CampaignModeChip() {
             </div>
           )}
 
-          <p className="text-[11px] text-muted-foreground pt-1 border-t">
+          <p className="text-2xs text-muted-foreground pt-1 border-t">
             Affects every content generation. Full settings in <a href="/settings/workspace" className="text-primary underline">Workspace Settings</a>.
           </p>
         </div>

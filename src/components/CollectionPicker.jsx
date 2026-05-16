@@ -102,11 +102,11 @@ export default function CollectionPicker({ assetId, onChange }) {
       </label>
       <div className="flex flex-wrap gap-1.5 items-center">
         {loading ? (
-          <span className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+          <span className="text-2xs text-muted-foreground flex items-center gap-1.5">
             <Loader2 className="h-3 w-3 animate-spin" /> Loading…
           </span>
         ) : memberships.length === 0 ? (
-          <span className="text-[11px] text-muted-foreground italic">Not in any collection</span>
+          <span className="text-2xs text-muted-foreground italic">Not in any collection</span>
         ) : (
           memberships.map((c) => (
             <Badge
@@ -129,7 +129,7 @@ export default function CollectionPicker({ assetId, onChange }) {
             size="sm"
             variant="outline"
             onClick={() => setPicking(true)}
-            className="h-7 gap-1.5 text-[11px] rounded-full"
+            className="h-7 gap-1.5 text-2xs rounded-full"
           >
             <Plus className="h-3.5 w-3.5" />
             Add to collection
@@ -146,7 +146,7 @@ export default function CollectionPicker({ assetId, onChange }) {
                   key={c.id}
                   onClick={() => add(c)}
                   disabled={busy === c.id}
-                  className="text-[11px] px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
+                  className="text-2xs px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
                 >
                   {busy === c.id
                     ? <Loader2 className="h-3 w-3 animate-spin" />
@@ -160,7 +160,7 @@ export default function CollectionPicker({ assetId, onChange }) {
             </div>
           )}
           {candidates.length === 0 && !creatingNew && (
-            <div className="text-[11px] text-muted-foreground italic">
+            <div className="text-2xs text-muted-foreground italic">
               No other collections — create one below.
             </div>
           )}
@@ -170,12 +170,12 @@ export default function CollectionPicker({ assetId, onChange }) {
               <Button
                 size="sm" variant="ghost"
                 onClick={() => setCreatingNew(true)}
-                className="h-7 gap-1.5 text-[11px]"
+                className="h-7 gap-1.5 text-2xs"
               >
                 <FolderPlus className="h-3.5 w-3.5" />
                 New collection…
               </Button>
-              <Button size="sm" variant="ghost" onClick={() => setPicking(false)} className="h-7 text-[11px]">
+              <Button size="sm" variant="ghost" onClick={() => setPicking(false)} className="h-7 text-2xs">
                 Done
               </Button>
             </div>
@@ -204,7 +204,7 @@ export default function CollectionPicker({ assetId, onChange }) {
         </div>
       )}
 
-      {error && <div className="text-[11px] text-destructive mt-1">{error}</div>}
+      {error && <div className="text-2xs text-destructive mt-1">{error}</div>}
     </div>
   )
 }

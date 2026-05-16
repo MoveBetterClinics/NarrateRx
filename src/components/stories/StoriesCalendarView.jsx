@@ -156,7 +156,7 @@ function MonthView({ current, today, items, onPrev, onNext }) {
               <div className="space-y-0.5">
                 {dayItems.slice(0, 3).map((item) => <EventChip key={item.id} item={item} />)}
                 {dayItems.length > 3 && (
-                  <p className="text-[10px] text-muted-foreground pl-1">+{dayItems.length - 3} more</p>
+                  <p className="text-3xs text-muted-foreground pl-1">+{dayItems.length - 3} more</p>
                 )}
               </div>
             </div>
@@ -206,7 +206,7 @@ function WeekView({ anchor, today, items, onPrev, onNext }) {
       <div className="grid grid-cols-[60px_repeat(7,1fr)]">
         {HOURS.map((h) => (
           <Fragment key={h}>
-            <div className="border-b border-r text-[10px] text-muted-foreground py-2 px-2">{h}:00</div>
+            <div className="border-b border-r text-3xs text-muted-foreground py-2 px-2">{h}:00</div>
             {days.map((d, di) => {
               const optimal = isOptimalSlot(d.getDay(), h)
               const slotItems = byDayHour[`${isoDate(d)}|${h}`] || []
@@ -234,7 +234,7 @@ function EventChip({ item }) {
     <Link
       to={`/stories/${item.storyId}`}
       title={`${pm?.label || item.platform} · ${item.topic}`}
-      className={`block text-[10px] px-1.5 py-0.5 rounded truncate ${pm?.bg || 'bg-muted'} ${pm?.color || ''} hover:opacity-80 transition-opacity`}
+      className={`block text-3xs px-1.5 py-0.5 rounded truncate ${pm?.bg || 'bg-muted'} ${pm?.color || ''} hover:opacity-80 transition-opacity`}
     >
       {pm?.label || item.platform} · {item.topic}
     </Link>

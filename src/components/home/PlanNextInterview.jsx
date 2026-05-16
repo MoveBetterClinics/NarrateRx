@@ -49,7 +49,7 @@ export default function PlanNextInterview({
 
           {showChips && (
             <div className="flex flex-wrap gap-1 items-center mb-3">
-              <span className="text-[10px] text-muted-foreground mr-1 uppercase tracking-wide">For:</span>
+              <span className="text-3xs text-muted-foreground mr-1 uppercase tracking-wide">For:</span>
               {prototypes.map((p) => {
                 const active = activePrototypeId === p.id
                 return (
@@ -58,7 +58,7 @@ export default function PlanNextInterview({
                     type="button"
                     onClick={() => onPrototypeChange(p.id)}
                     title={p.description || p.label}
-                    className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                    className={`inline-flex items-center gap-1 text-2xs px-2 py-0.5 rounded-full border transition-colors ${
                       active
                         ? 'bg-primary text-primary-foreground border-primary'
                         : 'bg-accent border-primary/30 text-accent-foreground hover:bg-accent/80'

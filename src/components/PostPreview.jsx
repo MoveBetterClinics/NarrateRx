@@ -80,7 +80,7 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
               <Play className="h-6 w-6 text-white ml-1" />
             </div>
           </div>
-          <p className="absolute bottom-2 left-0 right-0 text-center text-[10px] text-white/60 px-4 line-clamp-1">{m.name}</p>
+          <p className="absolute bottom-2 left-0 right-0 text-center text-3xs text-white/60 px-4 line-clamp-1">{m.name}</p>
         </div>
       ) : src ? (
         <img src={src} alt={m.name} className="absolute inset-0 w-full h-full object-cover" loading="lazy" decoding="async" />
@@ -113,7 +113,7 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
           )}
 
           {/* Slide counter */}
-          <div className="absolute top-2 right-2 bg-black/50 text-white text-[10px] font-medium px-1.5 py-0.5 rounded-full" aria-hidden="true">
+          <div className="absolute top-2 right-2 bg-black/50 text-white text-3xs font-medium px-1.5 py-0.5 rounded-full" aria-hidden="true">
             {idx + 1} / {total}
           </div>
 
@@ -156,7 +156,7 @@ function InstagramPreview({ content, mediaUrls = [], overlayText = null }) {
         </div>
         <div>
           <p className="text-xs font-semibold">{MB_HANDLE}</p>
-          <p className="text-[10px] text-muted-foreground">{MB_LOCATION}</p>
+          <p className="text-3xs text-muted-foreground">{MB_LOCATION}</p>
         </div>
         <button className="ml-auto text-xs font-semibold text-blue-500">Follow</button>
       </div>
@@ -174,12 +174,12 @@ function InstagramPreview({ content, mediaUrls = [], overlayText = null }) {
                 </p>
               )}
               {overlayText.subhead && (
-                <p className="text-white/90 text-[11px] font-medium leading-snug drop-shadow">
+                <p className="text-white/90 text-2xs font-medium leading-snug drop-shadow">
                   {overlayText.subhead}
                 </p>
               )}
               {overlayText.cta && (
-                <span className="self-start mt-1 text-[10px] font-bold text-white bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-3 py-1 drop-shadow">
+                <span className="self-start mt-1 text-3xs font-bold text-white bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-3 py-1 drop-shadow">
                   {overlayText.cta}
                 </span>
               )}
@@ -227,7 +227,7 @@ function FacebookPreview({ content, mediaUrls = [] }) {
           </div>
           <div>
             <p className="text-sm font-semibold">{MB_NAME}</p>
-            <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <div className="flex items-center gap-1 text-3xs text-muted-foreground">
               <Globe className="h-3 w-3" /> Public · Just now
             </div>
           </div>
@@ -249,9 +249,9 @@ function FacebookPreview({ content, mediaUrls = [] }) {
 
       {/* Link preview */}
       <div className="border-t bg-slate-50 px-4 py-3">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{MB_HOSTNAME}</p>
+        <p className="text-3xs text-muted-foreground uppercase tracking-wide">{MB_HOSTNAME}</p>
         <p className="text-xs font-semibold mt-0.5">{MB_NAME} · {MB_LOCATION}</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">{MB_BLURB}</p>
+        <p className="text-2xs text-muted-foreground mt-0.5">{MB_BLURB}</p>
       </div>
 
       {/* Reactions bar */}
@@ -280,8 +280,8 @@ function LinkedInPreview({ content }) {
           </div>
           <div>
             <p className="text-sm font-semibold">{MB_NAME}</p>
-            <p className="text-[11px] text-muted-foreground">{MB_INDUSTRY} · {MB_LOCATION}</p>
-            <p className="text-[10px] text-muted-foreground">Just now · 🌐</p>
+            <p className="text-2xs text-muted-foreground">{MB_INDUSTRY} · {MB_LOCATION}</p>
+            <p className="text-3xs text-muted-foreground">Just now · 🌐</p>
           </div>
           <button className="ml-auto text-xs font-semibold text-blue-600 border border-blue-600 rounded-full px-3 py-1">+ Follow</button>
         </div>
@@ -319,7 +319,7 @@ function GBPPreview({ content }) {
           </div>
           <div>
             <p className="text-sm font-semibold">{MB_NAME}</p>
-            <p className="text-[10px] text-muted-foreground">{MB_LOCATION}</p>
+            <p className="text-3xs text-muted-foreground">{MB_LOCATION}</p>
           </div>
         </div>
         <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-800">{content}</p>
@@ -424,7 +424,7 @@ function InstagramAdsPreview({ content, mediaUrls = [] }) {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold">{MB_HANDLE}</p>
-            <p className="text-[10px] text-muted-foreground">Sponsored · {MB_LOCATION}</p>
+            <p className="text-3xs text-muted-foreground">Sponsored · {MB_LOCATION}</p>
           </div>
         </div>
 
@@ -440,12 +440,12 @@ function InstagramAdsPreview({ content, mediaUrls = [] }) {
         {/* CTA bar — Meta renders this directly under reactions for ads */}
         <div className="border-t px-4 py-2.5 flex items-center justify-between bg-slate-50">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold leading-tight truncate">{f['HEADLINE'] || '—'}</p>
+            <p className="text-2xs font-semibold leading-tight truncate">{f['HEADLINE'] || '—'}</p>
             {f['DESCRIPTION'] && (
-              <p className="text-[10px] text-muted-foreground leading-tight truncate">{f['DESCRIPTION']}</p>
+              <p className="text-3xs text-muted-foreground leading-tight truncate">{f['DESCRIPTION']}</p>
             )}
           </div>
-          <button className="ml-3 shrink-0 text-[11px] font-semibold bg-slate-900 text-white px-3 py-1.5 rounded">
+          <button className="ml-3 shrink-0 text-2xs font-semibold bg-slate-900 text-white px-3 py-1.5 rounded">
             {f['CTA BUTTON'] || 'Learn More'}
           </button>
         </div>
@@ -476,8 +476,8 @@ function InstagramAdsPreview({ content, mediaUrls = [] }) {
               <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b">
                 <div>
                   <span className="text-xs font-semibold text-slate-700">{label}</span>
-                  <span className="ml-2 text-[10px] text-muted-foreground">{hint}</span>
-                  <span className="ml-2 text-[10px] font-mono text-slate-500">{charCount} chars</span>
+                  <span className="ml-2 text-3xs text-muted-foreground">{hint}</span>
+                  <span className="ml-2 text-3xs font-mono text-slate-500">{charCount} chars</span>
                 </div>
                 <CopyButton value={value} />
               </div>
@@ -528,7 +528,7 @@ function CopyButton({ value }) {
   return (
     <button
       onClick={copy}
-      className={`shrink-0 text-[11px] px-2 py-1 rounded border transition-colors ${
+      className={`shrink-0 text-2xs px-2 py-1 rounded border transition-colors ${
         copied ? 'border-green-500 text-green-600 bg-green-50' : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/30'
       }`}
     >
@@ -615,8 +615,8 @@ function EmailPreview({ content, mediaUrls = [] }) {
       {/* Email subject / preview chrome bar */}
       <div className="rounded-t-lg overflow-hidden border border-slate-200 bg-slate-800">
         <div className="px-4 py-2">
-          <p className="text-[11px] text-slate-400"><span className="text-slate-300 font-medium">Subject: </span>{s['SUBJECT LINE'] || '—'}</p>
-          <p className="text-[10px] text-slate-500 truncate">{s['PREVIEW TEXT'] || 'Preview text will appear here…'}</p>
+          <p className="text-2xs text-slate-400"><span className="text-slate-300 font-medium">Subject: </span>{s['SUBJECT LINE'] || '—'}</p>
+          <p className="text-3xs text-slate-500 truncate">{s['PREVIEW TEXT'] || 'Preview text will appear here…'}</p>
         </div>
       </div>
 
@@ -641,8 +641,8 @@ function EmailPreview({ content, mediaUrls = [] }) {
               <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b">
                 <div>
                   <span className="text-xs font-semibold text-slate-700">{label}</span>
-                  {tag && <span className="ml-2 text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">{tag}</span>}
-                  <span className="ml-2 text-[10px] text-muted-foreground">{hint}</span>
+                  {tag && <span className="ml-2 text-3xs font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">{tag}</span>}
+                  <span className="ml-2 text-3xs text-muted-foreground">{hint}</span>
                 </div>
                 <CopyButton value={value} />
               </div>

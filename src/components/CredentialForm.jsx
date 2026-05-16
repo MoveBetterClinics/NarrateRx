@@ -203,7 +203,7 @@ export default function CredentialForm({
             autoComplete="new-password"
           />
         )}
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           Stored encrypted. Secrets never come back on read — to rotate, paste a new value and save.
         </p>
       </div>

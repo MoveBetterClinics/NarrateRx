@@ -51,7 +51,7 @@ function AssetPreview({ asset, size = 'md' }) {
     return (
       <div className={`${h} w-full rounded-md bg-rose-50 dark:bg-rose-950/30 flex flex-col items-center justify-center gap-1`}>
         <FileText className="h-8 w-8 text-rose-600 dark:text-rose-300" />
-        <span className="text-[10px] text-rose-700 dark:text-rose-200 font-medium uppercase tracking-wide">PDF</span>
+        <span className="text-3xs text-rose-700 dark:text-rose-200 font-medium uppercase tracking-wide">PDF</span>
       </div>
     )
   }
@@ -81,16 +81,16 @@ function LibraryTile({ asset, onOpen, roleAssignments }) {
     >
       <AssetPreview asset={asset} />
       <div className="p-2.5 space-y-1.5">
-        <div className="text-[11px] font-medium truncate" title={asset.filename}>{asset.filename}</div>
+        <div className="text-2xs font-medium truncate" title={asset.filename}>{asset.filename}</div>
         <div className="flex flex-wrap gap-1">
           {classifyChips(asset).map((c) => (
-            <span key={c} className="inline-block text-[9px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{c}</span>
+            <span key={c} className="inline-block text-3xs px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{c}</span>
           ))}
         </div>
         {assignedTo.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1 border-t border-border/60">
             {assignedTo.map((r) => (
-              <span key={r} className="inline-flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">
+              <span key={r} className="inline-flex items-center gap-0.5 text-3xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">
                 <Check className="h-2.5 w-2.5" /> {ROLE_DEFS.find((d) => d.id === r)?.label || r}
               </span>
             ))}
@@ -114,7 +114,7 @@ function AssetDetail({ asset, roleAssignments, onAssign, onDelete, onClose }) {
         <div className="p-4 border-b flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-semibold truncate" title={asset.filename}>{asset.filename}</div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">
+            <div className="text-2xs text-muted-foreground mt-0.5">
               {asset.width ? `${asset.width}×${asset.height}` : '—'} · {(asset.byte_size / 1024).toFixed(0)} KB · {asset.mime_type}
             </div>
           </div>
@@ -129,10 +129,10 @@ function AssetDetail({ asset, roleAssignments, onAssign, onDelete, onClose }) {
           <div className="text-xs font-semibold mb-1.5">Auto-classified</div>
           <div className="flex flex-wrap gap-1.5">
             {classifyChips(asset).map((c) => (
-              <span key={c} className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{c}</span>
+              <span key={c} className="text-2xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{c}</span>
             ))}
             {asset.filename_tokens?.length > 0 && asset.filename_tokens.slice(0, 5).map((t) => (
-              <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">#{t}</span>
+              <span key={t} className="text-2xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950/50 dark:text-blue-200">#{t}</span>
             ))}
           </div>
         </div>
@@ -156,7 +156,7 @@ function AssetDetail({ asset, roleAssignments, onAssign, onDelete, onClose }) {
                   >
                     <span className="font-medium">{r.label}</span>
                     {conf != null && (
-                      <span className="ml-2 text-[10px] text-muted-foreground">suggested · {Math.round(conf * 100)}%</span>
+                      <span className="ml-2 text-3xs text-muted-foreground">suggested · {Math.round(conf * 100)}%</span>
                     )}
                     {isAssigned && <Check className="inline h-3 w-3 text-emerald-600 ml-2" />}
                   </button>
@@ -226,9 +226,9 @@ function RolePickerModal({ role, assets, currentAssetId, onPick, onClose }) {
               >
                 <AssetPreview asset={a} size="sm" />
                 <div className="p-2 space-y-1">
-                  <div className="text-[10px] font-medium truncate" title={a.filename}>{a.filename}</div>
+                  <div className="text-3xs font-medium truncate" title={a.filename}>{a.filename}</div>
                   {c > 0 && (
-                    <div className="text-[9px] text-muted-foreground">
+                    <div className="text-3xs text-muted-foreground">
                       {Math.round(c * 100)}% match{c >= AUTO_ASSIGN_THRESHOLD ? ' · auto-pick eligible' : ''}
                     </div>
                   )}
@@ -255,15 +255,15 @@ function RoleCard({ def, asset, onChange, onClear }) {
       </div>
       <div className="flex-1 min-w-0">
         <div className="text-sm font-semibold">{def.label}</div>
-        <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{def.hint}</div>
-        {asset && <div className="text-[10px] text-muted-foreground mt-1.5 truncate" title={asset.filename}>{asset.filename}</div>}
+        <div className="text-2xs text-muted-foreground mt-0.5 leading-snug">{def.hint}</div>
+        {asset && <div className="text-3xs text-muted-foreground mt-1.5 truncate" title={asset.filename}>{asset.filename}</div>}
       </div>
       <div className="flex flex-col gap-1.5 shrink-0">
         <Button size="sm" variant="outline" className="text-xs h-7" onClick={onChange}>
           {asset ? 'Change' : 'Pick'}
         </Button>
         {asset && (
-          <button onClick={onClear} className="text-[10px] text-muted-foreground hover:text-destructive">Clear</button>
+          <button onClick={onClear} className="text-3xs text-muted-foreground hover:text-destructive">Clear</button>
         )}
       </div>
     </div>
@@ -618,7 +618,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                 <div className="w-16 shrink-0"><AssetPreview asset={asset} size="sm" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium">{def?.label}</div>
-                  <div className="text-[11px] text-muted-foreground truncate">{asset.filename} · {Math.round(confidence * 100)}% match</div>
+                  <div className="text-2xs text-muted-foreground truncate">{asset.filename} · {Math.round(confidence * 100)}% match</div>
                 </div>
               </div>
             )
@@ -740,7 +740,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                 <button
                   type="button"
                   onClick={() => liveSource.clearUploadRows?.()}
-                  className="text-[10px] text-muted-foreground hover:text-foreground"
+                  className="text-3xs text-muted-foreground hover:text-foreground"
                 >Dismiss</button>
               )}
             </div>
@@ -761,7 +761,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                   </div>
                 )}
                 {row.status === 'error' && (
-                  <p className="text-[11px] text-destructive">{row.error}</p>
+                  <p className="text-2xs text-destructive">{row.error}</p>
                 )}
               </div>
             ))}
@@ -885,13 +885,13 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                   if (!suggestions.length) return null
                   return (
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      <span className="text-[10px] text-muted-foreground shrink-0">From brand book:</span>
+                      <span className="text-3xs text-muted-foreground shrink-0">From brand book:</span>
                       {suggestions.map((c) => (
                         <button
                           key={c}
                           title={`Add ${c}`}
                           onClick={() => setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), c] }))}
-                          className="flex items-center gap-1 rounded-md border px-1.5 py-0.5 hover:border-primary/60 hover:bg-accent/30 transition-colors text-[11px] font-mono"
+                          className="flex items-center gap-1 rounded-md border px-1.5 py-0.5 hover:border-primary/60 hover:bg-accent/30 transition-colors text-2xs font-mono"
                         >
                           <div className="w-3.5 h-3.5 rounded-sm shrink-0" style={{ background: c }} />
                           {c}
@@ -905,7 +905,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                   {(style.secondary_colors || []).map((c, i) => (
                     <div key={i} className="flex items-center gap-1 rounded-md border px-1.5 py-0.5">
                       <div className="w-4 h-4 rounded" style={{ background: c }} />
-                      <span className="text-[11px] font-mono">{c}</span>
+                      <span className="text-2xs font-mono">{c}</span>
                       <button
                         onClick={() => setStyle((s) => ({ ...s, secondary_colors: (s.secondary_colors || []).filter((_, j) => j !== i) }))}
                         className="text-muted-foreground hover:text-destructive"
@@ -926,7 +926,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                         className="h-7 w-24 text-xs font-mono"
                         placeholder="#000000"
                       />
-                      <Button size="sm" className="h-7 text-[11px]" onClick={() => {
+                      <Button size="sm" className="h-7 text-2xs" onClick={() => {
                         const hex = customColorDraft.trim()
                         if (/^#[0-9a-f]{3,6}$/i.test(hex)) {
                           setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), hex.toUpperCase()] }))
@@ -934,10 +934,10 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                         setAddingCustomColor(false)
                         setCustomColorDraft('')
                       }}>Add</Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-[11px]" onClick={() => { setAddingCustomColor(false); setCustomColorDraft('') }}>Cancel</Button>
+                      <Button size="sm" variant="ghost" className="h-7 text-2xs" onClick={() => { setAddingCustomColor(false); setCustomColorDraft('') }}>Cancel</Button>
                     </div>
                   ) : (
-                    <Button size="sm" variant="ghost" className="h-6 text-[11px]"
+                    <Button size="sm" variant="ghost" className="h-6 text-2xs"
                       onClick={() => { setCustomColorDraft(''); setAddingCustomColor(true) }}
                     >+ Add custom</Button>
                   )}
@@ -952,7 +952,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                 <Input value={style.body_font || ''} onChange={(e) => setStyle((s) => ({ ...s, body_font: e.target.value }))} className="h-8 text-xs mt-1" placeholder="e.g. Source Sans 3" />
               </div>
             </div>
-            <p className="text-[11px] text-muted-foreground flex items-start gap-1.5">
+            <p className="text-2xs text-muted-foreground flex items-start gap-1.5">
               <TagIcon className="h-3 w-3 mt-0.5 shrink-0" />
               Font names are stored as strings; the rendering layer (email, site, social) honors them where the channel supports custom fonts and falls back to system defaults otherwise.
             </p>
@@ -1055,7 +1055,7 @@ function BrandBookReference() {
             placeholder="https://..."
             className="h-8 text-xs mt-1"
           />
-          <p className="text-[11px] text-muted-foreground mt-1">
+          <p className="text-2xs text-muted-foreground mt-1">
             Link to your brand guidelines — Notion page, Figma file, Drive PDF, etc.
           </p>
         </div>
@@ -1084,13 +1084,13 @@ function BrandBookReference() {
 function FilterChipGroup({ label, options, value, onChange }) {
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
-      <span className="text-[10px] uppercase tracking-wide text-muted-foreground w-20 shrink-0">{label}</span>
+      <span className="text-3xs uppercase tracking-wide text-muted-foreground w-20 shrink-0">{label}</span>
       {options.map((o) => (
         <button
           key={o.id}
           type="button"
           onClick={() => onChange(value === o.id ? null : o.id)}
-          className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+          className={`text-2xs px-2 py-0.5 rounded-full border transition-colors ${
             value === o.id
               ? 'bg-primary text-primary-foreground border-primary'
               : 'bg-muted/40 text-muted-foreground border-border hover:border-primary/40'

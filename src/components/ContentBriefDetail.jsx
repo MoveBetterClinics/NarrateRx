@@ -200,7 +200,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
             <h2 className="font-semibold text-sm truncate" title={source?.filename ?? brief.source_asset_id ?? ''}>
               Edit brief — {source?.filename ?? brief.source_asset_id?.slice(0, 8)}
             </h2>
-            <Badge variant="outline" className="text-[10px] uppercase">{brief.status}</Badge>
+            <Badge variant="outline" className="text-3xs uppercase">{brief.status}</Badge>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose}><X className="h-4 w-4" /></Button>
         </div>
@@ -232,7 +232,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
 
             {brief.source_quote && (
               <div className="rounded-md border bg-muted/40 p-3">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Source quote</div>
+                <div className="text-3xs uppercase tracking-wide text-muted-foreground mb-1">Source quote</div>
                 <p className="text-sm whitespace-pre-wrap">{brief.source_quote}</p>
               </div>
             )}
@@ -286,7 +286,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-xs font-medium">Finished edit</div>
-                  <div className="text-[11px] text-muted-foreground">Upload the file Philip exported from CapCut. It lands in the library tied back to the source.</div>
+                  <div className="text-2xs text-muted-foreground">Upload the file Philip exported from CapCut. It lands in the library tied back to the source.</div>
                 </div>
                 <Button size="sm" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
                   {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <UploadIcon className="h-3.5 w-3.5 mr-1.5" />}
@@ -313,18 +313,18 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div>
                     <div className="text-xs font-medium">Publish</div>
-                    <div className="text-[11px] text-muted-foreground">
+                    <div className="text-2xs text-muted-foreground">
                       Dispatches via Buffer using this workspace&apos;s credentials. The finished file (or source clip) is attached as the post media.
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setPublishMode('now')}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border ${publishMode === 'now' ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border'}`}
+                      className={`text-2xs px-2.5 py-1 rounded-full border ${publishMode === 'now' ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border'}`}
                     >Now</button>
                     <button
                       onClick={() => setPublishMode('schedule')}
-                      className={`text-[11px] px-2.5 py-1 rounded-full border ${publishMode === 'schedule' ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border'}`}
+                      className={`text-2xs px-2.5 py-1 rounded-full border ${publishMode === 'schedule' ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border'}`}
                     >Schedule</button>
                   </div>
                 </div>

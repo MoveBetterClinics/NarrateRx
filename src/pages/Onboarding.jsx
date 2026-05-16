@@ -243,7 +243,7 @@ function ProgressBar({ step }) {
           />
         </div>
       ))}
-      <span className="text-[11px] text-muted-foreground ml-2 shrink-0">
+      <span className="text-2xs text-muted-foreground ml-2 shrink-0">
         Step {idx + 1} of {VISIBLE_STEPS.length} — {STEP_LABELS[step]}
       </span>
     </div>
@@ -523,7 +523,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
       </FieldRow>
       <div className="space-y-2">
         <Label className="text-xs">Location *</Label>
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           City and state — used in &quot;near me&quot; SEO copy. If your practice has more than one
           location, add each one so each post can target the right city and hashtag.
         </p>
@@ -538,7 +538,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
                   autoComplete="address-level2"
                 />
                 {idx === 0 && (
-                  <p className="text-[10px] text-muted-foreground mt-1">City (primary)</p>
+                  <p className="text-3xs text-muted-foreground mt-1">City (primary)</p>
                 )}
               </div>
               <div className="col-span-3">
@@ -549,7 +549,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
                   autoComplete="address-level1"
                 />
                 {idx === 0 && (
-                  <p className="text-[10px] text-muted-foreground mt-1">State</p>
+                  <p className="text-3xs text-muted-foreground mt-1">State</p>
                 )}
               </div>
               <div className="col-span-3">
@@ -559,7 +559,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
                   placeholder="optional"
                 />
                 {idx === 0 && (
-                  <p className="text-[10px] text-muted-foreground mt-1">Label (optional)</p>
+                  <p className="text-3xs text-muted-foreground mt-1">Label (optional)</p>
                 )}
               </div>
               <div className="col-span-1 flex items-center justify-end pt-1">
@@ -631,7 +631,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
                 <p className="text-xs font-medium text-orange-900">
                   {SCAN_STATUS_MESSAGES[scanMessageIdx]}
                 </p>
-                <p className="text-[11px] text-orange-700 mt-0.5">
+                <p className="text-2xs text-orange-700 mt-0.5">
                   This usually takes 20–60 seconds. We&apos;re reading up to 15 pages from your site.
                   {scanElapsed > 0 && ` (${scanElapsed}s elapsed)`}
                 </p>
@@ -716,13 +716,13 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
             {topics.map((t, i) => (
               <span
                 key={i}
-                className="inline-flex items-center rounded-full bg-white border border-orange-200 px-2 py-0.5 text-[11px] text-orange-900"
+                className="inline-flex items-center rounded-full bg-white border border-orange-200 px-2 py-0.5 text-2xs text-orange-900"
               >
                 {t}
               </span>
             ))}
           </div>
-          <p className="text-[11px] text-orange-700 mt-1.5">
+          <p className="text-2xs text-orange-700 mt-1.5">
             These are topics pulled from your blog. We&apos;ll use them later to seed post ideas — you don&apos;t need to edit anything here.
           </p>
         </div>
@@ -867,7 +867,7 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
               />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium leading-tight">{channel.label}</div>
-                <div className="text-[11px] text-muted-foreground mt-0.5">
+                <div className="text-2xs text-muted-foreground mt-0.5">
                   Export: {channel.exportShape}
                 </div>
               </div>
@@ -1065,7 +1065,7 @@ function FieldRow({ label, hint, children }) {
     <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       {children}
-      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
+      {hint && <p className="text-2xs text-muted-foreground">{hint}</p>}
     </div>
   )
 }
