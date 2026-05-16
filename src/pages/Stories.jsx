@@ -31,6 +31,7 @@ export default function Stories() {
   const { data: progress } = useOnboardingProgress()
   const { data: campaigns = [] } = useCampaigns()
   const currentPlan = progress?.plan
+  const awaitingReviewCount = stories.filter((s) => s.story_stage === 'review').length
 
   // Only surface active campaigns in the dropdown. Archived/complete still
   // resolve from the URL (so a shared link stays meaningful), but we don't
@@ -58,7 +59,17 @@ export default function Stories() {
         <div className="flex flex-col gap-4">
           {/* Header */}
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-xl font-semibold text-foreground">Stories</h1>
+            <div className="flex items-baseline gap-3 min-w-0">
+              <h1 className="text-xl font-semibold text-foreground">Stories</h1>
+              {!isLoading && stories.length > 0 ? (
+                <span className="text-xs text-muted-foreground truncate">
+                  {stories.length === 1 ? '1 story' : `${stories.length} stories`}
+                  {awaitingReviewCount > 0
+                    ? ` · ${awaitingReviewCount} awaiting review`
+                    : ''}
+                </span>
+              ) : null}
+            </div>
             <div className="flex items-center gap-2">
               {selectableCampaigns.length > 0 && (
                 <label className="flex items-center gap-1.5 text-xs text-muted-foreground">

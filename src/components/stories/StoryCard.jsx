@@ -93,31 +93,33 @@ export default function StoryCard({ story }) {
         {topic || <span className="italic text-gray-400">No topic set</span>}
       </p>
 
-      {/* Pieces count + platform chips */}
-      <div className="flex items-center gap-2 flex-wrap mb-3">
-        <span className="text-xs text-gray-400">
+      {/* Platform chips */}
+      {platforms.length > 0 ? (
+        <div className="flex items-center gap-1.5 flex-wrap mb-3">
+          {platforms.map((p) => (
+            <span
+              key={p}
+              className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5"
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${PLATFORM_DOT[p] ?? 'bg-gray-400'}`} />
+              {PLATFORM_SHORT[p] ?? p}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {/* Footer: pieces · date  +  campaign chip on the right */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs text-gray-400 truncate">
           {pieces_count === 1 ? '1 piece' : `${pieces_count} pieces`}
+          {last_activity_at ? ` · ${formatRelativeDate(last_activity_at)}` : ''}
         </span>
-        {platforms.map((p) => (
-          <span
-            key={p}
-            className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5"
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${PLATFORM_DOT[p] ?? 'bg-gray-400'}`} />
-            {PLATFORM_SHORT[p] ?? p}
-          </span>
-        ))}
         {campaign_id && campaign_name ? (
-          <span className="inline-flex items-center gap-1 text-xs font-medium rounded px-1.5 py-0.5 border border-warning/30 bg-warning/10 text-warning">
+          <span className="inline-flex items-center gap-1 shrink-0 text-xs font-medium rounded px-1.5 py-0.5 border border-warning/30 bg-warning/10 text-warning">
             <Target className="w-3 h-3" aria-hidden="true" />
             {campaign_name}
           </span>
         ) : null}
-      </div>
-
-      {/* Last activity */}
-      <div className="text-xs text-gray-400">
-        {last_activity_at ? formatRelativeDate(last_activity_at) : 'No activity recorded'}
       </div>
     </Link>
   )
