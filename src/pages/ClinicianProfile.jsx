@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import { useClinician, useDeleteClinician, useDeleteInterview } from '@/lib/queries'
 import VoiceNotesPanel from '@/components/VoiceNotesPanel'
+import VoiceFreshnessCard from '@/components/VoiceFreshnessCard'
 import { getInitials, formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -130,6 +131,10 @@ export default function ClinicianProfile() {
       </div>
 
       <Separator />
+
+      {/* Voice freshness — structured substrate visible to everyone (it's the
+          input the AI consults, not a critique of editing behavior). */}
+      <VoiceFreshnessCard clinicianId={clinician.id} clinicianName={clinician.name} />
 
       {/* Voice Memory — distilled edit patterns. Only shown to the owner so
           analyzing edits of other people's work is opt-in via their own page. */}
