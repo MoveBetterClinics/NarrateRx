@@ -10,6 +10,7 @@ import { updateContentPiece, deleteContentPiece } from '@/lib/contentLib'
 import { uploadMedia, getMediaAsset } from '@/lib/mediaLib'
 import { dispatchBrief, BUFFER_DISPATCH_PLATFORMS } from '@/lib/publish'
 import { queryKeys } from '@/lib/queries'
+import { runWithToast } from '@/lib/toast'
 
 // Target platform options. The Buffer-dispatchable subset is what the publish
 // workbench can actually push to; non-Buffer values (reels/feed/story/shorts/
@@ -147,13 +148,20 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
     try {
       await saveDraft()
       const effectiveScheduledAt = publishMode === 'schedule' ? new Date(scheduledAt).toISOString() : null
-      const { item } = await dispatchBrief({
-        brief: { ...brief, target_platform: platform },
-        asset,
-        composedContent: composedContent(),
-        scheduledAt: effectiveScheduledAt,
-        userId: user?.primaryEmailAddress?.emailAddress,
-      })
+      const { item } = await runWithToast(
+        dispatchBrief({
+          brief: { ...brief, target_platform: platform },
+          asset,
+          composedContent: composedContent(),
+          scheduledAt: effectiveScheduledAt,
+          userId: user?.primaryEmailAddress?.emailAddress,
+        }),
+        {
+          loading: publishMode === 'schedule' ? 'Scheduling brief…' : 'Publishing brief…',
+          success: publishMode === 'schedule' ? 'Brief scheduled' : 'Brief published',
+          error: (e) => ({ message: 'Publish failed', description: e.message }),
+        },
+      )
       await updateContentPiece(brief.id, {
         status: 'published',
         publishedTargetId: item.id,
@@ -161,6 +169,8 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       onChange?.()
     } catch (e) {
+      // runWithToast already raised the error toast; keep inline error for
+      // the in-modal hint surface so the user sees both.
       setError(`Publish failed: ${e.message}`)
     } finally {
       setPublishing(false)
@@ -341,9 +351,10 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
                     size="sm"
                     onClick={handlePublish}
                     disabled={publishing || saving || !platform}
+                    loading={publishing}
                   >
                     {publishing
-                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Publishing</>
+                      ? 'Publishing'
                       : <><Send className="h-3.5 w-3.5 mr-1.5" />{publishMode === 'schedule' ? 'Schedule' : 'Publish now'}</>}
                   </Button>
                 </div>

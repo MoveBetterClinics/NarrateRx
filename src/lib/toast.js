@@ -12,12 +12,22 @@
 //   loading → sonner default (stays until resolved/dismissed)
 //
 // Usage:
-//   import { toast } from '@/lib/toast'
+//   import { toast, runWithToast } from '@/lib/toast'
 //   toast.success('Saved')
 //   toast.error('Save failed', { description: e.message })
 //   toast.info('Heads up')
 //   toast.promise(savePromise, { loading: 'Saving…', success: 'Saved', error: 'Save failed' })
 //
+//   // For long-running actions, wrap the awaited call. The loading toast
+//   // persists from click → resolution, so the user always knows the work
+//   // is alive even if the button scrolls offscreen.
+//   const result = await runWithToast(publishBlogToWebsite(payload), {
+//     loading: 'Publishing to website…',
+//     success: (r) => ({ message: 'Published', description: r.postUrl }),
+//     error: (e) => ({ message: 'Publish failed', description: e.message }),
+//   })
+//
+// The <Toaster /> component is mounted once at the app root in App.jsx.
 // The <Toaster /> component is mounted once at the app root in App.jsx with
 // closeButton enabled, which is required so Infinity-duration errors are
 // dismissable.
@@ -42,3 +52,41 @@ wrapped.custom = sonnerToast.custom.bind(sonnerToast)
 
 export const toast = wrapped
 export const Toaster = SonnerToaster
+
+/**
+ * Wrap a promise with a persistent sonner loading toast that resolves to a
+ * success or error toast. Returns the awaited value (or rethrows the error)
+ * so callers can use it like a normal `await`.
+ *
+ * `success` and `error` may be a string or a function returning either a
+ * string or `{ message, description }`.
+ */
+export async function runWithToast(promise, { loading, success, error } = {}) {
+  const id = sonnerToast.loading(loading || 'Working…')
+  try {
+    const value = await promise
+    const out = typeof success === 'function' ? success(value) : success
+    const { message, description } = normalizeToast(out, 'Done')
+    sonnerToast.success(message, description ? { id, description } : { id })
+    return value
+  } catch (e) {
+    const out = typeof error === 'function' ? error(e) : error
+    const fallback = e instanceof Error ? e.message : String(e)
+    const { message, description } = normalizeToast(out, 'Something went wrong', fallback)
+    sonnerToast.error(message, description ? { id, description } : { id })
+    throw e
+  }
+}
+
+function normalizeToast(value, defaultMessage, defaultDescription) {
+  if (value && typeof value === 'object') {
+    return {
+      message: value.message || defaultMessage,
+      description: value.description ?? defaultDescription,
+    }
+  }
+  return {
+    message: typeof value === 'string' ? value : defaultMessage,
+    description: defaultDescription,
+  }
+}
