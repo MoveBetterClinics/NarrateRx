@@ -99,6 +99,10 @@ export const queryKeys = {
     all:  ['locations'],
     list: () => ['locations', 'list'],
   },
+  campaigns: {
+    all:  ['campaigns'],
+    list: () => ['campaigns', 'list'],
+  },
   onboardingProgress: ['onboarding-progress'],
 }
 
@@ -636,5 +640,39 @@ export function useOnboardingProgress(options = {}) {
     queryFn: () => apiFetch('/api/onboarding/progress').catch(() => null),
     staleTime: 1000 * 60, // 60s
     ...options,
+  })
+}
+
+// ── Campaigns ──────────────────────────────────────────────────────────────
+//
+// Workspace-scoped goal clusters that group interviews around a theme.
+// `contributed_count` is rolled up server-side by /api/campaigns/list — it's
+// the number of distinct clinicians whose interviews are tagged with the
+// campaign and have at least one message (interviewer fired).
+//
+// staleTime 2 min — campaign progress updates only when a new interview is
+// recorded against the campaign; explicit invalidations after upsert keep
+// the cache honest in between.
+
+export function useCampaigns(options = {}) {
+  return useQuery({
+    queryKey: queryKeys.campaigns.list(),
+    queryFn: () => apiFetch('/api/campaigns/list').catch(() => []),
+    staleTime: 1000 * 60 * 2,
+    ...options,
+  })
+}
+
+export function useUpsertCampaign() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't save campaign",
+    mutationFn: (payload) =>
+      apiFetch('/api/campaigns/upsert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.campaigns.all }),
   })
 }
