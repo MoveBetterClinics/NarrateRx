@@ -94,7 +94,7 @@ export default function Stories() {
             </span>
           ) : null}
         </div>
-        <StoriesViewToggle />
+        <StoriesViewToggle defaultView={defaultView} />
       </div>
 
       {/* Campaign progress strip — shown whenever a campaign filter is active */}

@@ -9,11 +9,12 @@ const VIEWS = [
 
 /**
  * Segmented control that reads/writes `?view=` in the URL.
- * Default (no param) is treated as 'cards'.
+ * Default (no param) falls back to the `defaultView` prop so the highlighted
+ * pill matches what the page actually renders.
  */
-export default function StoriesViewToggle() {
+export default function StoriesViewToggle({ defaultView = 'cards' }) {
   const [searchParams, setSearchParams] = useSearchParams()
-  const current = searchParams.get('view') || 'cards'
+  const current = searchParams.get('view') || defaultView
 
   function setView(key) {
     setSearchParams((prev) => {
