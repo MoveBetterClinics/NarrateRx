@@ -28,11 +28,10 @@ const PREFIX = 'backups/narraterx-db/'
 
 async function handler(req, res) {
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers?.authorization || req.headers?.Authorization
-    if (auth !== `Bearer ${cronSecret}`) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
+  if (!cronSecret) return res.status(503).json({ error: 'CRON_SECRET not configured' })
+  const auth = req.headers?.authorization || req.headers?.Authorization
+  if (auth !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' })
   }
 
   const dbUrl = process.env.MULTITENANT_DATABASE_URL
@@ -131,7 +130,7 @@ async function handler(req, res) {
 
     return res.status(200).json({
       ok: true,
-      blob_url: uploaded.url,
+      blob_pathname: uploaded.pathname,
       size_bytes: gz.length,
       row_count_total: rowCountTotal,
       table_count: tableNames.length,
