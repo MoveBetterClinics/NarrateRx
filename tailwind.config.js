@@ -54,6 +54,11 @@ export default {
         'verbatim-accent':  'hsl(var(--verbatim-accent) / <alpha-value>)',
         'agreement-signal': 'hsl(var(--agreement-signal) / <alpha-value>)',
         'contrast-signal':  'hsl(var(--contrast-signal) / <alpha-value>)',
+        // General status tokens — see src/index.css for HSL values and the
+        // semantic split between these and the voice-fidelity tokens above.
+        'success':          'hsl(var(--success) / <alpha-value>)',
+        'warning':          'hsl(var(--warning) / <alpha-value>)',
+        'info':             'hsl(var(--info) / <alpha-value>)',
       },
       borderRadius: {
         lg: 'var(--radius)',
