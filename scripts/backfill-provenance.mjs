@@ -14,8 +14,12 @@
 //   --dry-run    Show what would be backfilled without writing
 //   --verbose    Log every row touched
 //   --limit=N    Cap rows processed (default: all eligible)
+//   --recompute  Also re-process rows whose provenance was previously set
+//                by this script (source='algorithmic_backfill'). Used after a
+//                matcher threshold re-calibration to refresh existing rows.
 //
-// Idempotent: skips rows where provenance IS NOT NULL. Safe to re-run.
+// Idempotent without --recompute: skips rows where provenance IS NOT NULL.
+// Safe to re-run.
 //
 // Requires MULTITENANT_DATABASE_URL in .env.local.
 
@@ -28,8 +32,14 @@ const { Client } = require('pg')
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-const DRY_RUN  = process.argv.includes('--dry-run')
-const VERBOSE  = process.argv.includes('--verbose')
+const DRY_RUN   = process.argv.includes('--dry-run')
+const VERBOSE   = process.argv.includes('--verbose')
+// --recompute: re-process rows whose provenance was previously populated by
+// this script (source='algorithmic_backfill'). Used after a matcher threshold
+// re-calibration so existing rows reflect the new band cutoffs. Model-emitted
+// rows (source='model_emit_validated') are never touched — those carry
+// Claude's own labels, not the algorithm's.
+const RECOMPUTE = process.argv.includes('--recompute')
 const LIMIT    = (() => {
   const m = process.argv.find((a) => a.startsWith('--limit='))
   return m ? Number.parseInt(m.split('=')[1], 10) : null
@@ -40,7 +50,10 @@ const BATCH_PAUSE_MS = 100    // breath for the DB between batches
 
 // ─── Env ─────────────────────────────────────────────────────────────────────
 
-const env = await readFile('.env.local', 'utf8').catch(() => '')
+// Support running from either the project root or a worktree — fall back to
+// the project-root .env.local when the relative path comes up empty.
+const env = (await readFile('.env.local', 'utf8').catch(() => ''))
+  || (await readFile('/Users/qbook/Claude Projects/NarrateRx/.env.local', 'utf8').catch(() => ''))
 const m = env.match(/^MULTITENANT_DATABASE_URL=(.+)$/m)
 if (!m) {
   console.error('MULTITENANT_DATABASE_URL not found in .env.local')
@@ -71,14 +84,18 @@ await client.connect()
 
 console.log(`[backfill-provenance] connected · ${DRY_RUN ? 'DRY RUN' : 'WRITE'} · limit=${LIMIT ?? 'all'}`)
 
-// Eligible rows: have content, have an interview, and provenance not yet set.
+// Eligible rows: have content, have an interview, and either provenance not
+// yet set (default) or provenance source = 'algorithmic_backfill' (--recompute).
 const limitClause = LIMIT ? `LIMIT ${LIMIT}` : ''
+const provenanceFilter = RECOMPUTE
+  ? `(ci.provenance IS NULL OR ci.provenance->'summary'->>'source' = 'algorithmic_backfill')`
+  : `ci.provenance IS NULL`
 const sql = `
   SELECT ci.id, ci.interview_id, ci.workspace_id, ci.platform, ci.content,
          iv.messages, iv.cleaned_messages
   FROM content_items ci
   LEFT JOIN interviews iv ON iv.id = ci.interview_id
-  WHERE ci.provenance IS NULL
+  WHERE ${provenanceFilter}
     AND ci.content IS NOT NULL
     AND length(trim(ci.content)) > 0
   ORDER BY ci.created_at DESC
