@@ -75,7 +75,7 @@ async function handler(req, res) {
       status: 'active',
     }
 
-    const r = await sb('workspace_credentials', {
+    const r = await sb('workspace_credentials?on_conflict=workspace_id,service', {
       method: 'POST',
       headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
       body: JSON.stringify(row),
