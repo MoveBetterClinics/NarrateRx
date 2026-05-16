@@ -71,27 +71,29 @@ export default function StoryCard({ story }) {
         queryFn: () => fetchStory(id),
         staleTime: 30_000,
       })}
-      className="block bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-gray-200 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      className="block bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md hover:border-border/60 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      {/* Top row: clinician chip + stage badge */}
+      {/* Top row: topic (primary, differentiating) + stage badge */}
       <div className="flex items-start justify-between gap-2 mb-2">
+        <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug min-w-0">
+          {topic || <span className="italic text-muted-foreground">No topic set</span>}
+        </p>
+        <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
+          {stageLabel}
+        </span>
+      </div>
+
+      {/* Clinician — secondary context */}
+      <div className="mb-3">
         <ClinicianChip
           id={clinician_id}
           name={clinician_name}
           size="sm"
           showName
           className="min-w-0"
-          nameClassName="font-medium text-gray-900 leading-tight"
+          nameClassName="text-xs text-muted-foreground leading-tight"
         />
-        <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
-          {stageLabel}
-        </span>
       </div>
-
-      {/* Topic */}
-      <p className="text-sm text-gray-600 line-clamp-2 mb-3 leading-snug">
-        {topic || <span className="italic text-gray-400">No topic set</span>}
-      </p>
 
       {/* Platform chips */}
       {platforms.length > 0 ? (
@@ -99,7 +101,7 @@ export default function StoryCard({ story }) {
           {platforms.map((p) => (
             <span
               key={p}
-              className="inline-flex items-center gap-1 text-xs text-gray-500 bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded px-1.5 py-0.5"
             >
               <span className={`w-1.5 h-1.5 rounded-full ${PLATFORM_DOT[p] ?? 'bg-gray-400'}`} />
               {PLATFORM_SHORT[p] ?? p}
@@ -110,7 +112,7 @@ export default function StoryCard({ story }) {
 
       {/* Footer: pieces · date  +  campaign chip on the right */}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-gray-400 truncate">
+        <span className="text-xs text-muted-foreground truncate">
           {pieces_count === 1 ? '1 piece' : `${pieces_count} pieces`}
           {last_activity_at ? ` · ${formatRelativeDate(last_activity_at)}` : ''}
         </span>

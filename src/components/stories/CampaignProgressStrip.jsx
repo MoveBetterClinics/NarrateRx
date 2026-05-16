@@ -23,6 +23,18 @@ export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
     ? Math.min(100, Math.round((contributed / targetTotal) * 100))
     : 0
 
+  if (targetTotal === 0) {
+    return (
+      <div className="rounded-lg border border-warning/30 bg-warning/10 text-warning p-4">
+        <div className="flex items-center gap-3">
+          <Target className="h-5 w-5 shrink-0" aria-hidden="true" />
+          <span className="font-medium">{campaign.name}</span>
+          <span className="text-sm text-warning/90">No clinicians targeted yet</span>
+        </div>
+      </div>
+    )
+  }
+
   const pendingIds = targetIds.filter((id) => !contributedIds.has(id))
   const pendingClinicians = pendingIds.map((id) => {
     const match = clinicians.find((c) => c.id === id)
@@ -41,7 +53,7 @@ export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
               {targetTotal === 1 ? 'clinician has' : 'clinicians have'} contributed
             </span>
           </div>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-warning/20 overflow-hidden">
+          <div className="mt-2 h-1.5 w-full rounded-full bg-white/30 overflow-hidden">
             <div
               className="h-full bg-warning transition-all duration-300"
               style={{ width: `${pct}%` }}

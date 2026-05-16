@@ -148,7 +148,7 @@ function NavLink({ to, label, active }) {
   return (
     <Link
       to={to}
-      className={`text-sm font-medium transition-colors px-1 ${active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+      className={`text-sm font-medium transition-colors px-1 pb-0.5 border-b-2 ${active ? 'text-foreground border-primary' : 'text-muted-foreground border-transparent hover:text-foreground'}`}
     >
       {label}
     </Link>
@@ -186,6 +186,7 @@ function SettingsMenu({ role, isStaff }) {
         aria-haspopup="true"
       >
         <Settings className="h-4 w-4" />
+        <span className="text-sm">Settings</span>
         <ChevronDown className="h-3 w-3" />
       </button>
 

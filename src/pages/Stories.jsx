@@ -24,7 +24,7 @@ const STAGES = [
 ]
 
 const SELECT_CLS =
-  'rounded-full border border-border bg-background px-3 py-1 text-xs text-foreground ' +
+  'rounded border border-border bg-background px-2.5 py-1 text-xs text-foreground ' +
   'cursor-pointer hover:bg-accent/50 transition-colors focus:outline-none focus:ring-1 focus:ring-ring'
 
 /**

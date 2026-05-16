@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Copy, Check, FileText, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Copy, Check, FileText, ExternalLink, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -1058,7 +1058,7 @@ export default function InterviewSession() {
         </div>
         {saveStatus && (
           <span
-            className={`text-xs shrink-0 ${saveStatus === 'error' ? 'text-destructive' : saveStatus === 'recovered' ? 'text-amber-600' : 'text-muted-foreground'}`}
+            className={`text-xs shrink-0 inline-flex items-center gap-1 ${saveStatus === 'error' ? 'text-destructive' : saveStatus === 'recovered' ? 'text-amber-600' : 'text-muted-foreground'}`}
             title={
               saveStatus === 'error'
                 ? 'Server save failed — your answers are kept locally. Tap to retry.'
@@ -1068,15 +1068,15 @@ export default function InterviewSession() {
             }
           >
             {saveStatus === 'saving'
-              ? '↑ Saving…'
+              ? <><Loader2 className="h-3 w-3 animate-spin" />Saving…</>
               : saveStatus === 'saved'
-              ? '✓ Saved'
+              ? <><Check className="h-3 w-3" />Saved</>
               : saveStatus === 'recovered'
-              ? '↻ Recovered locally'
+              ? <><RefreshCw className="h-3 w-3" />Recovered locally</>
               : (
                 <button
                   type="button"
-                  className="underline underline-offset-2"
+                  className="inline-flex items-center gap-1 underline underline-offset-2"
                   onClick={() => {
                     if (user?.id) saveMessages(
                       interviewId,
@@ -1085,7 +1085,8 @@ export default function InterviewSession() {
                     )
                   }}
                 >
-                  ⚠ Save failed — retry
+                  <AlertCircle className="h-3 w-3" />
+                  Save failed — retry
                 </button>
               )}
           </span>
@@ -1112,9 +1113,10 @@ export default function InterviewSession() {
                 onClick={handlePause}
                 title="Save and pause — you can resume later"
                 aria-label="Pause interview"
-                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                className="gap-1 text-muted-foreground hover:text-foreground px-2"
               >
                 <PauseCircle className="h-4 w-4" />
+                <span className="text-xs">Pause</span>
               </Button>
             </div>
           )
@@ -1155,7 +1157,11 @@ export default function InterviewSession() {
           <button
             type="button"
             onMouseDown={(e) => { e.preventDefault(); addVerbatimFlag() }}
-            style={{ top: Math.max(0, selectionTip.top), left: selectionTip.left, transform: 'translateX(-50%)' }}
+            style={{
+              top: Math.min(Math.max(0, selectionTip.top), (conversationRef.current?.clientHeight ?? 9999) - 40),
+              left: selectionTip.left,
+              transform: 'translateX(-50%)',
+            }}
             className="absolute z-10 bg-foreground text-background text-xs rounded-md shadow-lg px-2.5 py-1.5 flex items-center gap-1.5 hover:bg-foreground/90"
           >
             <Quote className="h-3 w-3" />
@@ -1312,7 +1318,7 @@ export default function InterviewSession() {
                 {generationStyle === 'minimal_edits' ? 'Cleaning transcript…' : 'Writing blog post…'}
                 {blogStreamingTokens > 0 && (
                   <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-                    ({blogStreamingTokens} chunks)
+                    ({blogStreamingTokens} words)
                   </span>
                 )}
               </p>

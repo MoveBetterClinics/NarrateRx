@@ -257,10 +257,10 @@ export default function VoiceSettings() {
       <Separator />
 
       {/* ── Patient context details — avatar, pain points (advanced) ── */}
-      <details className="rounded-lg border border-input">
+      <details className="group rounded-lg border border-input">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none hover:bg-accent/30 list-none flex items-center justify-between rounded-lg">
           <span>Patient context details <span className="text-xs font-normal text-muted-foreground ml-1">(advanced)</span></span>
-          <span className="text-muted-foreground text-xs">▼</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
         </summary>
         <div className="px-4 pb-4 pt-2">
           <PatientContextEditor
@@ -273,10 +273,10 @@ export default function VoiceSettings() {
       <Separator />
 
       {/* ── Condition bank — advanced ── */}
-      <details className="rounded-lg border border-input">
+      <details className="group rounded-lg border border-input">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none hover:bg-accent/30 list-none flex items-center justify-between rounded-lg">
           <span>Condition bank <span className="text-xs font-normal text-muted-foreground ml-1">(advanced)</span></span>
-          <span className="text-muted-foreground text-xs">▼</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
         </summary>
         <div className="px-4 pb-4 space-y-2">
           <p className="text-xs text-muted-foreground pt-3">
@@ -358,26 +358,31 @@ function VoiceMemorySection({ interviewerName }) {
 
 // ── Working summary callout (P0-E) ───────────────────────────────────────────
 
-function buildWorkingSummary(form) {
+function buildWorkingSummary(form, interviewerName) {
   const brandVoice = (form?.brand_voice || '').trim()
-  if (!brandVoice) return null
+  const audience = (form?.audience_short || '').trim()
+  if (!brandVoice && !audience) return null
   const tones = [form?.tone_active, form?.tone_clinical, form?.tone_warm, form?.tone_smart]
     .map(t => (t || '').trim()).filter(Boolean)
-  // Paraphrase into a short "you" voiced summary. Keep it short: 2–3 sentences
-  // drawn from existing settings — this is a mirror, not a generator.
+  const name = interviewerName || 'Bernard'
   const sentences = []
-  sentences.push(`You sound like this: ${brandVoice.replace(/\s+/g, ' ').slice(0, 240)}${brandVoice.length > 240 ? '…' : ''}`)
-  if (tones.length) {
-    sentences.push(`You shift tone deliberately — ${tones.length} mode${tones.length === 1 ? '' : 's'} tuned so each piece lands the way you intend.`)
+  if (brandVoice && audience) {
+    const voiceSnippet = brandVoice.slice(0, 120) + (brandVoice.length > 120 ? '…' : '')
+    sentences.push(`${name} will write for ${audience} in a voice that comes across as ${voiceSnippet}.`)
+  } else if (brandVoice) {
+    const voiceSnippet = brandVoice.slice(0, 160) + (brandVoice.length > 160 ? '…' : '')
+    sentences.push(`${name} will write in a voice that comes across as ${voiceSnippet}.`)
+  } else if (audience) {
+    sentences.push(`${name} will tailor content for ${audience}.`)
   }
-  if ((form?.audience_short || '').trim()) {
-    sentences.push(`You're writing for ${form.audience_short.trim()}.`)
+  if (tones.length) {
+    sentences.push(`${tones.length} tone mode${tones.length === 1 ? '' : 's'} configured so each piece can shift register when needed.`)
   }
   return sentences.join(' ')
 }
 
 function WorkingSummaryCallout({ form, interviewerName }) {
-  const summary = buildWorkingSummary(form)
+  const summary = buildWorkingSummary(form, interviewerName)
   function scrollToVoiceContext(e) {
     e.preventDefault()
     document.getElementById('voice-context-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -445,7 +450,8 @@ function PreviewBernardCard({ interviewerName }) {
         </div>
         {opener && (
           <blockquote className="border-l-2 border-primary/40 pl-3 text-base italic text-foreground/80 leading-relaxed">
-            &ldquo;You&apos;d open with: {opener}&rdquo;
+            &ldquo;{opener}&rdquo;
+            <footer className="mt-1 text-xs not-italic text-muted-foreground">— {interviewerName}</footer>
           </blockquote>
         )}
         {err && <p className="text-xs text-destructive">{err}</p>}
@@ -1006,13 +1012,14 @@ function ArchetypeCardsSection({ value, onChange, interviewerName }) {
                 key={proto.id || idx}
                 type="button"
                 onClick={() => setEditingIdx(idx)}
-                className="text-left rounded-lg border border-input bg-card p-4 hover:border-primary/40 hover:bg-accent/20 transition-colors"
+                className="group text-left rounded-lg border border-input bg-card p-4 hover:border-primary/40 hover:bg-accent/20 transition-colors"
               >
                 <div className="flex items-center gap-2 mb-1.5">
                   <span className="text-lg shrink-0">{proto.emoji || '👤'}</span>
-                  <span className="text-sm font-semibold">
+                  <span className="text-sm font-semibold flex-1">
                     {proto.label || <em className="font-normal text-muted-foreground">Untitled archetype</em>}
                   </span>
+                  <Pencil className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {buildArchetypeProbeText(proto, interviewerName)}

@@ -10,7 +10,6 @@ import TranscriptExport from '@/components/story-detail/TranscriptExport'
 import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
 import { ClinicianChip } from '@/components/ClinicianChip'
-import { useUserRole } from '@/lib/useUserRole'
 
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
@@ -24,7 +23,6 @@ import { useUserRole } from '@/lib/useUserRole'
 export default function StoryDetail() {
   const { storyId } = useParams()
   const { data: story, isLoading, isError, isPlaceholderData } = useStory(storyId)
-  const { isStaff } = useUserRole()
 
   // Provenance highlight — lifted here so TranscriptPane and AssetsPane can
   // share it. AssetsPane fires setProvenanceHighlight when the user clicks a
@@ -66,33 +64,28 @@ export default function StoryDetail() {
 
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="space-y-1 min-w-0">
-            <h1 className="text-xl font-semibold text-foreground leading-snug">
-              {story.topic || 'Untitled interview'}
-            </h1>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="text-xl font-semibold text-foreground leading-snug">
+                {story.topic || 'Untitled interview'}
+              </h1>
+              <Badge className={`text-xs border-0 shrink-0 ${stageMeta.badge}`}>
+                {stageMeta.label}
+              </Badge>
+            </div>
             {story.clinician_name && (
               story.clinician_id ? (
-                <div className="flex items-center gap-3 flex-wrap">
-                  <Link
-                    to={`/clinician/${story.clinician_id}`}
-                    className="inline-flex text-muted-foreground hover:text-foreground"
-                  >
-                    <ClinicianChip
-                      id={story.clinician_id}
-                      name={story.clinician_name}
-                      size="md"
-                      showName
-                      nameClassName="text-sm"
-                    />
-                  </Link>
-                  {isStaff && (
-                    <Link
-                      to={`/clinician/${story.clinician_id}`}
-                      className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-                    >
-                      Clinician profile →
-                    </Link>
-                  )}
-                </div>
+                <Link
+                  to={`/clinician/${story.clinician_id}`}
+                  className="inline-flex text-muted-foreground hover:text-foreground"
+                >
+                  <ClinicianChip
+                    id={story.clinician_id}
+                    name={story.clinician_name}
+                    size="md"
+                    showName
+                    nameClassName="text-sm"
+                  />
+                </Link>
               ) : (
                 <ClinicianChip
                   id={story.clinician_id}
@@ -106,9 +99,6 @@ export default function StoryDetail() {
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <TranscriptExport story={story} />
-            <Badge className={`text-xs border-0 ${stageMeta.badge}`}>
-              {stageMeta.label}
-            </Badge>
           </div>
         </div>
       </div>
