@@ -673,6 +673,15 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
       title="Brand voice"
       subtitle="This is what makes the AI sound like you. Write it as if briefing a copywriter. You can edit any of it later."
     >
+      {/* Voice-fidelity promise — sets the right expectation before the user
+          touches any fields. Everything generated traces back to these inputs. */}
+      <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 flex items-start gap-3 -mt-1">
+        <span className="text-base mt-0.5 shrink-0">🎙</span>
+        <p className="text-xs text-indigo-800 leading-relaxed">
+          <span className="font-semibold">Voice fidelity is the promise.</span> Everything NarrateRx generates traces back to what your clinicians actually said. These voice inputs make sure every draft sounds like your clinic — not generic AI content. When you review a draft, you&apos;ll see exactly which phrases came from the interview and which the AI filled in.
+        </p>
+      </div>
+
       <FieldRow label="What you do" hint="1–3 sentences. Your method, who you serve, what makes you distinct.">
         <Textarea
           value={form.clinic_context}

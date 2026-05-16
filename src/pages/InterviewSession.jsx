@@ -1107,6 +1107,9 @@ export default function InterviewSession() {
             {prototypeObj.emoji} {prototypeObj.label}
           </Badge>
         )}
+        {!interviewComplete && userMessageCount > 0 && (
+          <InterviewProgress count={userMessageCount} />
+        )}
       </div>
 
       {showResumeBanner && (
@@ -1471,6 +1474,31 @@ function InlineOutputPanel({ clinicianId: _clinicianId, interviewId: _interviewI
         </p>
       </div>
     </div>
+  )
+}
+
+// Thin progress chip shown in the meta-badge row. Gives the clinician a
+// sense of how far through the interview they are without a hard question
+// count (Bernard adapts depth to the answers, so ~6 is an estimate, not a
+// gate). Hidden before the first answer and after the interview completes.
+const TYPICAL_QUESTION_COUNT = 6
+function InterviewProgress({ count }) {
+  const pct = Math.min(100, Math.round((count / TYPICAL_QUESTION_COUNT) * 100))
+  const label =
+    count >= TYPICAL_QUESTION_COUNT
+      ? 'Wrapping up'
+      : `~${Math.max(1, TYPICAL_QUESTION_COUNT - count)} more`
+
+  return (
+    <span className="inline-flex items-center gap-1.5 ml-auto text-[10px] text-muted-foreground shrink-0">
+      <span className="relative h-1 w-14 rounded-full bg-muted overflow-hidden">
+        <span
+          className="absolute inset-y-0 left-0 rounded-full bg-indigo-400 transition-all duration-500"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      {label}
+    </span>
   )
 }
 

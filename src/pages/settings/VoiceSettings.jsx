@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import { Loader2 } from 'lucide-react'
 import { Section, Field, Textarea2, SaveBar } from '@/components/settings/helpers'
@@ -233,6 +233,24 @@ export default function VoiceSettings() {
           />
         </div>
       </details>
+
+      {/* Per-clinician voice fingerprints live on each clinician's profile.
+          Surface the link here so admins know where to find / refresh them. */}
+      <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 flex items-start gap-3">
+        <span className="text-base mt-0.5">🎙</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-indigo-900">Per-clinician voice notes</p>
+          <p className="text-xs text-indigo-700 mt-0.5">
+            As clinicians edit AI drafts, Bernard learns how each person writes — their preferred phrases, what they keep, what they cut. These notes live on each clinician&apos;s profile and automatically refine future drafts.
+          </p>
+          <Link
+            to="/stories"
+            className="inline-block mt-1.5 text-xs font-medium text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
+          >
+            Go to Stories → open any story → visit the clinician&apos;s profile to view their voice notes
+          </Link>
+        </div>
+      </div>
 
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}
