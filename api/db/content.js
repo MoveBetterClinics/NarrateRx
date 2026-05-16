@@ -8,6 +8,7 @@ export const config = { runtime: 'nodejs' }
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { extractConcepts } from '../_lib/conceptExtractor.js'
+import { extractVoicePhrases } from '../_lib/voicePhraseExtractor.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -182,6 +183,16 @@ export default async function handler(req, res) {
         clinicianId:  updated.clinician_id ?? null,
         weightDelta:  1.5,
       })
+      // Phase C.3 — feed approved content into the per-clinician voice phrase
+      // substrate. No-ops without a clinician_id (group-level pieces don't
+      // contribute to any one voice profile).
+      if (updated.clinician_id) {
+        extractVoicePhrases({
+          workspaceId: ws.id,
+          clinicianId: updated.clinician_id,
+          content:     updated.content,
+        })
+      }
     } else if (updated && patch.status === 'in_review' && patch.notes?.trim() && updated.content?.trim()) {
       // Change request returned — mild negative signal on the rejected draft.
       extractConcepts({

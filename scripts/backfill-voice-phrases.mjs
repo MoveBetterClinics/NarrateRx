@@ -21,6 +21,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
+import { extractPhrasesFromContent } from '../api/_lib/voicePhraseExtractor.js'
 
 const require = createRequire(import.meta.url)
 const { Client } = require('pg')
@@ -30,11 +31,7 @@ const { Client } = require('pg')
 const DRY_RUN = process.argv.includes('--dry-run')
 const VERBOSE = process.argv.includes('--verbose')
 
-// Phrase quality gates
-const MIN_CHARS    = 20   // below this = fragment / hashtag line
-const MAX_CHARS    = 160  // above this = block of prose, not a reusable phrase
-const MIN_WORDS    = 4    // fewer = fragment
-const BATCH_SIZE   = 100  // rows per INSERT batch
+const BATCH_SIZE = 100  // rows per INSERT batch
 
 // ─── Env ─────────────────────────────────────────────────────────────────────
 
@@ -46,77 +43,11 @@ if (!match) {
 }
 const connectionString = match[1].trim().replace(/^"(.*)"$/, '$1')
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
-/**
- * Split a content body into candidate phrases (one sentence per entry).
- * Social content uses line-breaks as sentence breaks as often as `.` — handle
- * both. Returns raw phrases with original capitalisation + punctuation intact.
- */
-function splitSentences(content) {
-  // Normalise line endings, collapse runs of blank lines
-  const clean = content.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n')
-
-  // Split on sentence-terminal punctuation followed by whitespace (keep the
-  // punctuation on the preceding token), OR on bare newlines.
-  // The look-behind is ES2018+ and Node ≥ 10 supports it.
-  return clean
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((s) => s.trim())
-}
-
-const CTA_RE = /^(click|tap|swipe|follow|subscribe|link in bio|check out|dm|comment|share|save|tag|watch|listen|visit|sign up|learn more|read more|get yours|shop|order|book|schedule|register|download)/i
-const URL_RE = /^https?:\/\//
-const HASHTAG_RE = /^#/
-const MENTION_RE = /^@/
-const EMOJI_HEAVY_RE = /^[\p{Emoji}\s]{1,10}$/u
-
-/**
- * Return true when a sentence is worth keeping as a voice phrase.
- */
-function isVoiceWorthy(s) {
-  if (s.length < MIN_CHARS || s.length > MAX_CHARS) return false
-  if (URL_RE.test(s))       return false
-  if (HASHTAG_RE.test(s))   return false
-  if (MENTION_RE.test(s))   return false
-  if (EMOJI_HEAVY_RE.test(s)) return false
-  if (CTA_RE.test(s))       return false
-  // Must contain at least MIN_WORDS actual words (letters/digits)
-  const words = s.match(/\b\w{2,}\b/g) || []
-  if (words.length < MIN_WORDS) return false
-  // Must have at least some alphabetic characters
-  if (!/[a-zA-Z]/.test(s)) return false
-  return true
-}
-
-/**
- * Normalised form used for dedup (the unique-index key).
- * Lowercase, trim, strip trailing punctuation.
- */
-function normalise(phrase) {
-  return phrase
-    .toLowerCase()
-    .trim()
-    .replace(/[.!?,;:…]+$/, '')
-    .replace(/\s+/g, ' ')
-}
-
-/**
- * Extract voice-worthy phrases from one content_item's body.
- * Returns { phrase, phrase_normalized }[] with duplicates already removed.
- */
-function extractPhrases(content) {
-  const seen = new Set()
-  const out  = []
-  for (const s of splitSentences(content)) {
-    if (!isVoiceWorthy(s)) continue
-    const norm = normalise(s)
-    if (seen.has(norm)) continue
-    seen.add(norm)
-    out.push({ phrase: s, phrase_normalized: norm })
-  }
-  return out
-}
+// The extraction algorithm (sentence split + voice-worthy gate + normalize)
+// is imported from api/_lib/voicePhraseExtractor.js so this script and the
+// runtime approve-hook stay in lockstep — moving a gate in one place is
+// guaranteed to update the other.
+const extractPhrases = extractPhrasesFromContent
 
 // ─── Main ────────────────────────────────────────────────────────────────────
 
