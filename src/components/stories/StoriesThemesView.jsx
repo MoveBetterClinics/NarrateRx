@@ -5,6 +5,7 @@ import { useLocations } from '@/lib/queries'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getStoryArchetypes } from '@/lib/topicSuggestions'
 import { getStageToken } from '@/lib/stageTokens'
+import { ClinicianChip } from '@/components/ClinicianChip'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -36,13 +37,11 @@ function groupByTopic(stories) {
 }
 
 /**
- * Derive a short preview snippet for a story. Falls back to the topic itself
- * when there's no piece content (pieces are summarised without content field).
+ * Best verbatim quote for a story. Uses the first pull_quote_candidate when
+ * available (actual clinician voice), falls back to the topic label.
  */
 function storySnippet(story) {
-  // pieces in the Story shape are summarised (no content text),
-  // so we fall back to the interview topic as a label.
-  return story.topic || 'Interview completed'
+  return story.verbatim_snippet || story.topic || 'Interview completed'
 }
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
@@ -148,10 +147,13 @@ function ThemeCard({ topic, stories, workspace }) {
   }
   const stagesPresent = Object.entries(stageCounts).filter(([, n]) => n > 0)
 
-  // Contrasting perspectives: first 2 stories when there are multiple
+  // Contrasting perspectives: first 3 stories when there are multiple.
+  // isVerbatim distinguishes actual pull-quote voice from topic-label fallback.
   const perspectives = stories.slice(0, 3).map((s) => ({
+    clinicianId: s.clinician_id,
     name: s.clinician_name || 'Clinician',
     snippet: firstSentence(storySnippet(s)),
+    isVerbatim: !!s.verbatim_snippet,
   }))
 
   const hasContrast = stories.length >= 2
@@ -195,22 +197,9 @@ function ThemeCard({ topic, stories, workspace }) {
 
       {/* Clinician chips */}
       <div className="flex flex-wrap gap-1.5">
-        {clinicians.map((c) => {
-          const initials = c.name
-            .split(' ')
-            .slice(0, 2)
-            .map((w) => w[0]?.toUpperCase() || '')
-            .join('')
-          return (
-            <span
-              key={c.id}
-              title={c.name}
-              className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-indigo-100 text-indigo-700 text-xs font-semibold select-none"
-            >
-              {initials || '?'}
-            </span>
-          )
-        })}
+        {clinicians.slice(0, 5).map((c) => (
+          <ClinicianChip key={c.id} id={c.id} name={c.name} />
+        ))}
         {clinicians.length > 5 && (
           <span className="inline-flex items-center justify-center h-7 px-2 rounded-full bg-gray-100 text-gray-500 text-xs">
             +{clinicians.length - 5}
@@ -226,13 +215,10 @@ function ThemeCard({ topic, stories, workspace }) {
           </p>
           <div className="space-y-2">
             {perspectives.map((p, i) => (
-              <div
-                key={i}
-                className="flex gap-2.5 border-l-2 border-indigo-200 pl-3"
-              >
-                <p className="text-sm text-gray-600 leading-snug">
-                  <span className="font-medium text-gray-700">{p.name}:</span>{' '}
-                  {p.snippet}
+              <div key={i} className="flex items-start gap-2 border-l-2 border-indigo-200 pl-3">
+                <ClinicianChip id={p.clinicianId} name={p.name} size="sm" className="mt-0.5 shrink-0" />
+                <p className={`text-sm leading-snug ${p.isVerbatim ? 'text-gray-800 italic' : 'text-gray-500'}`}>
+                  {p.isVerbatim ? `"${p.snippet}"` : p.snippet}
                 </p>
               </div>
             ))}
