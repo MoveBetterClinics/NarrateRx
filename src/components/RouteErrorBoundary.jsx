@@ -10,6 +10,7 @@
 import { Component } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Icon from '@/components/ui/Icon'
 import { captureException } from '@/lib/sentry'
 
 export default class RouteErrorBoundary extends Component {
@@ -41,7 +42,7 @@ export default class RouteErrorBoundary extends Component {
     return (
       <div className="max-w-md mx-auto mt-12 text-center space-y-4 border rounded-xl shadow-sm p-8 bg-card">
         <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-          <AlertTriangle className="h-6 w-6 text-destructive" aria-hidden="true" />
+          <Icon as={AlertTriangle} size="xl" className="text-destructive" />
         </div>
         <div className="space-y-1">
           <h1 className="text-lg font-semibold">Something went wrong on this page</h1>
@@ -55,7 +56,7 @@ export default class RouteErrorBoundary extends Component {
           </pre>
         )}
         <Button onClick={this.reload} size="sm">
-          <RefreshCw className="h-4 w-4 mr-1.5" />
+          <Icon as={RefreshCw} size="md" className="mr-1.5" />
           Reload
         </Button>
       </div>

@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import Icon from '@/components/ui/Icon'
 
 const LoadingState = React.forwardRef(({ className, label = 'Loading…', ...props }, ref) => (
   <div
@@ -10,7 +11,7 @@ const LoadingState = React.forwardRef(({ className, label = 'Loading…', ...pro
     className={cn('flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground', className)}
     {...props}
   >
-    <Loader2 className="h-6 w-6 animate-spin" aria-hidden="true" />
+    <Icon as={Loader2} size="xl" className="animate-spin" />
     {label ? <span className="text-sm">{label}</span> : null}
   </div>
 ))

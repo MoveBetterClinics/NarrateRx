@@ -4,6 +4,7 @@ import {
   Archive, ArchiveRestore, Tag, FolderMinus, Sparkles, Trash2,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Icon from '@/components/ui/Icon'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
@@ -287,8 +288,8 @@ export default function BulkActionBar({
                   : 'Select every item in the current filter'}
             >
               {selectingAll
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <CheckCheck className="h-3.5 w-3.5" />}
+                ? <Icon as={Loader2} size="sm" className="animate-spin" />
+                : <Icon as={CheckCheck} size="sm" />}
               {selectingAll
                 ? 'Selecting all…'
                 : allVisibleSelected
@@ -306,7 +307,7 @@ export default function BulkActionBar({
               disabled={count === 0}
               className="h-8 gap-1.5 text-xs rounded-full px-3"
             >
-              <Plus className="h-4 w-4" />
+              <Icon as={Plus} size="md" />
               {count === 0
                 ? 'Add to collection…'
                 : `Add ${count} to collection…`}
@@ -323,7 +324,7 @@ export default function BulkActionBar({
               size="sm" variant="ghost" onClick={onExit}
               className="h-8 text-xs gap-1" title="Exit selection mode"
             >
-              <X className="h-3.5 w-3.5" />
+              <Icon as={X} size="sm" />
               Done
             </Button>
           </div>
@@ -337,7 +338,7 @@ export default function BulkActionBar({
               onClick={() => setPanel(panel === 'status' ? null : 'status')}
               className="h-7 gap-1.5 text-2xs rounded-full"
             >
-              <Tag className="h-3.5 w-3.5" />
+              <Icon as={Tag} size="sm" />
               Set status…
             </Button>
 
@@ -349,8 +350,8 @@ export default function BulkActionBar({
                 className="h-7 gap-1.5 text-2xs rounded-full"
               >
                 {busy === 'remove-collection'
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <FolderMinus className="h-3.5 w-3.5" />}
+                  ? <Icon as={Loader2} size="sm" className="animate-spin" />
+                  : <Icon as={FolderMinus} size="sm" />}
                 Remove from this collection
               </Button>
             )}
@@ -363,8 +364,8 @@ export default function BulkActionBar({
               title="Re-run vision + transcription tagging. Slow (10–60s per video)."
             >
               {busy === 'tag'
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                : <Sparkles className="h-3.5 w-3.5" />}
+                ? <Icon as={Loader2} size="sm" className="animate-spin" />
+                : <Icon as={Sparkles} size="sm" />}
               Re-run AI tags
             </Button>
 
@@ -377,8 +378,8 @@ export default function BulkActionBar({
                   className="h-7 gap-1.5 text-2xs rounded-full"
                 >
                   {busy === 'restore'
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <ArchiveRestore className="h-3.5 w-3.5" />}
+                    ? <Icon as={Loader2} size="sm" className="animate-spin" />
+                    : <Icon as={ArchiveRestore} size="sm" />}
                   Restore
                 </Button>
               )
@@ -391,8 +392,8 @@ export default function BulkActionBar({
                   className="h-7 gap-1.5 text-2xs rounded-full"
                 >
                   {busy === 'archive'
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Archive className="h-3.5 w-3.5" />}
+                    ? <Icon as={Loader2} size="sm" className="animate-spin" />
+                    : <Icon as={Archive} size="sm" />}
                   Archive
                 </Button>
               )
@@ -405,7 +406,7 @@ export default function BulkActionBar({
                 disabled={busy === 'purge'}
                 className="h-7 gap-1.5 text-2xs rounded-full text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
               >
-                <Trash2 className="h-3.5 w-3.5" />
+                <Icon as={Trash2} size="sm" />
                 Delete permanently…
               </Button>
             )}
@@ -429,8 +430,8 @@ export default function BulkActionBar({
                     className="text-2xs px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
                   >
                     {isBusy
-                      ? <Loader2 className="h-3 w-3 animate-spin" />
-                      : <Tag className="h-3 w-3" />}
+                      ? <Icon as={Loader2} size="xs" className="animate-spin" />
+                      : <Icon as={Tag} size="xs" />}
                     {s.label}
                   </button>
                 )
@@ -444,7 +445,7 @@ export default function BulkActionBar({
           <div className="rounded-md border bg-muted/40 p-2 space-y-2">
             {loadingList ? (
               <span className="text-2xs text-muted-foreground flex items-center gap-1.5">
-                <Loader2 className="h-3 w-3 animate-spin" /> Loading collections…
+                <Icon as={Loader2} size="xs" className="animate-spin" /> Loading collections…
               </span>
             ) : collections.length === 0 && !creating ? (
               <div className="text-2xs text-muted-foreground italic">
@@ -464,10 +465,10 @@ export default function BulkActionBar({
                       title={c.description || c.name}
                     >
                       {isBusy
-                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        ? <Icon as={Loader2} size="xs" className="animate-spin" />
                         : wasAdded
-                          ? <Check className="h-3 w-3 text-success" />
-                          : <Plus className="h-3 w-3" />}
+                          ? <Icon as={Check} size="xs" className="text-success" />
+                          : <Icon as={Plus} size="xs" />}
                       <span className="truncate max-w-[160px]" title={c.name}>{c.name}</span>
                       {c.item_count > 0 && (
                         <span className="text-muted-foreground">· {c.item_count}</span>
@@ -481,7 +482,7 @@ export default function BulkActionBar({
             {!creating ? (
               <div className="flex gap-2">
                 <Button size="sm" variant="ghost" onClick={() => setCreating(true)} className="h-7 gap-1.5 text-2xs">
-                  <FolderPlus className="h-3.5 w-3.5" />
+                  <Icon as={FolderPlus} size="sm" />
                   New collection…
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => setPanel(null)} className="h-7 text-2xs">
@@ -502,7 +503,7 @@ export default function BulkActionBar({
                   className="h-8 px-2 text-sm flex-1 rounded-md border border-border bg-background"
                 />
                 <Button size="sm" onClick={submitNewCollection} disabled={busy === 'new' || !newName.trim()} className="h-8">
-                  {busy === 'new' && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                  {busy === 'new' && <Icon as={Loader2} size="sm" className="animate-spin mr-1.5" />}
                   Create + add
                 </Button>
                 <Button size="sm" variant="ghost" onClick={() => { setCreating(false); setNewName('') }} className="h-8">
@@ -526,7 +527,7 @@ export default function BulkActionBar({
         <DialogContent>
           <DialogHeader>
             <DialogTitle className="text-destructive flex items-center gap-2">
-              <Trash2 className="h-4 w-4" />
+              <Icon as={Trash2} size="md" />
               Permanently delete {count} item{count === 1 ? '' : 's'}?
             </DialogTitle>
             <DialogDescription>
@@ -556,7 +557,7 @@ export default function BulkActionBar({
               onClick={purgeAll}
               disabled={busy === 'purge' || purgeConfirm !== 'DELETE'}
             >
-              {busy === 'purge' && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+              {busy === 'purge' && <Icon as={Loader2} size="sm" className="animate-spin mr-1.5" />}
               Permanently delete
             </Button>
           </DialogFooter>

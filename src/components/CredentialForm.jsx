@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import Icon from '@/components/ui/Icon'
 
 // Shared per-service publishing-credentials form. Owns config/secret state,
 // save (PUT /api/workspace/credentials) and remove (DELETE) handlers, plus the
@@ -210,41 +211,41 @@ export default function CredentialForm({
       <div className="flex items-center gap-2 justify-end flex-wrap">
         {saved && (
           <span className="text-xs text-green-600 flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Saved
+            <Icon as={CheckCircle2} size="sm" /> Saved
           </span>
         )}
         {error && (
           <span className="text-xs text-destructive flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5" /> {error}
+            <Icon as={AlertCircle} size="sm" /> {error}
           </span>
         )}
         {testResult?.ok && (
           <span className="text-xs text-green-600 flex items-center gap-1">
-            <CheckCircle2 className="h-3.5 w-3.5" />
+            <Icon as={CheckCircle2} size="sm" />
             Verified{testResult.info?.account ? ` · ${testResult.info.account}` : ''}
           </span>
         )}
         {testResult && !testResult.ok && (
           <span className="text-xs text-destructive flex items-start gap-1 max-w-md">
-            <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <Icon as={AlertCircle} size="sm" className="mt-0.5 shrink-0" />
             <span>{testResult.error}</span>
           </span>
         )}
         {canTest && (
           <Button variant="ghost" size="sm" onClick={handleTest} disabled={disabled || testing || saving}>
             {testing
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Testing…</>
+              ? <><Icon as={Loader2} size="sm" className="animate-spin mr-1.5" />Testing…</>
               : 'Test connection'}
           </Button>
         )}
         {configured && (
           <Button variant="ghost" size="sm" onClick={handleRemove} disabled={disabled || saving}>
-            {removeIcon && <Trash2 className="h-3.5 w-3.5 mr-1" />}
+            {removeIcon && <Icon as={Trash2} size="sm" className="mr-1" />}
             {removeLabel}
           </Button>
         )}
         <Button size="sm" onClick={handleSave} disabled={disabled || saving}>
-          {saving && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+          {saving && <Icon as={Loader2} size="sm" className="animate-spin mr-1.5" />}
           {resolvedSaveLabel}
         </Button>
       </div>

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Send, ChevronRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import IconPrim from '@/components/ui/Icon'
 import { useStories } from '@/lib/queries'
 import { PLATFORM_META } from '@/lib/contentMeta'
 
@@ -67,7 +68,7 @@ export default function LibraryReadyStrip() {
     <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 sm:p-5">
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-widest text-blue-700">
-          <Send className="h-3.5 w-3.5" />
+          <IconPrim as={Send} size="sm" />
           Ready to distribute
         </div>
         <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-3xs border-0">
@@ -93,7 +94,7 @@ export default function LibraryReadyStrip() {
               <div className="text-2xs text-muted-foreground line-clamp-2">{p.topic}</div>
               <VoiceChip provenance={p.provenance} />
               <span className="mt-auto inline-flex items-center justify-end gap-0.5 text-2xs font-medium text-blue-700 group-hover:text-blue-900 transition-colors">
-                Attach media <ChevronRight className="h-3 w-3" />
+                Attach media <IconPrim as={ChevronRight} size="xs" />
               </span>
             </Link>
           )

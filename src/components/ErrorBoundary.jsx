@@ -9,6 +9,7 @@
 import { Component } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Icon from '@/components/ui/Icon'
 
 export default class ErrorBoundary extends Component {
   constructor(props) {
@@ -48,7 +49,7 @@ export default class ErrorBoundary extends Component {
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="max-w-md w-full text-center space-y-4 border rounded-xl shadow-sm p-8 bg-card">
           <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-            <AlertTriangle className="h-6 w-6 text-destructive" aria-hidden="true" />
+            <Icon as={AlertTriangle} size="xl" className="text-destructive" />
           </div>
           <div className="space-y-1">
             <h1 className="text-lg font-semibold">Something went wrong</h1>
@@ -66,7 +67,7 @@ export default class ErrorBoundary extends Component {
               Try again
             </Button>
             <Button onClick={this.reload} size="sm">
-              <RefreshCw className="h-4 w-4 mr-1.5" />
+              <Icon as={RefreshCw} size="md" className="mr-1.5" />
               Reload
             </Button>
           </div>

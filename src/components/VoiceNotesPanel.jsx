@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Sparkles, Loader2, AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import Icon from '@/components/ui/Icon'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/queries'
 import { formatRelativeDate } from '@/lib/utils'
@@ -50,7 +51,7 @@ export default function VoiceNotesPanel({ clinician }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
+            <Icon as={Sparkles} size="md" className="text-primary" />
             <h2 className="font-semibold text-base">Voice Memory</h2>
             {everAnalyzed && (
               <Badge variant="outline" className="text-xs px-1.5 py-0 font-normal text-muted-foreground">
@@ -70,16 +71,16 @@ export default function VoiceNotesPanel({ clinician }) {
           className="shrink-0"
         >
           {refreshing ? (
-            <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Analyzing…</>
+            <><Icon as={Loader2} size="sm" className="mr-1.5 animate-spin" />Analyzing…</>
           ) : (
-            <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Refresh</>
+            <><Icon as={RefreshCw} size="sm" className="mr-1.5" />Refresh</>
           )}
         </Button>
       </div>
 
       {error && (
         <p className="text-xs text-destructive flex items-center gap-1.5">
-          <AlertCircle className="h-3.5 w-3.5" />
+          <Icon as={AlertCircle} size="sm" />
           {error}
         </p>
       )}

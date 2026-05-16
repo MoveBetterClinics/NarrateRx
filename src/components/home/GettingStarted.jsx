@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { Sparkles, CheckCircle2, Circle, X, ChevronRight } from 'lucide-react'
+import Icon from '@/components/ui/Icon'
 import { useOnboardingProgress } from '@/lib/queries'
 
 const STEPS = [
@@ -84,7 +85,7 @@ export default function GettingStarted() {
     <div className="rounded-xl border bg-gradient-to-br from-primary/5 to-background p-5">
       <div className="flex items-start justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" />
+          <Icon as={Sparkles} size="md" className="text-primary" />
           <p className="text-sm font-semibold">Getting started</p>
           <span className="text-xs text-muted-foreground">
             {doneCount} of {items.length} done
@@ -96,7 +97,7 @@ export default function GettingStarted() {
           aria-label="Dismiss getting started checklist"
           className="text-muted-foreground hover:text-foreground rounded p-1 -m-1"
         >
-          <X className="h-4 w-4" />
+          <Icon as={X} size="md" />
         </button>
       </div>
 

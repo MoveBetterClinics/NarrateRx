@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Loader2, Plus, X, FolderPlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import Icon from '@/components/ui/Icon'
 import {
   listCollections,
   addAssetsToCollection,
@@ -103,7 +104,7 @@ export default function CollectionPicker({ assetId, onChange }) {
       <div className="flex flex-wrap gap-1.5 items-center">
         {loading ? (
           <span className="text-2xs text-muted-foreground flex items-center gap-1.5">
-            <Loader2 className="h-3 w-3 animate-spin" /> Loading…
+            <Icon as={Loader2} size="xs" className="animate-spin" /> Loading…
           </span>
         ) : memberships.length === 0 ? (
           <span className="text-2xs text-muted-foreground italic">Not in any collection</span>
@@ -118,8 +119,8 @@ export default function CollectionPicker({ assetId, onChange }) {
             >
               {c.name}
               {canEdit && (busy === c.id
-                ? <Loader2 className="h-3 w-3 animate-spin" />
-                : <X className="h-3 w-3" />)}
+                ? <Icon as={Loader2} size="xs" className="animate-spin" />
+                : <Icon as={X} size="xs" />)}
             </Badge>
           ))
         )}
@@ -131,7 +132,7 @@ export default function CollectionPicker({ assetId, onChange }) {
             onClick={() => setPicking(true)}
             className="h-7 gap-1.5 text-2xs rounded-full"
           >
-            <Plus className="h-3.5 w-3.5" />
+            <Icon as={Plus} size="sm" />
             Add to collection
           </Button>
         )}
@@ -149,8 +150,8 @@ export default function CollectionPicker({ assetId, onChange }) {
                   className="text-2xs px-2.5 py-1 rounded-full border border-border bg-background hover:border-primary/50 disabled:opacity-60 flex items-center gap-1.5"
                 >
                   {busy === c.id
-                    ? <Loader2 className="h-3 w-3 animate-spin" />
-                    : <Plus className="h-3 w-3" />}
+                    ? <Icon as={Loader2} size="xs" className="animate-spin" />
+                    : <Icon as={Plus} size="xs" />}
                   {c.name}
                   {c.item_count > 0 && (
                     <span className="text-muted-foreground">· {c.item_count}</span>
@@ -172,7 +173,7 @@ export default function CollectionPicker({ assetId, onChange }) {
                 onClick={() => setCreatingNew(true)}
                 className="h-7 gap-1.5 text-2xs"
               >
-                <FolderPlus className="h-3.5 w-3.5" />
+                <Icon as={FolderPlus} size="sm" />
                 New collection…
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setPicking(false)} className="h-7 text-2xs">
@@ -193,7 +194,7 @@ export default function CollectionPicker({ assetId, onChange }) {
                 className="h-8 px-2 text-sm flex-1 rounded-md border border-border bg-background"
               />
               <Button size="sm" onClick={submitNew} disabled={busy === 'new' || !newName.trim()} className="h-8">
-                {busy === 'new' && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                {busy === 'new' && <Icon as={Loader2} size="sm" className="animate-spin mr-1.5" />}
                 Create + add
               </Button>
               <Button size="sm" variant="ghost" onClick={() => { setCreatingNew(false); setNewName('') }} className="h-8">

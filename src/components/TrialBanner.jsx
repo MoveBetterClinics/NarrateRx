@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { X, Clock } from 'lucide-react'
+import Icon from '@/components/ui/Icon'
 import { useOnboardingProgress } from '@/lib/queries'
 
 const STORAGE_KEY = 'trial_banner_dismissed'
@@ -55,7 +56,7 @@ export default function TrialBanner() {
           : 'bg-accent border-b border-primary/20 text-accent-foreground'
       }`}
     >
-      <Clock className={`h-4 w-4 shrink-0 ${isUrgent ? 'text-primary-foreground' : 'text-primary'}`} />
+      <Icon as={Clock} size="md" className={`shrink-0 ${isUrgent ? 'text-primary-foreground' : 'text-primary'}`} />
       <span className="flex-1 text-center">
         {isUrgent ? (
           <>
@@ -84,7 +85,7 @@ export default function TrialBanner() {
           isUrgent ? 'text-primary-foreground' : 'text-primary'
         }`}
       >
-        <X className="h-4 w-4" />
+        <Icon as={X} size="md" />
       </button>
     </div>
   )

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Mic, Quote } from 'lucide-react'
+import Icon from '@/components/ui/Icon'
 import { apiFetch } from '@/lib/api'
 
 // Voice-freshness card — Phase C.4.
@@ -69,7 +70,7 @@ export default function VoiceFreshnessCard({ clinicianId, clinicianName }) {
   return (
     <div className="rounded-lg border border-indigo-100 bg-indigo-50/40 px-4 py-3 space-y-2.5">
       <div className="flex items-center gap-2">
-        <Mic className="h-4 w-4 text-indigo-700 shrink-0" />
+        <Icon as={Mic} size="md" className="text-indigo-700 shrink-0" />
         <p className="text-sm font-medium text-indigo-900">
           {firstName}&apos;s voice profile
         </p>

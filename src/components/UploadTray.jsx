@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Icon from '@/components/ui/Icon'
 import { useUploadProgress } from '@/lib/UploadProgressContext'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 
@@ -128,7 +129,7 @@ export default function UploadTray() {
           onClick={() => setCollapsed((v) => !v)}
           aria-label={collapsed ? 'Expand uploads' : 'Collapse uploads'}
         >
-          {collapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          {collapsed ? <Icon as={ChevronUp} size="md" /> : <Icon as={ChevronDown} size="md" />}
         </button>
       </div>
 
@@ -153,7 +154,7 @@ export default function UploadTray() {
                       onClick={() => dismissRow(r.id)}
                       aria-label={`Dismiss ${r.name}`}
                     >
-                      <X className="h-3 w-3" />
+                      <Icon as={X} size="xs" />
                     </button>
                   )}
                 </div>

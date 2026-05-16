@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { TrendingUp, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Icon from '@/components/ui/Icon'
 
 // Amber callout that shows high-search topic gaps and a "New Interview" CTA.
 // Props:
@@ -36,7 +37,7 @@ export default function PlanNextInterview({
       <div className="flex flex-col sm:flex-row items-start gap-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <TrendingUp className="h-4 w-4 text-primary" />
+            <Icon as={TrendingUp} size="md" className="text-primary" />
             <p className="text-sm font-semibold text-foreground">
               {isEmpty ? 'Start with a high-impact topic' : 'Plan your next interview'}
             </p>
@@ -93,7 +94,7 @@ export default function PlanNextInterview({
         </div>
         <Button asChild className="shrink-0">
           <Link to="/new">
-            <Plus className="h-4 w-4 mr-1.5" />
+            <Icon as={Plus} size="md" className="mr-1.5" />
             New Interview
           </Link>
         </Button>

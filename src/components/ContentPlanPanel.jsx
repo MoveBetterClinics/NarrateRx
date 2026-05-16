@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Loader2, Sparkles, SkipForward, RotateCcw, ExternalLink, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import IconPrim from '@/components/ui/Icon'
 import { useContentPlanAtoms, useDraftAtom, useSkipAtom } from '@/lib/queries'
 import { ATOM_DEFINITIONS, PLATFORM_UI, SLOT_LABELS, formatSlotDate } from '@/lib/atomPlan'
 
@@ -20,7 +21,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-10">
-        <Loader2 className="h-5 w-5 text-muted-foreground animate-spin" />
+        <IconPrim as={Loader2} size="lg" className="text-muted-foreground animate-spin" />
       </div>
     )
   }
@@ -102,13 +103,13 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
                   {platformAtoms.length} {platformAtoms.length === 1 ? 'post' : 'posts'}
                 </span>
                 {allDrafted && (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-green-600" />
+                  <IconPrim as={CheckCircle2} size="sm" className="text-green-600" />
                 )}
               </div>
               {isCollapsed ? (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                <IconPrim as={ChevronDown} size="md" className="text-muted-foreground" />
               ) : (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                <IconPrim as={ChevronUp} size="md" className="text-muted-foreground" />
               )}
             </button>
 
@@ -184,7 +185,7 @@ function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" asChild>
               <Link to={`/review/${atom.content_piece_id}`}>
                 View draft
-                <ExternalLink className="h-3 w-3" />
+                <IconPrim as={ExternalLink} size="xs" />
               </Link>
             </Button>
           )
@@ -195,7 +196,7 @@ function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip
             className="h-7 text-xs gap-1"
             onClick={onReset}
           >
-            <RotateCcw className="h-3 w-3" />
+            <IconPrim as={RotateCcw} size="xs" />
             Restore
           </Button>
         ) : (
@@ -207,9 +208,9 @@ function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip
               onClick={onDraft}
             >
               {isDrafting ? (
-                <><Loader2 className="h-3 w-3 animate-spin" />Drafting…</>
+                <><IconPrim as={Loader2} size="xs" className="animate-spin" />Drafting…</>
               ) : (
-                <><Sparkles className="h-3 w-3" />Draft this</>
+                <><IconPrim as={Sparkles} size="xs" />Draft this</>
               )}
             </Button>
             <Button
@@ -219,7 +220,7 @@ function AtomRow({ atom, slotLabel, dateHint, isDrafting, error, onDraft, onSkip
               title="Skip"
               onClick={onSkip}
             >
-              <SkipForward className="h-3.5 w-3.5" />
+              <IconPrim as={SkipForward} size="sm" />
             </Button>
           </>
         )}

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Mic, CheckCircle2, MicOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import Icon from '@/components/ui/Icon'
 
 /**
  * MicCheck — pre-interview microphone gate (Strella pattern).
@@ -142,7 +143,7 @@ export default function MicCheck({ onContinue }) {
               </div>
 
               <div className="flex items-center gap-2 text-sm font-medium text-green-600">
-                <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                <Icon as={CheckCircle2} size="md" />
                 Microphone ready
               </div>
 
@@ -151,7 +152,7 @@ export default function MicCheck({ onContinue }) {
               </p>
 
               <Button className="w-full" size="lg" onClick={handleContinue}>
-                <Mic className="h-4 w-4 mr-2" aria-hidden="true" />
+                <Icon as={Mic} size="md" className="mr-2" />
                 Start Interview
               </Button>
             </>
