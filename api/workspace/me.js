@@ -152,14 +152,14 @@ async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    const auth = await requireRole(req, ['admin'])
+    const workspace = await workspaceContext(req)
+    if (!workspace) return res.status(404).json({ error: 'no-workspace-context' })
+
+    const auth = await requireRole(req, ['admin'], { orgId: workspace.clerk_org_id })
     if (!auth.ok) {
       const status = auth.reason === 'forbidden' ? 403 : 401
       return res.status(status).json({ error: auth.reason })
     }
-
-    const workspace = await workspaceContext(req)
-    if (!workspace) return res.status(404).json({ error: 'no-workspace-context' })
 
     const body = req.body || {}
     const patch = {}

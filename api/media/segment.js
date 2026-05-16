@@ -19,18 +19,19 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
+  const id = req.body?.id
+  if (!id) return res.status(400).json({ error: 'Missing id' })
+
+  const scope = await workspaceScope(req)
+
   // Segmentation creates content_pieces rows — same gate as content-piece
   // creation: admin or publisher. Clinicians can browse but can't fan out.
-  const auth = await requireRole(req, STAFF_ROLES)
+  const auth = await requireRole(req, STAFF_ROLES, { orgId: scope.workspace.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
-  const id = req.body?.id
-  if (!id) return res.status(400).json({ error: 'Missing id' })
-
   try {
-    const scope = await workspaceScope(req)
     const pieces = await segmentById(id, scope)
     return res.status(200).json({ count: pieces.length, pieces })
   } catch (e) {

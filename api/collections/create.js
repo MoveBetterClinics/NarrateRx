@@ -39,11 +39,6 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await requireRole(req, STAFF_ROLES)
-  if (!auth.ok) {
-    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-  }
-
   const body = req.body || {}
   const name = String(body.name || '').trim()
   if (!name) return res.status(400).json({ error: 'name required' })
@@ -52,6 +47,11 @@ async function handler(req, res) {
   const kind = ALLOWED_KINDS.has(body.kind) ? body.kind : 'campaign'
 
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, STAFF_ROLES, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
   const row = {
     [scope.column]: scope.id,
     name,

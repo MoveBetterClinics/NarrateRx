@@ -46,16 +46,16 @@ async function handler(req, res) {
   if (!(req.method in ROLE_REQUIREMENTS)) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
-  const auth = await requireRole(req, ROLE_REQUIREMENTS[req.method])
-  if (!auth.ok) {
-    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-  }
-
   const url = new URL(req.url, 'http://localhost')
   const id  = url.pathname.split('/').pop()
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, ROLE_REQUIREMENTS[req.method], { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
   const SELECT = `${scope.column},${SELECT_COMMON}`
   const where = `id=eq.${id}&${scope.column}=eq.${scope.id}`
 

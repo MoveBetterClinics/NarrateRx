@@ -43,10 +43,11 @@ async function dbErr(res, r, msg) {
 async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
-  const auth = await requireRole(req)
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  const scope = await workspaceScope(req)
+  const { id: workspaceId } = scope
 
-  const { id: workspaceId } = await workspaceScope(req)
+  const auth = await requireRole(req, null, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   const url = new URL(req.url, 'http://localhost')
   const clinicianId = url.searchParams.get('clinician_id')

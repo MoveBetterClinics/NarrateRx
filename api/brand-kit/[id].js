@@ -39,10 +39,10 @@ async function handler(req, res) {
   const id = req.query?.id
   if (!id) return res.status(400).json({ error: 'id required' })
 
-  const auth = await requireRole(req, WRITE_ROLES)
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, WRITE_ROLES, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   if (req.method === 'PATCH') {
     const body = req.body || {}

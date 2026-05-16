@@ -43,15 +43,15 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await requireRole(req, ['admin'])
-  if (!auth.ok) {
-    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-  }
-
   const requested = Number(req.body?.limit) || DEFAULT_LIMIT
   const limit = Math.max(1, Math.min(MAX_LIMIT, requested))
 
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, ['admin'], { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
   // Order by created_at asc so successive runs naturally walk forward through
   // the backlog. Each pass picks up the next chunk of un-thumbnailed videos.
   const query = `media_assets?${scope.column}=eq.${scope.id}&kind=eq.video&thumbnail_url=is.null&blob_url=not.is.null&select=id,${scope.column},kind,blob_url&order=created_at.asc&limit=${limit}`

@@ -40,7 +40,7 @@ export default async function handler(req, res) {
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   // Auth — any signed-in user may read/write; only admin can delete others'
-  const auth = await requireRole(req, null)
+  const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
   if (!auth.ok) return err(res, 'Unauthorized', 401)
   const { userId, role } = auth
 

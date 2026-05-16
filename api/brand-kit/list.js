@@ -30,10 +30,10 @@ const ASSET_COLS = 'id,blob_url,blob_pathname,mime_type,byte_size,original_filen
 async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
 
-  const auth = await requireRole(req)
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, null, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   // Three parallel reads — assets, roles, and the brand_style column on the
   // workspace row. brand_style lives on workspaces (not its own table) because

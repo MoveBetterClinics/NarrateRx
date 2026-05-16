@@ -57,14 +57,14 @@ function sb(path, init = {}) {
 async function handler(req, res) {
   if (req.method !== 'PATCH') return res.status(405).json({ error: 'Method not allowed' })
 
-  const auth = await requireRole(req, STYLE_WRITE_ROLES)
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-
   const patch = req.body || {}
   const validation = validate(patch)
   if (!validation.ok) return res.status(400).json({ error: validation.error })
 
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, STYLE_WRITE_ROLES, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   const current = scope.workspace?.brand_style || {}
   const next = { ...current, ...patch }
 

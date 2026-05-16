@@ -31,11 +31,11 @@ function sb(path) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const auth = await requireRole(req, ['admin'])
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
+
+  const auth = await requireRole(req, ['admin'], { orgId: ws.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   const last = lastRun.get(ws.id) ?? 0
   if (Date.now() - last < COOLDOWN_MS) {

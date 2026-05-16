@@ -36,13 +36,13 @@ function sb(path, init = {}) {
 }
 
 async function handler(req, res) {
-  const auth = await requireRole(req, ['admin'])
+  const workspace = await workspaceContext(req)
+  if (!workspace) return res.status(404).json({ error: 'no-workspace-context' })
+
+  const auth = await requireRole(req, ['admin'], { orgId: workspace.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
-
-  const workspace = await workspaceContext(req)
-  if (!workspace) return res.status(404).json({ error: 'no-workspace-context' })
 
   if (req.method === 'GET') {
     const services = await listConfiguredServices(workspace.id)

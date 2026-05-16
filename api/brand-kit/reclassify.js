@@ -32,10 +32,10 @@ function sb(path, init = {}) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const auth = await requireRole(req, STAFF_ROLES)
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, STAFF_ROLES, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   const r = await sb(
     `brand_assets?${scope.column}=eq.${scope.id}&select=id,blob_url,mime_type,original_filename,ai_classification`

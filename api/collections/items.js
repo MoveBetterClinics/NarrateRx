@@ -46,11 +46,6 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await requireRole(req, STAFF_ROLES)
-  if (!auth.ok) {
-    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-  }
-
   const { searchParams } = new URL(req.url, 'http://localhost')
   const body = req.body || {}
 
@@ -58,6 +53,11 @@ async function handler(req, res) {
   if (!collectionId) return res.status(400).json({ error: 'collectionId required' })
 
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, STAFF_ROLES, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
 
   // Always confirm the collection belongs to this workspace.
   const colCheck = await verifyScope(scope, 'collections', [collectionId])

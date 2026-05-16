@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
 
-  const auth = await requireRole(req, ['admin'])
+  const auth = await requireRole(req, ['admin'], { orgId: ws.clerk_org_id })
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   // ── Fetch all workspace concepts ─────────────────────────────────────────────

@@ -37,13 +37,13 @@ async function handler(req, res) {
     return res.status(500).json({ error: 'billing-not-configured' })
   }
 
-  const auth = await requireRole(req, ['admin'])
+  const ws = await workspaceContext(req)
+  if (!ws) return res.status(404).json({ error: 'no-workspace-context' })
+
+  const auth = await requireRole(req, ['admin'], { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
-
-  const ws = await workspaceContext(req)
-  if (!ws) return res.status(404).json({ error: 'no-workspace-context' })
 
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'narraterx.ai'
   const base = `https://${host}`

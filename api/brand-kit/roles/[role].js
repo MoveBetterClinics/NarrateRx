@@ -42,15 +42,15 @@ function sb(path, init = {}) {
 }
 
 async function handler(req, res) {
-  const auth = await requireRole(req, ROLE_WRITE_ROLES)
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-
   const role = req.query?.role
   if (!role || !VALID_ROLES.has(role)) {
     return res.status(400).json({ error: `Unknown role: ${role}` })
   }
 
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, ROLE_WRITE_ROLES, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   if (req.method === 'PUT') {
     const { assetId } = req.body || {}

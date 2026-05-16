@@ -52,12 +52,6 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await requireRole(req, ['admin'])
-  if (!auth.ok) {
-    const status = auth.reason === 'forbidden' ? 403 : 401
-    return res.status(status).json({ error: auth.reason })
-  }
-
   // Parse the asset id from the URL: /api/media/:id/purge.
   const url = new URL(req.url, 'http://localhost')
   const parts = url.pathname.split('/').filter(Boolean)
@@ -65,6 +59,12 @@ async function handler(req, res) {
   if (!id) return res.status(400).json({ error: 'Missing id' })
 
   const scope  = await workspaceScope(req)
+
+  const auth = await requireRole(req, ['admin'], { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) {
+    const status = auth.reason === 'forbidden' ? 403 : 401
+    return res.status(status).json({ error: auth.reason })
+  }
   const SELECT = `${scope.column},${SELECT_COMMON}`
   const where  = `id=eq.${id}&${scope.column}=eq.${scope.id}`
   const before = await fetchRow(where, SELECT)

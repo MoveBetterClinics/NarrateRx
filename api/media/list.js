@@ -29,11 +29,6 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await requireRole(req)
-  if (!auth.ok) {
-    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-  }
-
   // req.url is a relative path on Node runtime; supply a base so URL parses.
   const { searchParams } = new URL(req.url, 'http://localhost')
   const kind        = searchParams.get('kind')         // 'video' | 'photo'
@@ -50,6 +45,11 @@ async function handler(req, res) {
   const offset      = parseInt(searchParams.get('offset') || '0')
 
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, null, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
 
   // Resolve a collection filter into an asset-id whitelist before composing
   // the main query. Two queries instead of a PostgREST embed because the

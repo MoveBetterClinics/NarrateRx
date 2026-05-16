@@ -30,17 +30,17 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Brief creation is the same gate as media metadata edits — admin/publisher.
-  const auth = await requireRole(req, STAFF_ROLES)
-  if (!auth.ok) {
-    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-  }
-
   const body = req.body || {}
   const sourceAssetId = body.sourceAssetId
   if (!sourceAssetId) return res.status(400).json({ error: 'sourceAssetId required' })
 
   const scope = await workspaceScope(req)
+
+  // Brief creation is the same gate as media metadata edits — admin/publisher.
+  const auth = await requireRole(req, STAFF_ROLES, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
 
   // Verify the source belongs to this workspace before linking a brief to it.
   const lookup = await sb(`media_assets?id=eq.${sourceAssetId}&${scope.column}=eq.${scope.id}&select=id`)

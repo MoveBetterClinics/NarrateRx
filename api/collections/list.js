@@ -32,11 +32,6 @@ async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await requireRole(req)
-  if (!auth.ok) {
-    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-  }
-
   const { searchParams } = new URL(req.url, 'http://localhost')
   const status  = searchParams.get('status')   // active (default) | archived | all
   const kind    = searchParams.get('kind')     // campaign | series | session | adhoc
@@ -45,6 +40,11 @@ async function handler(req, res) {
   const offset  = parseInt(searchParams.get('offset') || '0')
 
   const scope = await workspaceScope(req)
+
+  const auth = await requireRole(req, null, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
   const SELECT = `id,${scope.column},${SELECT_COMMON}`
 
   // Resolve an assetId membership filter into a collection-id whitelist

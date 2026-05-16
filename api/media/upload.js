@@ -161,7 +161,8 @@ async function handler(req, res) {
   // baked into tokenPayload — onUploadCompleted runs without req access.
   let scope = null
   if (body?.type === 'blob.generate-client-token') {
-    const auth = await requireRole(req, HANDSHAKE_ALLOWED_ROLES)
+    scope = await workspaceScope(req)
+    const auth = await requireRole(req, HANDSHAKE_ALLOWED_ROLES, { orgId: scope.workspace.clerk_org_id })
     if (!auth.ok) {
       return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
     }
@@ -170,7 +171,6 @@ async function handler(req, res) {
     // attacker-controlled, so capping it would hurt the upload pipeline
     // without reducing abuse surface.
     if (!(await enforceLimit(req, res, 'media'))) return
-    scope = await workspaceScope(req)
   }
 
   try {
