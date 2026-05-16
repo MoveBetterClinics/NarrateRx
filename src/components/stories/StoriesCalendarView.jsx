@@ -136,7 +136,7 @@ function MonthView({ current, today, items, onPrev, onNext }) {
       </div>
       <div className="grid grid-cols-7 border-b">
         {DAY_NAMES.map((d, i) => (
-          <div key={d} className={`py-2 text-center text-xs font-medium ${isOptimalDay(i) ? 'text-emerald-700' : 'text-muted-foreground'}`}>{d}</div>
+          <div key={d} className={`py-2 text-center text-xs font-medium ${isOptimalDay(i) ? 'text-success' : 'text-muted-foreground'}`}>{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7">
@@ -150,7 +150,7 @@ function MonthView({ current, today, items, onPrev, onNext }) {
           return (
             <div
               key={day}
-              className={`min-h-[100px] border-b p-1.5 ${i % 7 !== 6 ? 'border-r' : ''} ${optimal ? 'bg-emerald-50/30' : ''}`}
+              className={`min-h-[100px] border-b p-1.5 ${i % 7 !== 6 ? 'border-r' : ''} ${optimal ? 'bg-success/5' : ''}`}
             >
               <div className={`text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full ${isToday ? 'bg-primary text-primary-foreground' : 'text-muted-foreground'}`}>{day}</div>
               <div className="space-y-0.5">
@@ -213,7 +213,7 @@ function WeekView({ anchor, today, items, onPrev, onNext }) {
               return (
                 <div
                   key={`${h}-${di}`}
-                  className={`min-h-[44px] border-b p-0.5 ${di < 6 ? 'border-r' : ''} ${optimal ? 'bg-emerald-50/40' : ''}`}
+                  className={`min-h-[44px] border-b p-0.5 ${di < 6 ? 'border-r' : ''} ${optimal ? 'bg-success/10' : ''}`}
                 >
                   <div className="space-y-0.5">
                     {slotItems.map((item) => <EventChip key={item.id} item={item} />)}

@@ -7,7 +7,7 @@ const STATUS_LABEL = {
   raw:      { label: 'Raw',      tone: 'bg-slate-200 text-slate-700' },
   tagged:   { label: 'Tagged',   tone: 'bg-blue-100 text-blue-700' },
   rendered: { label: 'Rendered', tone: 'bg-violet-100 text-violet-700' },
-  approved: { label: 'Approved', tone: 'bg-emerald-100 text-emerald-700' },
+  approved: { label: 'Approved', tone: 'bg-success/15 text-success' },
   archived: { label: 'Archived', tone: 'bg-muted text-muted-foreground' },
 }
 
@@ -208,7 +208,7 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
         )}
         {asset._lifecycle === 'in_pipeline' && firstStoryId && (
           <button
-            className="text-3xs bg-emerald-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-emerald-600 transition-colors"
+            className="text-3xs bg-success text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-success/90 transition-colors"
             title={usageCount === 1 ? 'In 1 active post — click to open' : `In ${usageCount} active posts — click to open the first`}
             onClick={(e) => {
               e.stopPropagation()
@@ -233,7 +233,7 @@ function GridCell({ asset, index, isSelected, isFocused, multiSelect, onSelect, 
         {!asset._lifecycle && (
           firstStoryId ? (
             <button
-              className="text-3xs bg-emerald-700 text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-emerald-600 transition-colors"
+              className="text-3xs bg-success text-white px-1.5 py-0.5 rounded-full leading-none hover:bg-success/90 transition-colors"
               title={usageCount === 1 ? 'Used in 1 story — click to open' : `Used in ${usageCount} stories — click to open the first`}
               onClick={(e) => {
                 e.stopPropagation()

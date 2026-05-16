@@ -162,7 +162,7 @@ export default function ChannelsSettings() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0 pt-1">
-          {saved && <span className="text-xs text-emerald-600">Saved</span>}
+          {saved && <span className="text-xs text-success">Saved</span>}
           {error && <span className="text-xs text-destructive">{error}</span>}
           <Button size="sm" onClick={handleSave} disabled={saving || !isDirty}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
@@ -219,7 +219,7 @@ function ChannelTile({ channel, checked, onToggle }) {
     <label
       className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
         checked
-          ? 'border-emerald-200 bg-emerald-50/40 hover:bg-emerald-50/60'
+          ? 'border-success/30 bg-success/10 hover:bg-success/15'
           : 'border-input hover:bg-accent/30'
       }`}
     >
@@ -230,7 +230,7 @@ function ChannelTile({ channel, checked, onToggle }) {
         className="h-4 w-4 shrink-0"
       />
       <div className={`flex h-9 w-9 items-center justify-center rounded-md shrink-0 ${
-        checked ? 'bg-emerald-100 text-emerald-700' : 'bg-muted text-muted-foreground'
+        checked ? 'bg-success/15 text-success' : 'bg-muted text-muted-foreground'
       }`}>
         <Icon className="h-4 w-4" />
       </div>

@@ -145,7 +145,7 @@ export default function Integrations() {
 
       {!isAdmin && !roleLoading && (
         <div className="rounded-lg border bg-muted/40 px-4 py-3 flex items-start gap-3">
-          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <AlertCircle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground">
             Only workspace admins can connect publishing integrations. Ask your admin to set this up.
           </p>

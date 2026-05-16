@@ -143,7 +143,7 @@ export default function UploadTray() {
                 <div className="flex items-center gap-2 text-xs">
                   {r.status === 'uploading' && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
                   {r.status === 'indexing'  && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
-                  {r.status === 'done'      && <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${r.slowIndex ? 'text-amber-600' : 'text-emerald-600'}`} />}
+                  {r.status === 'done'      && <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${r.slowIndex ? 'text-warning' : 'text-success'}`} />}
                   {r.status === 'error'     && <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
                   <span className="truncate flex-1 font-medium" title={r.name}>{r.name}</span>
                   {(r.status === 'done' || r.status === 'error') && (

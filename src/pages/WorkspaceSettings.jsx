@@ -173,7 +173,7 @@ export default function WorkspaceSettings() {
         </div>
         <div className="flex items-center gap-2 shrink-0 pt-1">
           {saved && (
-            <span className="text-xs text-emerald-600 flex items-center gap-1">
+            <span className="text-xs text-success flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5" />Saved
             </span>
           )}

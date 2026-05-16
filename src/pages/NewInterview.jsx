@@ -283,7 +283,7 @@ export default function NewInterview() {
                 </button>
               )}
               {suggestionAddedFor && suggestionAddedFor === trimmedCondition && (
-                <p className="text-xs text-emerald-600 mt-1 inline-flex items-center gap-1">
+                <p className="text-xs text-success mt-1 inline-flex items-center gap-1">
                   <Sparkles className="h-3 w-3" />
                   Added — you&apos;ll see it in your suggestions next time.
                 </p>
@@ -301,8 +301,8 @@ export default function NewInterview() {
                 {uncovered.length > 0 && (
                   <div>
                     <div className="flex items-center gap-1.5 mb-2">
-                      <TrendingUp className="h-3.5 w-3.5 text-amber-500" />
-                      <p className="text-xs font-medium text-amber-700">
+                      <TrendingUp className="h-3.5 w-3.5 text-warning" />
+                      <p className="text-xs font-medium text-warning">
                         High patient interest — no content yet
                       </p>
                     </div>
@@ -552,7 +552,7 @@ function TopicChip({ label, count, priority, onClick, disabled }) {
         </span>
       )}
       {count === 0 && priority === 'high' && (
-        <span className="text-3xs text-amber-500 group-hover:text-primary-foreground">new</span>
+        <span className="text-3xs text-warning group-hover:text-primary-foreground">new</span>
       )}
     </button>
   )

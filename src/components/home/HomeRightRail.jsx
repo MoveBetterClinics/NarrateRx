@@ -131,7 +131,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
                 <div className="flex items-center gap-2 text-2xs text-muted-foreground">
                   <span>{PLATFORM_LABELS[item.platform] || item.platform}</span>
                   {item.buffer_metrics?.reach > 0 && (
-                    <span className="font-medium text-emerald-600">
+                    <span className="font-medium text-success">
                       {item.buffer_metrics.reach.toLocaleString()} reach
                     </span>
                   )}

@@ -43,7 +43,7 @@ function SidebarItem({ item }) {
       to={item.to}
       className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors ${
         isActive
-          ? 'bg-emerald-50 text-emerald-800 font-medium'
+          ? 'bg-success/10 text-success font-medium'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
       }`}
     >

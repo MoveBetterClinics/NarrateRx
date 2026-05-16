@@ -90,7 +90,7 @@ function LibraryTile({ asset, onOpen, roleAssignments }) {
         {assignedTo.length > 0 && (
           <div className="flex flex-wrap gap-1 pt-1 border-t border-border/60">
             {assignedTo.map((r) => (
-              <span key={r} className="inline-flex items-center gap-0.5 text-3xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200">
+              <span key={r} className="inline-flex items-center gap-0.5 text-3xs px-1.5 py-0.5 rounded-full bg-success/15 text-success dark:bg-success/20 dark:text-success">
                 <Check className="h-2.5 w-2.5" /> {ROLE_DEFS.find((d) => d.id === r)?.label || r}
               </span>
             ))}
@@ -150,7 +150,7 @@ function AssetDetail({ asset, roleAssignments, onAssign, onDelete, onClose }) {
                     onClick={() => onAssign(r.id, isAssigned ? null : asset.id)}
                     className={`flex-1 text-left px-2.5 py-1.5 rounded-md border transition-colors ${
                       isAssigned
-                        ? 'border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30'
+                        ? 'border-success/40 bg-success/10 dark:bg-success/15'
                         : 'border-border hover:border-primary/50'
                     }`}
                   >
@@ -158,7 +158,7 @@ function AssetDetail({ asset, roleAssignments, onAssign, onDelete, onClose }) {
                     {conf != null && (
                       <span className="ml-2 text-3xs text-muted-foreground">suggested · {Math.round(conf * 100)}%</span>
                     )}
-                    {isAssigned && <Check className="inline h-3 w-3 text-emerald-600 ml-2" />}
+                    {isAssigned && <Check className="inline h-3 w-3 text-success ml-2" />}
                   </button>
                 </div>
               )
@@ -221,7 +221,7 @@ function RolePickerModal({ role, assets, currentAssetId, onPick, onClose }) {
                 type="button"
                 onClick={() => { onPick(a.id); onClose() }}
                 className={`text-left rounded-lg border overflow-hidden transition-colors ${
-                  isCurrent ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-border hover:border-primary/50'
+                  isCurrent ? 'border-success ring-2 ring-success/30' : 'border-border hover:border-primary/50'
                 }`}
               >
                 <AssetPreview asset={a} size="sm" />
@@ -648,9 +648,9 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
       )}
 
       {!isOnboarding && !roleAssignments.primary_logo && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 flex items-start gap-2">
-          <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="text-xs text-amber-900 dark:text-amber-200">
+        <div className="rounded-lg border border-warning/40 bg-warning/10 dark:bg-warning/15 p-3 flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+          <div className="text-xs text-warning">
             <strong>No primary logo set.</strong>{' '}
             {assets.length === 0
               ? 'Upload your logo files and assign one as the primary logo so downstream channels (email, social, site) render with the right artwork.'
@@ -749,7 +749,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs truncate flex-1" title={row.name}>{row.name}</span>
                   {row.status === 'uploading' && <Loader2 className="h-3 w-3 animate-spin text-primary shrink-0" />}
-                  {row.status === 'done'      && <Check className="h-3 w-3 text-emerald-500 shrink-0" />}
+                  {row.status === 'done'      && <Check className="h-3 w-3 text-success shrink-0" />}
                   {row.status === 'error'     && <AlertCircle className="h-3 w-3 text-destructive shrink-0" />}
                 </div>
                 {row.status === 'uploading' && (
@@ -1071,7 +1071,7 @@ function BrandBookReference() {
         </div>
         <div className="flex items-center gap-2 justify-end">
           {error && <span className="text-xs text-destructive">{error}</span>}
-          {saved && !isDirty && <span className="text-xs text-emerald-600">Saved</span>}
+          {saved && !isDirty && <span className="text-xs text-success">Saved</span>}
           <Button size="sm" onClick={handleSave} disabled={saving || !isDirty}>
             {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Saving…</> : 'Save'}
           </Button>

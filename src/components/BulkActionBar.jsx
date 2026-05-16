@@ -466,7 +466,7 @@ export default function BulkActionBar({
                       {isBusy
                         ? <Loader2 className="h-3 w-3 animate-spin" />
                         : wasAdded
-                          ? <Check className="h-3 w-3 text-emerald-600" />
+                          ? <Check className="h-3 w-3 text-success" />
                           : <Plus className="h-3 w-3" />}
                       <span className="truncate max-w-[160px]" title={c.name}>{c.name}</span>
                       {c.item_count > 0 && (
@@ -514,7 +514,7 @@ export default function BulkActionBar({
         )}
 
         {message && (
-          <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-md px-2 py-1">
+          <div className="text-xs text-success bg-success/10 border border-success/30 rounded-md px-2 py-1">
             {message}
           </div>
         )}

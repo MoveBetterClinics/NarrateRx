@@ -351,9 +351,9 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             })}
           </div>
           {speakerRole === 'patient_guest' && (
-            <div className="mt-2.5 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2.5">
-              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-900 dark:text-amber-200">
+            <div className="mt-2.5 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 dark:bg-warning/15 p-2.5">
+              <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
+              <p className="text-xs text-warning">
                 Verify written consent from the patient before uploading. Patient-guest content cannot be published without it.
               </p>
             </div>
@@ -514,8 +514,8 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             duration (videos) and any purpose mismatch so the publisher sees
             what's about to go up before the progress tray takes over. */}
         {pending.length > 0 && (
-          <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
-            <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-emerald-800 mb-2">
+          <div className="mt-3 rounded-lg border border-success/30 bg-success/10 p-3">
+            <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-success mb-2">
               <CheckCircle2 className="h-3.5 w-3.5" />
               {pending.length} file{pending.length === 1 ? '' : 's'} detected · uploading now
             </div>
@@ -533,11 +533,11 @@ export default function MediaUploader({ onUploaded, createdBy }) {
                     </div>
                   </div>
                   {p.mismatch ? (
-                    <span className="shrink-0 text-3xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+                    <span className="shrink-0 text-3xs px-1.5 py-0.5 rounded bg-warning/15 text-warning font-medium">
                       type mismatch
                     </span>
                   ) : (
-                    <span className="shrink-0 text-3xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-medium">
+                    <span className="shrink-0 text-3xs px-1.5 py-0.5 rounded bg-success/15 text-success font-medium">
                       {purposeMeta.label.toLowerCase()}
                     </span>
                   )}

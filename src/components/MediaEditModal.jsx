@@ -132,7 +132,7 @@ export default function MediaEditModal({ asset, onClose, onSaved, inline = false
 
       <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 flex flex-col">
         {!canEdit && (
-          <div className="text-sm bg-amber-50 text-amber-900 border border-amber-200 rounded-md px-3 py-2">
+          <div className="text-sm bg-warning/10 text-warning border border-warning/30 rounded-md px-3 py-2">
             This video does not have a thumbnail yet. Close, click &quot;Make thumbnail&quot;,
             then re-open Crop. (The crop area is drawn on the poster frame.)
           </div>

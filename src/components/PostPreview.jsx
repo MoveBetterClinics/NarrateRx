@@ -394,11 +394,11 @@ function InstagramAdsPreview({ content, mediaUrls = [] }) {
   if (!hasFields) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex gap-3">
-          <span className="text-amber-500 text-lg shrink-0">⚠</span>
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 flex gap-3">
+          <span className="text-warning text-lg shrink-0">⚠</span>
           <div>
-            <p className="text-sm font-medium text-amber-800">Regenerate to use the structured Instagram Ads format</p>
-            <p className="text-xs text-amber-700 mt-0.5">
+            <p className="text-sm font-medium text-warning">Regenerate to use the structured Instagram Ads format</p>
+            <p className="text-xs text-warning mt-0.5">
               This ad copy was created before the labeled-field format. Click <strong>Regenerate</strong> to get
               Primary Text, Headline, Description, CTA Button, and Destination URL as separate one-click-copy fields.
             </p>
@@ -587,11 +587,11 @@ function EmailPreview({ content, mediaUrls = [] }) {
   if (!hasSections) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex gap-3">
-          <span className="text-amber-500 text-lg shrink-0">⚠</span>
+        <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 flex gap-3">
+          <span className="text-warning text-lg shrink-0">⚠</span>
           <div>
-            <p className="text-sm font-medium text-amber-800">This email needs to be regenerated</p>
-            <p className="text-xs text-amber-700 mt-0.5">
+            <p className="text-sm font-medium text-warning">This email needs to be regenerated</p>
+            <p className="text-xs text-warning mt-0.5">
               It was created before the structured template format. Switch to <strong>Edit</strong>, delete the content,
               and re-run <em>Generate Content</em> from the interview to get the new section layout with one-click copy into TrustDrivenCare.
             </p>

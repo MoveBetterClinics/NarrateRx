@@ -218,11 +218,11 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
         <div className="flex-1 overflow-y-auto">
           <div className="p-5 space-y-4">
             {showPatientWarning && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-xs">
-                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 dark:bg-warning/15 p-3 text-xs">
+                <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-medium text-amber-900 dark:text-amber-200">Patient consent required</p>
-                  <p className="text-amber-800 dark:text-amber-300/80 mt-0.5">
+                  <p className="font-medium text-warning">Patient consent required</p>
+                  <p className="text-warning/90 mt-0.5">
                     This source involves a patient ({source?.patient_pseudonym || 'patient guest'}). Verify written or recorded consent before publishing anything derived from this clip.
                   </p>
                 </div>

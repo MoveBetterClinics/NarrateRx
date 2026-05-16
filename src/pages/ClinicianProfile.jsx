@@ -372,7 +372,7 @@ function InterviewRow({ interview, clinicianId, currentUserId, onDelete }) {
           {isComplete ? (
             <FileText className="h-4 w-4 text-primary" />
           ) : (
-            <Clock className="h-4 w-4 text-amber-500" />
+            <Clock className="h-4 w-4 text-warning" />
           )}
         </div>
         <div className="flex-1 min-w-0">
@@ -385,7 +385,7 @@ function InterviewRow({ interview, clinicianId, currentUserId, onDelete }) {
         <div className="flex items-center gap-2 shrink-0">
           <Badge
             variant={isComplete ? 'secondary' : 'outline'}
-            className={`text-xs ${!isComplete ? 'border-amber-300 text-amber-700' : ''}`}
+            className={`text-xs ${!isComplete ? 'border-warning/40 text-warning' : ''}`}
           >
             {isComplete ? 'Content ready' : 'In progress'}
           </Badge>

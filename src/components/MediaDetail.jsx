@@ -801,7 +801,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
 
         {/* Archived banner with cooldown + purge controls */}
         {isArchived && (
-          <div className="px-5 py-3 border-t bg-amber-50 text-amber-900 text-xs flex items-start gap-2 shrink-0">
+          <div className="px-5 py-3 border-t bg-warning/10 text-warning text-xs flex items-start gap-2 shrink-0">
             <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
             <div className="flex-1 space-y-2">
               <div>

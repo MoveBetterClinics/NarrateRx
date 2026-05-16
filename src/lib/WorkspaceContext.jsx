@@ -113,7 +113,7 @@ function WorkspaceErrorBanner({ error }) {
   return (
     <div
       role="alert"
-      className="bg-amber-50 border-b border-amber-200 text-amber-900 px-4 py-2.5 text-sm flex items-start gap-3"
+      className="bg-warning/10 border-b border-warning/30 text-warning px-4 py-2.5 text-sm flex items-start gap-3"
     >
       <span aria-hidden="true">⚠️</span>
       <div className="flex-1">{message}</div>
