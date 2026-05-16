@@ -69,9 +69,12 @@ export default function DraftDiffView({
     <Dialog open={open} onOpenChange={(v) => { if (!v) onCancel() }}>
       <DialogContent className="max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-primary" />
+          <DialogTitle className="flex items-center gap-2 flex-wrap">
+            <Sparkles className="h-4 w-4 text-primary shrink-0" />
             {title}
+            <Badge className="ml-auto text-xs font-normal bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-50">
+              All AI changes off by default
+            </Badge>
           </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>

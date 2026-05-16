@@ -1095,15 +1095,17 @@ export default function InterviewSession() {
         }
       </div>
 
-      <div className="flex items-center gap-1.5 pb-3 -mt-1 shrink-0">
-        <span className="text-[11px] text-muted-foreground">{toneObj.emoji} {toneObj.label}</span>
-        <span className="text-[11px] text-muted-foreground/40">·</span>
-        <span className="text-[11px] text-muted-foreground">{voiceObj.emoji} {voiceObj.label}</span>
+      <div className="flex items-center gap-1.5 pb-3 -mt-1 shrink-0 flex-wrap">
+        <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+          {toneObj.emoji} {toneObj.label}
+        </Badge>
+        <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+          {voiceObj.emoji} {voiceObj.label}
+        </Badge>
         {prototypeObj && (
-          <>
-            <span className="text-[11px] text-muted-foreground/40">·</span>
-            <span className="text-[11px] text-muted-foreground">{prototypeObj.emoji} {prototypeObj.label}</span>
-          </>
+          <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+            {prototypeObj.emoji} {prototypeObj.label}
+          </Badge>
         )}
       </div>
 

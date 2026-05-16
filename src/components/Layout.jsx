@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
-import { Plus, Settings, Building2, Menu, Palette, Images, Layers } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Images, Layers, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
@@ -10,12 +10,9 @@ import { CampaignModeChip } from '@/components/CampaignWidget'
 import { workspace as STATIC_WORKSPACE } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
-
-// App-level byline shown under the "NarrateRx" wordmark in the header.
-// Intentionally NOT the workspace tagline — that belongs to the tenant's brand,
-// not to the product. Keep this short so it doesn't wrap on small headers.
-const APP_BYLINE = 'Interview-driven patient content'
 import TrialBanner from '@/components/TrialBanner'
+
+const APP_BYLINE = 'Voice-faithful clinical content'
 
 const NAV_ITEMS = [
   { to: '/',        label: 'Home',    match: (p) => p === '/' },
@@ -55,24 +52,8 @@ export default function Layout({ children }) {
               <NavLink key={item.to} to={item.to} label={item.label} active={item.match(location.pathname)} />
             ))}
           </nav>
-          <div className="hidden md:flex items-center gap-3">
-            <CampaignModeChip />
-            <Link to="/library" title="Media library" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors">
-              <Images className="h-4 w-4" />
-            </Link>
-            {role === 'admin' && (
-              <Link to="/synthesis" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors" title="Knowledge synthesis">
-                <Layers className="h-4 w-4" />
-              </Link>
-            )}
-            {role === 'admin' && (
-              <Link to="/settings/workspace" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors" title="Workspace settings">
-                <Building2 className="h-4 w-4" />
-              </Link>
-            )}
-            <Link to="/settings/integrations" className="inline-flex items-center justify-center h-9 w-9 rounded-md text-muted-foreground hover:text-foreground transition-colors" title="Integrations">
-              <Settings className="h-4 w-4" />
-            </Link>
+          <div className="hidden md:flex items-center gap-1">
+            <SettingsMenu role={role} />
           </div>
 
           {/* New Interview — primary action, visible on every page */}
@@ -168,9 +149,76 @@ function NavLink({ to, label, active }) {
   return (
     <Link
       to={to}
-      className={`text-xs font-medium transition-colors px-1 ${active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+      className={`text-sm font-medium transition-colors px-1 ${active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
     >
       {label}
     </Link>
+  )
+}
+
+// Single "⚙ Tools" dropdown that replaces the 4-icon pile in the desktop
+// header. Closes on outside click or Escape. All admin items are only
+// rendered when role === 'admin'.
+function SettingsMenu({ role }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onKey(e) { if (e.key === 'Escape') setOpen(false) }
+    function onOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onOutside)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onOutside)
+    }
+  }, [open])
+
+  const itemClass = 'flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground hover:bg-accent/30 hover:text-foreground rounded-md transition-colors'
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-md text-sm text-muted-foreground hover:text-foreground transition-colors"
+        aria-expanded={open}
+        aria-haspopup="true"
+      >
+        <Settings className="h-4 w-4" />
+        <ChevronDown className="h-3 w-3" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-1 w-52 rounded-lg border border-border bg-white shadow-md py-1 z-50">
+          <Link to="/library" onClick={() => setOpen(false)} className={itemClass}>
+            <Images className="h-4 w-4 shrink-0" /> Media library
+          </Link>
+          {role === 'admin' && (
+            <Link to="/synthesis" onClick={() => setOpen(false)} className={itemClass}>
+              <Layers className="h-4 w-4 shrink-0" /> Knowledge synthesis
+            </Link>
+          )}
+          <div className="border-t border-border my-1" />
+          <Link to="/settings/integrations" onClick={() => setOpen(false)} className={itemClass}>
+            <Settings className="h-4 w-4 shrink-0" /> Integrations
+          </Link>
+          {(role === 'admin' || role === 'editor') && (
+            <Link to="/settings/brand-kit" onClick={() => setOpen(false)} className={itemClass}>
+              <Palette className="h-4 w-4 shrink-0" /> Brand Kit
+            </Link>
+          )}
+          {role === 'admin' && (
+            <Link to="/settings/workspace" onClick={() => setOpen(false)} className={itemClass}>
+              <Building2 className="h-4 w-4 shrink-0" /> Workspace settings
+            </Link>
+          )}
+          <div className="border-t border-border my-1 px-3 pt-2 pb-1">
+            <CampaignModeChip />
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
