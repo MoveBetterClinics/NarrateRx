@@ -2,11 +2,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
-  ChevronDown, MessageSquare, Eye, EyeOff, RotateCcw, ExternalLink,
+  ChevronDown, MessageSquare, Eye, EyeOff, RotateCcw, ExternalLink, Quote,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { ClinicianChip } from '@/components/ClinicianChip'
 import { PLATFORM_META, STATUS_META } from '@/lib/contentMeta'
+import { getStageToken } from '@/lib/stageTokens'
+import { getPatientPrototypesUi } from '@/lib/prompts'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import {
@@ -38,9 +41,22 @@ function timeAgo(dateStr) {
 
 // ── Approval panel helpers ──────────────────────────────────────────────────
 
+// Map content_item.status → canonical story stage so colours stay in sync
+// with the stage tokens used everywhere else (StoryCard, StoriesThemesView).
+const STATUS_TO_STAGE = {
+  draft:     'drafting',
+  in_review: 'review',
+  approved:  'review',
+  scheduled: 'scheduled',
+  published: 'published',
+}
+
 function StatusBadge({ status }) {
-  const sm = STATUS_META[status] || { label: status || '—', color: 'bg-slate-100 text-slate-700' }
-  return <Badge className={`text-xs border-0 ${sm.color}`}>{sm.label}</Badge>
+  const sm = STATUS_META[status] || { label: status || '—' }
+  const stage = STATUS_TO_STAGE[status]
+  const token = stage ? getStageToken(stage) : null
+  const badgeClass = token?.badge ?? 'bg-slate-100 text-slate-700'
+  return <Badge className={`text-xs border-0 ${badgeClass}`}>{sm.label}</Badge>
 }
 
 function CommentThread({ pieceId }) {
@@ -121,9 +137,9 @@ function CommentThread({ pieceId }) {
 // "attributed" view mode.
 
 const BLOCK_BORDER = {
-  verbatim:        'border-l-emerald-400',
+  verbatim:         'border-l-emerald-400',
   close_paraphrase: 'border-l-sky-400',
-  synthesis:       'border-l-slate-200',
+  synthesis:        'border-l-slate-300',
 }
 
 function AttributedView({ content, blocks, onHighlight }) {
@@ -134,15 +150,15 @@ function AttributedView({ content, blocks, onHighlight }) {
     <div className="rounded-md border bg-muted/20 p-3 space-y-3 text-xs leading-relaxed text-foreground/90">
       {paragraphs.map((para, i) => {
         const block  = blocks?.[i]
-        const border = BLOCK_BORDER[block?.source_type] ?? 'border-l-slate-200'
+        const border = BLOCK_BORDER[block?.source_type] ?? 'border-l-transparent'
         const clickable = block?.source_msg_index != null
         return (
           <p
             key={i}
             className={`pl-3 border-l-2 ${border} py-0.5 whitespace-pre-wrap transition-colors duration-150 ${
-              clickable ? 'cursor-pointer hover:bg-accent/30 rounded-r' : ''
+              clickable ? 'cursor-pointer hover:bg-muted/40 rounded-r' : ''
             }`}
-            title={clickable ? 'Click to see source in transcript ↳' : undefined}
+            title={clickable ? 'Click to see source in transcript' : undefined}
             onClick={clickable ? () => onHighlight?.({
               msgIndex: block.source_msg_index,
               start: block.source_span?.[0] ?? null,
@@ -229,7 +245,7 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            ↳ Attributed
+            Attributed
           </button>
         </div>
       )}
@@ -276,8 +292,9 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
   )
 }
 
-function RegenerateButton({ piece }) {
+function RegenerateButton({ piece, story }) {
   const regenerate = useRegenerateContentItem()
+  const workspace = useWorkspace()
   const [confirming, setConfirming] = useState(false)
 
   const handleRegenerate = async () => {
@@ -289,6 +306,25 @@ function RegenerateButton({ piece }) {
       toast.error('Regeneration failed', { description: e.message })
     }
   }
+
+  // Build the resting-state context chip. Lists each piece of voice context
+  // the regeneration will apply, so the user knows what's behind the button
+  // before they click — no surprise about why output sounds the way it does.
+  const contextBullets = (() => {
+    const bullets = []
+    // Voice notes: piece.clinician_id implies the clinician has a profile.
+    // We don't have voice_notes content on the piece, so this is a heuristic
+    // signal ("a clinician profile is bound, which may carry voice notes").
+    if (piece.clinician_id || story?.clinician_id) bullets.push('Voice notes')
+    const echoCount = piece.provenance?.summary?.voice_phrase_echo_count ?? 0
+    if (echoCount > 0) bullets.push(`${echoCount} exemplar${echoCount === 1 ? '' : 's'}`)
+    if (story?.prototype_id && workspace) {
+      const proto = getPatientPrototypesUi(workspace).find((p) => p.id === story.prototype_id)
+      if (proto?.label) bullets.push(`'${proto.label}' prototype`)
+    }
+    if (story?.tone) bullets.push(`${story.tone} tone`)
+    return bullets
+  })()
 
   if (regenerate.isPending) {
     return (
@@ -333,15 +369,22 @@ function RegenerateButton({ piece }) {
   }
 
   return (
-    <Button
-      size="sm"
-      variant="outline"
-      className="h-7 text-xs gap-1.5"
-      onClick={() => setConfirming(true)}
-    >
-      <RotateCcw className="h-3 w-3" />
-      Regenerate
-    </Button>
+    <div className="space-y-1">
+      {contextBullets.length > 0 && (
+        <div className="text-2xs text-muted-foreground italic">
+          {contextBullets.join(' · ')}
+        </div>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 text-xs gap-1.5"
+        onClick={() => setConfirming(true)}
+      >
+        <RotateCcw className="h-3 w-3" />
+        Regenerate
+      </Button>
+    </div>
   )
 }
 
@@ -472,12 +515,30 @@ function ApprovalPanel({ piece }) {
   const provSummary = piece.provenance?.summary
   const ownWordsPct  = provSummary ? provSummary.verbatim_pct + provSummary.paraphrase_pct : null
   const echoCount    = provSummary?.voice_phrase_echo_count ?? 0
+  // verbatim_count isn't on summary today — derive from blocks. Same shape
+  // as if it were precomputed, so we can swap to summary.verbatim_count later
+  // without touching the render path.
+  const verbatimCount = provSummary
+    ? piece.provenance?.blocks?.filter((b) => b.source_type === 'verbatim').length ?? 0
+    : 0
+
+  // Approver display: ClinicianChip when we have a name, plain email fallback
+  // otherwise. piece.approved_by historically holds an email; approved_by_name
+  // is the resolved display name when the approver is a clinician.
+  const approverName = piece.approved_by_name || piece.approved_by
+  const approverId   = piece.approved_by_clinician_id || piece.approved_by
 
   return (
     <div className="mt-3 pt-3 border-t space-y-3">
       {/* Voice-drift scorecard — sourced from provenance.summary (PR1 substrate) */}
       {provSummary && (
         <div className="flex items-center gap-1.5 flex-wrap">
+          {verbatimCount > 0 && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium">
+              <Quote className="h-3 w-3" aria-hidden="true" />
+              {verbatimCount} verbatim phrase{verbatimCount === 1 ? '' : 's'} preserved
+            </span>
+          )}
           <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs text-emerald-700">
             {ownWordsPct}% in clinician&rsquo;s voice
           </span>
@@ -498,13 +559,17 @@ function ApprovalPanel({ piece }) {
       <div className="flex items-center gap-2 flex-wrap">
         <StatusBadge status={piece.status} />
         {piece.approved_by && piece.approved_at && (
-          <span className="text-xs text-muted-foreground">
-            Approved by {piece.approved_by} on{' '}
-            {new Date(piece.approved_at).toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-              year: 'numeric',
-            })}
+          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+            Approved by
+            <ClinicianChip name={approverName} id={approverId} size="sm" />
+            <span>{approverName}</span>
+            <span>on{' '}
+              {new Date(piece.approved_at).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              })}
+            </span>
           </span>
         )}
       </div>
@@ -820,7 +885,7 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
         {/* Regenerate — re-runs the AI for this piece. Use when content is
             cut off, off-voice, or contains an obvious error. Resets to draft
             and clears approval audit so it needs fresh review. */}
-        {active && <RegenerateButton piece={active} />}
+        {active && <RegenerateButton piece={active} story={story} />}
 
         {/* Media + overlay editors — attach photos/videos and tune the on-screen
             text overlay without leaving the Story screen. */}
