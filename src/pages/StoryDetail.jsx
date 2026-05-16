@@ -9,6 +9,7 @@ import AssetsPane from '@/components/story-detail/AssetsPane'
 import TranscriptExport from '@/components/story-detail/TranscriptExport'
 import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
+import { ClinicianChip } from '@/components/ClinicianChip'
 
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
@@ -70,12 +71,24 @@ export default function StoryDetail() {
               story.clinician_id ? (
                 <Link
                   to={`/clinician/${story.clinician_id}`}
-                  className="text-sm text-muted-foreground hover:text-foreground"
+                  className="inline-flex text-muted-foreground hover:text-foreground"
                 >
-                  {story.clinician_name}
+                  <ClinicianChip
+                    id={story.clinician_id}
+                    name={story.clinician_name}
+                    size="md"
+                    showName
+                    nameClassName="text-sm"
+                  />
                 </Link>
               ) : (
-                <p className="text-sm text-muted-foreground">{story.clinician_name}</p>
+                <ClinicianChip
+                  id={story.clinician_id}
+                  name={story.clinician_name}
+                  size="md"
+                  showName
+                  nameClassName="text-sm text-muted-foreground"
+                />
               )
             )}
           </div>
