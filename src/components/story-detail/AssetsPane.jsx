@@ -544,6 +544,67 @@ function ApprovalPanel({ piece }) {
   )
 }
 
+// ── ProvenanceTracePanel ─────────────────────────────────────────────────────
+
+const SOURCE_DOT = {
+  verbatim:        'bg-emerald-400',
+  close_paraphrase: 'bg-sky-400',
+  synthesis:       'bg-slate-300',
+}
+
+const SOURCE_LABEL = {
+  verbatim:        'Verbatim',
+  close_paraphrase: 'Paraphrase',
+  synthesis:       'Synthesis',
+}
+
+function ProvenanceTracePanel({ piece, onHighlight }) {
+  const blocks = piece.provenance?.blocks
+  if (!blocks?.length || !onHighlight) return null
+
+  const paragraphs = (typeof piece.content === 'string' ? piece.content : '')
+    .split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)
+
+  return (
+    <details className="group mt-1">
+      <summary className="cursor-pointer list-none flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground select-none py-1">
+        <span className="transition-transform group-open:rotate-90 inline-block">▶</span>
+        Voice attribution
+      </summary>
+      <div className="mt-1 space-y-0.5 pl-1">
+        {blocks.map((b) => {
+          const preview = (paragraphs[b.ordinal] || b.text_prefix || '').slice(0, 70)
+          const dot = SOURCE_DOT[b.source_type] ?? 'bg-slate-300'
+          const label = SOURCE_LABEL[b.source_type] ?? b.source_type
+          const clickable = b.source_msg_index != null
+          return (
+            <button
+              key={b.ordinal}
+              type="button"
+              disabled={!clickable}
+              onClick={() => clickable && onHighlight({
+                msgIndex: b.source_msg_index,
+                start: b.source_span?.[0] ?? null,
+                end: b.source_span?.[1] ?? null,
+              })}
+              className={`w-full text-left flex items-start gap-2 rounded px-2 py-1 text-xs transition-colors ${
+                clickable
+                  ? 'hover:bg-muted/60 cursor-pointer'
+                  : 'cursor-default opacity-60'
+              }`}
+              title={clickable ? `Click to highlight source in transcript` : 'No transcript source (synthesis)'}
+            >
+              <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${dot}`} aria-hidden="true" />
+              <span className="text-muted-foreground truncate flex-1">{preview}{preview.length >= 70 ? '…' : ''}</span>
+              <span className="shrink-0 text-muted-foreground/60">{label}</span>
+            </button>
+          )
+        })}
+      </div>
+    </details>
+  )
+}
+
 // ── AssetsPane ──────────────────────────────────────────────────────────────
 
 /**
@@ -553,7 +614,7 @@ function ApprovalPanel({ piece }) {
  * with role-gated actions (send for review, approve, request changes, publish).
  * The full ReviewPost editor remains accessible via the "Open for editing" link.
  */
-export default function AssetsPane({ story }) {
+export default function AssetsPane({ story, onProvenanceHighlight }) {
   const pieces = story?.pieces ?? []
   const [activeIdx, setActiveIdx] = useState(0)
   const [view, setView] = useState('plan')
@@ -662,6 +723,9 @@ export default function AssetsPane({ story }) {
         </div>
 
         {active && <ContentEditor key={active.id} piece={active} />}
+
+        {/* Provenance attribution — paragraph-level voice trace to transcript source */}
+        {active && <ProvenanceTracePanel piece={active} onHighlight={onProvenanceHighlight} />}
 
         {/* Regenerate — re-runs the AI for this piece. Use when content is
             cut off, off-voice, or contains an obvious error. Resets to draft

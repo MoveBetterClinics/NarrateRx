@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -19,6 +20,12 @@ import TranscriptExport from '@/components/story-detail/TranscriptExport'
 export default function StoryDetail() {
   const { storyId } = useParams()
   const { data: story, isLoading, isError, isPlaceholderData } = useStory(storyId)
+
+  // Provenance highlight — lifted here so TranscriptPane and AssetsPane can
+  // share it. AssetsPane fires setProvenanceHighlight when the user clicks a
+  // paragraph attribution row; TranscriptPane reacts by scrolling + highlighting
+  // the corresponding user message.
+  const [provenanceHighlight, setProvenanceHighlight] = useState(null)
 
   if (isLoading) {
     return (
@@ -78,8 +85,8 @@ export default function StoryDetail() {
 
       {/* Two-column body */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        <TranscriptPane story={story} isLoadingTranscript={isPlaceholderData} />
-        <AssetsPane story={story} />
+        <TranscriptPane story={story} isLoadingTranscript={isPlaceholderData} provenanceHighlight={provenanceHighlight} />
+        <AssetsPane story={story} onProvenanceHighlight={setProvenanceHighlight} />
       </div>
     </div>
   )
