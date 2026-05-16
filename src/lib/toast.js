@@ -67,13 +67,13 @@ export async function runWithToast(promise, { loading, success, error } = {}) {
     const value = await promise
     const out = typeof success === 'function' ? success(value) : success
     const { message, description } = normalizeToast(out, 'Done')
-    sonnerToast.success(message, description ? { id, description } : { id })
+    sonnerToast.success(message, { id, duration: 8000, ...(description ? { description } : {}) })
     return value
   } catch (e) {
     const out = typeof error === 'function' ? error(e) : error
     const fallback = e instanceof Error ? e.message : String(e)
     const { message, description } = normalizeToast(out, 'Something went wrong', fallback)
-    sonnerToast.error(message, description ? { id, description } : { id })
+    sonnerToast.error(message, { id, duration: Infinity, ...(description ? { description } : {}) })
     throw e
   }
 }

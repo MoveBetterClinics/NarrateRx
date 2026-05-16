@@ -105,7 +105,14 @@ async function handler(req, res) {
     }
   } else {
     const profilesRes = await fetch(`${BUFFER_API}/profiles.json?access_token=${BUFFER_TOKEN}`)
-    if (!profilesRes.ok) return res.status(502).json({ error: 'Failed to fetch Buffer profiles' })
+    if (!profilesRes.ok) {
+      const bodyText = await profilesRes.text().catch(() => '')
+      console.error('[publish/buffer] profiles fetch failed', profilesRes.status, bodyText)
+      const hint = profilesRes.status === 401 || profilesRes.status === 403
+        ? 'Buffer access token rejected (401/403). Regenerate the token in Workspace Settings → Publishing credentials.'
+        : `Buffer profiles fetch returned ${profilesRes.status}.`
+      return res.status(502).json({ error: hint })
+    }
     const profiles = await profilesRes.json()
     const profile = profiles.find((p) => p.service === service)
     if (!profile) return res.status(404).json({ error: `No Buffer profile found for ${platform}. Connect it at buffer.com.` })
