@@ -7,13 +7,17 @@ import {
   ChevronUp,
   Sparkles,
   Mail,
+  Loader2,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
+import Icon from '@/components/ui/Icon'
 import CredentialForm from '@/components/CredentialForm'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { apiFetch } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 // Customer-facing publishing connect page. Per-workspace credentials are
 // stored encrypted via /api/workspace/credentials. Buffer is the recommended
@@ -32,12 +36,11 @@ const INTEGRATIONS = [
     secretLabel: 'Buffer access token',
     secretPlaceholder: 'access_token_…',
     fields: [],
+    useOAuth: true,
     setupSteps: [
       'Sign in (or sign up) at buffer.com.',
       'In Buffer, connect every channel you want NarrateRx to publish to (Instagram, Facebook Page, LinkedIn, X, TikTok, etc.).',
-      'Open buffer.com/developers/apps and Create an app.',
-      'Copy the Access Token from your app settings.',
-      'Paste it below and Save — your token is stored encrypted and used only at publish time.',
+      'Click Connect Buffer below — you\'ll be redirected to Buffer to authorize NarrateRx, then brought back here automatically.',
     ],
     docsUrl: 'https://buffer.com/developers/api',
   },
@@ -114,6 +117,27 @@ export default function Integrations() {
   const visible = INTEGRATIONS.filter((i) => hasCapability(ws, i.capabilityKey))
   const showTdc = hasCapability(ws, 'tdcPublish')
   const isAdmin = role === 'admin'
+
+  // Handle OAuth redirect query params (buffer=connected or buffer_error=...)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('buffer') === 'connected') {
+      toast.success('Buffer connected', { description: 'Your Buffer account is now linked to this workspace.' })
+      window.history.replaceState({}, '', window.location.pathname)
+    } else if (params.get('buffer_error')) {
+      const code = params.get('buffer_error')
+      const messages = {
+        token_exchange_failed: 'Buffer token exchange failed — try connecting again.',
+        no_token:             'Buffer did not return an access token — try again.',
+        save_failed:          'Token received but failed to save — contact support.',
+        invalid_state:        'OAuth state mismatch — try connecting again.',
+        missing_params:       'OAuth callback missing parameters — try connecting again.',
+        access_denied:        'You cancelled the Buffer authorization.',
+      }
+      toast.error('Buffer connection failed', { description: messages[code] || `Error: ${code}` })
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
 
   async function reload() {
     try {
@@ -229,20 +253,114 @@ function IntegrationCard({ integration, row, loading, disabled, getToken, onChan
         <div className="px-5 pb-5 space-y-5 border-t pt-4">
           <SetupSteps integration={integration} />
           <Separator />
-          <CredentialForm
-            service={integration}
-            row={row}
-            disabled={disabled}
-            getToken={getToken}
-            tokenOpts={{ skipCache: true }}
-            onChange={onChange}
-            removeLabel="Disconnect"
-            saveLabel={({ configured }) => (configured ? 'Update' : 'Connect')}
-            secretPlaceholder={integration.secretPlaceholder}
-            confirmMessage={(svc) => `Disconnect ${svc.label} for this workspace?`}
-          />
+          {integration.useOAuth ? (
+            <BufferOAuthPanel
+              row={row}
+              disabled={disabled}
+              getToken={getToken}
+              onChange={onChange}
+            />
+          ) : (
+            <CredentialForm
+              service={integration}
+              row={row}
+              disabled={disabled}
+              getToken={getToken}
+              tokenOpts={{ skipCache: true }}
+              onChange={onChange}
+              removeLabel="Disconnect"
+              saveLabel={({ configured }) => (configured ? 'Update' : 'Connect')}
+              secretPlaceholder={integration.secretPlaceholder}
+              confirmMessage={(svc) => `Disconnect ${svc.label} for this workspace?`}
+            />
+          )}
         </div>
       )}
+    </div>
+  )
+}
+
+function BufferOAuthPanel({ row, disabled, getToken, onChange }) {
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const configured = Boolean(row)
+
+  async function handleConnect() {
+    window.location.href = '/api/oauth/buffer/start'
+  }
+
+  async function handleTest() {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const r = await fetch('/api/workspace/credentials/test', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await getToken({ skipCache: true })}`,
+        },
+        body: JSON.stringify({ service: 'buffer' }),
+      })
+      const body = await r.json().catch(() => ({}))
+      setTestResult(body?.ok
+        ? { ok: true, info: body.info }
+        : { ok: false, error: body?.error || `Test failed (${r.status})` })
+    } catch (e) {
+      setTestResult({ ok: false, error: e?.message || 'Network error.' })
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!confirm('Disconnect Buffer for this workspace?')) return
+    setDisconnecting(true)
+    try {
+      const r = await fetch('/api/workspace/credentials?service=buffer', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${await getToken({ skipCache: true })}` },
+      })
+      if (r.ok) onChange?.()
+      else toast.error('Disconnect failed')
+    } catch {
+      toast.error('Network error')
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 flex-wrap justify-end">
+        {testResult?.ok && (
+          <span className="text-xs text-green-600 flex items-center gap-1">
+            <span>✓</span>
+            Verified{testResult.info?.account ? ` · ${testResult.info.account}` : ''}
+          </span>
+        )}
+        {testResult && !testResult.ok && (
+          <span className="text-xs text-destructive flex items-start gap-1 max-w-md">
+            <span className="mt-0.5 shrink-0">⚠</span>
+            <span>{testResult.error}</span>
+          </span>
+        )}
+        {configured && (
+          <Button variant="ghost" size="sm" onClick={handleTest} disabled={disabled || testing || disconnecting}>
+            {testing
+              ? <><Icon as={Loader2} size="sm" className="animate-spin mr-1.5" />Testing…</>
+              : 'Test connection'}
+          </Button>
+        )}
+        {configured && (
+          <Button variant="ghost" size="sm" onClick={handleDisconnect} disabled={disabled || disconnecting || testing}>
+            {disconnecting ? <><Icon as={Loader2} size="sm" className="animate-spin mr-1.5" />Disconnecting…</> : 'Disconnect'}
+          </Button>
+        )}
+        <Button size="sm" onClick={handleConnect} disabled={disabled}>
+          {configured ? 'Reconnect Buffer' : 'Connect Buffer'}
+        </Button>
+      </div>
     </div>
   )
 }
