@@ -36,21 +36,32 @@ function fetchWithTimeout(url, init = {}) {
 }
 
 async function testBuffer(secret) {
-  const r = await fetchWithTimeout('https://api.bufferapp.com/1/user.json', {
-    headers: { Authorization: `Bearer ${secret}` },
+  // GraphQL API (api.buffer.com/graphql) — the only endpoint that accepts
+  // Personal Keys and App Client tokens. The old v1 REST API rejects them.
+  const r = await fetchWithTimeout('https://api.buffer.com/graphql', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${secret}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: '{ account { id name email } }' }),
   })
   if (!r.ok) {
     const bodyText = await r.text().catch(() => '')
     console.error('[credentials/test] buffer rejected', r.status, bodyText)
-    if (r.status === 401 || r.status === 403) return { ok: false, error: 'Token rejected by Buffer (401/403). Generate a fresh access token and try again.' }
+    if (r.status === 401 || r.status === 403) return { ok: false, error: 'Token rejected by Buffer (401/403). Generate a fresh Personal Key at buffer.com/api and try again.' }
     return { ok: false, error: `Buffer responded ${r.status}` }
   }
   const body = await r.json().catch(() => ({}))
-  // Buffer's /1/user.json returns the connected user; surface enough so the
-  // admin can tell which account is wired up.
+  if (body.errors) {
+    const msg = body.errors[0]?.message || 'GraphQL error'
+    console.error('[credentials/test] buffer graphql error', JSON.stringify(body.errors))
+    if (msg.toLowerCase().includes('auth') || msg.toLowerCase().includes('token')) {
+      return { ok: false, error: `Token rejected by Buffer: ${msg}` }
+    }
+    return { ok: false, error: msg }
+  }
+  const acct = body.data?.account
   return {
     ok: true,
-    info: { account: body?.name || body?.id || 'verified' },
+    info: { account: acct?.name || acct?.email || acct?.id || 'verified' },
   }
 }
 
