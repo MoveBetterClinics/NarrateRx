@@ -1,14 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Sparkles, ChevronDown, ChevronUp } from 'lucide-react'
 import { Section, Field, Textarea2, SaveBar } from '@/components/settings/helpers'
 import { Label } from '@/components/ui/label'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useUserRole } from '@/lib/useUserRole'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { useWorkspace } from '@/lib/WorkspaceContext'
+import { TONES } from '@/lib/prompts'
+import { apiFetch } from '@/lib/api'
 
 function formFromWorkspace(ws) {
   return {
@@ -58,6 +62,7 @@ function formToPatch(form) {
 export default function VoiceSettings() {
   useDocumentTitle('Settings — Bernard & voice')
   const { getToken } = useAuth()
+  const runtimeWs = useWorkspace()
   const { role, isLoading: roleLoading } = useUserRole()
   const [ws, setWs]           = useState(undefined)
   const [form, setForm]       = useState(null)
@@ -140,59 +145,94 @@ export default function VoiceSettings() {
     </div>
   )
 
+  const interviewerName = runtimeWs?.interviewer_name || ws?.interviewer_name || 'Bernard'
+  const clinicName = runtimeWs?.display_name || ws?.display_name || 'your practice'
+
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl space-y-8">
+      {/* ── Page header — narrative framing ── */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Bernard &amp; voice</h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          How the clinic sounds in AI-generated content. Changes apply from the next content generation.
+        <h1 className="text-2xl font-bold tracking-tight">
+          What {interviewerName} knows about {clinicName}
+        </h1>
+        <p className="text-muted-foreground text-sm mt-1.5 leading-relaxed">
+          This is the brief {interviewerName} reads before every interview and every piece of content.
+          What you write here shapes how your clinicians sound — and how faithfully that voice
+          carries into every draft.
         </p>
       </div>
 
+      {/* ── Preview panel ── */}
+      <BernardPreviewPanel
+        form={form}
+        interviewerName={interviewerName}
+      />
+
+      {/* ── How your practice sounds ── */}
       <Section
-        title="AI voice context"
-        description="Injected into every prompt. Write these as if briefing a copywriter."
+        title={`How ${clinicName} sounds`}
+        description={`The core brief ${interviewerName} uses to stay on-brand in every piece of content.`}
       >
-        <Textarea2 label="Clinic context"
-          value={form.clinic_context} onChange={set('clinic_context')} rows={3} />
-        <Field label="Audience (short)"
-          value={form.audience_short} onChange={set('audience_short')} />
-        <Textarea2 label="Audience (long form)"
-          value={form.audience_description} onChange={set('audience_description')}
+        <Textarea2
+          label="What this clinic is about"
+          value={form.clinic_context}
+          onChange={set('clinic_context')}
+          rows={3}
+          hint={`${interviewerName} uses this to orient tone and framing across all content.`}
+        />
+        <Textarea2
+          label="Brand voice"
+          value={form.brand_voice}
+          onChange={set('brand_voice')}
+          rows={6}
+          hint="How your content should feel — the adjectives, cadences, and phrases that make your voice yours."
+        />
+      </Section>
+
+      <Separator />
+
+      {/* ── Who you serve ── */}
+      <Section
+        title="Who you serve"
+        description={`${interviewerName} uses this to calibrate language and empathy — who is actually reading this content?`}
+      >
+        <Field
+          label="Audience in one line"
+          value={form.audience_short}
+          onChange={set('audience_short')}
+          hint={`A short label ${interviewerName} can reference quickly — e.g. "active adults 35–60 returning from injury."`}
+        />
+        <Textarea2
+          label="Full audience description"
+          value={form.audience_description}
+          onChange={set('audience_description')}
           rows={4}
-          hint="Full description of who you're writing for." />
-        <Field label="Activity context"
-          value={form.activity_context} onChange={set('activity_context')}
-          hint="Sport / discipline / lifestyle vocabulary used in 'active' tone." />
-        <Textarea2 label="Brand voice"
-          value={form.brand_voice} onChange={set('brand_voice')} rows={6} />
+          hint="The fuller picture of who you're writing for — their goals, fears, and what gets them to take action."
+        />
+        <Field
+          label="Activity or discipline vocabulary"
+          value={form.activity_context}
+          onChange={set('activity_context')}
+          hint={`Sport, discipline, or lifestyle terms that belong in the ${clinicName} lexicon.`}
+        />
       </Section>
 
       <Separator />
 
+      {/* ── Tone modes ── */}
       <Section
-        title="AI tone modifiers"
-        description="Per-tone prompt fragments injected when generating content. Use {display_name} and {activity_context} as placeholders. Leave a tone blank to skip its modifier."
+        title="How tone shifts"
+        description={`When a clinician picks a tone at the start of an interview, ${interviewerName} applies the matching modifier below. Leave any tone blank to skip it.`}
       >
-        <Textarea2 label="Active &amp; Driven"
-          value={form.tone_active} onChange={set('tone_active')} rows={6}
-          hint="Used when the author picks the 'Active & Driven' tone." />
-        <Textarea2 label="Clinical &amp; In-Depth"
-          value={form.tone_clinical} onChange={set('tone_clinical')} rows={6}
-          hint="Used when the author picks the 'Clinical & In-Depth' tone." />
-        <Textarea2 label="Warm &amp; Reassuring"
-          value={form.tone_warm} onChange={set('tone_warm')} rows={6}
-          hint="Used when the author picks the 'Warm & Reassuring' tone." />
-        <Textarea2 label="Smart Default"
-          value={form.tone_smart} onChange={set('tone_smart')} rows={6}
-          hint="Used when the author picks 'Smart Default' or no tone." />
+        <ToneModifierCards form={form} set={set} />
       </Section>
 
       <Separator />
 
+      {/* ── Patient archetypes ── */}
       <Section
-        title="Patient archetypes"
-        description="Bernard's understanding of who your patients are. These archetypes shape tone and framing in every generated piece."
+        title="Who you're writing for"
+        description={`Archetypes tell ${interviewerName} how to frame content for different patient segments. Each interview can be tagged to a specific archetype.`}
       >
         <PatientContextEditor
           value={form.patient_context_json}
@@ -202,9 +242,10 @@ export default function VoiceSettings() {
 
       <Separator />
 
+      {/* ── Topic suggestions ── */}
       <Section
-        title="Topic suggestions"
-        description="The topics Bernard proposes during interviews. Tag each topic with the archetypes it serves — leave untagged to apply to all."
+        title={`What ${interviewerName} asks about`}
+        description={`The interview topics ${interviewerName} proposes. Tag each topic with the archetypes it serves — leave untagged to offer it to everyone.`}
       >
         <TopicSuggestionsEditor
           topicsJson={form.topic_suggestions_json}
@@ -215,9 +256,10 @@ export default function VoiceSettings() {
 
       <Separator />
 
+      {/* ── Condition bank — advanced ── */}
       <details className="rounded-lg border border-input">
         <summary className="cursor-pointer px-4 py-3 text-sm font-medium select-none hover:bg-accent/30 list-none flex items-center justify-between rounded-lg">
-          <span>Condition bank <span className="text-xs font-normal text-muted-foreground ml-1">(advanced JSON)</span></span>
+          <span>Condition bank <span className="text-xs font-normal text-muted-foreground ml-1">(advanced)</span></span>
           <span className="text-muted-foreground text-xs">▼</span>
         </summary>
         <div className="px-4 pb-4 space-y-2">
@@ -234,20 +276,21 @@ export default function VoiceSettings() {
         </div>
       </details>
 
-      {/* Per-clinician voice fingerprints live on each clinician's profile.
-          Surface the link here so admins know where to find / refresh them. */}
+      {/* ── Per-clinician voice notes ── */}
       <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-3 flex items-start gap-3">
         <span className="text-base mt-0.5">🎙</span>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-indigo-900">Per-clinician voice notes</p>
+          <p className="text-sm font-medium text-indigo-900">Per-clinician voice fingerprints</p>
           <p className="text-xs text-indigo-700 mt-0.5">
-            As clinicians edit AI drafts, Bernard learns how each person writes — their preferred phrases, what they keep, what they cut. These notes live on each clinician&apos;s profile and automatically refine future drafts.
+            As clinicians edit AI drafts, {interviewerName} learns how each person writes — the phrases they keep,
+            the ones they cut, the way they naturally say things. These fingerprints automatically sharpen
+            every future draft for that clinician.
           </p>
           <Link
             to="/stories"
             className="inline-block mt-1.5 text-xs font-medium text-indigo-700 hover:text-indigo-900 underline underline-offset-2"
           >
-            Go to Stories → open any story → visit the clinician&apos;s profile to view their voice notes
+            View a story → open any story → visit the clinician&apos;s profile to see their voice notes →
           </Link>
         </div>
       </div>
@@ -261,10 +304,175 @@ export default function VoiceSettings() {
   )
 }
 
+// ── Bernard Preview Panel ────────────────────────────────────────────────────
+
+function BernardPreviewPanel({ form, interviewerName }) {
+  const [tone, setTone]     = useState('smart')
+  const [protoId, setProtoId] = useState('')
+  const [opener, setOpener] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr]       = useState(null)
+
+  const prototypes = (() => {
+    try { return JSON.parse(form?.patient_context_json || '{}')?.prototypes || [] } catch { return [] }
+  })()
+
+  async function generate() {
+    setLoading(true); setErr(null); setOpener(null)
+    try {
+      const data = await apiFetch('/api/interviews/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tone, prototypeId: protoId || null, clinicianName: 'your clinician' }),
+      })
+      setOpener(data.opener)
+    } catch (e) {
+      setErr(e?.message || 'Preview failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium">Hear {interviewerName} right now</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Generate a sample opening question with the current voice config.
+          </p>
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={generate}
+          disabled={loading}
+          className="gap-1.5 shrink-0"
+        >
+          {loading
+            ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            : <Sparkles className="h-3.5 w-3.5" />
+          }
+          {loading ? 'Generating…' : 'Generate'}
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <div className="flex items-center gap-1.5">
+          <Label className="text-xs text-muted-foreground shrink-0">Tone</Label>
+          <select
+            value={tone}
+            onChange={e => { setTone(e.target.value); setOpener(null) }}
+            className="text-xs rounded-md border border-input bg-background px-2 py-1"
+          >
+            {TONES.map(t => (
+              <option key={t.id} value={t.id}>{t.emoji} {t.label}</option>
+            ))}
+          </select>
+        </div>
+        {prototypes.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Label className="text-xs text-muted-foreground shrink-0">Archetype</Label>
+            <select
+              value={protoId}
+              onChange={e => { setProtoId(e.target.value); setOpener(null) }}
+              className="text-xs rounded-md border border-input bg-background px-2 py-1"
+            >
+              <option value="">Any</option>
+              {prototypes.map(p => (
+                <option key={p.id} value={p.id}>{p.emoji} {p.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+
+      {opener && (
+        <div className="flex items-start gap-2.5 bg-background rounded-lg border border-border px-3 py-2.5">
+          <div className="h-7 w-7 rounded-full bg-white border border-border flex items-center justify-center shrink-0 p-1 mt-0.5">
+            <Sparkles className="h-3.5 w-3.5 text-primary" />
+          </div>
+          <p className="text-sm leading-relaxed italic text-foreground/80">&ldquo;{opener}&rdquo;</p>
+        </div>
+      )}
+      {err && (
+        <p className="text-xs text-destructive">{err}</p>
+      )}
+    </div>
+  )
+}
+
+// ── ToneModifierCards ────────────────────────────────────────────────────────
+
+function ToneModifierCards({ form, set }) {
+  const toneObjects = Object.fromEntries(TONES.map(t => [t.id, t]))
+  const TONE_KEYS = [
+    { key: 'tone_active',   id: 'active',   label: 'Active & Driven' },
+    { key: 'tone_clinical', id: 'clinical', label: 'Clinical & In-Depth' },
+    { key: 'tone_warm',     id: 'warm',     label: 'Warm & Reassuring' },
+    { key: 'tone_smart',    id: 'smart',    label: 'Smart Default' },
+  ]
+
+  return (
+    <div className="space-y-3">
+      {TONE_KEYS.map(({ key, id, label }) => {
+        const toneObj = toneObjects[id]
+        const value = form[key] || ''
+        return (
+          <ToneCard
+            key={key}
+            toneObj={toneObj}
+            label={label}
+            value={value}
+            onChange={set(key)}
+          />
+        )
+      })}
+    </div>
+  )
+}
+
+function ToneCard({ toneObj, label, value, onChange }) {
+  const [expanded, setExpanded] = useState(false)
+  const hasContent = value.trim().length > 0
+
+  return (
+    <div className={`rounded-lg border ${hasContent ? 'border-input' : 'border-dashed border-input/60'} bg-card`}>
+      <button
+        type="button"
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-accent/30 rounded-lg text-left"
+      >
+        <span className="text-base shrink-0">{toneObj?.emoji || '🎙'}</span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium leading-tight">{label}</p>
+          {hasContent ? (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">{value.slice(0, 80)}{value.length > 80 ? '…' : ''}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground/60 mt-0.5 italic">No modifier — using defaults</p>
+          )}
+        </div>
+        {expanded
+          ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+        }
+      </button>
+      {expanded && (
+        <div className="border-t border-input px-3 pb-3 pt-2">
+          <Textarea2
+            label=""
+            value={value}
+            onChange={onChange}
+            rows={6}
+            hint={`Injected when this tone is selected. Use {display_name} and {activity_context} as placeholders.`}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── PatientContextEditor ─────────────────────────────────────────────────────
-// Structured editor for patient_context_json. Renders summaryBlurb,
-// primaryAvatar, prototypes (as expandable cards), and priorProviderPainPoints
-// as a line-list. Falls back to a raw textarea when JSON is unparseable.
 
 function PatientContextEditor({ value, onChange }) {
   let parsed = null
@@ -365,10 +573,6 @@ function PatientContextEditor({ value, onChange }) {
   )
 }
 
-// Primary avatar field can be either a string (simple tenant shape) or a
-// structured object with name/story/whatTheyWant + list fields (legacy
-// paradigm shape used by Move Better workspaces). Detect the shape and
-// render the right editor — passing the raw value back through onChange.
 function PrimaryAvatarEditor({ value, onChange }) {
   const isObject = value != null && typeof value === 'object' && !Array.isArray(value)
   if (!isObject) {
@@ -391,7 +595,7 @@ function PrimaryAvatarEditor({ value, onChange }) {
     <div className="rounded-lg border border-input bg-card p-3 space-y-3">
       <div className="flex items-center justify-between">
         <Label className="text-sm font-medium">Primary avatar</Label>
-        <span className="text-[10px] text-muted-foreground italic">structured</span>
+        <span className="text-xs text-muted-foreground italic">structured</span>
       </div>
       <div>
         <Label className="text-xs mb-1 block">Name</Label>
@@ -531,9 +735,6 @@ function PrototypeCard({ proto, onChange, onRemove }) {
 }
 
 // ── TopicSuggestionsEditor ────────────────────────────────────────────────────
-// Replaces the raw topic_suggestions_json textarea + the old TopicArchetypeEditor.
-// Each topic row shows an inline name/priority editor + archetype toggle chips,
-// with an expandable panel for category, keywords, and regional notes.
 
 function TopicSuggestionsEditor({ topicsJson, patientContextJson, onChange }) {
   let topics = null
@@ -639,7 +840,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
         <select
           value={row.priority || 'medium'}
           onChange={e => onUpdate({ priority: e.target.value })}
-          className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full border-0 cursor-pointer appearance-none ${PRIORITY_COLORS[row.priority] || PRIORITY_COLORS.medium}`}
+          className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full border-0 cursor-pointer appearance-none ${PRIORITY_COLORS[row.priority] || PRIORITY_COLORS.medium}`}
         >
           <option value="high">high</option>
           <option value="medium">medium</option>
@@ -648,7 +849,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
         <button
           type="button"
           onClick={() => setExpanded(e => !e)}
-          className="shrink-0 text-[10px] text-muted-foreground hover:text-foreground px-1"
+          className="shrink-0 text-xs text-muted-foreground hover:text-foreground px-1"
         >
           {expanded ? '▲' : '▼'}
         </button>
@@ -664,7 +865,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
                 type="button"
                 onClick={() => onToggleArchetype(a.id)}
                 title={a.coreDesire || a.label}
-                className={`inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full border transition-colors ${
+                className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full border transition-colors ${
                   active
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'border-input hover:bg-accent/40'
@@ -681,7 +882,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
       {expanded && (
         <div className="mt-2.5 space-y-2">
           <div>
-            <Label className="text-[10px] mb-0.5 block text-muted-foreground">Category</Label>
+            <Label className="text-xs mb-0.5 block text-muted-foreground">Category</Label>
             <input
               className="w-full text-xs rounded-md border border-input bg-background px-2 py-1"
               value={row.category || ''}
@@ -690,7 +891,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
             />
           </div>
           <div>
-            <Label className="text-[10px] mb-0.5 block text-muted-foreground">Keywords (comma-separated)</Label>
+            <Label className="text-xs mb-0.5 block text-muted-foreground">Keywords (comma-separated)</Label>
             <input
               className="w-full text-xs rounded-md border border-input bg-background px-2 py-1"
               value={keywordsText}
@@ -702,7 +903,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
           </div>
           {'pnwNote' in row && (
             <div>
-              <Label className="text-[10px] mb-0.5 block text-muted-foreground">Regional note</Label>
+              <Label className="text-xs mb-0.5 block text-muted-foreground">Regional note</Label>
               <input
                 className="w-full text-xs rounded-md border border-input bg-background px-2 py-1"
                 value={row.pnwNote || ''}
@@ -710,7 +911,7 @@ function TopicRow({ row, archetypes, onUpdate, onRemove, onToggleArchetype }) {
               />
             </div>
           )}
-          <button type="button" onClick={onRemove} className="text-[10px] text-destructive hover:underline">
+          <button type="button" onClick={onRemove} className="text-xs text-destructive hover:underline">
             Remove topic
           </button>
         </div>
