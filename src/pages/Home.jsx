@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { FileText, Eye, Clock, Loader2, RefreshCw, ChevronRight, Send } from 'lucide-react'
+import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'
 import { useStories, useClinicianSummaries } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
@@ -149,13 +150,7 @@ export default function Home() {
 
   const isLoading = storiesLoading || cliniciansLoading
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
-      </div>
-    )
-  }
+  if (isLoading) return <LoadingState />
 
   if (storiesError) {
     return (

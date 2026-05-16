@@ -5,6 +5,7 @@ import {
   ArrowLeft, Plus, FileText, Clock, Trash2, ChevronRight, MessageSquare, Loader2, AlertCircle,
   Facebook, Instagram, Globe, Mail, BookOpen, TrendingUp, Flame, BarChart2,
 } from 'lucide-react'
+import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -77,13 +78,7 @@ export default function ClinicianProfile() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
-      </div>
-    )
-  }
+  if (loading) return <LoadingState />
 
   if (!clinician) return null
 

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import LoadingState from '@/components/LoadingState'
 import { useUserRole } from '@/lib/useUserRole'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
@@ -143,13 +144,7 @@ export default function WorkspaceSettings() {
     return v => setForm(f => ({ ...f, [key]: v }))
   }
 
-  if (roleLoading || ws === undefined) {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-      </div>
-    )
-  }
+  if (roleLoading || ws === undefined) return <LoadingState />
 
   if (role !== 'admin') {
     return <Navigate to="/" replace />
