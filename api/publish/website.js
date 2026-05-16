@@ -269,18 +269,30 @@ async function uploadMedia(wp, sourceUrl, altText, overrideFilename = null) {
   const contentType = sourceRes.headers.get('content-type') || 'application/octet-stream'
   const bytes = await sourceRes.arrayBuffer()
   const filename = overrideFilename || filenameFromUrl(sourceUrl, contentType)
+  const body = Buffer.from(bytes)
 
-  const uploadRes = await wp('/wp/v2/media', {
-    method:  'POST',
-    headers: {
-      'Content-Type':        contentType,
-      'Content-Disposition': `attachment; filename="${filename}"`,
-    },
-    body: Buffer.from(bytes),
-  })
+  let uploadRes
+  let lastErrText = ''
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    uploadRes = await wp('/wp/v2/media', {
+      method:  'POST',
+      headers: {
+        'Content-Type':        contentType,
+        'Content-Disposition': `attachment; filename="${filename}"`,
+      },
+      body,
+    })
+    if (uploadRes.ok) break
+    lastErrText = await uploadRes.text().catch(() => '')
+    // Retry once on Cloudflare/origin timeouts and other transient 5xx —
+    // image processing on the WP host frequently exceeds CF's 100s window
+    // on first hit but succeeds on the second when caches are warm.
+    const transient = uploadRes.status >= 500 && uploadRes.status < 600
+    if (!transient || attempt === 2) break
+    await new Promise((r) => setTimeout(r, 2000))
+  }
   if (!uploadRes.ok) {
-    const errText = await uploadRes.text().catch(() => '')
-    throw new Error(`media POST returned ${uploadRes.status}: ${errText.slice(0, 200)}`)
+    throw new Error(formatWpUploadError(uploadRes.status, lastErrText, body.length))
   }
   const media = await uploadRes.json()
 
@@ -358,6 +370,33 @@ function isoDate(input) {
     return `${input}T12:00:00`
   }
   return input
+}
+
+function formatWpUploadError(status, body, sizeBytes) {
+  const sizeMb = (sizeBytes / (1024 * 1024)).toFixed(1)
+  // Cloudflare-fronted WP hosts return an HTML error page for upstream
+  // timeouts (520-524) and rate-limits (525, 526, 530). Translate the
+  // common ones instead of dumping the raw HTML into a toast.
+  if (status === 524) {
+    return `WordPress took longer than 100s to process the ${sizeMb}MB image (Cloudflare 524 timeout). Retry once — large images often succeed on the second attempt while WP keeps processing in the background.`
+  }
+  if (status === 520 || status === 521 || status === 522 || status === 523) {
+    return `WordPress host is unreachable (Cloudflare ${status}). Try again in a minute — this is a host-side network issue, not a credential problem.`
+  }
+  if (status === 504) {
+    return `WordPress timed out processing the ${sizeMb}MB image (504 Gateway Timeout). Retry, or try a smaller hero image.`
+  }
+  if (status === 502 || status === 503) {
+    return `WordPress is temporarily unavailable (${status}). Retry in a minute.`
+  }
+  if (status === 413) {
+    return `Hero image is too large for WordPress (${sizeMb}MB, 413 Payload Too Large). Use a smaller image or raise the host's upload limit.`
+  }
+  // Strip HTML tags from the upstream body so a Cloudflare error page
+  // doesn't fill the toast. Keep a short snippet for diagnosis.
+  const text = String(body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  const snippet = text ? `: ${text.slice(0, 160)}` : ''
+  return `WordPress media upload returned ${status}${snippet}`
 }
 
 function filenameFromUrl(url, contentType) {
