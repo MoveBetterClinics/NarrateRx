@@ -5,11 +5,65 @@
 // Clerk's internal sub-routes (e.g. /account/security) work without us
 // adding wildcard routes.
 
-import { UserProfile } from '@clerk/clerk-react'
+import { useState } from 'react'
+import { UserProfile, useUser } from '@clerk/clerk-react'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { toast } from '@/lib/toast'
+
+function DisplayNameCard() {
+  const { user } = useUser()
+  const current = user?.unsafeMetadata?.display_name || ''
+  const [value, setValue] = useState(current)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!user || value.trim() === current) return
+    setSaving(true)
+    try {
+      await user.update({ unsafeMetadata: { ...user.unsafeMetadata, display_name: value.trim() || null } })
+      toast.success('Display name saved')
+    } catch (e) {
+      toast.error('Could not save', { description: e.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="rounded-lg border bg-card p-5 space-y-4">
+      <div>
+        <h2 className="text-sm font-semibold">Interview display name</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          How you prefer to be identified in interviews — e.g. &ldquo;Dr. Q&rdquo; or &ldquo;Dr. Quasney&rdquo;. Leave blank to use your full name.
+        </p>
+      </div>
+      <div className="flex gap-3 items-end">
+        <div className="flex-1 space-y-1.5">
+          <Label htmlFor="display-name" className="text-xs">Display name</Label>
+          <Input
+            id="display-name"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={user?.fullName || 'e.g. Dr. Q'}
+            onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+          />
+        </div>
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={saving || value.trim() === current}
+        >
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </div>
+  )
+}
 
 export default function Account() {
   useDocumentTitle('Your account')
@@ -28,6 +82,8 @@ export default function Account() {
           </p>
         </div>
       </div>
+
+      <DisplayNameCard />
 
       <UserProfile routing="path" path="/account" />
     </div>

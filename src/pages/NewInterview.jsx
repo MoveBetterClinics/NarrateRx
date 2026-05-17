@@ -34,12 +34,14 @@ export default function NewInterview() {
   const [addingSuggestion, setAddingSuggestion] = useState(false)
   const [suggestionAddedFor, setSuggestionAddedFor] = useState('')
 
-  const [clinicianName, setClinicianName] = useState(user?.fullName || '')
+  const preferredName = user?.unsafeMetadata?.display_name || user?.fullName || ''
+  const [clinicianName, setClinicianName] = useState(preferredName)
   // Clerk may hydrate after first render — fill in once available if still empty
   useEffect(() => {
-    if (user?.fullName && !clinicianName) setClinicianName(user.fullName)
+    const name = user?.unsafeMetadata?.display_name || user?.fullName || ''
+    if (name && !clinicianName) setClinicianName(name)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.fullName])
+  }, [user?.unsafeMetadata?.display_name, user?.fullName])
   const [condition, setCondition] = useState(searchParams.get('topic') || '')
   const [step, setStep] = useState(searchParams.get('topic') ? 1 : 1)
   const [loading, setLoading] = useState(false)
