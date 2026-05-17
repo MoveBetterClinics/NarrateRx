@@ -20,9 +20,9 @@ const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
 const MediaHub = lazy(() => import('@/pages/MediaHub'))
 const Integrations = lazy(() => import('@/pages/Integrations'))
 const WorkspaceSettings = lazy(() => import('@/pages/WorkspaceSettings'))
-const VoiceSettings = lazy(() => import('@/pages/settings/VoiceSettings'))
 const VoiceTonePage = lazy(() => import('@/pages/settings/VoiceTonePage'))
 const PatientsTopicsPage = lazy(() => import('@/pages/settings/PatientsTopicsPage'))
+const InterviewDefaultsPage = lazy(() => import('@/pages/settings/InterviewDefaultsPage'))
 const ChannelsSettings = lazy(() => import('@/pages/settings/ChannelsSettings'))
 const LocationsSettings = lazy(() => import('@/pages/settings/LocationsSettings'))
 const BillingSettings = lazy(() => import('@/pages/settings/BillingSettings'))
@@ -243,8 +243,7 @@ function AppRoutes() {
               <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
               <Route path="/settings/workspace/voice" element={guarded(<VoiceTonePage />)} />
               <Route path="/settings/workspace/patients" element={guarded(<PatientsTopicsPage />)} />
-              {/* PR #4 will ship a lean Interview defaults page. */}
-              <Route path="/settings/workspace/interview-defaults" element={guarded(<VoiceSettings />)} />
+              <Route path="/settings/workspace/interview-defaults" element={guarded(<InterviewDefaultsPage />)} />
               <Route path="/settings/workspace/locations" element={guarded(<LocationsSettings />)} />
               <Route path="/settings/workspace/channels" element={guarded(<ChannelsSettings />)} />
               <Route path="/settings/workspace/billing" element={guarded(<BillingSettings />)} />
