@@ -129,15 +129,50 @@ export function fetchSimilarInterviews(topic, excludeId) {
 }
 
 /**
- * @param {{ clinicianId: string, topic: string, ownerId: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string, audience?: string, storyType?: string, topicBacklogId?: string }} opts
+ * @param {{ clinicianId: string, topic: string, ownerId: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string, audience?: string, storyType?: string, cleanupLevel?: string, topicBacklogId?: string }} opts
  * @returns {Promise<unknown>}
  */
-export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, topicBacklogId }) {
+export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, topicBacklogId }) {
   return apiFetch('/api/db/interviews', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, topicBacklogId }),
+    body: JSON.stringify({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, topicBacklogId }),
   })
+}
+
+// ── Clinician Recipes ───────────────────────────────────────────────────────
+
+/** @param {string} clinicianId @returns {Promise<unknown[]>} */
+export function fetchClinicianRecipes(clinicianId) {
+  return /** @type {Promise<unknown[]>} */ (
+    apiFetch(`/api/db/clinician-recipes?clinicianId=${encodeURIComponent(clinicianId)}`)
+  )
+}
+
+/**
+ * @param {{ clinicianId: string, name: string, emoji?: string, is_default?: boolean, audience?: string|null, story_type?: string|null, tone?: string|null, voice_mode?: string|null, cleanup_level?: string|null }} body
+ * @returns {Promise<unknown>}
+ */
+export function createClinicianRecipe(body) {
+  return apiFetch('/api/db/clinician-recipes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+/** @param {string} id @param {Record<string, unknown>} patch @returns {Promise<unknown>} */
+export function patchClinicianRecipe(id, patch) {
+  return apiFetch(`/api/db/clinician-recipes?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  })
+}
+
+/** @param {string} id @returns {Promise<unknown>} */
+export function deleteClinicianRecipe(id) {
+  return apiFetch(`/api/db/clinician-recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
 /** @param {string} id @param {Record<string, unknown>} patch @param {string} userId @returns {Promise<unknown>} */

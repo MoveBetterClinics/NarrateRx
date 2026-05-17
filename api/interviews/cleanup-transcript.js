@@ -37,21 +37,48 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
-function buildPrompt(messages, terms, fillers) {
+// Cleanup level determines how aggressively the model rewrites. The role
+// sequence + turn count must always be preserved (the guard below drops the
+// cleanup if they're not), but the per-turn rewrite varies:
+//   verbatim — only fix obvious mis-transcriptions; KEEP filler words and pauses.
+//   balanced — also remove filler words, lightly reflow run-ons. (default)
+//   polished — also tighten rambling, merge clearly fragmented thoughts.
+function buildPrompt(messages, terms, fillers, level = 'balanced') {
   const numbered = messages
     .map((m, i) => `[${i}] (${m.role}) ${m.content || ''}`)
     .join('\n\n')
+
+  const doListByLevel = {
+    verbatim: [
+      `Fix obvious mis-transcriptions of medical / movement-therapy terms, preferring these spellings when context clearly matches: ${terms.join(', ')}.`,
+      'Capitalize sentence starts and proper nouns where appropriate.',
+      'Stay close to the speaker\'s exact words — keep filler words, false starts, and pauses intact.',
+    ],
+    balanced: [
+      `Remove filler words used as filler (not as substantive vocabulary): ${fillers.join(', ')}.`,
+      `Fix obvious mis-transcriptions of medical / movement-therapy terms, preferring these spellings when context clearly matches: ${terms.join(', ')}.`,
+      'Lightly re-flow run-ons (add a period or comma where the speaker clearly paused but the recognizer didn\'t capture it). Capitalize where appropriate.',
+    ],
+    polished: [
+      `Remove filler words used as filler (not as substantive vocabulary): ${fillers.join(', ')}.`,
+      `Fix obvious mis-transcriptions of medical / movement-therapy terms, preferring these spellings when context clearly matches: ${terms.join(', ')}.`,
+      'Re-flow run-ons and merge clearly fragmented sentences within a single turn so the prose reads cleanly. Tighten rambling while keeping every fact the speaker provided.',
+      'Capitalize and punctuate as needed.',
+    ],
+  }
+  const doList = (doListByLevel[level] || doListByLevel.balanced).map((line) => `- ${line}`).join('\n')
+
   return `You are cleaning up a raw interview transcript captured by the Web Speech API. Your job is mechanical, not editorial.
 
+Cleanup level: ${level}
+
 DO:
-- Remove filler words used as filler (not as substantive vocabulary): ${fillers.join(', ')}.
-- Fix obvious mis-transcriptions of medical / movement-therapy terms, preferring these spellings when context clearly matches: ${terms.join(', ')}.
-- Lightly re-flow run-ons (add a period or comma where the speaker clearly paused but the recognizer didn't capture it). Capitalize where appropriate.
+${doList}
 
 DO NOT:
-- Paraphrase, summarize, or compress.
+- Paraphrase, summarize, or compress meaning.
 - Drop, merge, or add messages — the output array MUST have the same number of entries in the same order, with the same role on each entry.
-- Change meaning, add interpretation, or "improve" phrasing. If you are unsure whether a word is filler or substantive, keep it.
+- Change meaning, add interpretation, or invent details that weren't said. If you are unsure whether a word is filler or substantive, keep it.
 - Translate or modernize vocabulary.
 
 Transcript (numbered, with role tags):
@@ -91,7 +118,7 @@ export default async function handler(req, res) {
   const { interviewId } = req.body || {}
   if (!interviewId) return err(res, 'Missing interviewId')
 
-  const ivRes = await sb(`interviews?id=eq.${interviewId}&${wsFilter}&select=id,messages`)
+  const ivRes = await sb(`interviews?id=eq.${interviewId}&${wsFilter}&select=id,messages,cleanup_level`)
   if (!ivRes.ok) return err(res, 'Database error', 500)
   const ivRows = await ivRes.json()
   const iv = ivRows[0]
@@ -104,7 +131,8 @@ export default async function handler(req, res) {
   if (totalChars < 80) return err(res, 'Transcript is too short for cleanup', 422)
 
   const { terms, fillers } = resolveGlossary(ws.transcript_glossary)
-  const prompt = buildPrompt(messages, terms, fillers)
+  const cleanupLevel = iv.cleanup_level || 'balanced'
+  const prompt = buildPrompt(messages, terms, fillers, cleanupLevel)
 
   let text
   try {

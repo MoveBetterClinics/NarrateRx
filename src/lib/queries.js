@@ -29,6 +29,10 @@ import {
   deleteInterview,
   updateInterview,
   fetchInterview,
+  fetchClinicianRecipes,
+  createClinicianRecipe,
+  patchClinicianRecipe,
+  deleteClinicianRecipe,
 } from './api'
 import {
   fetchContentItems,
@@ -104,6 +108,10 @@ export const queryKeys = {
   campaigns: {
     all:  ['campaigns'],
     list: () => ['campaigns', 'list'],
+  },
+  clinicianRecipes: {
+    all:                ['clinicianRecipes'],
+    forClinician: (id) => ['clinicianRecipes', 'forClinician', id],
   },
   references: {
     all:           ['references'],
@@ -738,5 +746,46 @@ export function useUpsertCampaign() {
         body: JSON.stringify(payload),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.campaigns.all }),
+  })
+}
+
+// ── Clinician Recipes ──────────────────────────────────────────────────────
+
+export function useClinicianRecipes(clinicianId, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.clinicianRecipes.forClinician(clinicianId),
+    queryFn: () => fetchClinicianRecipes(clinicianId),
+    enabled: !!clinicianId,
+    staleTime: 1000 * 30,
+    ...options,
+  })
+}
+
+export function useCreateClinicianRecipe() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't save recipe",
+    mutationFn: (body) => createClinicianRecipe(body),
+    onSuccess: (_data, body) => {
+      qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.forClinician(body.clinicianId) })
+    },
+  })
+}
+
+export function usePatchClinicianRecipe() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't save recipe",
+    mutationFn: ({ id, patch }) => patchClinicianRecipe(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.all }),
+  })
+}
+
+export function useDeleteClinicianRecipe() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't delete recipe",
+    mutationFn: ({ id }) => deleteClinicianRecipe(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.all }),
   })
 }

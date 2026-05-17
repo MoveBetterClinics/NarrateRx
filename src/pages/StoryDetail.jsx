@@ -14,6 +14,7 @@ import { ClinicianChip } from '@/components/ClinicianChip'
 import ReferencesPanel from '@/components/ReferencesPanel'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOptionsCatalog'
+import { getCleanupLevel } from '@/lib/cleanupLevels'
 
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
@@ -120,9 +121,10 @@ export default function StoryDetail() {
                 />
               )
             )}
-            {(story.audience || story.story_type) && (() => {
+            {(story.audience || story.story_type || story.cleanup_level) && (() => {
               const audienceSlot = resolveAudienceSlot(story.audience, workspace?.audience_options)
               const storyTypeSlot = resolveStoryTypeSlot(story.story_type, workspace?.story_type_options)
+              const cleanupSlot = story.cleanup_level ? getCleanupLevel(story.cleanup_level) : null
               return (
                 <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                   {audienceSlot && (
@@ -135,6 +137,12 @@ export default function StoryDetail() {
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
                       <span className="text-2xs">{storyTypeSlot.emoji}</span>
                       <span>{storyTypeSlot.label}</span>
+                    </span>
+                  )}
+                  {cleanupSlot && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
+                      <span className="text-2xs">{cleanupSlot.emoji}</span>
+                      <span>{cleanupSlot.label}</span>
                     </span>
                   )}
                 </div>
