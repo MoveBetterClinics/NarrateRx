@@ -1096,13 +1096,12 @@ export default function InterviewSession() {
           : isOwner && (
             <div className="flex items-center gap-1 shrink-0">
               <Button
-                variant="outline"
                 size="sm"
                 onClick={() => setInterviewComplete(true)}
                 disabled={!canFinish}
                 title={canFinish ? undefined : finishHelper}
                 aria-label={canFinish ? 'Finish interview' : finishHelper}
-                className="gap-1.5 text-primary border-primary/40 hover:bg-primary/5"
+                className="gap-1.5"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 Finish
