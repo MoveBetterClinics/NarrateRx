@@ -12,7 +12,7 @@ import { workspaceScope } from '../_lib/workspaceScope.js'
 //
 // Runs on Node (Fluid Compute). (req, res) handler shape; req.body auto-parsed.
 
-export const config = { maxDuration: 120 }
+export const config = { runtime: 'nodejs', maxDuration: 120 }
 
 async function handler(req, res) {
   if (req.method !== 'POST') {

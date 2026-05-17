@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // GET /api/onboarding/my-workspaces
 //
 // Returns the active workspaces the signed-in user belongs to (via Clerk org

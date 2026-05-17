@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Add or remove media_assets from a collection.
 //
 //   POST   { collectionId, assetIds: [...] }       → add many at once

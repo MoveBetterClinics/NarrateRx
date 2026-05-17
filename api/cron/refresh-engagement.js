@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Tier 2b — daily engagement refresh + auto-flag.
 //
 // Vercel cron hits this once a day (vercel.json). For every active workspace

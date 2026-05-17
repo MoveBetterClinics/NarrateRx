@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // POST /api/engagement/refresh — fetch the latest Buffer stats for a single
 // published content_item, write a new engagement_snapshots row, return it.
 //

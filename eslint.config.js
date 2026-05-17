@@ -39,12 +39,13 @@ export default [
       'no-undef': 'warn',
     },
   },
-  // Local rule: block Vercel runtime ↔ handler shape mismatches in api/*.
+  // Local rule: block Vercel runtime ↔ handler shape mismatches in api/* and middleware.js.
+  // Also requires explicit runtime declaration — missing config → error.
   // Source: eslint/rules/api-handler-shape.js. Scoped to handler files only
   // (api/_lib/** is helpers, no default export → rule no-ops anyway, but
   // scoping out keeps the visitor cheap).
   {
-    files: ['api/**/*.js'],
+    files: ['api/**/*.js', 'middleware.js'],
     ignores: ['api/_lib/**'],
     plugins: {
       narraterx: { rules: { 'api-handler-shape': apiHandlerShape } },

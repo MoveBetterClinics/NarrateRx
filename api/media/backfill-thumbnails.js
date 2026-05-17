@@ -14,7 +14,7 @@ import { workspaceScope } from '../_lib/workspaceScope.js'
 // Sequential (not parallel) so a single misbehaving video can't pile up
 // concurrent ffmpeg invocations and exhaust the function's /tmp budget.
 
-export const config = { maxDuration: 300 }
+export const config = { runtime: 'nodejs', maxDuration: 300 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY

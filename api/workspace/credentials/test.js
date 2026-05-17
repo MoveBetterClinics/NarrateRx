@@ -1,4 +1,5 @@
 import { withSentry } from '../../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Test-connection endpoint for stored credentials. Admin-only.
 //
 //   POST /api/workspace/credentials/test { service }

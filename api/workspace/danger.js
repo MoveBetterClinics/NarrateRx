@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Destructive workspace operations. Admin-only, typed-confirm gated.
 //
 // POST /api/workspace/danger { action: 'archive', confirm_slug }

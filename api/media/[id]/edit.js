@@ -46,7 +46,7 @@ import { generateThumbnailFromPath } from '../../_lib/thumbnail.js'
 // rotation on a 176 MB clip was hitting ENOSPC at the trailer write — even
 // after we removed the +faststart 3x peak, concurrent jobs sharing the same
 // reused instance pushed /tmp over the default. 3009 MB is the Pro-plan max.
-export const config = { maxDuration: 300, memory: 3009 }
+export const config = { runtime: 'nodejs', maxDuration: 300, memory: 3009 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY

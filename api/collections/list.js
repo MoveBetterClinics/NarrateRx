@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // List collections for the current workspace. Editor-side groupings of
 // media_assets — campaigns, series, ad-hoc bundles. Filter by status (active
 // is the default; archived must be opted into) and kind. Includes a count of

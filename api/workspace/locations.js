@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Workspace locations endpoint.
 //
 //   GET                    — list locations for the active workspace (any signed-in member)

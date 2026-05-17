@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // POST /api/onboarding/claim
 //
 // Claims a new workspace for the signed-in user. Atomically (best-effort):

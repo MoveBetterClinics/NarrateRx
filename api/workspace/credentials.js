@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Per-workspace publish credential management. Admin-only.
 //
 //   GET    /api/workspace/credentials          → list configured services (no secrets)

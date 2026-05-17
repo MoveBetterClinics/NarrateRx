@@ -1,4 +1,5 @@
 import { withSentry } from '../../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 import { del as blobDel } from '@vercel/blob'
 import { recordAudit, snapshot } from '../../_lib/audit.js'
 import { requireRole } from '../../_lib/auth.js'

@@ -24,6 +24,7 @@
 import { next, rewrite } from '@vercel/functions'
 
 export const config = {
+  runtime: 'nodejs',
   matcher: ['/((?!assets/|favicon\\.ico|robots\\.txt|sitemap\\.xml|_vercel/).*)'],
 }
 

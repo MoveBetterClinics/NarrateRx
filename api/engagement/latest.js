@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // GET /api/engagement/latest?contentItemId=… — return the most recent
 // engagement_snapshots row for a content item (workspace-scoped). Used by
 // ReviewPost to render the engagement panel without forcing a re-fetch

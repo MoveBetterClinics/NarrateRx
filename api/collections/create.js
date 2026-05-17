@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Create a new collection. Editor or admin only — clinicians don't curate
 // collections. Slugs are derived from name when not provided; uniqueness is
 // enforced at the DB layer (unique on brand+slug).

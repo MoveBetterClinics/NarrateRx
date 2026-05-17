@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 import { requireRole } from '../_lib/auth.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 

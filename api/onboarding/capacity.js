@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // GET /api/onboarding/capacity
 //
 // Response: { cap, used, remaining, full }

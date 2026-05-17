@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
 import { STAFF_ROLES } from '../_lib/roles.js'

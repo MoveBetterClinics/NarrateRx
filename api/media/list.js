@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Runs on Node (Fluid Compute) for consistency with the other media routes,
 // which need Node for @vercel/blob. Uses the (req, res) handler shape — on
 // Vercel's Node runtime req is an IncomingMessage, not a Web Request.

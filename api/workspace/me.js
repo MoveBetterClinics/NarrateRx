@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // Workspace profile endpoint.
 //
 // GET  — returns the active workspace row (resolved from Host header). No auth required.

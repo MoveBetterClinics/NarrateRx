@@ -10,9 +10,11 @@
 // back to this exact class of mismatch.
 //
 // What we enforce per file:
+//   - Require explicit `export const config = { runtime: 'nodejs' | 'edge' }`.
+//     Missing declaration → error. Implicit defaults are banned so future
+//     Vercel platform changes don't silently flip functions to the wrong runtime.
 //   - Determine runtime from `export const config = { runtime: ... }`.
-//     Absent / unset → Node (the implicit default on Vercel and the
-//     dominant convention in this repo).
+//     Absent / unset → Node (permissive fallback for legacy; explicit decl still required).
 //   - Find the handler. We treat any of these as the handler body:
 //       function handler(req, res) {...}
 //       const handler = (req, res) => {...}
@@ -26,6 +28,9 @@
 //
 // The rule is scoped via eslint.config.js to api/**/*.js, excluding
 // api/_lib/**. Helpers and non-handler files are left alone.
+
+const MISSING_RUNTIME_MESSAGE =
+  "Vercel handler is missing an explicit runtime declaration. Add `export const config = { runtime: 'nodejs' }` (or 'edge') as the second line of this file. Implicit defaults are banned — see CLAUDE.md \"API handler runtime conventions.\""
 
 const NODE_MESSAGES = {
   newResponse:
@@ -56,12 +61,12 @@ function readRuntime(programBody) {
         const key = prop.key?.name ?? prop.key?.value
         if (key !== 'runtime') continue
         const val = prop.value?.value
-        if (val === 'edge') return 'edge'
-        if (val === 'nodejs') return 'nodejs'
+        if (val === 'edge') return { runtime: 'edge', explicit: true }
+        if (val === 'nodejs') return { runtime: 'nodejs', explicit: true }
       }
     }
   }
-  return 'nodejs'
+  return { runtime: 'nodejs', explicit: false }
 }
 
 function collectHandlerFunctions(programBody) {
@@ -117,15 +122,23 @@ export default {
   create(context) {
     const sourceCode = context.sourceCode ?? context.getSourceCode()
     const program = sourceCode.ast
-    const runtime = readRuntime(program.body)
+    const { runtime, explicit } = readRuntime(program.body)
     const handlerFns = collectHandlerFunctions(program.body)
     if (handlerFns.size === 0) return {}
 
     return {
+      'Program:exit'(node) {
+        if (!explicit) {
+          context.report({ node, message: MISSING_RUNTIME_MESSAGE })
+        }
+      },
       NewExpression(node) {
         if (runtime !== 'nodejs') return
         if (node.callee?.type !== 'Identifier' || node.callee.name !== 'Response') return
-        if (!isInside(node, handlerFns)) return
+        // Only flag two-param (req, res) Node handlers. Single-param handlers
+        // (middleware, Edge-style) legitimately return new Response().
+        const enclosing = [...handlerFns].find((fn) => isInside(node, new Set([fn])))
+        if (!enclosing || (enclosing.params?.length ?? 0) < 2) return
         context.report({ node, message: NODE_MESSAGES.newResponse })
       },
       CallExpression(node) {

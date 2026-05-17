@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+export const config = { runtime: 'nodejs' }
 // GET / PATCH / DELETE for a single collection.
 //   GET    → any authenticated user; embeds the asset list (id, blob_url,
 //            thumbnail_url, kind, status, filename) so the detail view can
