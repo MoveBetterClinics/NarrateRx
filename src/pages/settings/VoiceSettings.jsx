@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
-import { Loader2, Sparkles, Pencil, Plus, X, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react'
+import { Loader2, Sparkles, Pencil, Plus, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { Section, Field, Textarea2, SaveBar } from '@/components/settings/helpers'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -13,10 +13,10 @@ import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
-import { TONES } from '@/lib/prompts'
 import { apiFetch } from '@/lib/api'
 import { useClinicians } from '@/lib/queries'
 import { ClinicianChip } from '@/components/ClinicianChip'
+import { ToneModifierCards } from '@/components/settings/ToneCard'
 import {
   AUDIENCE_CATALOG,
   STORY_TYPE_CATALOG,
@@ -720,76 +720,6 @@ function PreviewBernardCard({ interviewerName }) {
         {err && <p className="text-xs text-destructive">{err}</p>}
       </CardContent>
     </Card>
-  )
-}
-
-// ── ToneModifierCards ────────────────────────────────────────────────────────
-
-function ToneModifierCards({ form, set }) {
-  const toneObjects = Object.fromEntries(TONES.map(t => [t.id, t]))
-  const TONE_KEYS = [
-    { key: 'tone_active',   id: 'active',   label: 'Active & Driven' },
-    { key: 'tone_clinical', id: 'clinical', label: 'Clinical & In-Depth' },
-    { key: 'tone_warm',     id: 'warm',     label: 'Warm & Reassuring' },
-    { key: 'tone_smart',    id: 'smart',    label: 'Smart Default' },
-  ]
-
-  return (
-    <div className="space-y-3">
-      {TONE_KEYS.map(({ key, id, label }) => {
-        const toneObj = toneObjects[id]
-        const value = form[key] || ''
-        return (
-          <ToneCard
-            key={key}
-            toneObj={toneObj}
-            label={label}
-            value={value}
-            onChange={set(key)}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-function ToneCard({ toneObj, label, value, onChange }) {
-  const [expanded, setExpanded] = useState(false)
-  const hasContent = value.trim().length > 0
-
-  return (
-    <div className={`rounded-lg border ${hasContent ? 'border-input' : 'border-dashed border-input/60'} bg-card`}>
-      <button
-        type="button"
-        onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-accent/30 rounded-lg text-left"
-      >
-        <span className="text-base shrink-0">{toneObj?.emoji || '🎙'}</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium leading-tight">{label}</p>
-          {hasContent ? (
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">{value.slice(0, 80)}{value.length > 80 ? '…' : ''}</p>
-          ) : (
-            <p className="text-xs text-muted-foreground/60 mt-0.5 italic">No modifier — using defaults</p>
-          )}
-        </div>
-        {expanded
-          ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
-          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-        }
-      </button>
-      {expanded && (
-        <div className="border-t border-input px-3 pb-3 pt-2">
-          <Textarea2
-            label=""
-            value={value}
-            onChange={onChange}
-            rows={6}
-            hint={`Injected when this tone is selected. Use {display_name} and {activity_context} as placeholders.`}
-          />
-        </div>
-      )}
-    </div>
   )
 }
 
