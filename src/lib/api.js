@@ -123,11 +123,11 @@ export function fetchSimilarInterviews(topic, excludeId) {
  * @param {{ clinicianId: string, topic: string, ownerId: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string, topicBacklogId?: string }} opts
  * @returns {Promise<unknown>}
  */
-export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, topicBacklogId }) {
+export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, topicBacklogId }) {
   return apiFetch('/api/db/interviews', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, topicBacklogId }),
+    body: JSON.stringify({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, topicBacklogId }),
   })
 }
 
