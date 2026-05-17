@@ -7,7 +7,10 @@ import { spawn } from 'node:child_process'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import ffmpegStaticPath from 'ffmpeg-static'
-import sharp from 'sharp'
+// jimp ships both CJS and ESM builds — Vercel's bundler picks the CJS path
+// via the `require` conditional export, avoiding the ERR_INTERNAL_ASSERTION
+// crash that pure-ESM sharp@0.34 causes when bundled with require().
+import { Jimp } from 'jimp'
 
 // Per-platform caps used by Buffer's media validator:
 //   Instagram: 5000px image, 1920px video, 60s reel
@@ -26,14 +29,11 @@ async function resizeImageIfNeeded(url) {
   if (!r.ok) throw new Error(`download failed: ${r.status}`)
   const buf = Buffer.from(await r.arrayBuffer())
 
-  const img  = sharp(buf, { failOn: 'none' }).rotate() // auto-orient from EXIF
-  const meta = await img.metadata().catch(() => ({}))
-  if (!meta.width || meta.width <= IMG_MAX_WIDTH) return url
+  const img = await Jimp.read(buf)
+  if (img.width <= IMG_MAX_WIDTH) return url
 
-  const resized = await img
-    .resize({ width: IMG_MAX_WIDTH, withoutEnlargement: true })
-    .jpeg({ quality: 88 })
-    .toBuffer()
+  img.resize({ w: IMG_MAX_WIDTH })
+  const resized = await img.getBuffer('image/jpeg', { quality: 88 })
 
   const hash = createHash('sha256').update(url).digest('hex').slice(0, 16)
   const { url: blobUrl } = await blobPut(
@@ -79,10 +79,9 @@ async function transcodeVideoIfNeeded(url) {
     await pipeline(Readable.fromWeb(r.body), createWriteStream(inPath))
 
     const { width } = await probeVideoSize(inPath)
-    if (width > 0 && width <= VID_MAX_WIDTH) return url  // already small enough
+    if (width > 0 && width <= VID_MAX_WIDTH) return url
 
-    // Scale down to VID_MAX_WIDTH preserving aspect, -2 keeps even-numbered
-    // height required by H.264. -preset fast balances speed vs. file size.
+    // Scale down preserving aspect. -2 keeps even-numbered height for H.264.
     // -movflags +faststart puts the moov atom first for streaming.
     await runFfmpeg([
       '-y', '-i', inPath,
@@ -109,11 +108,11 @@ async function transcodeVideoIfNeeded(url) {
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 // Walk a mediaUrls array, downsizing oversized images and transcoding oversized
-// videos before the URLs are handed to Buffer. Resize/transcode results are
-// stored at deterministic blob paths (sha256 of source URL) so retrying the
-// same publish reuses the same blob. On any error, falls back to the original
-// URL and logs — the publish still attempts; Buffer will only reject if the
-// asset truly exceeds the platform cap.
+// videos before the URLs are handed to Buffer. Results are stored at
+// deterministic blob paths (sha256 of source URL) so retrying the same publish
+// reuses the cached output. On any error, falls back to the original URL —
+// the publish still attempts and Buffer surfaces a readable error if the asset
+// truly exceeds the platform cap.
 export async function prepareMediaForBuffer(mediaUrls) {
   if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) return mediaUrls || []
   return Promise.all(
@@ -125,9 +124,6 @@ export async function prepareMediaForBuffer(mediaUrls) {
           ? await transcodeVideoIfNeeded(m.url)
           : await resizeImageIfNeeded(m.url)
         if (!newUrl || newUrl === m.url) return m
-        // Video transcode → also update the thumbnail hint URL if it was derived
-        // from the original (it will still point to the pre-transcode blob; that's
-        // fine — thumbnail quality is display-only, not re-sent to Buffer).
         return { ...m, url: newUrl }
       } catch (e) {
         const kind = isVideo ? 'video transcode' : 'image resize'
