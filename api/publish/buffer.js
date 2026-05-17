@@ -15,7 +15,6 @@ export const config = { runtime: 'nodejs' }
 
 import { getCredential } from '../_lib/getCredential.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
-import { prepareMediaForBuffer } from '../_lib/prepareMediaForBuffer.js'
 
 const BUFFER_GQL = 'https://api.buffer.com/graphql'
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -171,11 +170,8 @@ async function handler(req, res) {
   // 2. Build post payload.
   //    scheduledAt → customScheduled + dueAt; otherwise shareNow.
   const mode = scheduledAt ? 'customScheduled' : 'shareNow'
-  // Pre-flight: downsize any images that would trip per-platform caps
-  // (Instagram 5000px, Twitter 4096px). Videos pass through untouched.
-  const preparedMedia = await prepareMediaForBuffer(mediaUrls)
-  const assets = buildAssets(preparedMedia)
-  const metadata = buildMetadata(platform, preparedMedia)
+  const assets = buildAssets(mediaUrls)
+  const metadata = buildMetadata(platform, mediaUrls)
 
   // 3. Create one post per channel (fan-out for GBP multi-location).
   const posts = []
