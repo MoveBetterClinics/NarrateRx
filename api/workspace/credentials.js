@@ -67,19 +67,28 @@ async function handler(req, res) {
       return res.status(500).json({ error: 'encrypt-failed' })
     }
 
-    const row = {
-      workspace_id: workspace.id,
-      service,
-      config: config && typeof config === 'object' ? config : {},
-      secret_ciphertext,
-      status: 'active',
-    }
+    const safeConfig = config && typeof config === 'object' ? config : {}
 
-    const r = await sb('workspace_credentials?on_conflict=workspace_id,service', {
-      method: 'POST',
-      headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-      body: JSON.stringify(row),
-    })
+    // PostgREST merge-duplicates upsert was returning 409 on this table despite
+    // the on_conflict param. Use an explicit read-then-patch/insert instead.
+    const check = await sb(
+      `workspace_credentials?workspace_id=eq.${workspace.id}&service=eq.${encodeURIComponent(service)}&select=id`,
+    )
+    const existing = check.ok ? (await check.json().catch(() => []))?.[0] : null
+
+    let r
+    if (existing?.id) {
+      r = await sb(`workspace_credentials?id=eq.${existing.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ config: safeConfig, secret_ciphertext, status: 'active' }),
+      })
+    } else {
+      r = await sb('workspace_credentials', {
+        method: 'POST',
+        headers: { Prefer: 'return=minimal' },
+        body: JSON.stringify({ workspace_id: workspace.id, service, config: safeConfig, secret_ciphertext, status: 'active' }),
+      })
+    }
     if (!r.ok) {
       const text = await r.text().catch(() => '')
       console.error('[credentials PUT] supabase error:', r.status, text)
