@@ -1,16 +1,13 @@
 import { put as blobPut } from '@vercel/blob'
 import { createHash } from 'node:crypto'
-import { mkdtemp, rm, readFile, createWriteStream } from 'node:fs/promises'
+import { mkdtemp, rm, readFile } from 'node:fs/promises'
+import { createWriteStream } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { spawn } from 'node:child_process'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import ffmpegStaticPath from 'ffmpeg-static'
-// sharp@0.34 is "type":"commonjs" — static import works cleanly with esbuild.
-// Earlier attempts used dynamic `await import('sharp')` which esbuild couldn't
-// bundle reliably; jimp was tried next but all @jimp/* sub-packages are
-// "type":"module", causing the same ERR_INTERNAL_ASSERTION at runtime.
 import sharp from 'sharp'
 
 // Per-platform caps used by Buffer's media validator:
