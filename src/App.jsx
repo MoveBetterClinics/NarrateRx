@@ -240,6 +240,9 @@ function AppRoutes() {
             <Route element={<SettingsLayout />}>
               <Route path="/settings/workspace" element={guarded(<WorkspaceSettings />)} />
               <Route path="/settings/workspace/voice" element={guarded(<VoiceSettings />)} />
+              {/* PR #1 wires the routes; PRs #3 + #4 ship the lean per-page content. */}
+              <Route path="/settings/workspace/patients" element={guarded(<VoiceSettings />)} />
+              <Route path="/settings/workspace/interview-defaults" element={guarded(<VoiceSettings />)} />
               <Route path="/settings/workspace/locations" element={guarded(<LocationsSettings />)} />
               <Route path="/settings/workspace/channels" element={guarded(<ChannelsSettings />)} />
               <Route path="/settings/workspace/billing" element={guarded(<BillingSettings />)} />

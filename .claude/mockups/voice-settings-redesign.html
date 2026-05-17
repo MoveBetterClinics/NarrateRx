@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Voice Settings — Redesign Mockups (A / B / C)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: ui-sans-serif, -apple-system, "Segoe UI", system-ui, sans-serif; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .border-input { border-color: rgb(229 231 235); }
+  .text-3xs { font-size: 0.625rem; line-height: 0.875rem; }
+  .text-2xs { font-size: 0.6875rem; line-height: 1rem; }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
+  details > summary { list-style: none; }
+  details > summary::-webkit-details-marker { display: none; }
+  .ring-prim { box-shadow: 0 0 0 1px rgb(99 102 241 / 0.6); }
+  .nav-active { background: rgb(238 242 255); color: rgb(67 56 202); border-left-color: rgb(99 102 241); }
+</style>
+</head>
+<body class="bg-stone-50 text-stone-900">
+
+<!-- ── HEADER ─────────────────────────────────────────────────────────── -->
+<div class="border-b bg-white sticky top-0 z-30">
+  <div class="max-w-[1800px] mx-auto px-6 py-3 flex items-center justify-between">
+    <div>
+      <h1 class="text-base font-semibold">Voice Settings — Redesign Comparison</h1>
+      <p class="text-xs text-stone-500">Each panel below is a scrollable column. Resize your window for more breathing room.</p>
+    </div>
+    <div class="flex gap-2 text-2xs">
+      <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">A — Two sub-tabs (Recommended)</span>
+      <span class="px-2 py-0.5 rounded-full bg-sky-100 text-sky-800">B — Sub-pages in left rail</span>
+      <span class="px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">C — Live brief panel</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── 3-COLUMN COMPARISON ────────────────────────────────────────────── -->
+<div class="max-w-[1800px] mx-auto p-4 grid grid-cols-3 gap-4">
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- ══ OPTION A — Two sub-tabs                                        ══ -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="rounded-xl border bg-white overflow-hidden shadow-sm">
+  <div class="bg-emerald-50 px-4 py-2 border-b border-emerald-200">
+    <p class="text-2xs font-semibold uppercase tracking-wider text-emerald-800">Option A — Two sub-tabs · Recommended</p>
+    <p class="text-2xs text-emerald-700/80">One route, in-page segmented control. Sticky preview. Misplaced sections evicted.</p>
+  </div>
+
+  <div class="flex">
+    <!-- mini left rail mimic -->
+    <aside class="w-32 shrink-0 border-r bg-stone-50/60 py-3 text-2xs text-stone-600">
+      <p class="px-3 pb-1 text-3xs uppercase tracking-wider text-stone-400">Workspace</p>
+      <a class="block px-3 py-1.5 nav-active border-l-2 font-medium">Voice</a>
+      <a class="block px-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Locations</a>
+      <a class="block px-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Channels</a>
+      <a class="block px-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Billing</a>
+      <p class="px-3 pt-3 pb-1 text-3xs uppercase tracking-wider text-stone-400">Other</p>
+      <a class="block px-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Clinicians</a>
+      <a class="block px-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Brand kit</a>
+    </aside>
+
+    <div class="flex-1 min-w-0 max-h-[1100px] overflow-y-auto scrollbar-thin">
+      <div class="px-5 py-4">
+        <!-- Title -->
+        <h2 class="text-lg font-bold tracking-tight">What Bernard knows about Move Better People</h2>
+        <p class="text-xs text-stone-500 mt-1">The brief Bernard reads before every interview and every draft.</p>
+
+        <!-- Segmented control -->
+        <div class="mt-4 inline-flex rounded-lg border bg-stone-50 p-0.5 text-xs">
+          <button class="px-3 py-1.5 rounded-md bg-white shadow-sm font-medium">How we sound</button>
+          <button class="px-3 py-1.5 text-stone-500 hover:text-stone-700">People &amp; topics</button>
+        </div>
+
+        <!-- ── TAB: How we sound ── -->
+        <div class="mt-5 space-y-5">
+
+          <!-- Unified brief + preview card -->
+          <div class="rounded-lg border border-amber-200 bg-amber-50/60 p-3.5">
+            <div class="flex items-center justify-between">
+              <p class="text-2xs font-semibold uppercase tracking-widest text-amber-800">Bernard's brief, as he reads it</p>
+              <button class="text-2xs px-2 py-0.5 rounded-md bg-amber-200/70 text-amber-900 hover:bg-amber-300">✨ Try a live preview</button>
+            </div>
+            <p class="text-sm mt-2 leading-relaxed text-stone-800">
+              Bernard will write for <em>active adults 35–60 returning from injury</em> in a voice that comes across as
+              <em>grounded, direct, and humane — never marketing-speak.</em>
+            </p>
+            <p class="text-2xs text-amber-700/80 mt-2 italic">Three tone modes configured so each piece can shift register when needed.</p>
+          </div>
+
+          <!-- About + voice -->
+          <div>
+            <p class="text-2xs font-semibold uppercase tracking-wider text-stone-500 mb-2">The clinic</p>
+            <label class="text-xs font-medium">What this clinic is about</label>
+            <textarea class="mt-1 w-full text-xs border rounded-md p-2 h-16" placeholder="A short paragraph orienting Bernard…">Move Better People is a movement-first physiotherapy practice in Seattle…</textarea>
+            <label class="text-xs font-medium mt-3 block">Brand voice</label>
+            <textarea class="mt-1 w-full text-xs border rounded-md p-2 h-20">Grounded, direct, never preachy. Sentences land. We talk like the clinician across the table, not like a brochure.</textarea>
+          </div>
+
+          <!-- Audience -->
+          <div>
+            <p class="text-2xs font-semibold uppercase tracking-wider text-stone-500 mb-2">Who you serve</p>
+            <label class="text-xs font-medium">Audience in one line</label>
+            <input class="mt-1 w-full text-xs border rounded-md p-2" value="Active adults 35–60 returning from injury" />
+            <label class="text-xs font-medium mt-3 block">Full audience description</label>
+            <textarea class="mt-1 w-full text-xs border rounded-md p-2 h-16">People who used to move freely and have lost some of it…</textarea>
+          </div>
+
+          <!-- Tones -->
+          <div>
+            <p class="text-2xs font-semibold uppercase tracking-wider text-stone-500 mb-2">Tone modes</p>
+            <div class="space-y-1.5">
+              <div class="border rounded-md px-2.5 py-2 flex items-center gap-2 hover:bg-stone-50">
+                <span>⚡</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-medium">Active &amp; Driven</p>
+                  <p class="text-2xs text-stone-500 truncate">Crisp verbs, momentum, second-person, no hedging…</p>
+                </div>
+                <span class="text-stone-400">▾</span>
+              </div>
+              <div class="border rounded-md px-2.5 py-2 flex items-center gap-2 hover:bg-stone-50">
+                <span>🩺</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-medium">Clinical &amp; In-depth</p>
+                  <p class="text-2xs text-stone-500 truncate">Precise terminology, citations welcome, structured…</p>
+                </div>
+                <span class="text-stone-400">▾</span>
+              </div>
+              <div class="border border-dashed rounded-md px-2.5 py-2 flex items-center gap-2">
+                <span>🤍</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-medium">Warm &amp; Reassuring</p>
+                  <p class="text-2xs text-stone-400 italic">No modifier — using system default: <span class="not-italic text-stone-500">"Lead with acknowledgement; …"</span></p>
+                </div>
+                <span class="text-stone-400">▾</span>
+              </div>
+              <div class="border border-dashed rounded-md px-2.5 py-2 flex items-center gap-2">
+                <span>🧠</span>
+                <div class="flex-1 min-w-0">
+                  <p class="text-xs font-medium">Smart default</p>
+                  <p class="text-2xs text-stone-400 italic">No modifier — using system default</p>
+                </div>
+                <span class="text-stone-400">▾</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sticky preview at bottom-right -->
+        <div class="sticky bottom-3 mt-6 flex justify-end pointer-events-none">
+          <button class="pointer-events-auto rounded-full bg-stone-900 text-white text-2xs px-3 py-2 shadow-lg flex items-center gap-1.5 hover:bg-stone-800">
+            ✨ Preview Bernard
+          </button>
+        </div>
+
+        <!-- Save bar -->
+        <div class="mt-4 border-t pt-3 flex items-center justify-between">
+          <span class="text-2xs text-stone-500">Unsaved changes · ⌘S</span>
+          <div class="flex gap-2">
+            <button class="text-2xs px-3 py-1.5 rounded-md border">Discard</button>
+            <button class="text-2xs px-3 py-1.5 rounded-md bg-stone-900 text-white">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- A: what's evicted -->
+  <div class="border-t bg-stone-50/70 px-4 py-2.5 text-2xs text-stone-600">
+    <p><b class="text-stone-700">Moved off this page:</b> per-clinician voice memory → Clinicians page · pre-interview slot options → New-interview defaults · raw JSON condition bank → structured editor on "People &amp; topics" tab.</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- ══ OPTION B — Sub-pages in left rail                              ══ -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="rounded-xl border bg-white overflow-hidden shadow-sm">
+  <div class="bg-sky-50 px-4 py-2 border-b border-sky-200">
+    <p class="text-2xs font-semibold uppercase tracking-wider text-sky-800">Option B — Sub-pages in left rail</p>
+    <p class="text-2xs text-sky-700/80">Three routes; nav does the splitting. No in-page tabs. More discoverable; more clicks.</p>
+  </div>
+
+  <div class="flex">
+    <aside class="w-36 shrink-0 border-r bg-stone-50/60 py-3 text-2xs text-stone-600">
+      <p class="px-3 pb-1 text-3xs uppercase tracking-wider text-stone-400">Workspace</p>
+      <p class="px-3 pt-1 pb-0.5 text-3xs font-semibold text-stone-500">Bernard</p>
+      <a class="block pl-5 pr-3 py-1.5 nav-active border-l-2 font-medium">Voice &amp; tone</a>
+      <a class="block pl-5 pr-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Patients &amp; topics</a>
+      <a class="block pl-5 pr-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Interview defaults</a>
+      <p class="px-3 pt-2 pb-0.5 text-3xs font-semibold text-stone-500">Workspace</p>
+      <a class="block pl-5 pr-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Locations</a>
+      <a class="block pl-5 pr-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Channels</a>
+      <a class="block pl-5 pr-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Billing</a>
+      <p class="px-3 pt-2 pb-0.5 text-3xs uppercase tracking-wider text-stone-400">Other</p>
+      <a class="block pl-3 pr-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Clinicians</a>
+      <a class="block pl-3 pr-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Brand kit</a>
+    </aside>
+
+    <div class="flex-1 min-w-0 max-h-[1100px] overflow-y-auto scrollbar-thin">
+      <div class="px-5 py-4">
+        <p class="text-2xs text-stone-400">Settings · Bernard · Voice &amp; tone</p>
+        <h2 class="text-lg font-bold tracking-tight mt-0.5">How Move Better People sounds</h2>
+        <p class="text-xs text-stone-500 mt-1">The brief Bernard reads before every draft. Tone modes shift register when a clinician asks.</p>
+
+        <div class="mt-5 space-y-5">
+          <div class="rounded-lg border border-amber-200 bg-amber-50/60 p-3.5">
+            <div class="flex items-center justify-between">
+              <p class="text-2xs font-semibold uppercase tracking-widest text-amber-800">Bernard's brief, as he reads it</p>
+              <button class="text-2xs px-2 py-0.5 rounded-md bg-amber-200/70 text-amber-900 hover:bg-amber-300">✨ Try a live preview</button>
+            </div>
+            <p class="text-sm mt-2 leading-relaxed">Bernard will write for <em>active adults 35–60 returning from injury</em>…</p>
+          </div>
+
+          <div>
+            <label class="text-xs font-medium">What this clinic is about</label>
+            <textarea class="mt-1 w-full text-xs border rounded-md p-2 h-16">Move Better People is a movement-first physiotherapy practice…</textarea>
+          </div>
+          <div>
+            <label class="text-xs font-medium">Brand voice</label>
+            <textarea class="mt-1 w-full text-xs border rounded-md p-2 h-20">Grounded, direct, never preachy…</textarea>
+          </div>
+
+          <div>
+            <p class="text-2xs font-semibold uppercase tracking-wider text-stone-500 mb-2">Who you serve</p>
+            <input class="w-full text-xs border rounded-md p-2 mb-2" value="Active adults 35–60 returning from injury" />
+            <textarea class="w-full text-xs border rounded-md p-2 h-12">Full audience description…</textarea>
+          </div>
+
+          <div>
+            <p class="text-2xs font-semibold uppercase tracking-wider text-stone-500 mb-2">Tone modes</p>
+            <div class="space-y-1.5">
+              <div class="border rounded-md px-2.5 py-2 flex items-center gap-2"><span>⚡</span><div class="flex-1"><p class="text-xs font-medium">Active &amp; Driven</p><p class="text-2xs text-stone-500 truncate">Crisp verbs, momentum…</p></div><span class="text-stone-400">▾</span></div>
+              <div class="border rounded-md px-2.5 py-2 flex items-center gap-2"><span>🩺</span><div class="flex-1"><p class="text-xs font-medium">Clinical &amp; In-depth</p><p class="text-2xs text-stone-500 truncate">Precise terminology…</p></div><span class="text-stone-400">▾</span></div>
+              <div class="border border-dashed rounded-md px-2.5 py-2 flex items-center gap-2"><span>🤍</span><div class="flex-1"><p class="text-xs font-medium">Warm &amp; Reassuring</p><p class="text-2xs text-stone-400 italic">Using system default</p></div><span class="text-stone-400">▾</span></div>
+              <div class="border border-dashed rounded-md px-2.5 py-2 flex items-center gap-2"><span>🧠</span><div class="flex-1"><p class="text-xs font-medium">Smart default</p><p class="text-2xs text-stone-400 italic">Using system default</p></div><span class="text-stone-400">▾</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-6 border-t pt-3 flex items-center justify-between">
+          <a class="text-2xs text-sky-700 hover:underline">Next: Patients &amp; topics →</a>
+          <div class="flex gap-2">
+            <button class="text-2xs px-3 py-1.5 rounded-md border">Discard</button>
+            <button class="text-2xs px-3 py-1.5 rounded-md bg-stone-900 text-white">Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="border-t bg-stone-50/70 px-4 py-2.5 text-2xs text-stone-600">
+    <p><b class="text-stone-700">Trade-off:</b> three routes mean more SaveBars, more navigation, but each page is one mental model. Best when you expect a&nbsp;workspace admin to spend a session inside each section, not bounce.</p>
+  </div>
+</section>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<!-- ══ OPTION C — Live brief panel (scroll-synced)                    ══ -->
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<section class="rounded-xl border bg-white overflow-hidden shadow-sm">
+  <div class="bg-violet-50 px-4 py-2 border-b border-violet-200">
+    <p class="text-2xs font-semibold uppercase tracking-wider text-violet-800">Option C — Live brief panel</p>
+    <p class="text-2xs text-violet-700/80">Right rail renders Bernard's actual prompt as it changes. Most informative; most engineering.</p>
+  </div>
+
+  <div class="flex">
+    <aside class="w-28 shrink-0 border-r bg-stone-50/60 py-3 text-2xs text-stone-600">
+      <p class="px-3 pb-1 text-3xs uppercase tracking-wider text-stone-400">Workspace</p>
+      <a class="block px-3 py-1.5 nav-active border-l-2 font-medium">Voice</a>
+      <a class="block px-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Locations</a>
+      <a class="block px-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Channels</a>
+      <a class="block px-3 py-1.5 hover:bg-stone-100 border-l-2 border-transparent">Billing</a>
+    </aside>
+
+    <div class="flex-1 min-w-0 grid grid-cols-[1fr_220px] max-h-[1100px]">
+      <!-- editor column -->
+      <div class="overflow-y-auto scrollbar-thin border-r">
+        <div class="px-5 py-4">
+          <h2 class="text-lg font-bold tracking-tight">Voice configuration</h2>
+          <p class="text-xs text-stone-500 mt-1">As you edit, the right-hand panel shows the brief Bernard will read.</p>
+
+          <div class="mt-4 inline-flex rounded-lg border bg-stone-50 p-0.5 text-xs">
+            <button class="px-3 py-1.5 rounded-md bg-white shadow-sm font-medium">Voice</button>
+            <button class="px-3 py-1.5 text-stone-500">Audience</button>
+            <button class="px-3 py-1.5 text-stone-500">Tones</button>
+            <button class="px-3 py-1.5 text-stone-500">Archetypes</button>
+            <button class="px-3 py-1.5 text-stone-500">Topics</button>
+          </div>
+
+          <div class="mt-5 space-y-4">
+            <div>
+              <label class="text-xs font-medium flex items-center gap-1.5">
+                What this clinic is about
+                <span class="text-3xs text-violet-600 bg-violet-50 rounded px-1.5 py-0.5">§ clinic_context</span>
+              </label>
+              <textarea class="mt-1 w-full text-xs border rounded-md p-2 h-16 ring-prim">Move Better People is a movement-first physiotherapy practice in Seattle, focused on people who used to move freely…</textarea>
+              <p class="text-2xs text-violet-700 mt-1">→ Bernard reads this as line 3 of the brief</p>
+            </div>
+            <div>
+              <label class="text-xs font-medium flex items-center gap-1.5">
+                Brand voice
+                <span class="text-3xs text-violet-600 bg-violet-50 rounded px-1.5 py-0.5">§ brand_voice</span>
+              </label>
+              <textarea class="mt-1 w-full text-xs border rounded-md p-2 h-24">Grounded, direct, never preachy. Sentences land. We talk like the clinician across the table, not like a brochure. Avoid hype words ("breakthrough", "game-changing"). Cadence: short → medium → short.</textarea>
+              <p class="text-2xs text-violet-700 mt-1">→ Drives both Bernard's tone and the post-interview rewrite pass</p>
+            </div>
+          </div>
+
+          <div class="mt-6 border-t pt-3 flex items-center justify-between">
+            <span class="text-2xs text-stone-500">Auto-save · last saved 2m ago</span>
+            <div class="flex gap-2">
+              <button class="text-2xs px-3 py-1.5 rounded-md border">Discard</button>
+              <button class="text-2xs px-3 py-1.5 rounded-md bg-stone-900 text-white">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- live brief panel -->
+      <div class="bg-stone-900 text-stone-100 overflow-y-auto scrollbar-thin">
+        <div class="px-3 py-3 border-b border-stone-700 flex items-center justify-between sticky top-0 bg-stone-900">
+          <p class="text-3xs uppercase tracking-widest text-stone-400">Bernard's brief · live</p>
+          <button class="text-3xs px-1.5 py-0.5 rounded bg-violet-600 hover:bg-violet-500">✨ Sample</button>
+        </div>
+        <pre class="text-3xs leading-relaxed p-3 whitespace-pre-wrap mono text-stone-200">You are <span class="text-amber-300">Bernard</span>, the interviewer for
+<span class="text-amber-300">Move Better People</span>.
+
+<span class="bg-violet-700/40 px-0.5 rounded">Move Better People is a
+movement-first physiotherapy
+practice in Seattle, focused
+on people who used to move
+freely…</span>
+
+Audience: <span class="text-amber-300">active adults 35–60
+returning from injury.</span>
+
+Voice: <span class="bg-violet-700/40 px-0.5 rounded">Grounded, direct,
+never preachy. Sentences
+land. We talk like the
+clinician across the
+table…</span>
+
+Patient archetypes:
+ 1. The Reconnector — wants
+    to move freely again
+ 2. The Returning Athlete —
+    rehab to performance
+ 3. The Frustrated Mover —
+    burned by prior PT
+
+Tone (smart default):
+<span class="text-stone-400 italic">  Lead with acknowledgement;
+  one concrete next step…</span>
+
+—— end of brief ——
+[~ 740 tokens]
+        </pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="border-t bg-stone-50/70 px-4 py-2.5 text-2xs text-stone-600">
+    <p><b class="text-stone-700">What's powerful:</b> the admin sees exactly what changes when they tweak a field — the highlighted span pulses on edit. Demystifies the AI; great for trust. Cost is ~3× the build of A.</p>
+  </div>
+</section>
+
+</div>
+
+<!-- ── COMPARISON TABLE ──────────────────────────────────────────────── -->
+<div class="max-w-[1800px] mx-auto p-4 pb-12">
+  <div class="rounded-xl border bg-white overflow-hidden shadow-sm">
+    <div class="px-5 py-3 border-b bg-stone-50">
+      <p class="text-sm font-semibold">At-a-glance comparison</p>
+    </div>
+    <table class="w-full text-xs">
+      <thead class="bg-stone-50/60 text-stone-500">
+        <tr>
+          <th class="text-left px-4 py-2 font-medium w-1/4">Dimension</th>
+          <th class="text-left px-4 py-2 font-medium">A — Two sub-tabs</th>
+          <th class="text-left px-4 py-2 font-medium">B — Sub-pages in rail</th>
+          <th class="text-left px-4 py-2 font-medium">C — Live brief panel</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        <tr><td class="px-4 py-2 font-medium text-stone-600">Routes</td><td class="px-4 py-2">1</td><td class="px-4 py-2">3</td><td class="px-4 py-2">1 (with internal tabs)</td></tr>
+        <tr><td class="px-4 py-2 font-medium text-stone-600">SaveBars</td><td class="px-4 py-2">1</td><td class="px-4 py-2">3</td><td class="px-4 py-2">1 (auto-save)</td></tr>
+        <tr><td class="px-4 py-2 font-medium text-stone-600">Clicks to find tones</td><td class="px-4 py-2">0 (same tab as voice)</td><td class="px-4 py-2">0 (own page)</td><td class="px-4 py-2">1 (tab switch)</td></tr>
+        <tr><td class="px-4 py-2 font-medium text-stone-600">Clicks to find archetypes</td><td class="px-4 py-2">1 (tab switch)</td><td class="px-4 py-2">1 (nav)</td><td class="px-4 py-2">1 (tab switch)</td></tr>
+        <tr><td class="px-4 py-2 font-medium text-stone-600">Trust / transparency win</td><td class="px-4 py-2">Medium</td><td class="px-4 py-2">Medium</td><td class="px-4 py-2 text-violet-700">High — admin sees prompt</td></tr>
+        <tr><td class="px-4 py-2 font-medium text-stone-600">Engineering effort</td><td class="px-4 py-2">2–3d</td><td class="px-4 py-2">2d</td><td class="px-4 py-2">4–6d</td></tr>
+        <tr><td class="px-4 py-2 font-medium text-stone-600">Claude cost</td><td class="px-4 py-2">$8–15 (Sonnet)</td><td class="px-4 py-2">$6–10 (Sonnet)</td><td class="px-4 py-2">$20–35 (Opus edges)</td></tr>
+        <tr><td class="px-4 py-2 font-medium text-stone-600">Risk</td><td class="px-4 py-2">Low</td><td class="px-4 py-2">Low</td><td class="px-4 py-2">Medium — prompt-render plumbing</td></tr>
+        <tr class="bg-emerald-50/40"><td class="px-4 py-2 font-medium text-stone-700">Best if…</td><td class="px-4 py-2">You want the biggest IA win for the least effort, and admins edit voice + tones together.</td><td class="px-4 py-2">You expect deep sessions inside each section (e.g. a topic-tagging workday) and want URLs to deep-link to.</td><td class="px-4 py-2">Trust in the AI is a known concern and you want to make the system legible.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>
