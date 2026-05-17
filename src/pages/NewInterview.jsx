@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/clerk-react'
 import { ArrowLeft, ArrowRight, Stethoscope, User, Loader2, TrendingUp, Sparkles, Plus, ChevronDown, ChevronUp } from 'lucide-react'
@@ -11,6 +11,7 @@ import { useClinicians } from '@/lib/queries'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { defaultAudienceSlots, defaultStoryTypeSlots } from '@/lib/interviewOptionsCatalog'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useUserRole } from '@/lib/useUserRole'
@@ -33,7 +34,12 @@ export default function NewInterview() {
   const [addingSuggestion, setAddingSuggestion] = useState(false)
   const [suggestionAddedFor, setSuggestionAddedFor] = useState('')
 
-  const [clinicianName, setClinicianName] = useState('')
+  const [clinicianName, setClinicianName] = useState(user?.fullName || '')
+  // Clerk may hydrate after first render — fill in once available if still empty
+  useEffect(() => {
+    if (user?.fullName && !clinicianName) setClinicianName(user.fullName)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.fullName])
   const [condition, setCondition] = useState(searchParams.get('topic') || '')
   const [step, setStep] = useState(searchParams.get('topic') ? 1 : 1)
   const [loading, setLoading] = useState(false)
@@ -46,8 +52,12 @@ export default function NewInterview() {
   const [storyType, setStoryType] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const audienceOptions = Array.isArray(workspace?.audience_options) ? workspace.audience_options : []
-  const storyTypeOptions = Array.isArray(workspace?.story_type_options) ? workspace.story_type_options : []
+  const audienceOptions = Array.isArray(workspace?.audience_options) && workspace.audience_options.length > 0
+    ? workspace.audience_options
+    : defaultAudienceSlots()
+  const storyTypeOptions = Array.isArray(workspace?.story_type_options) && workspace.story_type_options.length > 0
+    ? workspace.story_type_options
+    : defaultStoryTypeSlots()
   const activeLocations = Array.isArray(workspace?.locations)
     ? workspace.locations.filter(l => l.status === 'active')
     : []
