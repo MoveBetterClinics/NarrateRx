@@ -44,6 +44,7 @@ const MARKETING_PATHS = {
   '/about':        '/about.html',
   '/compare':      '/compare.html',
   '/vs':           '/compare.html',
+  '/transparency': '/transparency.html',
   // Design mock variants of the home page. Linked from /mocks.
   '/mocks':            '/mocks.html',
   '/mock-warm':        '/mock-warm.html',

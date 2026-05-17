@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transparency — How NarrateRx works under the hood</title>
+  <meta name="description" content="How NarrateRx actually works: provenance trace, atoms knowledge graph, voice phrases, and the voice loop. No black box." />
+  <link rel="canonical" href="https://narraterx.ai/transparency" />
+  <meta property="og:title" content="Transparency — NarrateRx architecture" />
+  <meta property="og:description" content="Provenance trace, atoms, voice phrases, and the voice loop. How NarrateRx builds drafts from your words, not from inference." />
+  <meta property="og:url" content="https://narraterx.ai/transparency" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" type="image/svg+xml" href="/narraterx-icon.svg" />
+  <link rel="apple-touch-icon" href="/narraterx-icon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/site.css" />
+</head>
+<body>
+
+<header class="uhdr">
+  <div class="container uhdr-inner">
+    <a href="/" class="uhdr-logo"><span class="glyph">N</span>narrate<span class="rx">Rx</span></a>
+    <button class="uhdr-toggle" type="button" aria-label="Toggle menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="uhdr-nav">
+      <a href="/how-it-works">How it works</a>
+      <a href="/features">Features</a>
+      <a href="/compare">Compare</a>
+      <a href="/demo">Demo</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/onboard#signin" class="uhdr-signin">Sign in</a>
+      <a href="/onboard" class="uhdr-cta">Claim a spot</a>
+    </nav>
+  </div>
+</header>
+
+<!-- PAGE HERO -->
+<section class="upage-hero">
+  <div class="container">
+    <div class="upage-hero-inner">
+      <p class="upage-eyebrow"><span class="dot"></span> Transparency</p>
+      <h1>No black box. <em>Here's exactly how it works.</em></h1>
+      <p>NarrateRx makes a strong claim: every sentence in every draft traces back to something you said. This page documents the four mechanisms that make that claim checkable — not a marketing promise, an architectural guarantee.</p>
+    </div>
+  </div>
+</section>
+
+<!-- PILLAR 1: PROVENANCE -->
+<section class="uband">
+  <div class="container">
+    <p class="uband-eyebrow">Mechanism 01</p>
+    <h2>Provenance trace. <em>Every line, one source.</em></h2>
+    <p class="uband-lede">Before any draft is generated, the transcript is segmented into spans — each span is a discrete statement, belief, or anecdote from the interview. The LLM receives the spans as the source material for drafting. Each sentence in the output carries a span reference.</p>
+
+    <div class="utwo-col" style="align-items:flex-start;gap:48px;">
+      <div>
+        <p>In the review queue, you can switch to attributed view. Every sentence in the draft shows the transcript span it was drawn from. If a sentence doesn't trace to a span — meaning the model invented it — it is flagged for your review before it can be published.</p>
+        <p>This is structural, not aspirational. The pipeline is built so the model <em>cannot</em> return a claim without a source reference. Hallucination isn't suppressed by a prompt; it's blocked by the schema.</p>
+        <ul class="uarrow-list" style="margin-top:24px;">
+          <li>Transcript is segmented into named spans before drafting begins</li>
+          <li>Drafting prompt references spans by ID — output must cite sources</li>
+          <li>Review queue attributed view maps each sentence back to your words</li>
+          <li>Unsourced claims are flagged, not silently published</li>
+        </ul>
+      </div>
+      <div>
+        <div class="utrace-mockup">
+          <div class="utrace-draft">
+            <p class="utrace-label">Draft sentence</p>
+            <p class="utrace-sentence">"The diaphragm doesn't just move air — it stabilizes your spine from the inside."</p>
+          </div>
+          <div class="utrace-arrow">↓ attributed to</div>
+          <div class="utrace-source">
+            <p class="utrace-label">Transcript span · 02:14</p>
+            <p class="utrace-quote">"…because the diaphragm, when it fires correctly, is actually the primary stabilizer of the lumbar spine. It's not the core. The diaphragm is the core."</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PILLAR 2: ATOMS -->
+<section class="uband uband-dark">
+  <div class="container">
+    <p class="uband-eyebrow">Mechanism 02</p>
+    <h2>Atoms. <em>Your ideas, accumulated.</em></h2>
+    <p class="uband-lede">Each interview is parsed into atoms — discrete units of knowledge extracted from your transcript. Atoms accumulate across months into a workspace knowledge graph.</p>
+
+    <div class="utwo-col" style="align-items:flex-start;gap:48px;">
+      <div>
+        <p>An atom is one of: a <strong>belief</strong> (a claim about how the world works), a <strong>case</strong> (a patient or client story), a <strong>condition</strong> (a diagnostic or context), an <strong>archetype</strong> (a type of person you work with), or an <strong>objection</strong> (a common resistance you address). Each atom links back to the interview span it came from.</p>
+        <p>When a future interview surfaces a related belief or case, the atom graph recognizes the connection. Drafts can draw on prior thinking — the blog post from March can reference the case story from January, correctly attributed to both original interviews.</p>
+        <ul class="uarrow-list" style="margin-top:24px;">
+          <li>Five atom types: beliefs, cases, conditions, archetypes, objections</li>
+          <li>Each atom links to the transcript span it was extracted from</li>
+          <li>Atoms accumulate across all interviews in a workspace</li>
+          <li>Future drafts draw on the full graph, not just the current session</li>
+        </ul>
+      </div>
+      <div>
+        <div class="uatom-grid">
+          <div class="uatom-chip is-belief">
+            <span class="uatom-type">belief</span>
+            <span class="uatom-text">Pain is a movement problem, not a tissue problem</span>
+          </div>
+          <div class="uatom-chip is-case">
+            <span class="uatom-type">case</span>
+            <span class="uatom-text">Two-year bursitis diagnosis resolved in one screen</span>
+          </div>
+          <div class="uatom-chip is-condition">
+            <span class="uatom-type">condition</span>
+            <span class="uatom-text">Dysfunctional breathing pattern, diaphragm offline</span>
+          </div>
+          <div class="uatom-chip is-archetype">
+            <span class="uatom-type">archetype</span>
+            <span class="uatom-text">The runner who stopped running</span>
+          </div>
+          <div class="uatom-chip is-objection">
+            <span class="uatom-type">objection</span>
+            <span class="uatom-text">"My MRI shows a disc bulge — isn't that the cause?"</span>
+          </div>
+          <div class="uatom-chip is-belief">
+            <span class="uatom-type">belief</span>
+            <span class="uatom-text">Imaging and symptoms almost never match in adults over 30</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PILLAR 3: VOICE PHRASES -->
+<section class="uband">
+  <div class="container">
+    <p class="uband-eyebrow">Mechanism 03</p>
+    <h2>Voice phrases. <em>Per clinician, not per workspace.</em></h2>
+    <p class="uband-lede">Voice is per person, not per practice. NarrateRx maintains a phrase library and voice notes for each clinician — distinct from the workspace-level settings — so multi-clinician practices produce content that sounds like the right human, not a blend.</p>
+
+    <div class="utwo-col" style="align-items:flex-start;gap:48px;">
+      <div>
+        <p>A voice phrase is a word or expression the clinician uses frequently and distinctively — "load it up," "the body knows," "downstream symptom." Phrases are extracted from transcripts over time and built into the drafting brief as preferred vocabulary. Competing phrases that are generically AI-sounding get suppressed.</p>
+        <p><strong>Voice freshness</strong> tracks how recently each phrase appeared in a transcript. Phrases that haven't surfaced in recent interviews are flagged as stale — they stay in the library but lose drafting priority until you use them again.</p>
+        <ul class="uarrow-list" style="margin-top:24px;">
+          <li>Phrase library maintained per clinician, not per workspace</li>
+          <li>Phrases extracted from transcripts and added on accept</li>
+          <li>Voice freshness score drops when a phrase goes unused</li>
+          <li>Generic AI phrases actively suppressed in the drafting brief</li>
+        </ul>
+      </div>
+      <div>
+        <div class="uphrase-chips">
+          <div class="uphrase-section-label">Active phrases · Dr. Q</div>
+          <div class="uphrase-row">
+            <span class="uphrase-chip is-fresh">load it up <span class="uphrase-fresh">fresh</span></span>
+            <span class="uphrase-chip is-fresh">downstream symptom <span class="uphrase-fresh">fresh</span></span>
+            <span class="uphrase-chip is-fresh">the body knows <span class="uphrase-fresh">fresh</span></span>
+          </div>
+          <div class="uphrase-row">
+            <span class="uphrase-chip is-ok">address the root cause <span class="uphrase-ok">ok</span></span>
+            <span class="uphrase-chip is-ok">movement is medicine <span class="uphrase-ok">ok</span></span>
+          </div>
+          <div class="uphrase-row">
+            <span class="uphrase-chip is-stale">holistic approach <span class="uphrase-stale">stale</span></span>
+            <span class="uphrase-chip is-stale">journey to wellness <span class="uphrase-stale">suppressed</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PILLAR 4: THE LOOP -->
+<section class="uband uband-dark">
+  <div class="container unarrow">
+    <p class="uband-eyebrow">Mechanism 04</p>
+    <h2>The loop. <em>Gets quieter every month.</em></h2>
+    <p class="uband-lede">Every action in the review queue feeds back into the system. Accept, edit, or reject a draft — NarrateRx records the outcome and adjusts the next month's briefs accordingly.</p>
+
+    <div class="uphase-stack" style="margin-top:40px;">
+      <div class="uphase-card is-current">
+        <div class="uphase-dot"></div>
+        <div class="uphase-body">
+          <h4>Interview → transcript → spans</h4>
+          <p>You record a 15-minute prompted interview. The audio is transcribed and segmented into labeled spans. Each span is a discrete, citable unit of content.</p>
+        </div>
+      </div>
+      <div class="uphase-card is-current">
+        <div class="uphase-dot"></div>
+        <div class="uphase-body">
+          <h4>Spans → atoms → drafts</h4>
+          <p>New atoms are extracted and added to the workspace graph. The drafting brief is built from: relevant atoms, your active voice phrases, channel-specific format rules, and the current transcript spans. The model drafts. Every claim cites a span.</p>
+        </div>
+      </div>
+      <div class="uphase-card is-current">
+        <div class="uphase-dot"></div>
+        <div class="uphase-body">
+          <h4>Review queue → voice tuning</h4>
+          <p>You accept, edit, or reject drafts in the review queue. Accepted phrases are promoted in your phrase library. Rejected phrasing is demoted. Edits are analyzed for new phrase candidates. Month over month, the drafts need less correction.</p>
+        </div>
+      </div>
+      <div class="uphase-card is-current">
+        <div class="uphase-dot"></div>
+        <div class="uphase-body">
+          <h4>Publish → next interview</h4>
+          <p>Approved content publishes to Buffer, WordPress, Astro, or clean export. The cycle resets for the next interview — now with a richer atom graph, fresher phrase library, and tighter voice model than the month before.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HONEST NOTE -->
+<section class="uband">
+  <div class="container unarrow">
+    <p class="uband-eyebrow">An honest note</p>
+    <h2>What this doesn't <em>guarantee.</em></h2>
+    <p class="uband-lede">Provenance trace means every drafted claim links to something you said. It doesn't mean every claim is factually correct — if you say something inaccurate in the interview, the draft will faithfully reflect the inaccuracy. The system amplifies your voice, including the wrong notes. The review queue is the final check, and it's yours to make.</p>
+    <p style="color:var(--ink-soft);font-size:16px;line-height:1.7;margin:0;">NarrateRx also doesn't guarantee the atoms graph is exhaustive. Atom extraction is LLM-assisted — it catches most of what's worth catching but isn't a verbatim record of your thinking. Think of it as a working index, not an archive.</p>
+  </div>
+</section>
+
+<!-- CTA STRIP -->
+<section class="uband uband-tight">
+  <div class="container">
+    <div class="ucta-strip ureveal">
+      <div>
+        <h2>Architecture questions? <em>Ask Dr. Q directly.</em></h2>
+        <p>Founding owners get direct access to the person who designed this. If something here raises a question, it's a good sign you're the kind of owner we want to work with.</p>
+        <div class="ubtn-row">
+          <a class="ubtn ubtn-primary" href="/onboard">Apply for the founding cohort <span class="arrow">→</span></a>
+          <a class="ubtn ubtn-ghost" href="mailto:drq@narraterx.ai">Email Dr. Q directly</a>
+        </div>
+      </div>
+      <div>
+        <p class="ucta-strip-quote">"The trust problem in AI content isn't solvable with better prompts. It's solvable by making the source of every claim visible and checkable. That's what provenance trace is."</p>
+        <p class="ucta-strip-cite">— Dr. Q, founder</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="ufoot">
+  <div class="container ufoot-inner">
+    <span class="footer-brand">narrate<span class="rx">Rx</span> — You talk. It does the rest.</span>
+    <span><a href="/how-it-works">How it works</a> · <a href="/features">Features</a> · <a href="/compare">Compare</a> · <a href="/pricing">Pricing</a> · <a href="/about">About</a> · <a href="/transparency">Transparency</a></span>
+    <span>© <span data-year>2026</span> · <a href="mailto:drq@narraterx.ai">drq@narraterx.ai</a></span>
+  </div>
+</footer>
+
+<script src="/site.js"></script>
+</body>
+</html>
