@@ -84,9 +84,9 @@ function buildMetadata(platform, mediaUrls) {
   const imageCount = mediaUrls.filter((m) => !m.type?.startsWith('video')).length
   const videoCount = mediaUrls.filter((m) => m.type?.startsWith('video')).length
   if (platform === 'instagram') {
-    let type = 'post'
-    if (videoCount > 0 && imageCount === 0) type = 'reel'
-    else if (imageCount + videoCount > 1) type = 'carousel'
+    // Buffer accepts only post | story | reel here. Multi-image carousels
+    // are encoded as type: 'post' with multiple assets.
+    const type = videoCount > 0 && imageCount === 0 ? 'reel' : 'post'
     return { instagram: { type, shouldShareToFeed: true } }
   }
   if (platform === 'facebook') {
