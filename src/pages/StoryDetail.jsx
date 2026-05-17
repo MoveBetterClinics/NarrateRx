@@ -12,6 +12,8 @@ import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
 import { ClinicianChip } from '@/components/ClinicianChip'
 import ReferencesPanel from '@/components/ReferencesPanel'
+import { useWorkspace } from '@/lib/WorkspaceContext'
+import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOptionsCatalog'
 
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
@@ -33,6 +35,7 @@ export default function StoryDetail() {
   // the corresponding user message.
   const [provenanceHighlight, setProvenanceHighlight] = useState(null)
   const [refsOpen, setRefsOpen] = useState(false)
+  const { workspace } = useWorkspace()
 
   // Fallback: if the URL param is actually a content_item id (legacy bookmark
   // or stale link from /review/:itemId redirect), resolve it to its parent
@@ -117,6 +120,26 @@ export default function StoryDetail() {
                 />
               )
             )}
+            {(story.audience || story.story_type) && (() => {
+              const audienceSlot = resolveAudienceSlot(story.audience, workspace?.audience_options)
+              const storyTypeSlot = resolveStoryTypeSlot(story.story_type, workspace?.story_type_options)
+              return (
+                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                  {audienceSlot && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
+                      <span className="text-2xs">{audienceSlot.emoji}</span>
+                      <span>{audienceSlot.label}</span>
+                    </span>
+                  )}
+                  {storyTypeSlot && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
+                      <span className="text-2xs">{storyTypeSlot.emoji}</span>
+                      <span>{storyTypeSlot.label}</span>
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <TranscriptExport story={story} />
