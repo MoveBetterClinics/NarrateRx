@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
-import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
@@ -69,7 +69,7 @@ export default function Layout({ children }) {
             </Link>
           </Button>
 
-          <UserButton afterSignOutUrl="/" />
+          <UserButton afterSignOutUrl="/" userProfileUrl="/account" />
 
           {/* Hamburger — mobile only. Opens a dialog with the nav links,
               admin chrome, and campaign chip in a vertical stack. */}
@@ -123,6 +123,11 @@ export default function Layout({ children }) {
                 </Link>
               </DialogClose>
             )}
+            <DialogClose asChild>
+              <Link to="/account" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+                <UserCircle className="h-4 w-4" /> Your account
+              </Link>
+            </DialogClose>
             <DialogClose asChild>
               <Link to="/settings/integrations" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
                 <Settings className="h-4 w-4" /> Integrations
@@ -198,6 +203,9 @@ function SettingsMenu({ role, isStaff }) {
             </Link>
           )}
           {role === 'admin' && <div className="border-t border-border my-1" />}
+          <Link to="/account" onClick={() => setOpen(false)} className={itemClass}>
+            <UserCircle className="h-4 w-4 shrink-0" /> Your account
+          </Link>
           <Link to="/settings/integrations" onClick={() => setOpen(false)} className={itemClass}>
             <Settings className="h-4 w-4 shrink-0" /> Integrations
           </Link>
