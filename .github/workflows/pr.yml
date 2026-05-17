@@ -16,11 +16,19 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # Stage the Vercel project link. `.vercel/project.json` is gitignored
+      # (per-developer convention), so CI has to recreate it before running
+      # `vercel build`. With this file present, `vercel build --yes` runs
+      # offline and does not require a token.
+      - name: Stage Vercel project link
+        run: |
+          mkdir -p .vercel
+          cat > .vercel/project.json <<'JSON'
+          {"projectId":"prj_K91v3tRFYgfUPhmrvgBQi5hZKAaU","orgId":"team_ofF9Ty9K1K86Zibhi2FJDpQM","projectName":"narraterx"}
+          JSON
       # vercel build runs the Vite frontend build + bundles all API functions
       # into .vercel/output/functions. This replaces the bare `npm run build`
       # step so the bundle smoke test below has output to inspect.
-      # --yes skips the env-var pull prompt; .vercel/project.json provides
-      # project/org IDs without requiring a vercel login token.
       - run: npx vercel build --yes
       # Import every Node-runtime function bundle to catch ERR_INTERNAL_ASSERTION
       # and other load-time crashes before they reach production.
