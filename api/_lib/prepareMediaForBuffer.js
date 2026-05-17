@@ -7,10 +7,12 @@ import { spawn } from 'node:child_process'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import ffmpegStaticPath from 'ffmpeg-static'
-// jimp ships both CJS and ESM builds — Vercel's bundler picks the CJS path
-// via the `require` conditional export, avoiding the ERR_INTERNAL_ASSERTION
-// crash that pure-ESM sharp@0.34 causes when bundled with require().
-import { Jimp } from 'jimp'
+// jimp's conditional exports map `import` → ESM and `require` → CJS. esbuild
+// follows the `import` condition when bundling, picks the ESM build, and the
+// resulting bundle crashes at Node runtime with ERR_INTERNAL_ASSERTION.
+// Bypassing conditional exports by referencing the CJS dist directly forces
+// esbuild to bundle the CJS build, which loads cleanly in Vercel Node functions.
+import { Jimp } from 'jimp/dist/commonjs/index.js'
 
 // Per-platform caps used by Buffer's media validator:
 //   Instagram: 5000px image, 1920px video, 60s reel
