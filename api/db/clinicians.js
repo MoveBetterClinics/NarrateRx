@@ -37,6 +37,7 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
+const CLINICIAN_RECIPE_FIELDS = 'default_audience,default_story_type,default_tone,default_voice_mode'
 const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email,verbatim_flags,messages,session_state,location_id,prototype_id,campaign_id,campaign:campaigns(id,name)'
 
 // Slim shape for the Stories list. Drops the heavy `messages` and `session_state`
@@ -60,13 +61,13 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (id) {
       // Single clinician with full interview list
-      const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,interviews(${INTERVIEW_FIELDS})`)
+      const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,${CLINICIAN_RECIPE_FIELDS},interviews(${INTERVIEW_FIELDS})`)
       if (!r.ok) return dbErr(res, r)
       const data = await r.json()
       return ok(res, data[0] ?? null)
     }
     // All clinicians with interview summaries
-    const clinicianSel = view === 'card' ? CLINICIAN_FIELDS_CARD : 'id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed'
+    const clinicianSel = view === 'card' ? CLINICIAN_FIELDS_CARD : `id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,${CLINICIAN_RECIPE_FIELDS}`
     const interviewSel = view === 'card' ? INTERVIEW_FIELDS_CARD : INTERVIEW_FIELDS
     const r = await sb(`clinicians?${wsFilter}&select=${clinicianSel},interviews(${interviewSel})&order=name.asc`)
     if (!r.ok) return dbErr(res, r)
@@ -81,7 +82,7 @@ export default async function handler(req, res) {
     if (!createdById) return err(res, 'Unauthorized', 401)
 
     // Find existing by name (case-insensitive) within this workspace
-    const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,interviews(${INTERVIEW_FIELDS})`)
+    const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=id,name,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,${CLINICIAN_RECIPE_FIELDS},interviews(${INTERVIEW_FIELDS})`)
     if (!findRes.ok) return dbErr(res, findRes)
     const found = await findRes.json()
     if (found.length > 0) return ok(res, found[0])
@@ -99,6 +100,29 @@ export default async function handler(req, res) {
     if (!createRes.ok) return dbErr(res, createRes, 'Create failed')
     const data = await createRes.json()
     return ok(res, data[0], 201)
+  }
+
+  if (req.method === 'PATCH') {
+    if (!(await enforceLimit(req, res, 'media'))) return
+
+    if (!id) return err(res, 'Missing id')
+    if (!userId) return err(res, 'Unauthorized', 401)
+
+    const PATCHABLE = new Set(['default_audience', 'default_story_type', 'default_tone', 'default_voice_mode', 'voice_notes'])
+    const body = req.body || {}
+    const patch = { updated_at: new Date().toISOString() }
+    for (const [k, v] of Object.entries(body)) {
+      if (PATCHABLE.has(k)) patch[k] = v === '' ? null : v
+    }
+    if (Object.keys(patch).length <= 1) return err(res, 'No patchable fields')
+
+    const r = await sb(`clinicians?id=eq.${id}&${wsFilter}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    })
+    if (!r.ok) return dbErr(res, r, 'Update failed')
+    const data = await r.json()
+    return ok(res, data[0] ?? null)
   }
 
   if (req.method === 'DELETE') {

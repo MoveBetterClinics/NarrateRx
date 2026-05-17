@@ -14,7 +14,7 @@ import { ClinicianChip } from '@/components/ClinicianChip'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
-import { useClinician, useDeleteClinician, useDeleteInterview } from '@/lib/queries'
+import { useClinician, useDeleteClinician, useDeleteInterview, usePatchClinician } from '@/lib/queries'
 import VoiceNotesPanel from '@/components/VoiceNotesPanel'
 import VoiceFreshnessCard from '@/components/VoiceFreshnessCard'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
@@ -22,6 +22,8 @@ import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUserRole } from '@/lib/useUserRole'
 import { fetchClinicianArc } from '@/lib/api'
+import { useWorkspace } from '@/lib/WorkspaceContext'
+import { TONES, getVoiceModes } from '@/lib/prompts'
 
 export default function ClinicianProfile() {
   useDocumentTitle('Clinician')
@@ -135,6 +137,12 @@ export default function ClinicianProfile() {
       {/* Voice Memory — distilled edit patterns. Only shown to the owner so
           analyzing edits of other people's work is opt-in via their own page. */}
       {isMyClinicianProfile && <VoiceNotesPanel clinician={clinician} />}
+
+      {/* Interview recipe — admin-only saved defaults that auto-fill the New
+          Interview form when this clinician is selected. */}
+      {role === 'admin' && (
+        <ClinicianRecipeCard clinician={clinician} userId={user?.id} />
+      )}
 
       {interviews.length === 0 ? (
         <div className="text-center py-16">
@@ -353,6 +361,161 @@ function PublishedPostRow({ post }) {
         </Button>
       </CardContent>
     </Card>
+  )
+}
+
+// ── Clinician recipe card ─────────────────────────────────────────────────────
+
+function RecipeSlotPicker({ label, options, field, recipe, setRecipe }) {
+  const value = recipe[field]
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-baseline justify-between">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+        {value && (
+          <button
+            type="button"
+            onClick={() => setRecipe(r => ({ ...r, [field]: null }))}
+            className="text-2xs text-muted-foreground hover:text-foreground"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      {options.length === 0 ? (
+        <p className="text-xs text-muted-foreground italic">No options configured in workspace settings.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-1.5">
+          {options.map((opt) => (
+            <button
+              key={opt.key}
+              type="button"
+              onClick={() => setRecipe(r => ({ ...r, [field]: r[field] === opt.key ? null : opt.key }))}
+              className={`flex items-center gap-1.5 rounded-lg border p-2 text-left transition-all ${
+                value === opt.key
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                  : 'border-input hover:border-primary/40 hover:bg-accent/30'
+              }`}
+            >
+              <span className="text-sm shrink-0">{opt.emoji}</span>
+              <p className="text-xs font-medium leading-tight truncate">{opt.label}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ClinicianRecipeCard({ clinician, userId }) {
+  const workspace = useWorkspace()
+  const patchMut = usePatchClinician()
+
+  const audienceOptions  = Array.isArray(workspace?.audience_options)   ? workspace.audience_options   : []
+  const storyTypeOptions = Array.isArray(workspace?.story_type_options) ? workspace.story_type_options : []
+  const VOICE_MODES      = getVoiceModes(workspace)
+
+  const [recipe, setRecipe] = useState({
+    default_audience:   clinician.default_audience   ?? null,
+    default_story_type: clinician.default_story_type ?? null,
+    default_tone:       clinician.default_tone       ?? null,
+    default_voice_mode: clinician.default_voice_mode ?? null,
+  })
+  const [saved, setSaved] = useState(false)
+
+  const hasAny = Object.values(recipe).some(Boolean)
+
+  async function handleSave() {
+    await patchMut.mutateAsync({ id: clinician.id, patch: recipe, userId })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 3000)
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 space-y-4">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold">Interview recipe</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Default selections that auto-fill when {clinician.name.split(' ')[0]} is chosen on the New Interview form.
+          </p>
+        </div>
+        {hasAny && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleSave}
+            disabled={patchMut.isPending}
+            className="shrink-0 text-xs"
+          >
+            {patchMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saved ? '✓ Saved' : 'Save recipe'}
+          </Button>
+        )}
+      </div>
+
+      {audienceOptions.length > 0 && (
+        <RecipeSlotPicker label="Default audience" options={audienceOptions} field="default_audience" recipe={recipe} setRecipe={setRecipe} />
+      )}
+      {storyTypeOptions.length > 0 && (
+        <RecipeSlotPicker label="Default story type" options={storyTypeOptions} field="default_story_type" recipe={recipe} setRecipe={setRecipe} />
+      )}
+
+      {/* Tone */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Default tone</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {TONES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setRecipe(r => ({ ...r, default_tone: r.default_tone === t.id ? null : t.id }))}
+              className={`flex items-center gap-1.5 rounded-lg border p-2 text-left transition-all ${
+                recipe.default_tone === t.id
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                  : 'border-input hover:border-primary/40 hover:bg-accent/30'
+              }`}
+            >
+              <span className="text-sm shrink-0">{t.emoji}</span>
+              <p className="text-xs font-medium leading-tight">{t.label}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Voice mode */}
+      <div className="space-y-1.5">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Default voice</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {VOICE_MODES.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setRecipe(r => ({ ...r, default_voice_mode: r.default_voice_mode === v.id ? null : v.id }))}
+              className={`flex items-center gap-1.5 rounded-lg border p-2 text-left transition-all ${
+                recipe.default_voice_mode === v.id
+                  ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                  : 'border-input hover:border-primary/40 hover:bg-accent/30'
+              }`}
+            >
+              <span className="text-sm shrink-0">{v.emoji}</span>
+              <p className="text-xs font-medium leading-tight">{v.label}</p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {hasAny && (
+        <Button
+          size="sm"
+          onClick={handleSave}
+          disabled={patchMut.isPending}
+          className="w-full text-xs"
+        >
+          {patchMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
+          {saved ? '✓ Recipe saved' : 'Save recipe'}
+        </Button>
+      )}
+    </div>
   )
 }
 

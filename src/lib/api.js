@@ -106,6 +106,15 @@ export function deleteClinician(id, userId) {
   })
 }
 
+/** @param {string} id @param {Record<string, unknown>} patch @param {string} userId @returns {Promise<unknown>} */
+export function patchClinician(id, patch, userId) {
+  return apiFetch(`/api/db/clinicians?id=${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+    body: JSON.stringify(patch),
+  })
+}
+
 // ── Interviews ───────────────────────────────────────────────────────────────
 
 /** @param {string} id @returns {Promise<unknown>} */
@@ -120,14 +129,14 @@ export function fetchSimilarInterviews(topic, excludeId) {
 }
 
 /**
- * @param {{ clinicianId: string, topic: string, ownerId: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string, topicBacklogId?: string }} opts
+ * @param {{ clinicianId: string, topic: string, ownerId: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string, audience?: string, storyType?: string, topicBacklogId?: string }} opts
  * @returns {Promise<unknown>}
  */
-export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, topicBacklogId }) {
+export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, topicBacklogId }) {
   return apiFetch('/api/db/interviews', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, topicBacklogId }),
+    body: JSON.stringify({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, topicBacklogId }),
   })
 }
 

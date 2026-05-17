@@ -19,7 +19,7 @@ function buildVoicePhrasesBlock(phrases) {
   return `\n\nVOICE PHRASE ANCHORS — sentences this clinician has shipped in approved content. When a similar idea arises, prefer phrasing in this register rather than rewriting it in a generic clinical voice. These are examples, NOT required quotations — only echo when the meaning genuinely aligns:\n${examples}\n`
 }
 
-export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = []) {
+export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = [], audienceLabel = null, storyTypeLabel = null) {
   const firstName = clinicianName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
   const toneNote = tone === 'smart'
@@ -221,7 +221,12 @@ Output ONLY the post body (with the CW prefix and alt-text placeholder if applic
 
   const voicePhrasesBlockStr = buildVoicePhrasesBlock(voicePhrases)
 
-  return `You are a content strategist helping ${workspace.display_name} create platform-specific content drawn from a real conversation with ${clinicianName || 'the clinician'} about ${condition}.
+  const pieceContext = [
+    audienceLabel ? `Target audience: ${audienceLabel}` : '',
+    storyTypeLabel ? `Piece type: ${storyTypeLabel}` : '',
+  ].filter(Boolean).join(' · ')
+
+  return `You are a content strategist helping ${workspace.display_name} create platform-specific content drawn from a real conversation with ${clinicianName || 'the clinician'} about ${condition}.${pieceContext ? `\n${pieceContext}.` : ''}
 
 The conversation transcript is your primary source. Quote ${clinicianName || 'the clinician'}'s actual words where you can and adapt them to the platform's format — that voice is what makes this content recognizably theirs. An editorial summary (the approved long-form post on this topic) is provided as thematic guidance so your piece stays on-message, but the voice, examples, and specifics must come from the conversation itself, not the summary.
 

@@ -267,6 +267,38 @@ Brand attribution still applies: end the piece with a signature line on its own 
 This content is branded for ${workspace.display_name} as a clinic — NOT for the individual clinician. The subject is always "we at ${workspace.display_name}" or "our team" or "our approach." Even if the clinician used "I" or "me" in the interview, convert it to clinic voice in the output (e.g., "I see this in patients" → "We see this in patients at ${workspace.display_name}"). ${clinicianMention}`
 }
 
+// Returns a block describing the target audience and story type so Bernard
+// knows HOW to probe and WHO he is gathering content for.
+function buildPieceDirectionBlock(audienceSlot, storyTypeSlot) {
+  if (!audienceSlot && !storyTypeSlot) return ''
+
+  const STORY_TYPE_PROBE_STRATEGY = {
+    patient_case:        'Probe for a specific anonymized patient: their situation, what they tried before, what the assessment revealed, what changed, and realistic timeline. Push for concrete details (age, activity level, duration of symptoms). Get the full before/after arc.',
+    myth_buster:         'Probe for the one thing everyone gets wrong — one specific, punchy, counterintuitive claim, not a list. "What do patients arrive believing that you have to immediately correct?" "What advice do people get elsewhere that actually makes this worse?" Push until you have one quotable statement.',
+    principle_explainer: 'Probe for the underlying WHY — the mechanism or principle. Then push for an analogy that makes it click for a non-clinical reader. "If you had to explain this to someone with no medical background, what would you say?" Press until it can be understood without jargon.',
+    process_walkthrough: 'Probe for step-by-step milestones: first visit, week 1, week 4, week 8. Realistic numbers and timelines, not "it depends." Get a progression the reader can hold in their head.',
+    personal_opinion:    'Probe for the clinician\'s own stance — their take on something their field might not agree with. "What do you believe about treating this that not everyone would agree with?" This is their opinion column. Press for their actual view.',
+    patient_qa:          'Probe for questions patients actually ask — the ones that come up every week. "What question do you have to keep explaining?" "What do patients ask that surprises you?" Build a set of real Q&A pairs with specific answers.',
+    behind_the_scenes:   'Probe for what happens inside the practice that patients never see. What is the thinking behind the process? What would surprise someone walking in for the first time? What makes this clinic different from a typical one?',
+    journal_commentary:  'Probe for the clinician\'s reaction to recent research or trends. "What have you read recently that you had a strong reaction to?" "What is the research finally getting right — or still getting wrong?" This is their take on the evidence.',
+    tools_of_the_trade:  'Probe for a specific technique, exercise, or device. What is it? Why this over alternatives? What makes it effective? What do most practitioners miss about using it well? Get specific enough that a peer could learn something.',
+    year_in_review:      'Probe for reflection: what changed in their practice or thinking this year? What worked unexpectedly? What would they do differently? This is retrospective — press for genuine candor, not marketing.',
+  }
+
+  const parts = []
+  if (audienceSlot) {
+    parts.push(`Target audience: ${audienceSlot.label}${audienceSlot.description ? ` — ${audienceSlot.description}` : ''}`)
+    parts.push(`  → Keep this reader in mind when probing. Ask questions they would care about.`)
+  }
+  if (storyTypeSlot) {
+    const strategy = STORY_TYPE_PROBE_STRATEGY[storyTypeSlot.key] || ''
+    parts.push(`Piece type: ${storyTypeSlot.label}${storyTypeSlot.description ? ` — ${storyTypeSlot.description}` : ''}`)
+    if (strategy) parts.push(`  → ${strategy}`)
+  }
+
+  return `\nPIECE DIRECTION — what this interview is building toward:\n${parts.join('\n')}\n`
+}
+
 export function getInterviewSystemPrompt(workspace, clinicianName, condition, pastInterviews = [], prototypeId = null, opts = {}) {
   const {
     tone = 'smart',
@@ -276,6 +308,8 @@ export function getInterviewSystemPrompt(workspace, clinicianName, condition, pa
     conceptBlock   = '',
     agreementBlock = '',
     gapBlock       = '',
+    audienceSlot   = null,
+    storyTypeSlot  = null,
   } = opts
 
   const interviewerName = workspace?.interviewer_name || 'Bernard'
@@ -323,6 +357,8 @@ When a colleague's perspective meaningfully differs from what ${clinicianName} i
     ? `Your name is ${interviewerName}. Open with one warm, natural sentence — vary it, don't recite a script. Something like "Hey ${clinicianName}, ${interviewerName} here — thanks for making the time. Ready to dig in?" or "Hi ${clinicianName}, I'm ${interviewerName}. Let's get into it." Then go straight into your first question.`
     : `Your name is ${interviewerName}. Do NOT introduce yourself again — you already did at the start.`
 
+  const pieceDirectionBlock = buildPieceDirectionBlock(audienceSlot, storyTypeSlot)
+
   return `You are ${interviewerName}, a content facilitator helping ${clinicianName} at ${workspace.display_name} think out loud about how they treat ${condition}. Your job is to pull out their clinical perspective efficiently so it can be turned into patient-facing content branded for ${workspace.display_name} as a whole.
 
 VOICE & PERSONA — sound like a real person named ${interviewerName}, not a survey bot:
@@ -333,7 +369,7 @@ VOICE & PERSONA — sound like a real person named ${interviewerName}, not a sur
 - When you probe, it should feel like genuine curiosity, not an interrogation — "Can you walk me through what that looks like?" beats "Provide a specific example."
 
 ${personaIntro}
-${formatInterviewContextForPrompt(workspace, condition)}${pastContext}
+${pieceDirectionBlock}${formatInterviewContextForPrompt(workspace, condition)}${pastContext}
 ${workspace.display_name} context: ${workspace.clinic_context}
 
 ${formatPatientContextForPrompt(workspace, prototypeId)}
@@ -374,9 +410,13 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
-export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = []) {
+export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null) {
   const isPersonal = voiceMode === 'personal'
-  return `You are a content writer for ${workspace.display_name} in ${workspace.location}. Based on the interview transcript below with ${clinicianName} about treating ${condition}, write an engaging, on-brand blog post targeted at ${workspace.region} readers.
+  const audiencePhrase = audienceSlot ? audienceSlot.label : (workspace.region ? `${workspace.region} readers` : 'readers')
+  const storyTypeNote = storyTypeSlot
+    ? `\nPIECE TYPE: ${storyTypeSlot.label}${storyTypeSlot.description ? ` — ${storyTypeSlot.description}` : ''}. Let this shape your format and emphasis — the piece should read as a ${storyTypeSlot.label.toLowerCase()}, not a generic blog post.`
+    : ''
+  return `You are a content writer for ${workspace.display_name} in ${workspace.location}. Based on the interview transcript below with ${clinicianName} about treating ${condition}, write an engaging, on-brand blog post targeted at ${audiencePhrase}.${storyTypeNote}
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}

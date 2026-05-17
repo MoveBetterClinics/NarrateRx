@@ -80,7 +80,7 @@ export default async function handler(req, res) {
   // Load the interview (everything we might need across both paths).
   const ivRes = await sb(
     `interviews?id=eq.${item.interview_id}&${wsFilter}` +
-    `&select=id,clinician_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,cleaned_messages,outputs,created_at`,
+    `&select=id,clinician_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,cleaned_messages,outputs,created_at,audience,story_type`,
   )
   if (!ivRes.ok) return dbErr(res, ivRes)
   const ivRows = await ivRes.json()
@@ -135,6 +135,12 @@ export default async function handler(req, res) {
       }
 
       const conceptBlock = await getContextBlock({ workspaceId: ws.id, topic: interview.topic })
+      const audienceLabel = interview.audience
+        ? (Array.isArray(ws.audience_options) ? ws.audience_options.find(s => s.key === interview.audience) : null)?.label ?? interview.audience
+        : null
+      const storyTypeLabel = interview.story_type
+        ? (Array.isArray(ws.story_type_options) ? ws.story_type_options.find(s => s.key === interview.story_type) : null)?.label ?? interview.story_type
+        : null
       const systemPrompt = getAtomSystemPrompt(
         ws,
         clinicianName,
@@ -146,6 +152,8 @@ export default async function handler(req, res) {
         voiceNotes,
         (ws.brand_guidelines || '') + conceptBlock,
         voicePhrases,
+        audienceLabel,
+        storyTypeLabel,
       )
       if (!systemPrompt) {
         return err(res, `No prompt defined for ${atom.platform}/${atom.angle}`, 422)

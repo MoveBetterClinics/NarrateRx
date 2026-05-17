@@ -117,3 +117,28 @@ export function defaultAudienceSlots() {
 export function defaultStoryTypeSlots() {
   return DEFAULT_STORY_TYPE_SLOT_KEYS.map(storyTypeSlotFromCatalogKey).filter(Boolean)
 }
+
+/**
+ * Resolve an audience key to a full slot object. Prefers the workspace's
+ * current slot (which may have a renamed label) over the catalog default.
+ * Returns null when the key is unknown.
+ */
+export function resolveAudienceSlot(key, workspaceOptions) {
+  if (!key) return null
+  const fromWorkspace = Array.isArray(workspaceOptions)
+    ? workspaceOptions.find((s) => s.key === key)
+    : null
+  return fromWorkspace ?? getAudienceFromCatalog(key)
+}
+
+/**
+ * Resolve a story-type key to a full slot object. Same workspace-first
+ * resolution as resolveAudienceSlot.
+ */
+export function resolveStoryTypeSlot(key, workspaceOptions) {
+  if (!key) return null
+  const fromWorkspace = Array.isArray(workspaceOptions)
+    ? workspaceOptions.find((s) => s.key === key)
+    : null
+  return fromWorkspace ?? getStoryTypeFromCatalog(key)
+}

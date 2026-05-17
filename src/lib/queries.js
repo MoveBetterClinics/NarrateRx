@@ -25,6 +25,7 @@ import {
   fetchClinicians,
   fetchClinician,
   deleteClinician,
+  patchClinician,
   deleteInterview,
   updateInterview,
   fetchInterview,
@@ -225,6 +226,18 @@ export function useDeleteClinician() {
       qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
       qc.removeQueries({ queryKey: queryKeys.clinicians.detail(id) })
       qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
+    },
+  })
+}
+
+export function usePatchClinician() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't save clinician",
+    mutationFn: ({ id, patch, userId }) => patchClinician(id, patch, userId),
+    onSuccess: (_data, { id }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.clinicians.detail(id) })
+      qc.invalidateQueries({ queryKey: queryKeys.clinicians.list() })
     },
   })
 }

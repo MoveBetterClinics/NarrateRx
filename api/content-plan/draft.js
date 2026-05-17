@@ -61,7 +61,7 @@ export default async function handler(req, res) {
   try {
     // Fetch the interview (transcript = primary source; blog = editorial context)
     const ivRes = await sb(
-      `interviews?id=eq.${atom.interview_id}&${wsFilter}&select=outputs,topic,tone,voice_mode,clinician_id,location_id,created_at,messages`
+      `interviews?id=eq.${atom.interview_id}&${wsFilter}&select=outputs,topic,tone,voice_mode,clinician_id,location_id,created_at,messages,audience,story_type`
     )
     if (!ivRes.ok) throw new Error('Could not fetch interview')
     const ivRows = await ivRes.json()
@@ -97,6 +97,16 @@ export default async function handler(req, res) {
     // Augment with learned practice knowledge from the concept graph (non-blocking).
     const conceptBlock = await getContextBlock({ workspaceId: ws.id, topic: interview.topic })
 
+    // Resolve audience + story_type keys to display labels for prompt injection.
+    // Prefer the workspace's current slot object (admin may have renamed the label)
+    // over the raw key string.
+    const audienceLabel = interview.audience
+      ? (Array.isArray(ws.audience_options) ? ws.audience_options.find(s => s.key === interview.audience) : null)?.label ?? interview.audience
+      : null
+    const storyTypeLabel = interview.story_type
+      ? (Array.isArray(ws.story_type_options) ? ws.story_type_options.find(s => s.key === interview.story_type) : null)?.label ?? interview.story_type
+      : null
+
     // Build the focused atom prompt
     const systemPrompt = getAtomSystemPrompt(
       ws,
@@ -109,6 +119,8 @@ export default async function handler(req, res) {
       voiceNotes,
       (ws.brand_guidelines || '') + conceptBlock,
       voicePhrases,
+      audienceLabel,
+      storyTypeLabel,
     )
     if (!systemPrompt) throw new Error(`No prompt defined for ${atom.platform}/${atom.angle}`)
 

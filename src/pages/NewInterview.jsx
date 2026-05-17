@@ -42,7 +42,12 @@ export default function NewInterview() {
   const [voiceMode, setVoiceMode] = useState('practice')
   const [prototype, setPrototype] = useState(null)
   const [locationId, setLocationId] = useState(null)
+  const [audience, setAudience] = useState(null)
+  const [storyType, setStoryType] = useState(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+
+  const audienceOptions = Array.isArray(workspace?.audience_options) ? workspace.audience_options : []
+  const storyTypeOptions = Array.isArray(workspace?.story_type_options) ? workspace.story_type_options : []
   const activeLocations = Array.isArray(workspace?.locations)
     ? workspace.locations.filter(l => l.status === 'active')
     : []
@@ -78,7 +83,18 @@ export default function NewInterview() {
   const suggestionsLoading = cliniciansLoading
 
   function handleNext() {
-    if (step === 1 && clinicianName.trim()) setStep(2)
+    if (step !== 1 || !clinicianName.trim()) return
+    // Auto-fill from the clinician's saved recipe if they exist in the workspace.
+    const match = cliniciansForSuggestions.find(
+      (c) => c.name.trim().toLowerCase() === clinicianName.trim().toLowerCase()
+    )
+    if (match) {
+      if (match.default_audience)   setAudience(match.default_audience)
+      if (match.default_story_type) setStoryType(match.default_story_type)
+      if (match.default_tone)       setTone(match.default_tone)
+      if (match.default_voice_mode) setVoiceMode(match.default_voice_mode)
+    }
+    setStep(2)
   }
 
   async function handleStart(selectedCondition) {
@@ -102,6 +118,8 @@ export default function NewInterview() {
         voiceMode,
         prototypeId: prototype,
         locationId,
+        audience,
+        storyType,
         topicBacklogId: searchParams.get('topicBacklogId') || undefined,
       })
       navigate(`/interview/${clinician.id}/${interview.id}`)
@@ -249,6 +267,26 @@ export default function NewInterview() {
             </div>
           </CardHeader>
           <CardContent className="space-y-5">
+            {/* Audience picker — shown when workspace has slots configured */}
+            {audienceOptions.length > 0 && (
+              <InterviewSlotPicker
+                label="Who is this piece for?"
+                options={audienceOptions}
+                value={audience}
+                onChange={setAudience}
+              />
+            )}
+
+            {/* Story type picker */}
+            {storyTypeOptions.length > 0 && (
+              <InterviewSlotPicker
+                label="What kind of piece?"
+                options={storyTypeOptions}
+                value={storyType}
+                onChange={setStoryType}
+              />
+            )}
+
             <div className="space-y-1.5">
               <Label htmlFor="condition">Condition, treatment, or topic</Label>
               <Input
@@ -535,6 +573,50 @@ export default function NewInterview() {
           </CardContent>
         </Card>
       )}
+    </div>
+  )
+}
+
+// Slot picker used for audience and story type on the New Interview form.
+// Renders workspace-curated slots as a compact toggle grid. A selected slot
+// can be deselected by clicking again (returns to null = "not specified").
+function InterviewSlotPicker({ label, options, value, onChange }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-baseline justify-between">
+        <Label className="text-sm">{label}</Label>
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            onClick={() => onChange(value === opt.key ? null : opt.key)}
+            className={`flex items-start gap-2 rounded-lg border p-2.5 text-left transition-all ${
+              value === opt.key
+                ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                : 'border-input hover:border-primary/40 hover:bg-accent/30'
+            }`}
+          >
+            <span className="text-base shrink-0 mt-0.5">{opt.emoji}</span>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold leading-tight">{opt.label}</p>
+              {opt.description && (
+                <p className="text-2xs text-muted-foreground mt-0.5 leading-tight">{opt.description}</p>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

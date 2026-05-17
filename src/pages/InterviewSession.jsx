@@ -13,6 +13,7 @@ import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { streamMessage } from '@/lib/claude'
 import { getInterviewSystemPrompt, getBlogPostSystemPrompt, getMinimalEditSystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi, buildVerbatimBlock } from '@/lib/prompts'
+import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOptionsCatalog'
 import { detectEmotionalState, getEmotionPromptInjection } from '@/lib/emotionDetection'
 import { getInitials } from '@/lib/utils'
 import { workspace } from '@/lib/workspace'
@@ -531,6 +532,8 @@ export default function InterviewSession() {
         conceptBlock:   conceptBlockRef.current,
         agreementBlock: agreementBlockRef.current,
         gapBlock:       gapBlockRef.current,
+        audienceSlot:   resolveAudienceSlot(interviewRef.current?.audience, overlaidWorkspace?.audience_options),
+        storyTypeSlot:  resolveStoryTypeSlot(interviewRef.current?.story_type, overlaidWorkspace?.story_type_options),
       }
     )
 
@@ -905,6 +908,8 @@ export default function InterviewSession() {
             overlaidWorkspace, clinician.name, interview.topic, tone, voiceMode, interview.prototype_id,
             clinician.voice_notes || '',
             voicePhrases,
+            resolveAudienceSlot(interview.audience, overlaidWorkspace?.audience_options),
+            resolveStoryTypeSlot(interview.story_type, overlaidWorkspace?.story_type_options),
           ) + buildVerbatimBlock(interview.verbatim_flags)
 
       const streamMessages = [
