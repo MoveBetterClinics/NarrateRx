@@ -28,9 +28,21 @@ const PATCHABLE_FIELDS = new Set([
   'patient_context',
   'interview_context',
   'topic_suggestions',
+  'audience_options',
+  'story_type_options',
   'publish_topics',
   'skip_review',
 ])
+
+// Caps for the curated pre-interview slot lists. Must stay in lockstep with
+// MAX_CATALOG_SLOTS / MAX_CUSTOM_SLOTS in src/lib/interviewOptionsCatalog.js
+// (server doesn't import the SPA module to avoid coupling the API bundle
+// to JSX dependencies).
+const MAX_CATALOG_SLOTS = 6
+const MAX_CUSTOM_SLOTS  = 2
+const MAX_SLOT_LABEL_LEN       = 60
+const MAX_SLOT_DESCRIPTION_LEN = 120
+const SLOT_KEY_RE = /^[a-z][a-z0-9_]{0,40}$/
 
 const TOPIC_SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
@@ -77,6 +89,48 @@ function sanitizeTopicSuggestions(value) {
   if (value === null || value === undefined) return []
   if (!Array.isArray(value)) return null
   return value
+}
+
+// Shape gate for slot arrays (audience_options / story_type_options).
+// Each slot must be { key, label, emoji, description, is_custom }. Caps:
+// up to 6 catalog slots + 2 custom slots. Returns the cleaned array on
+// success, null on shape violation.
+function sanitizeSlotArray(value) {
+  if (value === null || value === undefined) return []
+  if (!Array.isArray(value)) return null
+
+  let catalogCount = 0
+  let customCount  = 0
+  const seenKeys = new Set()
+  const out = []
+
+  for (const raw of value) {
+    if (!isPlainObject(raw)) return null
+
+    const isCustom = !!raw.is_custom
+    if (isCustom) {
+      if (++customCount > MAX_CUSTOM_SLOTS) return null
+    } else {
+      if (++catalogCount > MAX_CATALOG_SLOTS) return null
+    }
+
+    const key = typeof raw.key === 'string' ? raw.key.trim() : ''
+    if (!key || !SLOT_KEY_RE.test(key)) return null
+    if (seenKeys.has(key)) return null
+    seenKeys.add(key)
+
+    const label = typeof raw.label === 'string' ? raw.label.trim() : ''
+    if (!label || label.length > MAX_SLOT_LABEL_LEN) return null
+
+    const emoji = typeof raw.emoji === 'string' ? raw.emoji.trim().slice(0, 8) : ''
+    const description = typeof raw.description === 'string'
+      ? raw.description.trim().slice(0, MAX_SLOT_DESCRIPTION_LEN)
+      : ''
+
+    out.push({ key, label, emoji, description, is_custom: isCustom })
+  }
+
+  return out
 }
 
 function sanitizeToneModifiers(value) {
@@ -190,6 +244,18 @@ async function handler(req, res) {
         const cleaned = sanitizeTopicSuggestions(value)
         if (cleaned === null) return res.status(400).json({ error: 'invalid-topic-suggestions' })
         patch.topic_suggestions = cleaned
+        continue
+      }
+      if (key === 'audience_options') {
+        const cleaned = sanitizeSlotArray(value)
+        if (cleaned === null) return res.status(400).json({ error: 'invalid-audience-options' })
+        patch.audience_options = cleaned
+        continue
+      }
+      if (key === 'story_type_options') {
+        const cleaned = sanitizeSlotArray(value)
+        if (cleaned === null) return res.status(400).json({ error: 'invalid-story-type-options' })
+        patch.story_type_options = cleaned
         continue
       }
       if (key === 'publish_topics') {
