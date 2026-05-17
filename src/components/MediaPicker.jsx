@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
-import { Search, X, Loader2, Image, Video, Upload, Check, Play, Library, Expand, Minimize } from 'lucide-react'
+import { Search, X, Loader2, Image, Video, Upload, Check, Play, Library, Expand, Minimize, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { listMedia, uploadMedia } from '@/lib/mediaLib'
@@ -24,6 +24,18 @@ const KIND_OPTIONS = [
   { id: 'video', label: 'Videos' },
 ]
 
+// Instagram reels are the tightest platform cap (60s). Any video longer than
+// this will be rejected by Buffer for IG even after our transcode pre-flight
+// (which only resizes dimensions, not duration). Staff need to trim it first.
+const REEL_MAX_SECONDS = 60
+
+function fmtDur(secs) {
+  if (!secs) return ''
+  const m = Math.floor(secs / 60)
+  const s = Math.round(secs % 60)
+  return m > 0 ? `${m}m ${s}s` : `${s}s`
+}
+
 function assetToPickerItem(asset) {
   const isVideo = asset.kind === 'video'
   const url     = asset.rendered_url || asset.blob_url
@@ -36,6 +48,7 @@ function assetToPickerItem(asset) {
     thumbnailUrl: asset.thumbnail_url || (isVideo ? null : url),
     url,
     size:         asset.size_bytes || undefined,
+    duration_s:   asset.duration_s || null,
     mediaAssetId: asset.id,
   }
 }
@@ -292,12 +305,13 @@ export default function MediaPicker({ onSelect, onClose, multi = false }) {
                     {libraryItems.map((a) => {
                       const sel = isAssetSelected(a)
                       const previewSrc = a.thumbnail_url || (a.kind === 'photo' ? (a.rendered_url || a.blob_url) : null)
+                      const tooLong = a.kind === 'video' && a.duration_s > REEL_MAX_SECONDS
                       return (
                         <button
                           key={a.id}
                           onClick={() => toggleAsset(a)}
                           className={`relative rounded-lg overflow-hidden border-2 aspect-square transition-all ${
-                            sel ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'
+                            sel && tooLong ? 'border-amber-400' : sel ? 'border-primary' : 'border-transparent hover:border-muted-foreground/30'
                           }`}
                         >
                           {a.kind === 'video' ? (
@@ -329,6 +343,12 @@ export default function MediaPicker({ onSelect, onClose, multi = false }) {
                               {a.status === 'approved' ? 'Approved' : 'Branded'}
                             </span>
                           ) : null}
+                          {tooLong && (
+                            <span className="absolute bottom-1 left-1 right-1 text-3xs font-medium px-1 py-0.5 rounded bg-amber-400/90 text-amber-900 flex items-center gap-0.5 leading-tight">
+                              <AlertTriangle className="h-2.5 w-2.5 shrink-0" />
+                              {fmtDur(a.duration_s)} — too long
+                            </span>
+                          )}
 
                           {sel && (
                             <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
@@ -360,6 +380,26 @@ export default function MediaPicker({ onSelect, onClose, multi = false }) {
                 </>
               )}
             </div>
+
+            {/* Duration warning strip — shown when a selected video is too long for Instagram reels */}
+            {(() => {
+              const longVideos = multi
+                ? [...selected.values()].filter((a) => a.kind === 'video' && a.duration_s > REEL_MAX_SECONDS)
+                : (selected?.kind === 'video' && selected?.duration_s > REEL_MAX_SECONDS ? [selected] : [])
+              if (!longVideos.length) return null
+              return (
+                <div className="mx-5 mb-2 rounded-md bg-amber-50 border border-amber-300 px-3 py-2 flex gap-2 items-start text-xs text-amber-800">
+                  <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-500" />
+                  <div>
+                    <span className="font-medium">Clip too long for Instagram reels (60s max).</span>{' '}
+                    {longVideos.map((v) => (
+                      <span key={v.id}><em>{v.filename}</em> is {fmtDur(v.duration_s)}. </span>
+                    ))}
+                    Trim the clip before attaching, or it will be rejected at publish time.
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Footer */}
             <div className="px-5 py-3 border-t flex items-center justify-between shrink-0">

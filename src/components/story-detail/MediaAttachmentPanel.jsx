@@ -17,6 +17,7 @@ function pickerItemToMediaEntry(asset) {
     thumbnailUrl: asset.thumbnail_url || asset.thumbnailUrl || (isVideo ? null : url),
     mediaAssetId: asset.id,
     name:         asset.filename || asset.name,
+    ...(asset.duration_s != null ? { duration_s: asset.duration_s } : {}),
   }
 }
 
