@@ -4,13 +4,15 @@
 // place (preserves attached media, comments, scheduled_at). Two paths:
 //
 //   1. Atom-derived piece (instagram, facebook, linkedin, gbp, pinterest,
-//      tiktok) — re-runs the atom prompt against the interview's blog post,
-//      same logic as /api/content-plan/draft but UPDATEs instead of INSERTs.
+//      tiktok, …) — re-runs the atom prompt with the interview transcript
+//      as the primary source and the approved blog as <editorial-summary>
+//      context. Same shape as /api/content-plan/draft but UPDATEs instead of
+//      INSERTs.
 //
 //   2. Blog piece (or any interview-output platform) — re-runs the blog
 //      prompt against the interview transcript and also updates
 //      interview.outputs.blogPost so downstream atom regeneration uses the
-//      fresh source.
+//      fresh editorial summary.
 //
 // On success the row's status is reset to 'draft' and approved_by/at are
 // cleared — regenerated content needs fresh review.
@@ -127,6 +129,11 @@ export default async function handler(req, res) {
         return err(res, 'Blog post not generated yet — regenerate the blog first', 422)
       }
 
+      const atomTurns = Array.isArray(interview.messages) ? interview.messages : []
+      if (!atomTurns.length) {
+        return err(res, 'Interview transcript missing — cannot regenerate atom', 422)
+      }
+
       const conceptBlock = await getContextBlock({ workspaceId: ws.id, topic: interview.topic })
       const systemPrompt = getAtomSystemPrompt(
         ws,
@@ -144,10 +151,26 @@ export default async function handler(req, res) {
         return err(res, `No prompt defined for ${atom.platform}/${atom.angle}`, 422)
       }
 
+      // Transcript = primary source; blog = editorial context. Mirrors the
+      // shape used in /api/content-plan/draft.js so first-draft and regen
+      // produce comparable output.
+      const aiMessages = [
+        ...atomTurns.map((m) => ({ role: m.role, content: m.content })),
+        {
+          role: 'user',
+          content:
+            `Here is the editorial summary that has already been written and approved on this topic:\n\n` +
+            `<editorial-summary>\n${blogPost}\n</editorial-summary>\n\n` +
+            `Now write the ${atom.platform} piece (angle: ${atom.angle}) per the instructions in the system prompt. ` +
+            `Pull voice, examples, and specifics from our conversation above — that is the source of truth. ` +
+            `Use the editorial summary only for thematic alignment, not as the source of wording.`,
+        },
+      ]
+
       const { text } = await generateText({
         model: 'anthropic/claude-sonnet-4-6',
         system: systemPrompt,
-        messages: [{ role: 'user', content: blogPost }],
+        messages: aiMessages,
         maxTokens: 1500,
       })
       if (!text?.trim()) throw new Error('AI returned empty content')

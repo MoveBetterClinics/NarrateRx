@@ -1,6 +1,15 @@
 // Per-atom system prompt builder. Each atom is a single focused piece of
-// content — one platform, one angle, generated from the full blog post.
+// content — one platform, one angle, generated from the full interview
+// transcript with the approved blog post passed in as editorial context.
 // Returns null for unknown platform/angle combos so callers can bail early.
+//
+// Voice-fidelity note (PR for atoms-from-transcript): atoms used to be
+// generated from the blog post alone, which guaranteed near-zero provenance
+// overlap with the source transcript and produced two layers of LLM-driven
+// voice loss (transcript → blog → atom). Atoms now receive the conversation
+// as their primary source and the blog as a thematic guidepost. Each channel
+// can quote different moments from the same interview rather than compressing
+// the same blog summary five different ways.
 
 function buildVoicePhrasesBlock(phrases) {
   const list = Array.isArray(phrases) ? phrases : []
@@ -34,7 +43,7 @@ CTA: [Button action phrase, 3–5 words, Title Case, e.g. "Book Your Free Assess
   const instructions = {
     instagram: {
       hook: `Write a single Instagram caption (~175 words) for ${workspace.display_name} about ${condition}.
-ANGLE: Open with the most scroll-stopping hook from the blog post — a myth-buster, bold claim, or surprising fact. Make it impossible to scroll past.
+ANGLE: Open with the most scroll-stopping moment from the conversation — a myth-buster, bold claim, or surprising fact ${firstName ? `${firstName} actually said` : 'the clinician actually said'}. Make it impossible to scroll past.
 ${isPersonal ? `Write in ${firstName}'s first-person voice.` : `Use "we" and "our team" language.`}
 Close with: "Full article at the link in bio 👆"
 Add a blank line, then 8–10 hashtags: condition-specific, movement, ${workspace.location_hashtag ?? '#physicaltherapy'}, ${workspace.brand_hashtag ?? ''}.
@@ -48,7 +57,7 @@ Add a blank line, then 8–10 hashtags: condition-specific, movement, ${workspac
 Do NOT include any URLs in the caption body.${instagramOverlayInstructions}`,
 
       clinical_insight: `Write a single Instagram caption (~175 words) for ${workspace.display_name} about ${condition}.
-ANGLE: Lead with "The one thing most people get wrong about ${condition} is…" and deliver the key clinical insight from the blog post.
+ANGLE: Lead with "The one thing most people get wrong about ${condition} is…" and deliver the key clinical insight ${firstName ? `${firstName} surfaced` : 'the clinician surfaced'} in the conversation.
 ${isPersonal ? `Write in ${firstName}'s first-person voice.` : `Use "we" and "our team" language.`}
 Close with: "Full breakdown at the link in bio 👆"
 Add a blank line, then 8–10 hashtags: condition-specific, movement, ${workspace.location_hashtag ?? '#physicaltherapy'}, ${workspace.brand_hashtag ?? ''}.
@@ -128,7 +137,7 @@ BOARD: (${workspace.pinterest_boards ?? 'Health & Wellness'})`,
 
     tiktok: {
       myth_buster: `Write a 45–60 second TikTok / Instagram Reels script (~130 words) for ${workspace.display_name} about ${condition}.
-ANGLE: Lead with the most counterintuitive claim from the blog post. First 3 seconds must stop the scroll.
+ANGLE: Lead with the most counterintuitive claim from the conversation. First 3 seconds must stop the scroll.
 
 [HOOK — first 3 seconds]
 One punchy sentence starting with tension or a myth. Example: "Everything you've been told about ${condition} is probably slowing your recovery."
@@ -160,9 +169,9 @@ CAPTION:
 
     twitter: {
       hook: `Write a single tweet (X post) for ${workspace.display_name} about ${condition}. Hard limit: 280 characters total INCLUDING any URL or hashtags.
-ANGLE: Pull the sharpest claim, myth-buster, or counterintuitive insight from the blog post. Make it quotable — the kind of line someone screenshots or quote-tweets.
+ANGLE: Pull the sharpest claim, myth-buster, or counterintuitive insight from the conversation. Make it quotable — the kind of line someone screenshots or quote-tweets.
 ${isPersonal ? `Write in ${firstName}'s first-person voice — punchy and direct.` : `Use plural "we"/"our team" but keep it punchy, not corporate.`}
-No threading. No "1/" prefix. No emoji unless the blog post tone is unmistakably casual.
+No threading. No "1/" prefix. No emoji unless the conversation's tone is unmistakably casual.
 At most 1–2 hashtags. Prefer NO link unless the punchline only lands with one — Twitter throttles posts with links.
 Output ONLY the tweet body. Do not include "TWEET:" or any label.`,
     },
@@ -212,9 +221,11 @@ Output ONLY the post body (with the CW prefix and alt-text placeholder if applic
 
   const voicePhrasesBlockStr = buildVoicePhrasesBlock(voicePhrases)
 
-  return `You are a content strategist helping ${workspace.display_name} create platform-specific content derived from a longer blog post about ${condition}.
+  return `You are a content strategist helping ${workspace.display_name} create platform-specific content drawn from a real conversation with ${clinicianName || 'the clinician'} about ${condition}.
 
-Your job: extract the most compelling angle and write ONE focused piece of content following the exact instructions below. Do NOT include section markers, headers, labels, or meta-commentary. Output ONLY the final content, ready to copy and use.
+The conversation transcript is your primary source. Quote ${clinicianName || 'the clinician'}'s actual words where you can and adapt them to the platform's format — that voice is what makes this content recognizably theirs. An editorial summary (the approved long-form post on this topic) is provided as thematic guidance so your piece stays on-message, but the voice, examples, and specifics must come from the conversation itself, not the summary.
+
+Your job: pick the moment in the conversation that best fits this platform and angle, then write ONE focused piece of content following the exact instructions below. Do NOT include section markers, headers, labels, or meta-commentary. Output ONLY the final content, ready to copy and use.
 
 ${instruction}
 

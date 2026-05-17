@@ -1,6 +1,7 @@
 // POST /api/content-plan/draft  { atom_id }
-// Generates content for one atom using the interview's blog post as source,
-// creates a content_item, and marks the atom as drafted.
+// Generates content for one atom from the interview transcript (primary
+// source) with the approved blog post passed in as editorial context.
+// Creates a content_item and marks the atom as drafted.
 export const config = { runtime: 'nodejs', maxDuration: 60 }
 
 import { generateText } from 'ai'
@@ -58,9 +59,9 @@ export default async function handler(req, res) {
   })
 
   try {
-    // Fetch the interview (blog post + metadata, + created_at for slot anchoring)
+    // Fetch the interview (transcript = primary source; blog = editorial context)
     const ivRes = await sb(
-      `interviews?id=eq.${atom.interview_id}&${wsFilter}&select=outputs,topic,tone,voice_mode,clinician_id,location_id,created_at`
+      `interviews?id=eq.${atom.interview_id}&${wsFilter}&select=outputs,topic,tone,voice_mode,clinician_id,location_id,created_at,messages`
     )
     if (!ivRes.ok) throw new Error('Could not fetch interview')
     const ivRows = await ivRes.json()
@@ -69,6 +70,9 @@ export default async function handler(req, res) {
 
     const blogPost = interview.outputs?.blogPost
     if (!blogPost) throw new Error('Blog post not generated yet — generate the blog post first')
+
+    const turns = Array.isArray(interview.messages) ? interview.messages : []
+    if (!turns.length) throw new Error('Interview transcript missing — cannot generate atom')
 
     // Fetch clinician name + voice substrate
     let clinicianName = ''
@@ -108,11 +112,29 @@ export default async function handler(req, res) {
     )
     if (!systemPrompt) throw new Error(`No prompt defined for ${atom.platform}/${atom.angle}`)
 
+    // Replay the interview as the original conversation, then hand the model
+    // the approved blog as <editorial-summary> and ask for the atom.
+    // Voice and specifics come from the conversation; the summary is only
+    // there to keep the channel piece thematically aligned with what's been
+    // approved long-form.
+    const aiMessages = [
+      ...turns.map((m) => ({ role: m.role, content: m.content })),
+      {
+        role: 'user',
+        content:
+          `Here is the editorial summary that has already been written and approved on this topic:\n\n` +
+          `<editorial-summary>\n${blogPost}\n</editorial-summary>\n\n` +
+          `Now write the ${atom.platform} piece (angle: ${atom.angle}) per the instructions in the system prompt. ` +
+          `Pull voice, examples, and specifics from our conversation above — that is the source of truth. ` +
+          `Use the editorial summary only for thematic alignment, not as the source of wording.`,
+      },
+    ]
+
     // Call the AI
     const { text } = await generateText({
       model: 'anthropic/claude-sonnet-4-6',
       system: systemPrompt,
-      messages: [{ role: 'user', content: blogPost }],
+      messages: aiMessages,
       maxTokens: 1000,
     })
 
