@@ -9,7 +9,15 @@ const GROUPS = [
     label: 'Workspace',
     items: [
       { to: '/settings/workspace',           label: 'General',            icon: Settings,   exact: true },
-      { to: '/settings/workspace/voice',     label: 'Bernard & voice',    icon: Mic2 },
+      {
+        label: 'Bernard',
+        icon: Mic2,
+        children: [
+          { to: '/settings/workspace/voice',              label: 'Voice & tone' },
+          { to: '/settings/workspace/patients',           label: 'Patients & topics' },
+          { to: '/settings/workspace/interview-defaults', label: 'Interview defaults' },
+        ],
+      },
       { to: '/settings/workspace/locations', label: 'Locations',          icon: MapPin },
       { to: '/settings/workspace/channels',  label: 'Output channels',    icon: Radio },
       { to: '/settings/integrations',        label: 'Integrations',       icon: Puzzle },
@@ -53,6 +61,40 @@ function SidebarItem({ item }) {
   )
 }
 
+// Sub-group: a label with nested children indented beneath it. Used for
+// "Bernard" inside the Workspace group so the three voice-related pages live
+// under one heading without flattening the nav.
+function SidebarSubGroup({ item }) {
+  const location = useLocation()
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center gap-2 px-2.5 pt-1 pb-0.5 text-3xs font-semibold text-muted-foreground/70">
+        <item.icon className="h-3 w-3 shrink-0" />
+        {item.label}
+      </div>
+      <div className="pl-3 space-y-0.5">
+        {item.children.map((child) => {
+          const isActive = location.pathname === child.to
+            || location.pathname.startsWith(child.to + '/')
+          return (
+            <NavLink
+              key={child.to}
+              to={child.to}
+              className={`block px-2.5 py-1.5 rounded-md text-sm transition-colors ${
+                isActive
+                  ? 'bg-success/10 text-success font-medium'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              {child.label}
+            </NavLink>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsLayout() {
   const { role, isLoading } = useUserRole()
 
@@ -84,7 +126,9 @@ export default function SettingsLayout() {
                 </p>
                 <nav className="space-y-0.5">
                   {group.items.map((item) => (
-                    <SidebarItem key={item.to} item={item} />
+                    item.children
+                      ? <SidebarSubGroup key={item.label} item={item} />
+                      : <SidebarItem key={item.to} item={item} />
                   ))}
                 </nav>
               </div>
