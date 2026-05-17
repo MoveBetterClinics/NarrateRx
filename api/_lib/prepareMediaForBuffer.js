@@ -1,77 +1,141 @@
 import { put as blobPut } from '@vercel/blob'
 import { createHash } from 'node:crypto'
+import { mkdtemp, rm, readFile, createWriteStream } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { spawn } from 'node:child_process'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
+import ffmpegStaticPath from 'ffmpeg-static'
 
-// Buffer's per-platform image-dimension caps trip on phone-camera images
-// (5472px wide is common). Instagram is the tightest at 5000px; Twitter caps
-// at 4096px. Resizing once to 4000px wide keeps us under every platform limit
-// while preserving plenty of resolution for vertical phone screens.
-const MAX_WIDTH = 4000
-const RESIZED_PREFIX = 'media/publish-resized'
+// Per-platform caps used by Buffer's media validator:
+//   Instagram: 5000px image, 1920px video, 60s reel
+//   Twitter:   4096px image, 1280px video
+//   Facebook:  — generous, but 1920px video is safe
+// We target widths well below each cap so phone-camera originals always pass.
+const IMG_MAX_WIDTH   = 4000  // images: under Instagram (5000) and Twitter (4096)
+const VID_MAX_WIDTH   = 1920  // video:  under Instagram and matches Twitter HD max
+const RESIZED_PREFIX  = 'media/publish-resized'
+const FFMPEG_BIN      = process.env.FFMPEG_PATH || ffmpegStaticPath || 'ffmpeg'
 
-// Resize a single image URL if it exceeds MAX_WIDTH, uploading the resized
-// JPEG to a deterministic blob path (hash of source URL) so repeated
-// publishes of the same asset reuse the same blob and don't fan out orphans.
-// Returns the URL to send Buffer — either the original (if small enough or
-// not an image) or the resized blob URL.
-async function resizeIfNeeded(url) {
-  if (typeof url !== 'string' || !url) return url
+// ─── Images ──────────────────────────────────────────────────────────────────
 
+async function resizeImageIfNeeded(url) {
   const r = await fetch(url)
-  if (!r.ok) {
-    throw new Error(`download failed: ${r.status}`)
-  }
-  const contentType = (r.headers.get('content-type') || '').toLowerCase()
-  if (!contentType.startsWith('image/')) {
-    // Not an image (e.g. video) — caller skips video resizing entirely, but
-    // bail safely if a misclassified asset slips through.
-    return url
-  }
+  if (!r.ok) throw new Error(`download failed: ${r.status}`)
   const buf = Buffer.from(await r.arrayBuffer())
 
   const { default: sharp } = await import('sharp')
-  const img = sharp(buf, { failOn: 'none' }).rotate()
+  const img  = sharp(buf, { failOn: 'none' }).rotate() // auto-orient from EXIF
   const meta = await img.metadata().catch(() => ({}))
-  if (!meta.width || meta.width <= MAX_WIDTH) {
-    return url
-  }
+  if (!meta.width || meta.width <= IMG_MAX_WIDTH) return url
 
   const resized = await img
-    .resize({ width: MAX_WIDTH, withoutEnlargement: true })
+    .resize({ width: IMG_MAX_WIDTH, withoutEnlargement: true })
     .jpeg({ quality: 88 })
     .toBuffer()
 
   const hash = createHash('sha256').update(url).digest('hex').slice(0, 16)
-  const path = `${RESIZED_PREFIX}/${hash}-${MAX_WIDTH}.jpg`
-  const uploaded = await blobPut(path, resized, {
-    access: 'public',
-    contentType: 'image/jpeg',
-    addRandomSuffix: false,
-    allowOverwrite: true,
-  })
-  return uploaded.url
+  const { url: blobUrl } = await blobPut(
+    `${RESIZED_PREFIX}/${hash}-img${IMG_MAX_WIDTH}.jpg`,
+    resized,
+    { access: 'public', contentType: 'image/jpeg', addRandomSuffix: false, allowOverwrite: true },
+  )
+  return blobUrl
 }
 
-// Walk a mediaUrls array, downsizing every oversized image. Videos are
-// passed through untouched (transcode is a future, heavier feature). On
-// individual resize errors we log and fall through to the original URL so
-// the publish can still proceed; Buffer will only reject if the image
-// genuinely exceeds the platform's cap.
+// ─── Video ───────────────────────────────────────────────────────────────────
+
+function runFfmpeg(args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn(FFMPEG_BIN, args, { stdio: ['ignore', 'ignore', 'pipe'] })
+    let stderr = ''
+    proc.stderr.on('data', (d) => { stderr += d.toString() })
+    proc.on('error', (e) => reject(new Error(`ffmpeg spawn: ${e.code || e.message}`)))
+    proc.on('close', (code) => {
+      if (code === 0) resolve(stderr)
+      else reject(new Error(`ffmpeg exit ${code}: ${stderr.slice(-600).trim()}`))
+    })
+  })
+}
+
+// Returns { width, height } from ffmpeg -i stderr. 0s on parse failure.
+async function probeVideoSize(inPath) {
+  const stderr = await runFfmpeg(['-y', '-i', inPath]).catch((e) => e.message || '')
+  const m = stderr.match(/Video:.*?(\d{3,4})x(\d{3,4})/)
+  return m ? { width: parseInt(m[1], 10), height: parseInt(m[2], 10) } : { width: 0, height: 0 }
+}
+
+async function transcodeVideoIfNeeded(url) {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`download failed: ${r.status}`)
+
+  const dir    = await mkdtemp(join(tmpdir(), 'buf-vid-'))
+  const inPath = join(dir, 'in.mp4')
+  const outPath = join(dir, 'out.mp4')
+
+  try {
+    // Stream to disk — videos can be 500MB+; arrayBuffer() OOMs the function.
+    await pipeline(Readable.fromWeb(r.body), createWriteStream(inPath))
+
+    const { width } = await probeVideoSize(inPath)
+    if (width > 0 && width <= VID_MAX_WIDTH) return url  // already small enough
+
+    // Scale down to VID_MAX_WIDTH preserving aspect, -2 keeps even-numbered
+    // height required by H.264. -preset fast balances speed vs. file size.
+    // -movflags +faststart puts the moov atom first for streaming.
+    await runFfmpeg([
+      '-y', '-i', inPath,
+      '-vf', `scale='min(${VID_MAX_WIDTH},iw):-2'`,
+      '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
+      '-c:a', 'aac', '-b:a', '128k',
+      '-movflags', '+faststart',
+      outPath,
+    ])
+
+    const mp4 = await readFile(outPath)
+    const hash = createHash('sha256').update(url).digest('hex').slice(0, 16)
+    const { url: blobUrl } = await blobPut(
+      `${RESIZED_PREFIX}/${hash}-vid${VID_MAX_WIDTH}.mp4`,
+      mp4,
+      { access: 'public', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true },
+    )
+    return blobUrl
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+// ─── Public API ──────────────────────────────────────────────────────────────
+
+// Walk a mediaUrls array, downsizing oversized images and transcoding oversized
+// videos before the URLs are handed to Buffer. Resize/transcode results are
+// stored at deterministic blob paths (sha256 of source URL) so retrying the
+// same publish reuses the same blob. On any error, falls back to the original
+// URL and logs — the publish still attempts; Buffer will only reject if the
+// asset truly exceeds the platform cap.
 export async function prepareMediaForBuffer(mediaUrls) {
   if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) return mediaUrls || []
   return Promise.all(
     mediaUrls.map(async (m) => {
       if (!m || typeof m !== 'object') return m
-      if (m.type?.startsWith('video')) return m
+      const isVideo = m.type?.startsWith('video')
       try {
-        const newUrl = await resizeIfNeeded(m.url)
+        const newUrl = isVideo
+          ? await transcodeVideoIfNeeded(m.url)
+          : await resizeImageIfNeeded(m.url)
         if (!newUrl || newUrl === m.url) return m
+        // Video transcode → also update the thumbnail hint URL if it was derived
+        // from the original (it will still point to the pre-transcode blob; that's
+        // fine — thumbnail quality is display-only, not re-sent to Buffer).
         return { ...m, url: newUrl }
       } catch (e) {
-        console.error('[publish/buffer] image resize failed', m.url, e?.message)
+        const kind = isVideo ? 'video transcode' : 'image resize'
+        console.error(`[publish/buffer] ${kind} failed`, m.url, e?.message)
         return m
       }
     }),
   )
 }
 
-export const __test = { MAX_WIDTH, RESIZED_PREFIX }
+export const __test = { IMG_MAX_WIDTH, VID_MAX_WIDTH, RESIZED_PREFIX }
