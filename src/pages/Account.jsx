@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
+import { syncClinicianName } from '@/lib/api'
 
 function DisplayNameCard() {
   const { user } = useUser()
@@ -26,6 +27,21 @@ function DisplayNameCard() {
     setSaving(true)
     try {
       await user.update({ unsafeMetadata: { ...user.unsafeMetadata, display_name: value.trim() || null } })
+      // Propagate the new label onto the user's Self clinician row(s) in
+      // this workspace so existing recipes/interviews keep the same
+      // identity but display the new name everywhere. Falls back to the
+      // user's Clerk full name if they cleared the display name.
+      const effective = value.trim() || user.fullName || ''
+      if (effective) {
+        try {
+          await syncClinicianName(effective)
+        } catch {
+          // Non-fatal — the display name itself saved successfully; the
+          // clinician row will pick up the new name on the next interview
+          // through the user_id binding path. Logged for observability.
+          console.warn('[Account] clinician name sync failed; will pick up on next interview')
+        }
+      }
       toast.success('Display name saved')
     } catch (e) {
       toast.error('Could not save', { description: e.message })

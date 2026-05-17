@@ -159,6 +159,14 @@ export default function NewInterview() {
     const topic = (selectedCondition ?? condition).trim()
     if (!clinicianName.trim() || !topic || !user) return
 
+    // Self-detection — if the typed clinician name matches the user's
+    // display name OR Clerk full name (case-insensitive), bind the
+    // clinician row to user.id so renames don't fork the identity.
+    const typed = clinicianName.trim().toLowerCase()
+    const display = (user?.unsafeMetadata?.display_name || '').trim().toLowerCase()
+    const full    = (user?.fullName || '').trim().toLowerCase()
+    const isSelf  = !!typed && (typed === display || typed === full)
+
     setLoading(true)
     setError('')
     try {
@@ -166,6 +174,7 @@ export default function NewInterview() {
         name: clinicianName.trim(),
         createdById: user.id,
         createdByEmail: user.primaryEmailAddress?.emailAddress,
+        userId: isSelf ? user.id : undefined,
       })
       const interview = await createInterview({
         clinicianId: clinician.id,

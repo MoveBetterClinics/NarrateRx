@@ -89,13 +89,35 @@ export function fetchClinician(id) {
   return apiFetch(`/api/db/clinicians?id=${encodeURIComponent(id)}`)
 }
 
-/** @param {{ name: string, createdById: string, createdByEmail: string }} opts @returns {Promise<unknown>} */
-export function getOrCreateClinician({ name, createdById, createdByEmail }) {
+/**
+ * Get or create a clinician row. When `userId` is provided, the server
+ * binds the row to that Clerk user identity (Self clinician) — future
+ * lookups by user_id return the same row even if the display name changes.
+ * Omit `userId` for proxy clinicians (admin recording an interview with a
+ * non-Clerk user).
+ * @param {{ name: string, createdById: string, createdByEmail: string, userId?: string }} opts
+ * @returns {Promise<unknown>}
+ */
+export function getOrCreateClinician({ name, createdById, createdByEmail, userId }) {
   return apiFetch('/api/db/clinicians', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name, createdById, createdByEmail }),
+    body: JSON.stringify({ name, createdById, createdByEmail, userId }),
   })
+}
+
+/**
+ * Propagate the calling user's new display name onto their Self clinician
+ * row(s) in the current workspace. Idempotent.
+ * @param {string} name
+ * @returns {Promise<{ updated: number }>}
+ */
+export function syncClinicianName(name) {
+  return /** @type {Promise<{updated:number}>} */ (apiFetch('/api/clinicians/sync-name', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  }))
 }
 
 /** @param {string} id @param {string} userId @returns {Promise<unknown>} */
