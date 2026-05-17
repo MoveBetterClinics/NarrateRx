@@ -359,6 +359,9 @@ function SlotEditor({ label, description, catalog, value, onChange }) {
   const customSlots = slots.filter((s) => s.is_custom)
   const catalogCount = selectedCatalogKeys.size
 
+  // Pending row — filled before being committed via "Add" button
+  const [pending, setPending] = useState(null)
+
   function toggleCatalogItem(item) {
     if (selectedCatalogKeys.has(item.key)) {
       onChange(slots.filter((s) => !(!s.is_custom && s.key === item.key)))
@@ -368,13 +371,19 @@ function SlotEditor({ label, description, catalog, value, onChange }) {
     onChange([...slots, { ...item, is_custom: false }])
   }
 
-  function addCustomSlot() {
+  function openPendingRow() {
     if (customSlots.length >= MAX_CUSTOM_SLOTS) return
+    setPending({ emoji: '⭐', label: '', description: '' })
+  }
+
+  function commitPending() {
+    if (!pending || !pending.label.trim()) return
     const key = `custom_${Date.now().toString(36)}`
     onChange([
       ...slots,
-      { key, label: '', emoji: '⭐', description: '', is_custom: true },
+      { key, label: pending.label.trim(), emoji: pending.emoji || '⭐', description: pending.description.trim(), is_custom: true },
     ])
+    setPending(null)
   }
 
   function updateCustomSlot(key, patch) {
@@ -443,7 +452,7 @@ function SlotEditor({ label, description, catalog, value, onChange }) {
             {customSlots.length} / {MAX_CUSTOM_SLOTS}
           </span>
         </div>
-        {customSlots.length === 0 && (
+        {customSlots.length === 0 && !pending && (
           <p className="text-xs text-muted-foreground italic">
             No custom slots. Add one if the catalog doesn&rsquo;t cover what you need.
           </p>
@@ -488,12 +497,66 @@ function SlotEditor({ label, description, catalog, value, onChange }) {
             </Button>
           </div>
         ))}
-        {customSlots.length < MAX_CUSTOM_SLOTS && (
+
+        {/* Pending (uncommitted) row */}
+        {pending && (
+          <div className="flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5">
+            <Input
+              value={pending.emoji}
+              onChange={(e) => setPending(p => ({ ...p, emoji: e.target.value.slice(0, 4) }))}
+              className="w-12 text-center text-base h-8 shrink-0"
+              maxLength={4}
+              aria-label="Emoji"
+            />
+            <div className="flex-1 min-w-0 space-y-1">
+              <Input
+                value={pending.label}
+                onChange={(e) => setPending(p => ({ ...p, label: e.target.value }))}
+                placeholder="Label (e.g. Equine owners)"
+                maxLength={60}
+                className="h-8 text-xs font-semibold"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') commitPending(); if (e.key === 'Escape') setPending(null) }}
+              />
+              <Input
+                value={pending.description}
+                onChange={(e) => setPending(p => ({ ...p, description: e.target.value }))}
+                placeholder="Short description (shown beneath the label)"
+                maxLength={120}
+                className="h-8 text-2xs text-muted-foreground"
+                onKeyDown={(e) => { if (e.key === 'Enter') commitPending(); if (e.key === 'Escape') setPending(null) }}
+              />
+            </div>
+            <div className="flex flex-col gap-1 shrink-0">
+              <Button
+                type="button"
+                size="sm"
+                onClick={commitPending}
+                disabled={!pending.label.trim()}
+                className="h-8 text-xs px-2"
+              >
+                Add
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setPending(null)}
+                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                aria-label="Cancel"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!pending && customSlots.length < MAX_CUSTOM_SLOTS && (
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={addCustomSlot}
+            onClick={openPendingRow}
             className="text-xs"
           >
             <Plus className="h-3.5 w-3.5 mr-1" />
