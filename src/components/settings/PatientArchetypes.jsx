@@ -4,14 +4,23 @@
 // edit form. PRs #3 + #4 of the Voice-Settings redesign both consume this,
 // so it lives in components/settings/ not in a page file.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Textarea2 } from '@/components/settings/helpers'
 
 export function PrototypeCard({ proto, onChange, onRemove, defaultExpanded = true }) {
   const [expanded, setExpanded] = useState(defaultExpanded)
-  const charsText = (proto.characteristics || []).join('\n')
+  // Keep the textarea text in local state so spaces and blank lines aren't
+  // eaten on every keystroke. The parent stores characteristics as a normalized
+  // string array (trimmed, no empties); we still push that up on every change
+  // so the dirty flag and save work, but the visible text is no longer
+  // re-derived from it mid-edit. Resync only when the edited archetype changes.
+  const [charsText, setCharsText] = useState(() => (proto.characteristics || []).join('\n'))
+  useEffect(() => {
+    setCharsText((proto.characteristics || []).join('\n'))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proto.id])
 
   return (
     <div className="rounded-lg border border-input bg-card">
@@ -83,7 +92,10 @@ export function PrototypeCard({ proto, onChange, onRemove, defaultExpanded = tru
           <Textarea2
             label="Characteristics (one per line)"
             value={charsText}
-            onChange={v => onChange({ characteristics: v.split('\n').map(l => l.trim()).filter(Boolean) })}
+            onChange={v => {
+              setCharsText(v)
+              onChange({ characteristics: v.split('\n').map(l => l.trim()).filter(Boolean) })
+            }}
             rows={4}
             hint="Bernard uses these to calibrate tone when generating for this archetype."
           />
