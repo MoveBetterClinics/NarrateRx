@@ -6,6 +6,7 @@
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -53,10 +54,19 @@ export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
   const view = searchParams.get('view')   // 'card' = slim shape for Stories list
-  const userId = req.headers['x-user-id'] ?? null
 
   const ws = await workspaceContext(req)
   if (!ws) return err(res, 'Workspace not resolved', 400)
+
+  // All clinician CRUD requires a verified Clerk session bound to this
+  // workspace's org. Previously trusted x-user-id / req.body.createdById,
+  // which were unauthenticated client-controlled values — a privilege-
+  // escalation bug fixed pre-launch (see audit 2026-05-17).
+  const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+  const userId = auth.userId
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   if (req.method === 'GET') {
@@ -78,9 +88,19 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     if (!(await enforceLimit(req, res, 'media'))) return
 
-    const { name, createdById, createdByEmail, userId: bindUserId } = req.body || {}
+    const { name, createdByEmail, userId: requestedBindUserId } = req.body || {}
     if (!name?.trim()) return err(res, 'Name required')
-    if (!createdById) return err(res, 'Unauthorized', 401)
+
+    // Identity comes from the verified token, never the body. createdById is
+    // always the calling user. bindUserId may be the calling user (Self
+    // interview — the row will be looked up by user_id later) or null
+    // (proxy interview — admin recording for a guest). Reject any attempt
+    // to claim a different user_id.
+    const createdById = userId
+    if (requestedBindUserId && requestedBindUserId !== userId) {
+      return err(res, 'Cannot bind clinician row to a different user', 403)
+    }
+    const bindUserId = requestedBindUserId ? userId : null
 
     const selectExpr = `${CLINICIAN_BASE_FIELDS},interviews(${INTERVIEW_FIELDS})`
 
@@ -160,7 +180,6 @@ export default async function handler(req, res) {
     if (!(await enforceLimit(req, res, 'media'))) return
 
     if (!id) return err(res, 'Missing id')
-    if (!userId) return err(res, 'Unauthorized', 401)
 
     const PATCHABLE = new Set(['default_audience', 'default_story_type', 'default_tone', 'default_voice_mode', 'voice_notes'])
     const body = req.body || {}
@@ -183,7 +202,6 @@ export default async function handler(req, res) {
     if (!(await enforceLimit(req, res, 'media'))) return
 
     if (!id) return err(res, 'Missing id')
-    if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=created_by_id`)
     if (!chk.ok) return dbErr(res, chk)
