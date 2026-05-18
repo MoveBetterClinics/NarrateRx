@@ -28,9 +28,17 @@ export default function StoriesPipelineView({ stories, isLoading }) {
 
   async function handleStatusChange(item, toStatus) {
     try {
-      await updateContentItem(item.id, { status: toStatus })
+      // Dragging out of Published has to clear published_at too — the
+      // Published lane is derived from `published_at OR status==='published'`,
+      // so just flipping status would leave the card stuck in Published.
+      const patch = { status: toStatus }
+      if (toStatus !== 'published' && item.published_at) {
+        patch.publishedAt = null
+      }
+      await updateContentItem(item.id, patch)
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
       toast.success(`Moved to ${toStatus.replace('_', ' ')}`)
     } catch (e) {
       toast.error('Status update failed', { description: e.message })

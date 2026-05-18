@@ -33,8 +33,13 @@ export default function PipelineKanban({ items, onStatusChange }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const [pending, setPending] = useState(null) // { item, toStatus } | null
 
+  // Effective lane: published_at is authoritative for the Published lane.
+  // Some publish paths set published_at without flipping status='published'
+  // (and the Content Plan view also uses published_at), so we mirror that
+  // here. A row with published_at set won't double-count in another lane.
+  const laneFor = (i) => (i.published_at ? 'published' : i.status)
   const grouped = LANES.reduce((acc, lane) => {
-    acc[lane.id] = items.filter((i) => i.status === lane.id)
+    acc[lane.id] = items.filter((i) => laneFor(i) === lane.id)
     return acc
   }, {})
 
@@ -44,7 +49,8 @@ export default function PipelineKanban({ items, onStatusChange }) {
     const item = items.find((i) => i.id === active.id)
     if (!item) return
     const toStatus = over.id
-    if (!toStatus || toStatus === item.status) return
+    const fromLane = laneFor(item)
+    if (!toStatus || toStatus === fromLane) return
     if (CONFIRM_TRANSITIONS.has(toStatus)) {
       setPending({ item, toStatus })
       return
