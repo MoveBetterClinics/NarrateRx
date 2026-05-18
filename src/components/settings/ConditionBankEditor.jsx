@@ -21,7 +21,7 @@
 // "Raw JSON" escape hatch remains for the rare case where a power user
 // needs to paste a blob, but the structured form is the default surface.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Plus, X, ChevronDown, ChevronUp, Code } from 'lucide-react'
 import { Label } from '@/components/ui/label'
 import { Textarea2 } from '@/components/settings/helpers'
@@ -225,7 +225,9 @@ export function ConditionBankEditor({ value, onChange }) {
         <button
           type="button"
           onClick={addAlias}
-          className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          disabled={conditionKeys.length === 0}
+          title={conditionKeys.length === 0 ? 'Add at least one condition before creating an alias' : undefined}
+          className="inline-flex items-center gap-1 text-xs text-primary hover:underline disabled:opacity-40 disabled:cursor-not-allowed disabled:no-underline"
         >
           <Plus className="h-3.5 w-3.5" /> Add alias
         </button>
@@ -275,6 +277,9 @@ export function ConditionBankEditor({ value, onChange }) {
 
 function ConditionCard({ conditionKey, condition, onChange, onRename, onRemove }) {
   const [expanded, setExpanded] = useState(false)
+  const [keyDraft, setKeyDraft] = useState(conditionKey)
+  // Sync draft when parent renames the key externally (e.g. undo/redo)
+  useEffect(() => { setKeyDraft(conditionKey) }, [conditionKey])
   const c = condition || {}
   const summary = (c.audienceProfile || '').slice(0, 80)
 
@@ -302,8 +307,9 @@ function ConditionCard({ conditionKey, condition, onChange, onRename, onRemove }
             <Label className="text-xs mb-1 block">Condition key</Label>
             <input
               className="w-full h-8 rounded-md border border-input bg-background px-2 text-sm font-mono"
-              value={conditionKey}
-              onChange={e => onRename(e.target.value.trim())}
+              value={keyDraft}
+              onChange={e => setKeyDraft(e.target.value)}
+              onBlur={() => onRename(keyDraft.trim())}
               placeholder="e.g. low_back_pain"
             />
             <p className="text-2xs text-muted-foreground mt-1">

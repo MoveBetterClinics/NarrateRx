@@ -54,7 +54,7 @@ export function TopicSuggestionsEditor({ topicsJson, patientContextJson, onChang
   }
 
   function addTopic() {
-    commit([...list, { topic: '', category: '', priority: 'medium', keywords: [] }])
+    commit([...list, { id: Date.now(), topic: '', category: '', priority: 'medium', keywords: [] }])
   }
 
   function toggleArchetype(idx, archetypeId) {
@@ -74,7 +74,7 @@ export function TopicSuggestionsEditor({ topicsJson, patientContextJson, onChang
         <div className="rounded-md border border-input divide-y divide-input max-h-[640px] overflow-y-auto">
           {list.map((row, idx) => (
             <TopicRow
-              key={idx}
+              key={row.id ?? `topic_${idx}`}
               row={row}
               archetypes={archetypes}
               onUpdate={patch => updateTopic(idx, patch)}
