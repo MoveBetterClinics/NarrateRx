@@ -95,9 +95,11 @@ function buildMetadata(platform, mediaUrls, content = '') {
     return { facebook: { type } }
   }
   if (platform === 'gbp') {
-    const firstLine = (content || '').split('\n')[0].trim()
-    const summary = (firstLine || content || '').substring(0, 255)
-    return { google: { type: 'whats_new', detailsWhatsNew: { summary } } }
+    // GoogleBusinessWhatsNewMetaDataInput only accepts { button, link } — both
+    // optional. The post text itself is the summary; there is no `summary`
+    // field on this input type. Pass an empty object so Buffer sees the
+    // expected shape without injecting fields it doesn't know about.
+    return { google: { type: 'whats_new', detailsWhatsNew: {} } }
   }
   return null
 }
