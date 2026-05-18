@@ -265,6 +265,7 @@ export default function WorkspaceSettings() {
       <SectionCard
         title="Content strings"
         description="Reusable phrases and links that flow into generated copy."
+        className="lg:col-span-2"
       >
         <Textarea2
           label="Internal links (Markdown)"
@@ -409,9 +410,9 @@ function DangerZone({ workspace, getToken }) {
   )
 }
 
-function SectionCard({ title, description, children }) {
+function SectionCard({ title, description, children, className = '' }) {
   return (
-    <Card className="shadow-none">
+    <Card className={`shadow-none ${className}`}>
       <CardHeader className="pb-4">
         <CardTitle className="text-base">{title}</CardTitle>
         {description && <CardDescription className="text-xs">{description}</CardDescription>}

@@ -38,7 +38,7 @@ export function Field({ label, value, onChange, placeholder, hint, type = 'text'
 
 export function Textarea2({ label, value, onChange, rows = 4, hint, mono = false }) {
   return (
-    <div className="space-y-1 max-w-3xl">
+    <div className="space-y-1">
       <Label className="text-xs">{label}</Label>
       <Textarea
         value={value}
