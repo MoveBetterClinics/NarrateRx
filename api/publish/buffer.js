@@ -81,7 +81,7 @@ function buildAssets(mediaUrls) {
 
 // Some Buffer services require `metadata.<service>.type`. Pick a sensible
 // default based on the media payload. Returns null when no metadata is needed.
-function buildMetadata(platform, mediaUrls, content = '') {
+function buildMetadata(platform, mediaUrls, _content = '') {
   const imageCount = mediaUrls.filter((m) => !m.type?.startsWith('video')).length
   const videoCount = mediaUrls.filter((m) => m.type?.startsWith('video')).length
   if (platform === 'instagram') {
