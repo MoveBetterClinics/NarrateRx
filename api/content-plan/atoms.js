@@ -24,7 +24,7 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
-const SELECT = 'id,interview_id,platform,slot,angle,angle_label,angle_description,status,content_piece_id,created_at,updated_at'
+const SELECT = 'id,interview_id,platform,slot,angle,angle_label,angle_description,status,content_piece_id,created_at,updated_at,content_piece:content_items!content_piece_id(status,published_at,scheduled_at)'
 
 export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')

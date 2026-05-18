@@ -35,10 +35,12 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
     if (platformAtoms.length) byPlatform[platform] = platformAtoms
   }
 
-  const totalAtoms   = atoms.length
-  const draftedCount = atoms.filter((a) => a.status === 'drafted').length
-  const skippedCount = atoms.filter((a) => a.status === 'skipped').length
-  const pendingCount = totalAtoms - draftedCount - skippedCount
+  const isAtomPublished = (a) => a.status === 'drafted' && !!a.content_piece?.published_at
+  const totalAtoms     = atoms.length
+  const publishedCount = atoms.filter(isAtomPublished).length
+  const draftedCount   = atoms.filter((a) => a.status === 'drafted' && !isAtomPublished(a)).length
+  const skippedCount   = atoms.filter((a) => a.status === 'skipped').length
+  const pendingCount   = totalAtoms - publishedCount - draftedCount - skippedCount
 
   async function handleDraft(atom) {
     setDraftingId(atom.id)
@@ -75,6 +77,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
           </p>
         </div>
         <div className="flex gap-2 text-xs text-muted-foreground shrink-0">
+          {publishedCount > 0 && <span className="text-blue-700 font-medium">{publishedCount} published</span>}
           {draftedCount > 0 && <span className="text-green-700 font-medium">{draftedCount} drafted</span>}
           {pendingCount > 0 && <span>{pendingCount} pending</span>}
           {skippedCount > 0 && <span className="text-muted-foreground">{skippedCount} skipped</span>}
@@ -88,6 +91,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
         const Icon = ui.icon
         const isCollapsed = collapsed[platform]
         const allDrafted = platformAtoms.every((a) => a.status === 'drafted')
+        const allPublished = platformAtoms.every(isAtomPublished)
 
         return (
           <div key={platform} className={`rounded-xl border ${ui.border} overflow-hidden`}>
@@ -103,7 +107,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
                   {platformAtoms.length} {platformAtoms.length === 1 ? 'post' : 'posts'}
                 </span>
                 {allDrafted && (
-                  <IconPrim as={CheckCircle2} size="sm" className="text-green-600" />
+                  <IconPrim as={CheckCircle2} size="sm" className={allPublished ? 'text-blue-600' : 'text-green-600'} />
                 )}
               </div>
               {isCollapsed ? (
@@ -152,6 +156,11 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
 function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, onDraft, onSkip, onReset, onSelectPiece }) {
   const isSkipped = atom.status === 'skipped'
   const isDrafted = atom.status === 'drafted'
+  const publishedAt = atom.content_piece?.published_at
+  const isPublished = isDrafted && !!publishedAt
+  const publishedDateLabel = publishedAt
+    ? new Date(publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
 
   return (
     <div className={`px-4 py-3 flex items-start justify-between gap-3 ${isSkipped ? 'opacity-40' : ''}`}>
@@ -161,7 +170,11 @@ function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, on
           <Badge variant="outline" className="text-xs px-1.5 py-0 font-normal text-muted-foreground">
             {slotLabel}{dateHint ? ` · ${dateHint}` : ''}
           </Badge>
-          {isDrafted && (
+          {isPublished ? (
+            <Badge className="text-xs bg-blue-100 text-blue-700 border-0 px-1.5 py-0">
+              Published{publishedDateLabel ? ` · ${publishedDateLabel}` : ''}
+            </Badge>
+          ) : isDrafted && (
             <Badge className="text-xs bg-green-100 text-green-700 border-0 px-1.5 py-0">
               Drafted · scheduled {dateHint || `Week ${atom.slot}`}
             </Badge>
