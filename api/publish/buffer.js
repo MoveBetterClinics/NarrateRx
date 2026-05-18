@@ -99,7 +99,9 @@ function buildMetadata(platform, mediaUrls, _content = '') {
     // optional. The post text itself is the summary; there is no `summary`
     // field on this input type. Pass an empty object so Buffer sees the
     // expected shape without injecting fields it doesn't know about.
-    return { google: { type: 'whats_new', detailsWhatsNew: {} } }
+    // Buffer requires button on whats-new posts at create time.
+    // LEARN_MORE is the safest default (no link URL required).
+    return { google: { type: 'whats_new', detailsWhatsNew: { button: 'LEARN_MORE' } } }
   }
   return null
 }
