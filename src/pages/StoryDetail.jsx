@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, ChevronDown, Link as LinkIcon } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Link as LinkIcon, Plus } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useStory, useUpdateInterview } from '@/lib/queries'
 import { apiFetch } from '@/lib/api'
@@ -33,21 +33,27 @@ function EditablePill({ value, options, placeholder, onChange, disabled }) {
   const selected = options.find((o) => o.key === value) || null
   return (
     <label
-      className={`relative inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 transition-colors ${
+      className={`relative inline-flex items-center gap-1 text-xs rounded-full transition-colors ${
         selected
-          ? 'text-muted-foreground bg-muted/60 hover:bg-muted'
-          : 'text-muted-foreground/70 bg-muted/30 hover:bg-muted/60 italic'
+          ? 'text-muted-foreground bg-muted/60 hover:bg-muted px-2 py-0.5'
+          // Unset state — call-to-action styling: dashed primary border,
+          // primary-tinted text, "+" affordance. Reads as an action chip,
+          // not a passive label, so clinicians notice missing metadata.
+          : 'text-primary bg-primary/5 border border-dashed border-primary/40 hover:bg-primary/10 hover:border-primary/60 font-medium px-2 py-0.5'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       {selected ? (
         <>
           <span className="text-2xs">{selected.emoji}</span>
           <span>{selected.label}</span>
+          <ChevronDown className="h-3 w-3 opacity-50" />
         </>
       ) : (
-        <span>{placeholder}</span>
+        <>
+          <Plus className="h-3 w-3" aria-hidden="true" />
+          <span>{placeholder}</span>
+        </>
       )}
-      <ChevronDown className="h-3 w-3 opacity-50" />
       <select
         value={value || ''}
         onChange={(e) => onChange(e.target.value || null)}
