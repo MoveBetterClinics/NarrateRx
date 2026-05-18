@@ -1,19 +1,17 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { FileText, Clock, CheckCircle2, CalendarDays, Send, Image as ImageIcon, ExternalLink } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { formatRelativeDate } from '@/lib/utils'
 import { PLATFORM_META } from '@/lib/contentMeta'
 import { getContentStatusToken } from '@/lib/contentStatusTokens'
 
 // Five lanes in workflow order. Archived items are intentionally excluded —
 // they don't belong on the active pipeline. Published items DO render here
-// so the publisher sees recently-shipped work on the right edge, but dragging
-// out of Published is allowed (it just acts as an unpublish).
+// so the publisher sees recently-shipped work on the right edge.
 //
-// Lane colours (accent/badge) and labels come from contentStatusTokens —
-// this file only owns lane order, icon, and publisher-inbox flagging.
+// The Kanban is a read-only reflection of state. Status transitions happen
+// on the story/asset card (StoryDetail → AssetsPane), never here. Lane
+// colours (accent/badge) and labels come from contentStatusTokens — this
+// file only owns lane order, icon, and publisher-inbox flagging.
 const LANES = [
   { id: 'draft',     icon: FileText,     publisherInbox: false },
   { id: 'in_review', icon: Clock,        publisherInbox: false },
@@ -22,76 +20,29 @@ const LANES = [
   { id: 'published', icon: Send,         publisherInbox: false },
 ]
 
-// Transitions that need explicit confirmation because they're either
-// hard to reverse (publishing fires an outbound post) or affect downstream
-// state visibly (archiving). For now: dropping onto Published triggers
-// a confirm — there's no other irreversible move available from the
-// pipeline UI.
-const CONFIRM_TRANSITIONS = new Set(['published'])
-
-export default function PipelineKanban({ items, onStatusChange }) {
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
-  const [pending, setPending] = useState(null) // { item, toStatus } | null
-
-  // Effective lane: published_at is authoritative for the Published lane.
-  // Some publish paths set published_at without flipping status='published'
-  // (and the Content Plan view also uses published_at), so we mirror that
-  // here. A row with published_at set won't double-count in another lane.
-  const laneFor = (i) => (i.published_at ? 'published' : i.status)
+export default function PipelineKanban({ items }) {
   const grouped = LANES.reduce((acc, lane) => {
-    acc[lane.id] = items.filter((i) => laneFor(i) === lane.id)
+    acc[lane.id] = items.filter((i) => i.status === lane.id)
     return acc
   }, {})
 
-  function handleDragEnd(event) {
-    const { active, over } = event
-    if (!over) return
-    const item = items.find((i) => i.id === active.id)
-    if (!item) return
-    const toStatus = over.id
-    const fromLane = laneFor(item)
-    if (!toStatus || toStatus === fromLane) return
-    if (CONFIRM_TRANSITIONS.has(toStatus)) {
-      setPending({ item, toStatus })
-      return
-    }
-    onStatusChange(item, toStatus)
-  }
-
   return (
-    <>
-      <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-          {LANES.map((lane) => (
-            <Lane key={lane.id} lane={lane} items={grouped[lane.id] || []} isPublisherInbox={lane.publisherInbox} />
-          ))}
-        </div>
-      </DndContext>
-
-      {pending && (
-        <ConfirmPublishDialog
-          item={pending.item}
-          onCancel={() => setPending(null)}
-          onConfirm={() => {
-            onStatusChange(pending.item, pending.toStatus)
-            setPending(null)
-          }}
-        />
-      )}
-    </>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+      {LANES.map((lane) => (
+        <Lane key={lane.id} lane={lane} items={grouped[lane.id] || []} isPublisherInbox={lane.publisherInbox} />
+      ))}
+    </div>
   )
 }
 
 function Lane({ lane, items, isPublisherInbox }) {
-  const { setNodeRef, isOver } = useDroppable({ id: lane.id })
   const Icon = lane.icon
   const token = getContentStatusToken(lane.id)
   return (
     <div
-      ref={setNodeRef}
-      className={`rounded-xl border p-3 transition-colors ${token.accent} ${
+      className={`rounded-xl border p-3 ${token.accent} ${
         isPublisherInbox ? 'bg-blue-50/60' : 'bg-card'
-      } ${isOver ? 'bg-accent/30 ring-2 ring-primary/30' : ''}`}
+      }`}
     >
       <div className="flex items-center justify-between gap-2 mb-3">
         <div className="flex items-center gap-1.5">
@@ -129,22 +80,18 @@ function VoiceDriftChip({ provenance }) {
 }
 
 function Card({ item }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: item.id })
   const pm = PLATFORM_META[item.platform] || { label: item.platform, icon: FileText, color: 'text-slate-600', bg: 'bg-slate-50' }
   const Icon = pm.icon
   const hasMedia = Array.isArray(item.media_urls) && item.media_urls.length > 0
   const snippet = (item.content || '').slice(0, 90)
   const scheduledAt = item.scheduled_at ? new Date(item.scheduled_at) : null
   const showVoiceDrift = ['approved', 'scheduled', 'published'].includes(item.status)
+  const href = item.interview_id ? `/stories/${item.interview_id}?piece=${item.id}` : `/review/${item.id}`
 
   return (
-    <div
-      ref={setNodeRef}
-      {...attributes}
-      {...listeners}
-      className={`rounded-lg border bg-background p-2 text-xs space-y-1.5 cursor-grab active:cursor-grabbing hover:border-primary/30 transition-colors ${
-        isDragging ? 'opacity-50 ring-2 ring-primary/40' : ''
-      }`}
+    <Link
+      to={href}
+      className="block rounded-lg border bg-background p-2 text-xs space-y-1.5 hover:border-primary/30 hover:bg-accent/20 transition-colors"
     >
       <div className="flex items-center justify-between gap-1.5">
         <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${pm.bg}`}>
@@ -162,39 +109,14 @@ function Card({ item }) {
         <span className="truncate">
           {scheduledAt ? scheduledAt.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' }) : formatRelativeDate(item.updated_at)}
         </span>
-        <Link
-          to={item.interview_id ? `/stories/${item.interview_id}?piece=${item.id}` : `/review/${item.id}`}
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={(e) => e.stopPropagation()}
-          className="text-primary hover:underline shrink-0 inline-flex items-center gap-0.5"
-        >
+        <span className="text-primary shrink-0 inline-flex items-center gap-0.5">
           <ExternalLink className="h-2.5 w-2.5" />
           Open
-        </Link>
+        </span>
       </div>
       {item.reviewed_by && (
         <p className="text-3xs text-muted-foreground truncate" title={item.reviewed_by}>Reviewer: {item.reviewed_by}</p>
       )}
-    </div>
-  )
-}
-
-function ConfirmPublishDialog({ item, onCancel, onConfirm }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onCancel}
-    >
-      <div className="bg-background rounded-lg shadow-lg max-w-sm w-full p-5 space-y-3" onClick={(e) => e.stopPropagation()}>
-        <h3 className="text-base font-semibold">Publish this post?</h3>
-        <p className="text-sm text-muted-foreground">
-          Dropping onto Published fires the live post for <span className="font-medium">{item.topic}</span>. This can&apos;t be undone in one click.
-        </p>
-        <div className="flex justify-end gap-2 pt-1">
-          <Button variant="outline" size="sm" onClick={onCancel}>Cancel</Button>
-          <Button size="sm" onClick={onConfirm}>Publish now</Button>
-        </div>
-      </div>
-    </div>
+    </Link>
   )
 }
