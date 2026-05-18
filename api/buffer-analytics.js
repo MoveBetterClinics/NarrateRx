@@ -1,8 +1,8 @@
 // Buffer Analyze endpoint — Node.js runtime.
 //
 // Fetches post-performance metrics for a published content item from the
-// Buffer Analytics API (GET /1/updates/{id}.json) and caches them on the
-// content_items row so the UI doesn't re-fetch on every page load.
+// Buffer GraphQL API and caches them on the content_items row so the UI
+// doesn't re-fetch on every page load.
 //
 // Metrics are re-fetched on explicit user request (Refresh button). The
 // cached value is returned directly when present and < 30 min old unless
@@ -15,8 +15,7 @@ export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from './_lib/workspaceContext.js'
 import { getCredential } from './_lib/getCredential.js'
-
-const BUFFER_API = 'https://api.bufferapp.com/1'
+import { fetchPostStats } from './_lib/bufferPostStats.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 const CACHE_TTL_MS = 30 * 60 * 1000 // 30 minutes
@@ -34,19 +33,20 @@ function sb(path, init = {}) {
   })
 }
 
-// Extract a flat metrics object from the Buffer update statistics blob.
-// Buffer omits zero-value fields, so we default missing ones to 0.
+// Extract a flat metrics object from the Buffer statistics blob.
+// Buffer omits zero-value fields; default missing ones to 0.
+// GraphQL returns 'likes'; v1 REST returned 'favorites' — handle both.
 function extractMetrics(stats = {}) {
+  const likes = stats.likes ?? stats.favorites ?? 0
   return {
     clicks:      stats.clicks      ?? 0,
     reach:       stats.reach       ?? 0,
     impressions: stats.impressions ?? 0,
-    favorites:   stats.favorites   ?? 0,
+    favorites:   likes,
     mentions:    stats.mentions    ?? 0,
     shares:      stats.shares      ?? 0,
     comments:    stats.comments    ?? 0,
-    // Derived engagement = likes + comments + shares (common composite metric)
-    engagement:  (stats.favorites ?? 0) + (stats.comments ?? 0) + (stats.shares ?? 0),
+    engagement:  likes + (stats.comments ?? 0) + (stats.shares ?? 0),
   }
 }
 
@@ -102,14 +102,10 @@ export default async function handler(req, res) {
     return res.status(200).json({ metrics: null, reason: 'buffer_not_configured' })
   }
 
-  const bufferRes = await fetch(
-    `${BUFFER_API}/updates/${encodeURIComponent(item.buffer_update_id)}.json?access_token=${cred.secret}`,
-  )
+  const result = await fetchPostStats(cred.secret, item.buffer_update_id)
 
-  if (!bufferRes.ok) {
-    const body = await bufferRes.text().catch(() => '')
-    console.error(`[buffer-analytics] Buffer API error ${bufferRes.status}: ${body.slice(0, 200)}`)
-    // If we have stale cache, return it rather than surfacing an error
+  if (!result.ok || !result.post) {
+    console.error(`[buffer-analytics] fetchPostStats failed for ${item.buffer_update_id}`)
     if (item.buffer_metrics) {
       return res.status(200).json({
         metrics: item.buffer_metrics,
@@ -121,10 +117,7 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Failed to fetch metrics from Buffer' })
   }
 
-  const update = await bufferRes.json().catch(() => null)
-  if (!update) return res.status(502).json({ error: 'Invalid Buffer response' })
-
-  const metrics = extractMetrics(update.statistics || {})
+  const metrics = extractMetrics(result.post.statistics || {})
   const fetchedAt = new Date().toISOString()
 
   // Cache the result on the content item row (fire-and-forget — don't block response)

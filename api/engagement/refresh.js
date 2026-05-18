@@ -16,10 +16,10 @@ export const config = { runtime: 'nodejs' }
 
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import { getCredential } from '../_lib/getCredential.js'
+import { fetchPostStats } from '../_lib/bufferPostStats.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-const BUFFER_API   = 'https://api.bufferapp.com/1'
 
 async function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -65,26 +65,23 @@ async function handler(req, res) {
     return res.status(503).json({ error: 'Buffer is not configured for this workspace. Add a Buffer access token in Workspace Settings.' })
   }
 
-  // Fetch the update. Buffer's /updates/:id.json includes `statistics` for
-  // sent updates; pending/scheduled updates have an empty stats object.
-  let bufferData
+  // Fetch stats via Buffer GraphQL API (PATs require GraphQL; v1 REST rejects them).
+  let stats
   try {
-    const r = await fetch(`${BUFFER_API}/updates/${encodeURIComponent(item.buffer_update_id)}.json?access_token=${encodeURIComponent(cred.secret)}`)
-    if (!r.ok) {
-      const text = await r.text().catch(() => '')
-      return res.status(502).json({ error: `Buffer returned ${r.status}`, detail: text.slice(0, 300) })
+    const result = await fetchPostStats(cred.secret, item.buffer_update_id)
+    if (!result.ok || !result.post) {
+      return res.status(502).json({ error: 'Buffer API error fetching post stats' })
     }
-    bufferData = await r.json()
+    const p = result.post
+    stats = {
+      statistics:   p.statistics   ?? {},
+      status:       p.status       ?? null,
+      sent_at:      p.sentAt       ?? null,
+      service:      item.platform  ?? null,
+      service_link: null,
+    }
   } catch (e) {
     return res.status(502).json({ error: 'Buffer fetch failed', detail: e?.message })
-  }
-
-  const stats = {
-    statistics:    bufferData?.statistics    ?? {},
-    status:        bufferData?.status        ?? null,
-    sent_at:       bufferData?.sent_at       ?? null,
-    service:       bufferData?.service       ?? null,
-    service_link:  bufferData?.service_link  ?? null,
   }
 
   const insertRes = await sb('engagement_snapshots', {

@@ -81,7 +81,7 @@ function buildAssets(mediaUrls) {
 
 // Some Buffer services require `metadata.<service>.type`. Pick a sensible
 // default based on the media payload. Returns null when no metadata is needed.
-function buildMetadata(platform, mediaUrls) {
+function buildMetadata(platform, mediaUrls, content = '') {
   const imageCount = mediaUrls.filter((m) => !m.type?.startsWith('video')).length
   const videoCount = mediaUrls.filter((m) => m.type?.startsWith('video')).length
   if (platform === 'instagram') {
@@ -95,7 +95,9 @@ function buildMetadata(platform, mediaUrls) {
     return { facebook: { type } }
   }
   if (platform === 'gbp') {
-    return { google: { type: 'whats_new' } }
+    const firstLine = (content || '').split('\n')[0].trim()
+    const summary = (firstLine || content || '').substring(0, 255)
+    return { google: { type: 'whats_new', detailsWhatsNew: { summary } } }
   }
   return null
 }
@@ -173,7 +175,7 @@ async function handler(req, res) {
   const mode = scheduledAt ? 'customScheduled' : 'shareNow'
   const preparedMedia = await prepareMediaForBuffer(mediaUrls)
   const assets = buildAssets(preparedMedia)
-  const metadata = buildMetadata(platform, preparedMedia)
+  const metadata = buildMetadata(platform, preparedMedia, content)
 
   // 3. Create one post per channel (fan-out for GBP multi-location).
   const posts = []

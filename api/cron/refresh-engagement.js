@@ -21,10 +21,10 @@ export const config = { runtime: 'nodejs' }
 
 import { decryptSecret } from '../_lib/credentialCrypto.js'
 import { fetchGA4Metrics, urlToPagePath } from '../_lib/ga4.js'
+import { fetchPostStats } from '../_lib/bufferPostStats.js'
 
 const SUPABASE_URL  = process.env.SUPABASE_URL
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY
-const BUFFER_API    = 'https://api.bufferapp.com/1'
 const MIN_SAMPLES   = 5
 const SCORE_MULT    = 2
 const SCAN_WINDOW_D = 60     // only consider posts published in the last N days
@@ -85,18 +85,16 @@ async function getBufferToken(workspaceId) {
   try { return decryptSecret(ct) } catch { return null }
 }
 
-async function fetchBufferStats(token, updateId) {
-  const url = `${BUFFER_API}/updates/${encodeURIComponent(updateId)}.json?access_token=${encodeURIComponent(token)}`
-  const r = await fetch(url)
-  if (!r.ok) return null
-  const data = await r.json().catch(() => null)
-  if (!data) return null
+async function fetchBufferStats(token, updateId, platform) {
+  const result = await fetchPostStats(token, updateId)
+  if (!result.ok || !result.post) return null
+  const p = result.post
   return {
-    statistics:   data.statistics    ?? {},
-    status:       data.status        ?? null,
-    sent_at:      data.sent_at       ?? null,
-    service:      data.service       ?? null,
-    service_link: data.service_link  ?? null,
+    statistics:   p.statistics ?? {},
+    status:       p.status     ?? null,
+    sent_at:      p.sentAt     ?? null,
+    service:      platform     ?? null,
+    service_link: null,
   }
 }
 
@@ -139,7 +137,7 @@ async function processWorkspace(ws, summary) {
       item._stats = latest.stats
       continue
     }
-    const stats = await fetchBufferStats(token, item.buffer_update_id)
+    const stats = await fetchBufferStats(token, item.buffer_update_id, item.platform)
     if (!stats) continue
     const ins = await sb('engagement_snapshots', {
       method: 'POST',
