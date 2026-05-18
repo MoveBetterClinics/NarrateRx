@@ -118,13 +118,13 @@ End with a question that invites comments. 1–2 hashtags max.`,
       local_authority: `Write a Google Business Profile post (~200 words) about ${condition} for ${workspace.display_name} in ${workspace.location_keyword ?? 'your area'}.
 ANGLE: Establish local authority. Lead with what ${workspace.display_name} does differently for ${condition} patients locally. Include local keywords naturally.
 Use "we" and "our team" throughout.
-Close with: "Book your ${condition} assessment at ${workspace.display_name} — link in profile"
+Close with: "Book your ${condition} assessment at ${workspace.display_name}: ${workspace.website}"
 No hashtags. Conversational, not salesy.`,
 
       patient_outcome: `Write a Google Business Profile post (~200 words) about ${condition} for ${workspace.display_name} in ${workspace.location_keyword ?? 'your area'}.
 ANGLE: Results framing. What does recovery from ${condition} actually look like at ${workspace.display_name}? Lead with a specific, believable outcome ("patients typically find…" or "the goal is…").
 Use "we" and "our team" throughout.
-Close with: "Ready to start your recovery? Book at ${workspace.display_name} — link in profile"
+Close with: "Ready to start your recovery? Book at ${workspace.display_name}: ${workspace.website}"
 No hashtags. Conversational, results-focused.`,
     },
 
@@ -231,6 +231,8 @@ Output ONLY the post body (with the CW prefix and alt-text placeholder if applic
 The conversation transcript is your primary source. Quote ${clinicianName || 'the clinician'}'s actual words where you can and adapt them to the platform's format — that voice is what makes this content recognizably theirs. An editorial summary (the approved long-form post on this topic) is provided as thematic guidance so your piece stays on-message, but the voice, examples, and specifics must come from the conversation itself, not the summary.
 
 Your job: pick the moment in the conversation that best fits this platform and angle, then write ONE focused piece of content following the exact instructions below. Do NOT include section markers, headers, labels, or meta-commentary. Output ONLY the final content, ready to copy and use.
+
+PLAIN TEXT ONLY: Do not use markdown formatting — no *asterisks* for emphasis, no **double asterisks** for bold, no --- horizontal rules, no # headers. Social platforms render these as literal characters.
 
 ${instruction}
 
