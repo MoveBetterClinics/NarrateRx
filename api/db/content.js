@@ -39,7 +39,7 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,overlay_text,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,notes,reviewed_by,approved_by,approved_at,performed_well,archived_at,hashtag_suggestions,buffer_metrics,buffer_metrics_fetched_at,provenance,created_at,updated_at'
+const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,overlay_text,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,location_overrides,notes,reviewed_by,approved_by,approved_at,performed_well,archived_at,hashtag_suggestions,buffer_metrics,buffer_metrics_fetched_at,provenance,created_at,updated_at'
 
 // Slim shape for the Stories list (Cards / Pipeline / Calendar / Themes views).
 // Drops heavy columns (`content`, `media_urls`, `buffer_metrics`, `notes`, etc.)
@@ -150,8 +150,9 @@ export default async function handler(req, res) {
       platform_post_id: patch.platformPostId,
       buffer_update_id: patch.bufferUpdateId,
       resolved_url:    patch.resolvedUrl,
-      target_locations: patch.targetLocations,
-      location_id:     patch.locationId,
+      target_locations:   patch.targetLocations,
+      location_id:        patch.locationId,
+      location_overrides: patch.locationOverrides,
       reviewed_by:     patch.reviewedBy,
       approved_by:     patch.approvedBy,
       approved_at:     patch.approvedAt,
