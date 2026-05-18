@@ -193,12 +193,18 @@ function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, on
               className="h-7 text-xs gap-1"
               onClick={() => onSelectPiece(atom.content_piece_id)}
             >
-              View draft
+              {isPublished ? 'View post' : 'View draft'}
             </Button>
           ) : (
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" asChild>
-              <Link to={interviewId ? `/stories/${interviewId}` : `/stories/${atom.content_piece_id}`}>
-                View draft
+              <Link
+                to={
+                  interviewId
+                    ? `/stories/${interviewId}${atom.content_piece_id ? `?piece=${atom.content_piece_id}` : ''}`
+                    : `/stories/${atom.content_piece_id}`
+                }
+              >
+                {isPublished ? 'View post' : 'View draft'}
                 <IconPrim as={ExternalLink} size="xs" />
               </Link>
             </Button>

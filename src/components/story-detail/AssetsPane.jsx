@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
@@ -780,16 +781,37 @@ function ProvenanceTracePanel({ piece, onHighlight }) {
  * The full ReviewPost editor remains accessible via the "Open for editing" link.
  */
 export default function AssetsPane({ story, onProvenanceHighlight }) {
-  const pieces = story?.pieces ?? []
-  const [activeIdx, setActiveIdx] = useState(0)
-  const [view, setView] = useState('plan')
+  const pieces = useMemo(() => story?.pieces ?? [], [story?.pieces])
+  const [searchParams, setSearchParams] = useSearchParams()
+  const pieceParam = searchParams.get('piece')
+  const initialIdx = pieceParam
+    ? Math.max(0, pieces.findIndex((p) => p.id === pieceParam))
+    : 0
+  const [activeIdx, setActiveIdx] = useState(initialIdx)
+  const [view, setView] = useState(pieceParam ? 'edit' : 'plan')
   // Preview visibility is per-piece so toggling on one tab doesn't bleed to others.
   const [previewOpen, setPreviewOpen] = useState({})
+
+  // If the ?piece=<id> param resolves after pieces load (async story fetch),
+  // sync the active tab once the matching piece appears.
+  useEffect(() => {
+    if (!pieceParam) return
+    const idx = pieces.findIndex((p) => p.id === pieceParam)
+    if (idx >= 0 && idx !== activeIdx) {
+      setActiveIdx(idx)
+      setView('edit')
+    }
+  }, [pieceParam, pieces, activeIdx])
 
   const handleSelectPiece = (pieceId) => {
     const idx = pieces.findIndex((p) => p.id === pieceId)
     if (idx >= 0) setActiveIdx(idx)
     setView('edit')
+    if (pieceId && pieceId !== pieceParam) {
+      const next = new URLSearchParams(searchParams)
+      next.set('piece', pieceId)
+      setSearchParams(next, { replace: true })
+    }
   }
 
   const ViewToggle = (
