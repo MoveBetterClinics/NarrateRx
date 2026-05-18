@@ -51,6 +51,12 @@ async function handler(req, res) {
     return redirectTo(res, '/settings/integrations?buffer_error=missing_params')
   }
 
+  // workspace_id comes from the HMAC-signed state param, not from the Host
+  // header. workspaceContext cannot be used here — Buffer redirects to the
+  // apex domain, not a workspace subdomain. The CLIENT_SECRET HMAC is the
+  // isolation mechanism: a forged workspace_id would require breaking the
+  // signature. The redirect-back step below confirms the workspace is still
+  // active before completing the credential write.
   const payload = verifyState(state)
   if (!payload?.workspace_id) {
     return redirectTo(res, '/settings/integrations?buffer_error=invalid_state')

@@ -2,6 +2,7 @@ import { withSentry } from './_lib/sentry.js'
 import { generateText } from 'ai'
 import { enforceLimit } from './_lib/ratelimit.js'
 import { requireRole } from './_lib/auth.js'
+import { workspaceContext } from './_lib/workspaceContext.js'
 
 // Pinned to Node runtime so the Edge whole-graph bundler doesn't follow
 // the ratelimit.js → @clerk/backend → node:crypto chain into middleware.
@@ -22,7 +23,11 @@ async function handler(req, res) {
     return
   }
 
-  const auth = await requireRole(req)
+  // Bind the AI call to the workspace that originated it. workspaceContext
+  // resolves to null on the apex domain or Vercel preview URLs (no subdomain),
+  // in which case we fall back to the pre-existing any-authenticated-user gate.
+  const ws = await workspaceContext(req)
+  const auth = await requireRole(req, null, ws ? { orgId: ws.clerk_org_id } : {})
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   if (!(await enforceLimit(req, res, 'ai'))) return
