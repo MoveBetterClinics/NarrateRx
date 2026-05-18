@@ -166,6 +166,12 @@ export default async function handler(req, res) {
     if (body.pullQuoteSelectedId !== undefined) patch.pull_quote_selected_id = body.pullQuoteSelectedId || null
     if (body.verbatimFlags !== undefined) patch.verbatim_flags = body.verbatimFlags
     if (body.generationStyle !== undefined) patch.generation_style = body.generationStyle === 'minimal_edits' ? 'minimal_edits' : 'blog_post'
+    // audience / story_type — slot keys, nullable. Both are also set at
+    // creation time in POST, but pre-fix interviews + workspaces that added
+    // new slots after the fact need a way to backfill them on completed
+    // rows. Empty string is treated as null so the editor can "clear" a slot.
+    if (body.audience !== undefined)  patch.audience   = body.audience   || null
+    if (body.storyType !== undefined) patch.story_type = body.storyType || null
     // session_state: null clears it (interview complete); object saves it
     if ('session_state' in body) patch.session_state = body.session_state ?? null
     if ('paused_at' in body) patch.paused_at = body.paused_at ?? null

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useUser } from '@clerk/clerk-react'
 import { ArrowLeft, ChevronDown, Link as LinkIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { useStory } from '@/lib/queries'
+import { useStory, useUpdateInterview } from '@/lib/queries'
 import { apiFetch } from '@/lib/api'
 import { getStageToken } from '@/lib/stageTokens'
 import TranscriptPane from '@/components/story-detail/TranscriptPane'
@@ -13,8 +14,57 @@ import ErrorState from '@/components/ErrorState'
 import { ClinicianChip } from '@/components/ClinicianChip'
 import ReferencesPanel from '@/components/ReferencesPanel'
 import { useWorkspace } from '@/lib/WorkspaceContext'
-import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOptionsCatalog'
+import {
+  defaultAudienceSlots,
+  defaultStoryTypeSlots,
+} from '@/lib/interviewOptionsCatalog'
 import { getCleanupLevel } from '@/lib/cleanupLevels'
+
+/**
+ * Inline-edit pill for the story header — renders as the existing muted
+ * badge but is actually a styled native <select>. Click anywhere on the pill
+ * to open the OS-native dropdown (keeps keyboard + mobile UX free).
+ *
+ * Showing it even when value is null gives clinicians a way to backfill
+ * audience / story_type on interviews that pre-date these fields, which
+ * directly improves voice-attribution scores on regeneration.
+ */
+function EditablePill({ value, options, placeholder, onChange, disabled }) {
+  const selected = options.find((o) => o.key === value) || null
+  return (
+    <label
+      className={`relative inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 transition-colors ${
+        selected
+          ? 'text-muted-foreground bg-muted/60 hover:bg-muted'
+          : 'text-muted-foreground/70 bg-muted/30 hover:bg-muted/60 italic'
+      } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+    >
+      {selected ? (
+        <>
+          <span className="text-2xs">{selected.emoji}</span>
+          <span>{selected.label}</span>
+        </>
+      ) : (
+        <span>{placeholder}</span>
+      )}
+      <ChevronDown className="h-3 w-3 opacity-50" />
+      <select
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value || null)}
+        disabled={disabled}
+        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+        aria-label={placeholder}
+      >
+        <option value="">— Unset —</option>
+        {options.map((o) => (
+          <option key={o.key} value={o.key}>
+            {o.emoji ? `${o.emoji} ` : ''}{o.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  )
+}
 
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
@@ -37,6 +87,8 @@ export default function StoryDetail() {
   const [provenanceHighlight, setProvenanceHighlight] = useState(null)
   const [refsOpen, setRefsOpen] = useState(false)
   const { workspace } = useWorkspace()
+  const { user } = useUser()
+  const updateInterview = useUpdateInterview()
 
   // Fallback: if the URL param is actually a content_item id (legacy bookmark
   // or stale link from /review/:itemId redirect), resolve it to its parent
@@ -121,24 +173,44 @@ export default function StoryDetail() {
                 />
               )
             )}
-            {(story.audience || story.story_type || story.cleanup_level) && (() => {
-              const audienceSlot = resolveAudienceSlot(story.audience, workspace?.audience_options)
-              const storyTypeSlot = resolveStoryTypeSlot(story.story_type, workspace?.story_type_options)
+            {(() => {
+              // Fall back to default catalogs when the workspace hasn't
+              // configured custom slot lists (memory: slot picker catalog
+              // fallback — never silently hide pickers when config is empty).
+              const audienceOptions = (workspace?.audience_options?.length ? workspace.audience_options : defaultAudienceSlots())
+              const storyTypeOptions = (workspace?.story_type_options?.length ? workspace.story_type_options : defaultStoryTypeSlots())
               const cleanupSlot = story.cleanup_level ? getCleanupLevel(story.cleanup_level) : null
+              // Defense: resolveAudienceSlot / resolveStoryTypeSlot return null
+              // for unknown keys, but our editable pill uses the option array
+              // directly so a key not present in options just shows as "Add audience".
               return (
                 <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                  {audienceSlot && (
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
-                      <span className="text-2xs">{audienceSlot.emoji}</span>
-                      <span>{audienceSlot.label}</span>
-                    </span>
-                  )}
-                  {storyTypeSlot && (
-                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
-                      <span className="text-2xs">{storyTypeSlot.emoji}</span>
-                      <span>{storyTypeSlot.label}</span>
-                    </span>
-                  )}
+                  <EditablePill
+                    value={story.audience || null}
+                    options={audienceOptions}
+                    placeholder="Add audience"
+                    disabled={updateInterview.isPending || !user?.id}
+                    onChange={(next) =>
+                      updateInterview.mutate({
+                        id: story.id,
+                        patch: { audience: next },
+                        userId: user?.id,
+                      })
+                    }
+                  />
+                  <EditablePill
+                    value={story.story_type || null}
+                    options={storyTypeOptions}
+                    placeholder="Add story type"
+                    disabled={updateInterview.isPending || !user?.id}
+                    onChange={(next) =>
+                      updateInterview.mutate({
+                        id: story.id,
+                        patch: { storyType: next },
+                        userId: user?.id,
+                      })
+                    }
+                  />
                   {cleanupSlot && (
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted/60 rounded-full px-2 py-0.5">
                       <span className="text-2xs">{cleanupSlot.emoji}</span>
