@@ -1051,21 +1051,33 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
           })()}
         </div>
 
-        {/* Body / Assets / Attributed tabs live inside ContentEditor.
-            Media + overlay panels are rendered under the Assets tab there. */}
-        {active && <ContentEditor key={active.id} piece={active} onProvenanceHighlight={onProvenanceHighlight} />}
+        {/* Body / preview / approval — keyed wrapper forces a clean unmount/
+            remount of the entire piece-scoped subtree when the active piece
+            changes. Without this wrapper, React's reconciler was leaving old
+            ContentEditor DOM nodes behind across tab clicks because the
+            children array mixes keyed (ContentEditor, ApprovalPanel) and
+            unkeyed (InspectDrawer, conditional BufferMetricsRow) siblings —
+            the keyed children got new instances but the old ones never got
+            removed, so every tab click stacked a new editor on top of the
+            previous one. */}
+        {active && (
+          <div key={active.id} className="space-y-3">
+            {/* Body / Assets / Attributed tabs live inside ContentEditor.
+                Media + overlay panels are rendered under the Assets tab. */}
+            <ContentEditor piece={active} onProvenanceHighlight={onProvenanceHighlight} />
 
-        {/* Regenerate + live preview — collapsed by default to keep the
-            primary write loop (body → approval) uncluttered. */}
-        {active && <InspectDrawer piece={active} story={story} />}
+            {/* Regenerate + live preview — collapsed by default to keep the
+                primary write loop (body → approval) uncluttered. */}
+            <InspectDrawer piece={active} story={story} />
 
-        {/* Buffer performance metrics — shown for published pieces with a buffer_update_id */}
-        {active?.status === 'published' && active?.buffer_update_id && (
-          <BufferMetricsRow contentItemId={active.id} />
+            {/* Buffer performance metrics — shown for published pieces with a buffer_update_id */}
+            {active.status === 'published' && active.buffer_update_id && (
+              <BufferMetricsRow contentItemId={active.id} />
+            )}
+
+            <ApprovalPanel piece={active} />
+          </div>
         )}
-
-        {/* Approval panel */}
-        {active && <ApprovalPanel key={active.id} piece={active} />}
       </div>
     </div>
   )
