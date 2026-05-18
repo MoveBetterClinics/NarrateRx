@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import {
@@ -19,6 +20,7 @@ import {
   useUpdateContentItem,
   useUpdateContentItemStatus,
   useRegenerateContentItem,
+  queryKeys,
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
 import { buildImagesManifest } from '@/lib/publishImageMirror'
@@ -405,6 +407,7 @@ function ApprovalPanel({ piece }) {
   const skipReview = !!workspace?.skip_review
   const updateStatus = useUpdateContentItemStatus()
   const addComment = useAddComment(piece.id)
+  const qc = useQueryClient()
 
   const [changeRequestOpen, setChangeRequestOpen] = useState(false)
   const [changeRequestBody, setChangeRequestBody] = useState('')
@@ -510,7 +513,14 @@ function ApprovalPanel({ piece }) {
             error: (e) => ({ message: 'Publish failed', description: e.message }),
           },
         )
-        await updateStatus.mutateAsync({ id: piece.id, status: 'published' })
+        await updateStatus.mutateAsync({
+          id: piece.id,
+          status: 'published',
+          approvedBy: userEmail,
+          approvedAt: new Date().toISOString(),
+          publishedAt: new Date().toISOString(),
+        })
+        qc.invalidateQueries({ queryKey: queryKeys.stories.detail(piece.interview_id) })
       }
     } catch {
       // runWithToast already surfaced the error toast; swallow so we don't
