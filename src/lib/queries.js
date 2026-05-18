@@ -622,22 +622,17 @@ export function useTopicSuggestions() {
 
 // ── Top performers ──────────────────────────────────────────────────────────
 //
-// Fetches published content items, filters to those with buffer_metrics, and
-// returns the top 3 by reach for the "What's working" insight panel.
+// Queries /api/engagement/top-performers which reads engagement_snapshots
+// across both Buffer and GA4 sources. Previously read buffer_metrics directly
+// from content_items, which excluded website-published posts with GA4 data.
 // Stale time is 1h — metrics settle over hours, not seconds.
 
 export function useTopPerformers() {
   return useQuery({
     queryKey: queryKeys.topPerformers,
     queryFn: async () => {
-      // view=performers returns only the 5 cols this widget needs; drops
-      // content body, media_urls, notes, hashtags, etc. (full row = 27 cols).
-      const items = await apiFetch('/api/db/content?status=published&limit=20&view=performers').catch(() => [])
-      if (!Array.isArray(items)) return []
-      return items
-        .filter((i) => i.buffer_metrics?.reach || i.buffer_metrics?.engagement)
-        .sort((a, b) => (b.buffer_metrics?.reach || 0) - (a.buffer_metrics?.reach || 0))
-        .slice(0, 3)
+      const data = await apiFetch('/api/engagement/top-performers').catch(() => null)
+      return data?.performers ?? []
     },
     staleTime: 1000 * 60 * 60, // 1h
   })

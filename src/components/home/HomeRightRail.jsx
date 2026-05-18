@@ -130,13 +130,23 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
                 </span>
                 <div className="flex items-center gap-2 text-2xs text-muted-foreground">
                   <span>{PLATFORM_LABELS[item.platform] || item.platform}</span>
-                  {item.buffer_metrics?.reach > 0 && (
-                    <span className="font-medium text-success">
-                      {item.buffer_metrics.reach.toLocaleString()} reach
-                    </span>
-                  )}
-                  {item.buffer_metrics?.engagement > 0 && (
-                    <span>{item.buffer_metrics.engagement} engagements</span>
+                  {item.source === 'ga4' ? (
+                    item.pageviews > 0 && (
+                      <span className="font-medium text-success">
+                        {item.pageviews.toLocaleString()} views
+                      </span>
+                    )
+                  ) : (
+                    <>
+                      {item.reach > 0 && (
+                        <span className="font-medium text-success">
+                          {item.reach.toLocaleString()} reach
+                        </span>
+                      )}
+                      {item.engagement > 0 && (
+                        <span>{item.engagement} engagements</span>
+                      )}
+                    </>
                   )}
                 </div>
               </li>

@@ -43,27 +43,54 @@ const PLATFORM_LABELS = {
   email:     'Email',
 }
 
-// Fetch up to 20 published items that have buffer_metrics, sorted by engagement desc.
-// Returns an array of { topic, platform, reach, engagement } for the top 5 by reach.
-// Returns an empty array if nothing useful is found (new workspace, no metrics yet).
+// Fetch top performers from engagement_snapshots (latest snapshot per item,
+// both Buffer and GA4 sources). Returns top 5 by source-appropriate score.
+// Previously read buffer_metrics from content_items, which excluded GA4-backed
+// website posts. engagement_snapshots covers both sources.
 async function fetchTopPerformers(wsId) {
   try {
     const r = await sb(
-      `content_items?workspace_id=eq.${encodeURIComponent(wsId)}&status=eq.published&buffer_metrics=not.is.null&select=topic,platform,buffer_metrics&order=created_at.desc&limit=20`,
+      `engagement_snapshots?workspace_id=eq.${encodeURIComponent(wsId)}` +
+      `&order=fetched_at.desc&limit=150` +
+      `&select=content_item_id,source,stats,content_items(topic,platform,status)`,
     )
     if (!r.ok) return []
-    const items = await r.json().catch(() => [])
-    if (!Array.isArray(items) || items.length === 0) return []
+    const rows = await r.json().catch(() => [])
+    if (!Array.isArray(rows) || rows.length === 0) return []
 
-    return items
-      .filter((i) => i.buffer_metrics && (i.buffer_metrics.reach > 0 || i.buffer_metrics.engagement > 0))
-      .sort((a, b) => (b.buffer_metrics.reach || 0) - (a.buffer_metrics.reach || 0))
+    // Dedupe to latest snapshot per content item; score by source signal.
+    const seen = new Set()
+    const candidates = []
+    for (const row of rows) {
+      if (seen.has(row.content_item_id)) continue
+      seen.add(row.content_item_id)
+      const ci = row.content_items
+      if (!ci || ci.status !== 'published') continue
+
+      let score, reach, engagement
+      if (row.source === 'ga4') {
+        score = row.stats?.pageviews ?? 0
+        reach = score
+        engagement = 0
+      } else {
+        const stats = row.stats?.statistics ?? {}
+        const likes = stats.likes ?? stats.favorites ?? 0
+        reach = stats.reach ?? 0
+        engagement = likes + (stats.comments ?? 0) + (stats.shares ?? 0)
+        score = reach
+      }
+      if (score <= 0) continue
+      candidates.push({ topic: ci.topic || 'Untitled', platform: ci.platform, score, reach, engagement })
+    }
+
+    return candidates
+      .sort((a, b) => b.score - a.score)
       .slice(0, 5)
       .map((i) => ({
-        topic:      i.topic || 'Untitled',
+        topic:      i.topic,
         platform:   PLATFORM_LABELS[i.platform] || i.platform || 'Unknown',
-        reach:      i.buffer_metrics.reach || 0,
-        engagement: i.buffer_metrics.engagement || 0,
+        reach:      i.reach,
+        engagement: i.engagement,
       }))
   } catch {
     return []
