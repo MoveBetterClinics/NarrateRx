@@ -16,8 +16,8 @@
 
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
-import { Loader2, ChevronRight, ArrowLeft } from 'lucide-react'
+import { Loader2, ChevronRight, ArrowLeft, Mic } from 'lucide-react'
+import { apiFetch } from '@/lib/api'
 import { Section, SaveBar } from '@/components/settings/helpers'
 import { useUserRole } from '@/lib/useUserRole'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
@@ -41,7 +41,6 @@ function formFromWorkspace(ws) {
 
 export default function InterviewDefaultsPage() {
   useDocumentTitle('Settings — Interview defaults')
-  const { getToken } = useAuth()
   const runtimeWs = useWorkspace()
   const { role, isLoading: roleLoading } = useUserRole()
   const [ws, setWs] = useState(undefined)
@@ -52,9 +51,7 @@ export default function InterviewDefaultsPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
+    apiFetch('/api/workspace/me')
       .then(data => {
         setWs(data)
         if (data) {
@@ -63,6 +60,7 @@ export default function InterviewDefaultsPage() {
           setPristine(initial)
         }
       })
+      .catch(() => setWs(null))
   }, [])
 
   const isDirty = !!form && !!pristine && JSON.stringify(form) !== JSON.stringify(pristine)
@@ -76,27 +74,20 @@ export default function InterviewDefaultsPage() {
   async function handleSave() {
     setSaving(true); setError(null); setSaved(false)
     try {
-      const token = await getToken()
-      const r = await fetch('/api/workspace/me', {
+      const updated = await apiFetch('/api/workspace/me', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           audience_options:   form.audience_options,
           story_type_options: form.story_type_options,
         }),
       })
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}))
-        setError(err.error || 'save-failed')
-      } else {
-        const updated = await r.json()
-        setWs(updated)
-        const refreshed = formFromWorkspace(updated)
-        setForm(refreshed); setPristine(refreshed)
-        setSaved(true); setTimeout(() => setSaved(false), 3000)
-      }
-    } catch {
-      setError('network-error')
+      setWs(updated)
+      const refreshed = formFromWorkspace(/** @type {any} */ (updated))
+      setForm(refreshed); setPristine(refreshed)
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
+    } catch (e) {
+      setError(/** @type {any} */ (e)?.message || 'save-failed')
     } finally {
       setSaving(false)
     }
@@ -122,9 +113,18 @@ export default function InterviewDefaultsPage() {
     <div className="max-w-2xl space-y-8">
       {/* Breadcrumb + heading */}
       <div>
-        <p className="text-2xs text-muted-foreground/80">
-          Settings · {interviewerName} · Interview defaults
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-2xs text-muted-foreground/80">
+            Settings · {interviewerName} · Interview defaults
+          </p>
+          <Link
+            to="/settings/workspace/patients"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            Back: Patients &amp; topics
+          </Link>
+        </div>
         <h1 className="text-2xl font-bold tracking-tight mt-0.5">
           What clinicians see at interview start
         </h1>
@@ -160,17 +160,6 @@ export default function InterviewDefaultsPage() {
       {/* Per-clinician voice memory roster (read-only nav, edits live on the profile) */}
       <VoiceMemoryRoster interviewerName={interviewerName} />
 
-      {/* Page-to-page nav */}
-      <div className="flex items-center justify-between pt-1">
-        <Link
-          to="/settings/workspace/patients"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3 w-3" />
-          Back: Patients &amp; topics
-        </Link>
-      </div>
-
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}
         onSave={handleSave}
@@ -192,7 +181,7 @@ function VoiceMemoryRoster({ interviewerName }) {
   return (
     <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-4">
       <div className="flex items-start gap-3 mb-3">
-        <span className="text-base mt-0.5">🎙</span>
+        <Mic className="h-4 w-4 mt-0.5 text-indigo-700/80 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-indigo-900">Per-clinician voice memory</p>
           <p className="text-xs text-indigo-700 mt-0.5">

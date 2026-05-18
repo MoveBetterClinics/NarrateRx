@@ -11,7 +11,6 @@
 
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
 import { Loader2, Sparkles, Pencil, ArrowRight } from 'lucide-react'
 import { Section, Field, Textarea2, SaveBar } from '@/components/settings/helpers'
 import { Button } from '@/components/ui/button'
@@ -58,7 +57,6 @@ function formToPatch(form) {
 
 export default function VoiceTonePage() {
   useDocumentTitle('Settings — Voice & tone')
-  const { getToken } = useAuth()
   const runtimeWs = useWorkspace()
   const { role, isLoading: roleLoading } = useUserRole()
   const [ws, setWs] = useState(undefined)
@@ -69,9 +67,7 @@ export default function VoiceTonePage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
+    apiFetch('/api/workspace/me')
       .then(data => {
         setWs(data)
         if (data) {
@@ -80,6 +76,7 @@ export default function VoiceTonePage() {
           setPristine(initial)
         }
       })
+      .catch(() => setWs(null))
   }, [])
 
   const isDirty = !!form && !!pristine && JSON.stringify(form) !== JSON.stringify(pristine)
@@ -93,24 +90,17 @@ export default function VoiceTonePage() {
   async function handleSave() {
     setSaving(true); setError(null); setSaved(false)
     try {
-      const token = await getToken()
-      const r = await fetch('/api/workspace/me', {
+      const updated = await apiFetch('/api/workspace/me', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formToPatch(form)),
       })
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}))
-        setError(err.error || 'save-failed')
-      } else {
-        const updated = await r.json()
-        setWs(updated)
-        const refreshed = formFromWorkspace(updated)
-        setForm(refreshed); setPristine(refreshed)
-        setSaved(true); setTimeout(() => setSaved(false), 3000)
-      }
-    } catch {
-      setError('network-error')
+      setWs(updated)
+      const refreshed = formFromWorkspace(/** @type {any} */ (updated))
+      setForm(refreshed); setPristine(refreshed)
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
+    } catch (e) {
+      setError(/** @type {any} */ (e)?.message || 'save-failed')
     } finally {
       setSaving(false)
     }
@@ -137,9 +127,18 @@ export default function VoiceTonePage() {
     <div className="max-w-2xl space-y-8">
       {/* Breadcrumb + heading */}
       <div>
-        <p className="text-2xs text-muted-foreground/80">
-          Settings · {interviewerName} · Voice &amp; tone
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-2xs text-muted-foreground/80">
+            Settings · {interviewerName} · Voice &amp; tone
+          </p>
+          <Link
+            to="/settings/workspace/patients"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            Next: Patients &amp; topics
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </div>
         <h1 className="text-2xl font-bold tracking-tight mt-0.5">
           How {clinicName} sounds
         </h1>
@@ -205,17 +204,6 @@ export default function VoiceTonePage() {
       >
         <ToneModifierCards form={form} set={set} />
       </Section>
-
-      {/* Next-page link sits next to the SaveBar */}
-      <div className="flex items-center justify-between pt-1">
-        <Link
-          to="/settings/workspace/patients"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          Next: Patients &amp; topics
-          <ArrowRight className="h-3 w-3" />
-        </Link>
-      </div>
 
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}

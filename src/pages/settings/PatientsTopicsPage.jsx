@@ -14,7 +14,6 @@
 
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
 import { Loader2, ArrowLeft, ArrowRight } from 'lucide-react'
 import { Section, SaveBar } from '@/components/settings/helpers'
 import { useUserRole } from '@/lib/useUserRole'
@@ -22,6 +21,7 @@ import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { apiFetch } from '@/lib/api'
 import { ArchetypeCardsSection } from '@/components/settings/PatientArchetypes'
 import { PatientContextEditor } from '@/components/settings/PatientContextEditor'
 import { TopicSuggestionsEditor } from '@/components/settings/TopicSuggestionsEditor'
@@ -46,7 +46,6 @@ function tryParseJson(text, fallback) {
 
 export default function PatientsTopicsPage() {
   useDocumentTitle('Settings — Patients & topics')
-  const { getToken } = useAuth()
   const runtimeWs = useWorkspace()
   const { role, isLoading: roleLoading } = useUserRole()
   const [ws, setWs] = useState(undefined)
@@ -57,9 +56,7 @@ export default function PatientsTopicsPage() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
+    apiFetch('/api/workspace/me')
       .then(data => {
         setWs(data)
         if (data) {
@@ -68,6 +65,7 @@ export default function PatientsTopicsPage() {
           setPristine(initial)
         }
       })
+      .catch(() => setWs(null))
   }, [])
 
   const isDirty = !!form && !!pristine && JSON.stringify(form) !== JSON.stringify(pristine)
@@ -88,28 +86,21 @@ export default function PatientsTopicsPage() {
       if (!ic.ok) { setError(`Interview context JSON: ${ic.error}`); setSaving(false); return }
       if (!ts.ok) { setError(`Topic suggestions JSON: ${ts.error}`); setSaving(false); return }
 
-      const token = await getToken()
-      const r = await fetch('/api/workspace/me', {
+      const updated = await apiFetch('/api/workspace/me', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           patient_context:   pc.value,
           interview_context: ic.value,
           topic_suggestions: ts.value,
         }),
       })
-      if (!r.ok) {
-        const err = await r.json().catch(() => ({}))
-        setError(err.error || 'save-failed')
-      } else {
-        const updated = await r.json()
-        setWs(updated)
-        const refreshed = formFromWorkspace(updated)
-        setForm(refreshed); setPristine(refreshed)
-        setSaved(true); setTimeout(() => setSaved(false), 3000)
-      }
-    } catch {
-      setError('network-error')
+      setWs(updated)
+      const refreshed = formFromWorkspace(/** @type {any} */ (updated))
+      setForm(refreshed); setPristine(refreshed)
+      setSaved(true); setTimeout(() => setSaved(false), 3000)
+    } catch (e) {
+      setError(/** @type {any} */ (e)?.message || 'save-failed')
     } finally {
       setSaving(false)
     }
@@ -136,15 +127,33 @@ export default function PatientsTopicsPage() {
     <div className="max-w-2xl space-y-8">
       {/* Breadcrumb + heading */}
       <div>
-        <p className="text-2xs text-muted-foreground/80">
-          Settings · {interviewerName} · Patients &amp; topics
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-2xs text-muted-foreground/80">
+            Settings · {interviewerName} · Patients &amp; topics
+          </p>
+          <div className="flex items-center gap-3">
+            <Link
+              to="/settings/workspace/voice"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              <ArrowLeft className="h-3 w-3" />
+              Back: Voice &amp; tone
+            </Link>
+            <Link
+              to="/settings/workspace/interview-defaults"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Next: Interview defaults
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
         <h1 className="text-2xl font-bold tracking-tight mt-0.5">
           Who {interviewerName} interviews about
         </h1>
         <p className="text-muted-foreground text-sm mt-1.5 leading-relaxed">
           The patients {clinicName} serves, the questions {interviewerName} should probe, and the per-condition
-          steering briefs Bernard reads when an interview topic matches.
+          steering briefs {interviewerName} reads when an interview topic matches.
         </p>
       </div>
 
@@ -170,7 +179,7 @@ export default function PatientsTopicsPage() {
       {/* Topic suggestions */}
       <Section
         title={`What ${interviewerName} asks about`}
-        description="The interview topics Bernard proposes. Tag each topic with the archetypes it serves — leave untagged to offer it to everyone."
+        description={`The interview topics ${interviewerName} proposes. Tag each topic with the archetypes it serves — leave untagged to offer it to everyone.`}
       >
         <TopicSuggestionsEditor
           topicsJson={form.topic_suggestions_json}
@@ -189,24 +198,6 @@ export default function PatientsTopicsPage() {
           onChange={set('interview_context_json')}
         />
       </Section>
-
-      {/* Page-to-page nav */}
-      <div className="flex items-center justify-between pt-1">
-        <Link
-          to="/settings/workspace/voice"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-3 w-3" />
-          Back: Voice &amp; tone
-        </Link>
-        <Link
-          to="/settings/workspace/interview-defaults"
-          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
-        >
-          Next: Interview defaults
-          <ArrowRight className="h-3 w-3" />
-        </Link>
-      </div>
 
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}
