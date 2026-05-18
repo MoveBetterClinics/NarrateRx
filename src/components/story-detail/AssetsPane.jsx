@@ -950,10 +950,12 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
             {showPreview && (
               <div className="border-t bg-muted/20 p-3">
                 <PostPreview
+                  key={active.id}
                   platform={active.platform}
                   content={typeof active.content === 'string' ? active.content : JSON.stringify(active.content)}
                   mediaUrls={Array.isArray(active.media_urls) ? active.media_urls : []}
                   overlayText={active.overlay_text || null}
+                  locationOverrides={active.location_overrides || null}
                 />
               </div>
             )}

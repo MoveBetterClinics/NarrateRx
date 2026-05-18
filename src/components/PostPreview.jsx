@@ -305,9 +305,49 @@ function LinkedInPreview({ content }) {
 }
 
 // ── Google Business Profile ───────────────────────────────────────────────────
-function GBPPreview({ content }) {
+function GBPPreview({ content, locationOverrides }) {
+  const overrideEntries = locationOverrides
+    ? Object.entries(locationOverrides).filter(([, v]) => v?.content)
+    : []
+  const hasMultiple = overrideEntries.length > 0
+  const defaultTab = hasMultiple ? overrideEntries[0][0] : '__canonical__'
+  const [activeTab, setActiveTab] = React.useState(defaultTab)
+
+  // Reset active tab when switching between content items
+  React.useEffect(() => {
+    setActiveTab(hasMultiple ? overrideEntries[0][0] : '__canonical__')
+  }, [locationOverrides]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const displayContent = (hasMultiple && activeTab !== '__canonical__')
+    ? (locationOverrides[activeTab]?.content ?? content)
+    : content
+
+  const tabs = hasMultiple
+    ? [
+        { key: '__canonical__', label: 'Canonical' },
+        ...overrideEntries.map(([id, v]) => ({ key: id, label: v.location_name ?? 'Location' })),
+      ]
+    : null
+
   return (
     <div className="max-w-sm mx-auto border rounded-xl overflow-hidden bg-white shadow-sm font-sans">
+      {tabs && (
+        <div className="flex overflow-x-auto bg-white border-b">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-3 py-2 text-xs font-medium whitespace-nowrap shrink-0 border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
       <div className="bg-slate-50 px-4 py-3 border-b flex items-center gap-2">
         <MapPin className="h-4 w-4 text-red-500 shrink-0" />
         <p className="text-xs font-semibold">{MB_NAME} · Google Business Profile</p>
@@ -322,7 +362,7 @@ function GBPPreview({ content }) {
             <p className="text-3xs text-muted-foreground">{MB_LOCATION}</p>
           </div>
         </div>
-        <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-800">{content}</p>
+        <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-800">{displayContent}</p>
       </div>
       <div className="px-4 py-3 border-t bg-slate-50">
         <button className="text-xs text-blue-600 font-medium">Book appointment →</button>
@@ -656,7 +696,7 @@ function EmailPreview({ content, mediaUrls = [] }) {
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
-export default function PostPreview({ platform, content, mediaUrls = [], overlayText = null }) {
+export default function PostPreview({ platform, content, mediaUrls = [], overlayText = null, locationOverrides = null }) {
   if (!content?.trim()) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
@@ -669,7 +709,7 @@ export default function PostPreview({ platform, content, mediaUrls = [], overlay
     case 'instagram':   return <InstagramPreview content={content} mediaUrls={mediaUrls} overlayText={overlayText} />
     case 'facebook':    return <FacebookPreview  content={content} mediaUrls={mediaUrls} />
     case 'linkedin':    return <LinkedInPreview  content={content} />
-    case 'gbp':         return <GBPPreview       content={content} />
+    case 'gbp':         return <GBPPreview       content={content} locationOverrides={locationOverrides} />
     case 'blog':        return <BlogPreview      content={content} />
     case 'email':       return <EmailPreview     content={content} mediaUrls={mediaUrls} />
     case 'instagram_ads': return <InstagramAdsPreview content={content} mediaUrls={mediaUrls} />
