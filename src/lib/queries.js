@@ -322,6 +322,7 @@ export function useUpdateContentItem() {
       if (data) qc.setQueryData(queryKeys.contentItems.detail(id), data)
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
     },
   })
 }
@@ -334,6 +335,7 @@ export function useDeleteContentItem() {
     onSuccess: (_data, id) => {
       qc.removeQueries({ queryKey: queryKeys.contentItems.detail(id) })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
     },
   })
 }
@@ -654,6 +656,7 @@ export function useRegenerateContentItem() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
     },
   })
 }
@@ -675,6 +678,7 @@ export function useUpdateContentItemStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
     },
   })
 }

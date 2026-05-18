@@ -167,6 +167,7 @@ export default function ContentBriefDetail({ brief, onClose, onChange }) {
         publishedTargetId: item.id,
       })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
       onChange?.()
     } catch (e) {
       // runWithToast already raised the error toast; keep inline error for
