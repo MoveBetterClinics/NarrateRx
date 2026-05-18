@@ -195,7 +195,7 @@ export default function Home() {
       {/* Pre-roll: one section at a time. Priority: resume in-progress >
           coverage gaps (active workspace) > getting started (new workspace). */}
       {resumeInterviews.length > 0 ? (
-        <ResumeStrip interviews={resumeInterviews} currentUserId={user?.id} />
+        <ResumeStrip interviews={resumeInterviews} currentUserId={user?.id} clinicians={clinicians} />
       ) : unfilteredGaps.length > 0 && stories.length > 0 ? (
         <PlanNextInterview
           gaps={topicGaps}

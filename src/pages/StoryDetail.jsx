@@ -1,10 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, ChevronDown, Link as LinkIcon, Plus } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ChevronDown, Link as LinkIcon, Loader2, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
-import { useStory, useUpdateInterview } from '@/lib/queries'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog'
+import { useStory, useUpdateInterview, useDeleteInterview } from '@/lib/queries'
 import { apiFetch } from '@/lib/api'
+import { toast } from '@/lib/toast'
 import { getStageToken } from '@/lib/stageTokens'
 import TranscriptPane from '@/components/story-detail/TranscriptPane'
 import AssetsPane from '@/components/story-detail/AssetsPane'
@@ -92,9 +97,26 @@ export default function StoryDetail() {
   // the corresponding user message.
   const [provenanceHighlight, setProvenanceHighlight] = useState(null)
   const [refsOpen, setRefsOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const { workspace } = useWorkspace()
   const { user } = useUser()
   const updateInterview = useUpdateInterview()
+  const deleteInterview = useDeleteInterview()
+
+  async function handleDelete() {
+    if (!story?.id || !user?.id) return
+    setDeleteError('')
+    try {
+      await deleteInterview.mutateAsync({ id: story.id, userId: user.id })
+      toast.success('Interview deleted')
+      navigate('/stories')
+    } catch (e) {
+      // The DELETE handler returns 409 if the interview has published content
+      // items — surface that inline so the user understands why.
+      setDeleteError(e?.message || 'Delete failed')
+    }
+  }
 
   // Fallback: if the URL param is actually a content_item id (legacy bookmark
   // or stale link from /review/:itemId redirect), resolve it to its parent
@@ -229,6 +251,18 @@ export default function StoryDetail() {
           </div>
           <div className="flex items-center gap-3 shrink-0">
             <TranscriptExport story={story} />
+            {user?.id === story.owner_id && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setDeleteError(''); setDeleteOpen(true) }}
+                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-8 px-2"
+                title="Delete interview"
+                aria-label="Delete interview"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -260,6 +294,38 @@ export default function StoryDetail() {
         <TranscriptPane story={story} isLoadingTranscript={isPlaceholderData} provenanceHighlight={provenanceHighlight} />
         <AssetsPane story={story} onProvenanceHighlight={setProvenanceHighlight} />
       </div>
+
+      {/* Delete confirmation — only reachable for the interview's owner (the
+          trash button is hidden otherwise). The DELETE handler enforces the
+          same check server-side; the 409 path here surfaces published-content
+          conflicts inline so the user knows why the delete was refused. */}
+      <Dialog open={deleteOpen} onOpenChange={(o) => { if (!o) { setDeleteOpen(false); setDeleteError('') } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete interview?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete this interview and all generated content. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2 mx-1">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />{deleteError}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => { setDeleteOpen(false); setDeleteError('') }}
+              disabled={deleteInterview.isPending}
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} disabled={deleteInterview.isPending}>
+              {deleteInterview.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

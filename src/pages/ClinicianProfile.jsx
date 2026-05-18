@@ -15,9 +15,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import {
-  useClinician, useDeleteClinician, useDeleteInterview,
+  useClinician, useClinicianSummaries, useDeleteClinician, useDeleteInterview,
   useClinicianRecipes, usePatchClinicianRecipe, useDeleteClinicianRecipe,
 } from '@/lib/queries'
+import { resolveOwnerName } from '@/components/home/helpers'
 import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOptionsCatalog'
 import { getCleanupLevel } from '@/lib/cleanupLevels'
 import VoiceNotesPanel from '@/components/VoiceNotesPanel'
@@ -37,6 +38,10 @@ export default function ClinicianProfile() {
   const { user } = useUser()
   const { role } = useUserRole()
   const { data: clinician, isLoading: loading, error: loadError } = useClinician(clinicianId)
+  // Workspace clinicians (cached via the Stories list when available) — used
+  // to resolve `interview.owner_id` to a real display name for the "by …"
+  // suffix, instead of falling back to the email local-part.
+  const { data: clinicians = [] } = useClinicianSummaries()
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [arc, setArc] = useState(null)
@@ -169,6 +174,7 @@ export default function ClinicianProfile() {
                     interview={interview}
                     clinicianId={clinicianId}
                     currentUserId={user?.id}
+                    clinicians={clinicians}
                     onDelete={() => setDeleteTarget({ type: 'interview', id: interview.id })}
                   />
                 ))}
@@ -185,6 +191,7 @@ export default function ClinicianProfile() {
                     interview={interview}
                     clinicianId={clinicianId}
                     currentUserId={user?.id}
+                    clinicians={clinicians}
                     onDelete={() => setDeleteTarget({ type: 'interview', id: interview.id })}
                   />
                 ))}
@@ -504,9 +511,10 @@ function RecipeRow({ recipe, workspace, voiceModes, onSetDefault, onDelete, busy
 
 // ── Interview row ─────────────────────────────────────────────────────────────
 
-function InterviewRow({ interview, clinicianId, currentUserId, onDelete }) {
+function InterviewRow({ interview, clinicianId, currentUserId, clinicians, onDelete }) {
   const isOwner = interview.owner_id === currentUserId
   const isComplete = interview.status === 'completed'
+  const ownerName = !isOwner ? resolveOwnerName(interview, clinicians) : null
   const href = isComplete
     ? `/output/${clinicianId}/${interview.id}`
     : `/interview/${clinicianId}/${interview.id}`
@@ -525,7 +533,7 @@ function InterviewRow({ interview, clinicianId, currentUserId, onDelete }) {
           <p className="font-medium text-sm truncate" title={interview.topic}>{interview.topic}</p>
           <p className="text-xs text-muted-foreground">
             {formatRelativeDate(interview.updated_at)}
-            {!isOwner && <span className="ml-2 text-muted-foreground/60">· by {interview.owner_email?.split('@')[0]}</span>}
+            {ownerName && <span className="ml-2 text-muted-foreground/60">· by {ownerName}</span>}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

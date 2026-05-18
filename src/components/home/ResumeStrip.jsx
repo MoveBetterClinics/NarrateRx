@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { PlayCircle, ChevronRight } from 'lucide-react'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { getInitials, formatRelativeDate } from '@/lib/utils'
-import { formatInterviewerName } from './helpers'
+import { resolveOwnerName } from './helpers'
 
 const RESUME_INITIAL_CAP = 6
 
@@ -11,7 +11,8 @@ const RESUME_INITIAL_CAP = 6
 // Props:
 //   interviews     — array from Dashboard/Home's resumeInterviews memo
 //   currentUserId  — Clerk user.id for ownership check
-export default function ResumeStrip({ interviews, currentUserId }) {
+//   clinicians     — workspace clinicians (used to resolve owner_id → name)
+export default function ResumeStrip({ interviews, currentUserId, clinicians = [] }) {
   const [showAll, setShowAll] = useState(false)
   const visible = showAll ? interviews : interviews.slice(0, RESUME_INITIAL_CAP)
   const hiddenCount = interviews.length - RESUME_INITIAL_CAP
@@ -29,7 +30,7 @@ export default function ResumeStrip({ interviews, currentUserId }) {
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {visible.map((i) => (
-          <ResumeCard key={i.id} interview={i} currentUserId={currentUserId} />
+          <ResumeCard key={i.id} interview={i} currentUserId={currentUserId} clinicians={clinicians} />
         ))}
       </div>
       {hiddenCount > 0 && !showAll && (
@@ -54,11 +55,15 @@ export default function ResumeStrip({ interviews, currentUserId }) {
   )
 }
 
-function ResumeCard({ interview, currentUserId }) {
+function ResumeCard({ interview, currentUserId, clinicians }) {
   const isOwner = interview.owner_id === currentUserId
   const href = isOwner
     ? `/interview/${interview.clinicianId}/${interview.id}`
     : `/clinician/${interview.clinicianId}`
+  // Owner attribution only renders when (a) we're not the owner and (b)
+  // resolveOwnerName produced a real name (clinician.name preferred, then
+  // dot-separated email; otherwise null → no suffix).
+  const ownerName = !isOwner ? resolveOwnerName(interview, clinicians) : null
 
   return (
     <Link
@@ -83,9 +88,7 @@ function ResumeCard({ interview, currentUserId }) {
       </p>
       <p className="text-2xs text-muted-foreground mt-0.5">
         Updated {formatRelativeDate(interview.updated_at)}
-        {!isOwner && interview.owner_email
-          ? ` · by ${formatInterviewerName(interview.owner_email)}`
-          : ''}
+        {ownerName ? ` · by ${ownerName}` : ''}
       </p>
       <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
         Resume
