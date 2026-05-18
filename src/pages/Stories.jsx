@@ -1,5 +1,7 @@
+import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Target, X } from 'lucide-react'
+import { useUser } from '@clerk/clerk-react'
+import { Target, User, X } from 'lucide-react'
 import { useStories, useOnboardingProgress, useCampaigns, useClinicians, useLocations } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -35,6 +37,7 @@ const SELECT_CLS =
  */
 export default function Stories() {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useUser()
   const { isStaff } = useUserRole()
   const defaultView = isStaff ? 'pipeline' : 'cards'
   const view = searchParams.get('view') || defaultView
@@ -43,8 +46,17 @@ export default function Stories() {
   const stageFilter    = searchParams.get('stage')    || ''
   const locationFilter = searchParams.get('location') || ''
   const campaignFilter = searchParams.get('campaign') || ''
+  // owner=me restricts the list to the logged-in user's own interviews.
+  // The Home page links here via "See all my stories" so clinicians have a
+  // dedicated browseable view of their own work as the catalog grows.
+  const ownerFilter    = searchParams.get('owner')    || ''
+  const mineOnly       = ownerFilter === 'me'
 
-  const { data: stories = [], isLoading } = useStories()
+  const { data: storiesAll = [], isLoading } = useStories()
+  const stories = useMemo(
+    () => (mineOnly && user?.id ? storiesAll.filter((s) => s.owner_id === user.id) : storiesAll),
+    [storiesAll, mineOnly, user],
+  )
   const { data: progress } = useOnboardingProgress()
   const { data: campaigns = [] } = useCampaigns()
   const { data: clinicians = [] } = useClinicians({ enabled: !!campaignFilter })
@@ -81,12 +93,20 @@ export default function Stories() {
     }, { replace: true })
   }
 
+  function clearOwner() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.delete('owner')
+      return next
+    }, { replace: true })
+  }
+
   return (
     <main className="py-6 px-6 flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-baseline gap-3 min-w-0">
-          <h1 className="text-xl font-semibold text-foreground">Stories</h1>
+          <h1 className="text-xl font-semibold text-foreground">{mineOnly ? 'My stories' : 'Stories'}</h1>
           {!isLoading && stories.length > 0 ? (
             <span className="text-xs text-muted-foreground truncate">
               {stories.length === 1 ? '1 story' : `${stories.length} stories`}
@@ -104,6 +124,21 @@ export default function Stories() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* Owner — "Mine only" active chip. No selector form because the only
+            two states are "all" and "me"; non-me clinician filtering is
+            handled by the existing /clinicians/:id page. */}
+        {mineOnly ? (
+          <button
+            type="button"
+            onClick={clearOwner}
+            className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 text-primary px-3 py-1 text-xs font-medium hover:bg-primary/20 transition-colors"
+          >
+            <User className="h-3 w-3" aria-hidden="true" />
+            Mine only
+            <X className="h-3 w-3" aria-hidden="true" />
+          </button>
+        ) : null}
+
         {/* Campaign — active chip or selector */}
         {activeCampaignObj ? (
           <button
