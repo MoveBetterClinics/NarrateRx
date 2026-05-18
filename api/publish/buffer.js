@@ -101,7 +101,7 @@ function buildMetadata(platform, mediaUrls, _content = '') {
     // expected shape without injecting fields it doesn't know about.
     // Buffer requires button on whats-new posts at create time.
     // LEARN_MORE is the safest default (no link URL required).
-    return { google: { type: 'whats_new', detailsWhatsNew: { button: 'LEARN_MORE' } } }
+    return { google: { type: 'whats_new', detailsWhatsNew: { button: 'learn_more' } } }
   }
   return null
 }
