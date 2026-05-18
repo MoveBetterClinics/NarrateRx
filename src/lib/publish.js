@@ -72,12 +72,21 @@ const BUFFER_PLATFORMS = [
 ]
 
 export async function publishItem(item, { scheduledAt } = {}) {
-  const { platform, content, mediaUrls = [], locationIds } = item
+  const { platform, content, mediaUrls = [], locationIds, location_overrides } = item
   const results = {}
 
   if (BUFFER_PLATFORMS.includes(platform)) {
     const body = { platform, content, mediaUrls, scheduledAt }
-    if (platform === 'gbp' && locationIds?.length) body.locationIds = locationIds
+    if (platform === 'gbp') {
+      if (locationIds?.length) body.locationIds = locationIds
+      // Pass per-location content overrides so the Buffer route posts distinct
+      // copy to each Google listing instead of the same canonical body.
+      if (location_overrides && typeof location_overrides === 'object') {
+        body.locationContents = Object.fromEntries(
+          Object.entries(location_overrides).map(([id, v]) => [id, v.content]),
+        )
+      }
+    }
     results.buffer = await apiFetch('/api/publish/buffer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

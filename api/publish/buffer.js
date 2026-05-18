@@ -50,11 +50,14 @@ async function gql(token, query, variables = {}) {
   return { ok: r.ok, status: r.status, data: json.data, errors: json.errors }
 }
 
+// Returns { id: workspace_locations.id, channelId: gbp_location_id } pairs
+// so the fan-out loop can look up per-location content overrides by UUID.
 async function resolveGbpChannelIds(workspaceId, locationIds) {
   if (!SUPABASE_URL || !SUPABASE_KEY || !workspaceId) return []
   const params = new URLSearchParams({
     workspace_id: `eq.${workspaceId}`,
     status: 'eq.active',
+    gbp_location_id: 'not.is.null',
     select: 'id,gbp_location_id',
   })
   if (Array.isArray(locationIds) && locationIds.length > 0) {
@@ -66,8 +69,8 @@ async function resolveGbpChannelIds(workspaceId, locationIds) {
   if (!r.ok) return []
   const rows = await r.json().catch(() => [])
   return (Array.isArray(rows) ? rows : [])
-    .map((row) => row.gbp_location_id)
-    .filter((s) => typeof s === 'string' && s.trim().length > 0)
+    .filter((row) => typeof row.gbp_location_id === 'string' && row.gbp_location_id.trim())
+    .map((row) => ({ id: row.id, channelId: row.gbp_location_id }))
 }
 
 function buildAssets(mediaUrls) {
@@ -120,7 +123,10 @@ async function handler(req, res) {
   const BUFFER_TOKEN = cred.secret
 
   const body = (typeof req.body === 'object' && req.body) ? req.body : {}
-  const { platform, content, mediaUrls = [], scheduledAt, locationIds } = body
+  // locationContents: { [workspace_locations.id]: string } — per-location body overrides.
+  // Generated at draft time and stored in content_items.location_overrides.
+  // Falls back to canonical `content` for any location without an override.
+  const { platform, content, mediaUrls = [], scheduledAt, locationIds, locationContents } = body
   if (!platform || !content) return res.status(400).json({ error: 'Missing platform or content' })
 
   const service = PLATFORM_TO_SERVICE[platform]
@@ -129,10 +135,13 @@ async function handler(req, res) {
   // 1. Resolve target Buffer channel IDs.
   //    GBP: stored per-location in workspace_locations.gbp_location_id.
   //    Everything else: query the API and match by service name.
-  let channelIds = []
+  // gbpChannels: { id: workspace_locations.id, channelId: Buffer channel id }[]
+  // channelIds: bare Buffer channel id strings for non-GBP platforms
+  let gbpChannels = []
+  let channelIds  = []
   if (platform === 'gbp') {
-    channelIds = await resolveGbpChannelIds(workspaceId, locationIds)
-    if (channelIds.length === 0) {
+    gbpChannels = await resolveGbpChannelIds(workspaceId, locationIds)
+    if (gbpChannels.length === 0) {
       return res.status(404).json({
         error: 'No Buffer GBP channel configured for the selected location(s). Open Workspace Settings → Locations and paste the Buffer GBP channel ID for each listing.',
       })
@@ -182,11 +191,17 @@ async function handler(req, res) {
   const metadata = buildMetadata(platform, preparedMedia, content)
 
   // 3. Create one post per channel (fan-out for GBP multi-location).
+  // GBP: iterate gbpChannels pairs so we can look up the per-location body override.
+  // Other platforms: iterate bare channelIds (single entry).
+  const fanOut = platform === 'gbp'
+    ? gbpChannels.map(({ id, channelId }) => ({ id, channelId }))
+    : channelIds.map((channelId) => ({ id: null, channelId }))
   const posts = []
-  for (const channelId of channelIds) {
+  for (const { id: locationId, channelId } of fanOut) {
+    const postText = (locationId && locationContents?.[locationId]) ? locationContents[locationId] : content
     const input = {
       channelId,
-      text: content,
+      text: postText,
       schedulingType: 'automatic',
       mode,
       assets,
@@ -227,7 +242,7 @@ async function handler(req, res) {
     bufferId: first?.id,
     scheduledAt: first?.dueAt,
     status: first?.status,
-    profileCount: channelIds.length,
+    profileCount: fanOut.length,
   })
 }
 
