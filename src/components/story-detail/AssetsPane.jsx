@@ -24,6 +24,7 @@ import {
   queryKeys,
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
+import { suggestScheduleTime } from '@/lib/scheduleHeuristics'
 import { buildImagesManifest } from '@/lib/publishImageMirror'
 import { extractProvenanceBlock } from '@/lib/provenance'
 import { toast, runWithToast } from '@/lib/toast'
@@ -432,18 +433,25 @@ function ApprovalPanel({ piece }) {
   const [publishing, setPublishing] = useState(false)
 
   // Schedule controls — Buffer-dispatched platforms only. Default to honoring
-  // the piece's pre-filled scheduled_at if it's still in the future; if expired
-  // or absent, default to "Now" (matches prior behaviour) but let the reviewer
-  // pick a future time. Blog publishes go straight to the website with no
-  // scheduling capability, so the toggle is hidden for them.
+  // the piece's pre-filled scheduled_at if it's still in the future. If expired
+  // or absent, default to "Now" (matches prior behaviour) but pre-populate the
+  // picker with the next platform-optimal slot (e.g. TikTok → next Tue/Wed/Fri
+  // 7-8pm) so flipping the toggle to Schedule lands on a sensible time without
+  // typing. Blog publishes are immediate and hide the toggle entirely.
   const initialFutureSchedule = (() => {
     if (!piece.scheduled_at) return null
     const d = new Date(piece.scheduled_at)
     return d.getTime() > Date.now() ? d : null
   })()
+  const suggestedSchedule = useMemo(
+    () => (initialFutureSchedule ? null : suggestScheduleTime(piece.platform, [])),
+    [piece.platform, initialFutureSchedule],
+  )
   const [publishMode, setPublishMode] = useState(initialFutureSchedule ? 'schedule' : 'now')
   const [scheduledAtInput, setScheduledAtInput] = useState(
-    initialFutureSchedule ? toLocalDatetimeInput(initialFutureSchedule) : '',
+    initialFutureSchedule
+      ? toLocalDatetimeInput(initialFutureSchedule)
+      : suggestedSchedule ? toLocalDatetimeInput(suggestedSchedule) : '',
   )
 
   const userEmail = user?.primaryEmailAddress?.emailAddress || user?.id || ''
