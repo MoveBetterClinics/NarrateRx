@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { FileText, Eye, Clock, Loader2, RefreshCw, ChevronRight, Send } from 'lucide-react'
+import { FileText, Eye, Clock, Loader2, RefreshCw, ChevronRight, Send, BookOpen } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'
 import { useStories, useClinicianSummaries } from '@/lib/queries'
@@ -18,6 +18,7 @@ import TaskBucketCard from '@/components/home/TaskBucketCard'
 import HomeRightRail from '@/components/home/HomeRightRail'
 
 const RESUME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
+const MY_STORIES_LIMIT = 5
 
 export default function Home() {
   useDocumentTitle('Home')
@@ -62,10 +63,25 @@ export default function Home() {
           i.status !== 'completed' &&
           i.session_state != null &&
           i.updated_at &&
-          now - new Date(i.updated_at).getTime() <= RESUME_WINDOW_MS
+          now - new Date(i.updated_at).getTime() <= RESUME_WINDOW_MS &&
+          // "pick up where YOU left off" — only show the current user's own
+          // in-progress interviews, not every clinician's open sessions.
+          i.owner_id === user?.id
       )
       .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
-  }, [allInterviews])
+  }, [allInterviews, user])
+
+  // My recent completed interviews — quick-access for the logged-in clinician
+  // to navigate back to their own stories. Surfaces the N most-recently-updated
+  // completed interviews owned by the current user. Hidden when empty so it
+  // doesn't show for pure-admin accounts that have no owned interviews.
+  const myRecentInterviews = useMemo(() => {
+    if (!user?.id) return []
+    return allInterviews
+      .filter((i) => i.owner_id === user.id && i.status === 'completed')
+      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+      .slice(0, MY_STORIES_LIMIT)
+  }, [allInterviews, user])
 
   // Derive from stories (already loaded) — each story maps 1:1 to an interview
   const existingTopics = useMemo(
@@ -195,6 +211,33 @@ export default function Home() {
       {/* Main content: task buckets left, right rail right */}
       <div className="flex gap-6">
         <div className="flex flex-col gap-4 flex-1 min-w-0">
+          {myRecentInterviews.length > 0 && (
+            <TaskBucketCard
+              id="my-stories"
+              title="My recent stories"
+              icon={<BookOpen className="h-4 w-4" />}
+              items={myRecentInterviews}
+              emptyMessage=""
+              renderItem={(i) => (
+                <Link
+                  key={i.id}
+                  to={`/stories/${i.id}`}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors group"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{i.topic}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {new Date(i.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  </div>
+                  <span className="text-xs font-medium text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
+                    Open <ChevronRight className="h-3 w-3" />
+                  </span>
+                </Link>
+              )}
+            />
+          )}
+
           <TaskBucketCard
             id="ready"
             title="Ready for content"
