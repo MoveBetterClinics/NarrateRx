@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
-  ChevronDown, MessageSquare, Eye, EyeOff, RotateCcw, ExternalLink, Quote,
+  ChevronDown, MessageSquare, Eye, RotateCcw, ExternalLink, Quote,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -268,33 +268,23 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
 
   return (
     <div className="space-y-2">
-      {/* View-mode toggle — only shown when provenance data exists */}
-      {hasProvenance && (
-        <div className="flex items-center gap-1">
+      {/* View-mode toggle — always visible; Attributed only when provenance exists */}
+      <div className="flex items-center gap-1">
+        {(['edit', ...(hasProvenance ? ['attributed'] : []), 'assets']).map((mode) => (
           <button
+            key={mode}
             type="button"
-            onClick={() => setViewMode('edit')}
-            className={`px-2 py-0.5 rounded text-xs transition-colors ${
-              viewMode === 'edit'
+            onClick={() => setViewMode(mode)}
+            className={`px-2 py-0.5 rounded text-xs capitalize transition-colors ${
+              viewMode === mode
                 ? 'bg-muted text-foreground font-medium'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            Edit
+            {mode}
           </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('attributed')}
-            className={`px-2 py-0.5 rounded text-xs transition-colors ${
-              viewMode === 'attributed'
-                ? 'bg-muted text-foreground font-medium'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Attributed
-          </button>
-        </div>
-      )}
+        ))}
+      </div>
 
       {viewMode === 'attributed' && hasProvenance ? (
         <AttributedView
@@ -302,6 +292,11 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
           blocks={piece.provenance.blocks}
           onHighlight={onProvenanceHighlight}
         />
+      ) : viewMode === 'assets' ? (
+        <div className="space-y-3">
+          <MediaAttachmentPanel piece={piece} />
+          {piece.platform === 'instagram' && <OverlayTextEditor piece={piece} />}
+        </div>
       ) : (
         <textarea
           ref={taRef}
@@ -430,6 +425,44 @@ function RegenerateButton({ piece, story }) {
         <RotateCcw className="h-3 w-3" />
         Regenerate
       </Button>
+    </div>
+  )
+}
+
+// ── InspectDrawer ─────────────────────────────────────────────────────────────
+// Collapsible drawer housing Regenerate + live channel preview. Collapsed by
+// default so the primary write loop (body → approval) is uncluttered — expand
+// only when you want to audit voice or sanity-check the post layout.
+function InspectDrawer({ piece, story }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-md border bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
+      >
+        <span className="inline-flex items-center gap-1.5">
+          <Eye className="h-3.5 w-3.5" />
+          Regenerate &amp; preview
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="border-t p-3 space-y-3">
+          <RegenerateButton piece={piece} story={story} />
+          <div>
+            <p className="mb-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">Preview</p>
+            <PostPreview
+              platform={piece.platform}
+              content={typeof piece.content === 'string' ? piece.content : JSON.stringify(piece.content)}
+              mediaUrls={Array.isArray(piece.media_urls) ? piece.media_urls : []}
+              overlayText={piece.overlay_text || null}
+              locationOverrides={piece.location_overrides || null}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -863,8 +896,6 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
     : 0
   const [activeIdx, setActiveIdx] = useState(initialIdx)
   const [view, setView] = useState(pieceParam ? 'edit' : 'plan')
-  // Preview visibility is per-piece so toggling on one tab doesn't bleed to others.
-  const [previewOpen, setPreviewOpen] = useState({})
 
   // If the ?piece=<id> param resolves after pieces load (async story fetch),
   // sync the active tab once the matching piece appears.
@@ -940,7 +971,6 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
   const active = pieces[activeIdx] ?? pieces[0]
   const pm = PLATFORM_META[active?.platform] || { label: active?.platform || 'Unknown', icon: FileText, color: 'text-slate-600', bg: 'bg-slate-100' }
   const PlatformIcon = pm.icon
-  const showPreview = previewOpen[active?.id] ?? false
 
   return (
     <div className="rounded-xl border bg-card overflow-hidden">
@@ -1021,54 +1051,13 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
           })()}
         </div>
 
+        {/* Body / Assets / Attributed tabs live inside ContentEditor.
+            Media + overlay panels are rendered under the Assets tab there. */}
         {active && <ContentEditor key={active.id} piece={active} onProvenanceHighlight={onProvenanceHighlight} />}
 
-        {/* Regenerate — re-runs the AI for this piece. Use when content is
-            cut off, off-voice, or contains an obvious error. Resets to draft
-            and clears approval audit so it needs fresh review. */}
-        {active && <RegenerateButton piece={active} story={story} />}
-
-        {/* Media + overlay editors — attach photos/videos and tune the on-screen
-            text overlay without leaving the Story screen. */}
-        {active && <MediaAttachmentPanel piece={active} />}
-        {/* On-screen text overlay only renders on Instagram — that's the
-            single platform whose PostPreview consumes overlay_text today
-            (see PostPreview.jsx switch). Showing it on text-heavy platforms
-            (LinkedIn, GBP, Facebook, email, blog) was pure noise. */}
-        {active?.platform === 'instagram' && <OverlayTextEditor piece={active} />}
-
-        {/* Live channel preview */}
-        {active && (
-          <div className="rounded-md border bg-card">
-            <button
-              type="button"
-              onClick={() =>
-                setPreviewOpen((prev) => ({ ...prev, [active.id]: !showPreview }))
-              }
-              className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              <span className="inline-flex items-center gap-1.5">
-                {showPreview ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                {showPreview ? 'Hide' : 'Show'} preview
-              </span>
-              <ChevronDown
-                className={`h-3.5 w-3.5 transition-transform ${showPreview ? 'rotate-180' : ''}`}
-              />
-            </button>
-            {showPreview && (
-              <div className="border-t bg-muted/20 p-3">
-                <PostPreview
-                  key={active.id}
-                  platform={active.platform}
-                  content={typeof active.content === 'string' ? active.content : JSON.stringify(active.content)}
-                  mediaUrls={Array.isArray(active.media_urls) ? active.media_urls : []}
-                  overlayText={active.overlay_text || null}
-                  locationOverrides={active.location_overrides || null}
-                />
-              </div>
-            )}
-          </div>
-        )}
+        {/* Regenerate + live preview — collapsed by default to keep the
+            primary write loop (body → approval) uncluttered. */}
+        {active && <InspectDrawer piece={active} story={story} />}
 
         {/* Buffer performance metrics — shown for published pieces with a buffer_update_id */}
         {active?.status === 'published' && active?.buffer_update_id && (
