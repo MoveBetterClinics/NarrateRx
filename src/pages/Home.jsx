@@ -235,6 +235,14 @@ export default function Home() {
                   </span>
                 </Link>
               )}
+              footer={
+                <Link
+                  to="/stories?owner=me"
+                  className="text-xs font-medium text-muted-foreground hover:text-primary transition-colors inline-flex items-center gap-0.5"
+                >
+                  See all my stories <ChevronRight className="h-3 w-3" />
+                </Link>
+              }
             />
           )}
 

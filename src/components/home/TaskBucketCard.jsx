@@ -6,7 +6,9 @@
 //   items        — array of data items
 //   renderItem   — (item) => JSX, renders each row
 //   emptyMessage — string shown when items is empty
-export default function TaskBucketCard({ id, title, icon, items = [], renderItem, emptyMessage }) {
+//   footer       — optional React node rendered at the bottom of the card
+//                   (e.g. a "See all →" link when the list is capped)
+export default function TaskBucketCard({ id, title, icon, items = [], renderItem, emptyMessage, footer }) {
   return (
     <div id={id} className="rounded-xl border bg-white shadow-sm">
       <div className="flex items-center gap-2 px-4 py-3 border-b">
@@ -28,6 +30,9 @@ export default function TaskBucketCard({ id, title, icon, items = [], renderItem
             <li key={i}>{renderItem(item)}</li>
           ))}
         </ul>
+      )}
+      {footer && items.length > 0 && (
+        <div className="border-t px-4 py-2.5 text-right">{footer}</div>
       )}
     </div>
   )
