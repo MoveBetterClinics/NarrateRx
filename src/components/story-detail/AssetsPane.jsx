@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { ClinicianChip } from '@/components/ClinicianChip'
 import { PLATFORM_META, STATUS_META } from '@/lib/contentMeta'
 import { getStageToken } from '@/lib/stageTokens'
@@ -41,6 +42,14 @@ function timeAgo(dateStr) {
   const days = Math.floor(hrs / 24)
   if (days < 30) return `${days}d ago`
   return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+// Format a Date for an HTML datetime-local input ("YYYY-MM-DDTHH:mm" in local
+// time). The native input rejects ISO strings with a Z suffix.
+function toLocalDatetimeInput(d) {
+  if (!d) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 // ── Approval panel helpers ──────────────────────────────────────────────────
@@ -422,6 +431,21 @@ function ApprovalPanel({ piece }) {
   const [changeRequestBody, setChangeRequestBody] = useState('')
   const [publishing, setPublishing] = useState(false)
 
+  // Schedule controls — Buffer-dispatched platforms only. Default to honoring
+  // the piece's pre-filled scheduled_at if it's still in the future; if expired
+  // or absent, default to "Now" (matches prior behaviour) but let the reviewer
+  // pick a future time. Blog publishes go straight to the website with no
+  // scheduling capability, so the toggle is hidden for them.
+  const initialFutureSchedule = (() => {
+    if (!piece.scheduled_at) return null
+    const d = new Date(piece.scheduled_at)
+    return d.getTime() > Date.now() ? d : null
+  })()
+  const [publishMode, setPublishMode] = useState(initialFutureSchedule ? 'schedule' : 'now')
+  const [scheduledAtInput, setScheduledAtInput] = useState(
+    initialFutureSchedule ? toLocalDatetimeInput(initialFutureSchedule) : '',
+  )
+
   const userEmail = user?.primaryEmailAddress?.emailAddress || user?.id || ''
 
   const handleSendForReview = async () => {
@@ -463,6 +487,25 @@ function ApprovalPanel({ piece }) {
   }
 
   const handlePublish = async () => {
+    // Schedule validation — Buffer path only; blog publishes ignore the toggle.
+    let effectiveScheduledAt = null
+    if (piece.platform !== 'blog' && publishMode === 'schedule') {
+      if (!scheduledAtInput) {
+        toast.error('Pick a schedule time before publishing')
+        return
+      }
+      const scheduled = new Date(scheduledAtInput)
+      if (Number.isNaN(scheduled.getTime())) {
+        toast.error('Invalid schedule time')
+        return
+      }
+      if (scheduled.getTime() <= Date.now()) {
+        toast.error('Pick a time in the future')
+        return
+      }
+      effectiveScheduledAt = scheduled.toISOString()
+    }
+
     setPublishing(true)
     try {
       const markdown = typeof piece.content === 'string' ? piece.content : JSON.stringify(piece.content)
@@ -505,6 +548,7 @@ function ApprovalPanel({ piece }) {
           resolvedUrl: result.postUrl || undefined,
         })
       } else {
+        const scheduling = !!effectiveScheduledAt
         await runWithToast(
           publishAndTrack(
             {
@@ -512,22 +556,26 @@ function ApprovalPanel({ piece }) {
               platform: piece.platform,
               content: markdown,
               mediaUrls: piece.media_urls || [],
-              scheduledAt: null,
+              scheduledAt: effectiveScheduledAt,
             },
             userEmail,
           ),
           {
-            loading: 'Sending to Buffer…',
-            success: 'Sent to Buffer',
+            loading: scheduling ? 'Scheduling on Buffer…' : 'Sending to Buffer…',
+            success: scheduling ? 'Scheduled on Buffer' : 'Sent to Buffer',
             error: (e) => ({ message: 'Publish failed', description: e.message }),
           },
         )
+        // publishAndTrack already set status + publishedAt; this pass writes the
+        // approver audit trail and (for scheduled posts) persists the chosen
+        // scheduled_at on the row so the calendar/header reflect the new time.
         await updateStatus.mutateAsync({
           id: piece.id,
-          status: 'published',
+          status: scheduling ? 'scheduled' : 'published',
           approvedBy: userEmail,
           approvedAt: new Date().toISOString(),
-          publishedAt: new Date().toISOString(),
+          publishedAt: scheduling ? null : new Date().toISOString(),
+          scheduledAt: scheduling ? effectiveScheduledAt : null,
         })
         qc.invalidateQueries({ queryKey: queryKeys.stories.detail(piece.interview_id) })
       }
@@ -604,6 +652,40 @@ function ApprovalPanel({ piece }) {
         )}
       </div>
 
+      {/* Publish-timing controls — Buffer path only. Shown on approved pieces
+          so the reviewer can choose to send immediately or schedule on Buffer.
+          Blog publishes are immediate (the website webhook is synchronous). */}
+      {piece.status === 'approved' && canReview && piece.platform !== 'blog' && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted-foreground font-medium">Publish:</span>
+          <div className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPublishMode('now')}
+              className={`px-2.5 py-1 rounded-full border ${publishMode === 'now' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'}`}
+            >
+              Now
+            </button>
+            <button
+              type="button"
+              onClick={() => setPublishMode('schedule')}
+              className={`px-2.5 py-1 rounded-full border ${publishMode === 'schedule' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'}`}
+            >
+              Schedule
+            </button>
+          </div>
+          {publishMode === 'schedule' && (
+            <Input
+              type="datetime-local"
+              value={scheduledAtInput}
+              onChange={(e) => setScheduledAtInput(e.target.value)}
+              min={toLocalDatetimeInput(new Date(Date.now() + 60_000))}
+              className="h-8 text-sm w-fit"
+            />
+          )}
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
         {/* Send for review — all roles, only on draft, only when review workflow is on */}
@@ -659,7 +741,9 @@ function ApprovalPanel({ piece }) {
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             {!publishing && <Send className="h-3.5 w-3.5 mr-1.5" />}
-            {piece.platform === 'blog' ? 'Publish to Website' : 'Publish to Buffer'}
+            {piece.platform === 'blog'
+              ? 'Publish to Website'
+              : publishMode === 'schedule' ? 'Schedule on Buffer' : 'Publish Now'}
           </Button>
         )}
 

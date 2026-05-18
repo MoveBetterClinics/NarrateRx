@@ -665,10 +665,11 @@ export function useUpdateContentItemStatus() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't update status",
-    mutationFn: ({ id, status, approvedBy, approvedAt, reviewedBy, resolvedUrl, publishedAt }) => {
+    mutationFn: ({ id, status, approvedBy, approvedAt, reviewedBy, resolvedUrl, publishedAt, scheduledAt }) => {
       const body = { id, status, approvedBy, approvedAt, reviewedBy }
       if (resolvedUrl !== undefined) body.resolvedUrl = resolvedUrl
       if (publishedAt !== undefined) body.publishedAt = publishedAt
+      if (scheduledAt !== undefined) body.scheduledAt = scheduledAt
       return apiFetch(`/api/db/content?id=${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
