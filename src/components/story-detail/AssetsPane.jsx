@@ -931,16 +931,27 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
             <PlatformIcon className={`h-3.5 w-3.5 ${pm.color}`} />
             <span className={`text-xs font-medium ${pm.color}`}>{pm.label}</span>
           </div>
-          {active?.scheduled_at && (() => {
+          {(() => {
+            const fmt = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' })
+            if (active?.status === 'published') {
+              const pubRaw = active.published_at || active.scheduled_at
+              if (!pubRaw) return null
+              return (
+                <span className="text-xs text-muted-foreground">
+                  Published {fmt(new Date(pubRaw))}
+                </span>
+              )
+            }
+            if (!active?.scheduled_at) return null
             const schedDate = new Date(active.scheduled_at)
-            const isStale = active.status !== 'published' && schedDate < new Date()
+            const isStale = schedDate < new Date()
             return isStale ? (
               <span className="flex items-center gap-1 text-xs text-amber-600 font-medium">
-                <span>⚠ Schedule expired ({schedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' })}) — repick a time before publishing</span>
+                <span>⚠ Schedule expired ({fmt(schedDate)}) — repick a time before publishing</span>
               </span>
             ) : (
               <span className="text-xs text-muted-foreground">
-                Scheduled {schedDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' })}
+                Scheduled {fmt(schedDate)}
               </span>
             )
           })()}
