@@ -1102,14 +1102,17 @@ export default function InterviewSession() {
         {interviewComplete
           ? <Badge variant="secondary" className="text-xs">Interview Complete</Badge>
           : isOwner && (
-            <div className="flex items-center gap-1 shrink-0">
+            // Desktop header keeps the action buttons. On mobile they live
+            // in the bottom dock so they're within thumb reach next to the
+            // mic — see InterviewDock below.
+            <div className="hidden md:flex items-center gap-1 shrink-0">
               <Button
                 size="sm"
                 onClick={() => setInterviewComplete(true)}
                 disabled={!canFinish}
                 title={canFinish ? undefined : finishHelper}
                 aria-label={canFinish ? 'Finish interview' : finishHelper}
-                className="gap-1.5 min-h-[44px] sm:min-h-0"
+                className="gap-1.5"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 Finish
@@ -1120,10 +1123,10 @@ export default function InterviewSession() {
                 onClick={handlePause}
                 title="Save and pause — you can resume later"
                 aria-label="Pause interview"
-                className="gap-1 text-muted-foreground hover:text-foreground px-2 min-h-[44px] sm:min-h-0"
+                className="gap-1 text-muted-foreground hover:text-foreground px-2"
               >
                 <PauseCircle className="h-4 w-4" />
-                <span className="hidden sm:inline text-xs">Pause</span>
+                <span className="text-xs">Pause</span>
               </Button>
             </div>
           )
@@ -1344,7 +1347,14 @@ export default function InterviewSession() {
       )}
 
       {!interviewComplete && isOwner && hasSpeechRecognition && (
-        <div className="pt-4 pb-1 shrink-0 flex flex-col items-center gap-3" style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}>
+        // Bottom dock — anchors the recording UI to a persistent visual
+        // surface on mobile. Pause/Finish flank the mic so the primary
+        // actions are all within thumb reach. Desktop keeps the prior
+        // column layout (Finish/Pause stay in the top header on md+).
+        <div
+          className="pt-4 pb-1 shrink-0 flex flex-col items-center gap-3 border-t md:border-t-0 bg-background/95 backdrop-blur md:bg-transparent md:backdrop-blur-none -mx-6 md:mx-0 px-6 md:px-0"
+          style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
+        >
           {transcript && (
             <div
               aria-live="polite"
@@ -1371,27 +1381,58 @@ export default function InterviewSession() {
             ) : 'Tap to speak'}
           </p>
 
-          <button
-            onClick={isListening ? stopListening : startListening}
-            disabled={isStreaming || isGenerating || isSpeaking}
-            aria-label={isListening ? 'Stop recording' : 'Start recording'}
-            aria-pressed={isListening}
-            className={`h-16 w-16 rounded-full flex items-center justify-center transition-all shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
-              ${isListening
-                ? 'bg-red-500 text-white scale-110'
-                : 'bg-primary text-primary-foreground hover:opacity-90 active:scale-95'
-              } disabled:opacity-30 disabled:cursor-not-allowed disabled:scale-100`}
-          >
-            {isListening
-              ? <MicOff className="h-6 w-6" aria-hidden="true" />
-              : <Mic className="h-6 w-6" aria-hidden="true" />
-            }
-          </button>
+          <div className="flex items-center justify-between md:justify-center gap-4 w-full md:w-auto">
+            {/* Mobile-only Pause — small ghost icon, left of the mic */}
+            <Button
+              variant="ghost"
+              onClick={handlePause}
+              aria-label="Pause interview"
+              title="Save and pause — you can resume later"
+              className="md:hidden h-11 w-11 p-0 text-muted-foreground active:bg-accent/30 shrink-0"
+            >
+              <PauseCircle className="h-5 w-5" />
+            </Button>
+
+            <button
+              onClick={isListening ? stopListening : startListening}
+              disabled={isStreaming || isGenerating || isSpeaking}
+              aria-label={isListening ? 'Stop recording' : 'Start recording'}
+              aria-pressed={isListening}
+              className={`h-16 w-16 rounded-full flex items-center justify-center transition-all shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+                ${isListening
+                  ? 'bg-red-500 text-white scale-110'
+                  : 'bg-primary text-primary-foreground hover:opacity-90 active:scale-95'
+                } disabled:opacity-30 disabled:cursor-not-allowed disabled:scale-100`}
+            >
+              {isListening
+                ? <MicOff className="h-6 w-6" aria-hidden="true" />
+                : <Mic className="h-6 w-6" aria-hidden="true" />
+              }
+            </button>
+
+            {/* Mobile-only Finish — labeled button, right of the mic */}
+            <Button
+              onClick={() => setInterviewComplete(true)}
+              disabled={!canFinish}
+              title={canFinish ? undefined : finishHelper}
+              aria-label={canFinish ? 'Finish interview' : finishHelper}
+              className="md:hidden gap-1.5 min-h-[44px] shrink-0"
+              size="sm"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Finish
+            </Button>
+          </div>
         </div>
       )}
 
       {!interviewComplete && isOwner && !hasSpeechRecognition && (
-        <div className="pt-4 pb-1 shrink-0 flex flex-col gap-2" style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}>
+        // Typed-answer dock — same visual surface as the mic dock so the
+        // input region feels anchored to the bottom of the screen on mobile.
+        <div
+          className="pt-4 pb-1 shrink-0 flex flex-col gap-2 border-t md:border-t-0 bg-background/95 backdrop-blur md:bg-transparent md:backdrop-blur-none -mx-6 md:mx-0 px-6 md:px-0"
+          style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}
+        >
           <p
             role="status"
             aria-live="polite"
@@ -1432,6 +1473,31 @@ export default function InterviewSession() {
             >
               <Send className="h-4 w-4 mr-1.5" aria-hidden="true" />
               Send
+            </Button>
+          </div>
+          {/* Mobile-only action row — Pause + Finish live in the dock on
+              mobile since the header version is hidden below md. */}
+          <div className="md:hidden flex items-center justify-between gap-2 pt-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handlePause}
+              aria-label="Pause interview"
+              className="gap-1 text-muted-foreground min-h-[44px]"
+            >
+              <PauseCircle className="h-4 w-4" />
+              <span className="text-xs">Pause</span>
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setInterviewComplete(true)}
+              disabled={!canFinish}
+              title={canFinish ? undefined : finishHelper}
+              aria-label={canFinish ? 'Finish interview' : finishHelper}
+              className="gap-1.5 min-h-[44px]"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              Finish
             </Button>
           </div>
         </div>
