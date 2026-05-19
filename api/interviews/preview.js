@@ -9,7 +9,7 @@ import { generateText } from 'ai'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
-import { TONES } from '../../src/lib/prompts.js'
+import { getTonesForWorkspace } from '../../src/lib/prompts.js'
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -28,7 +28,8 @@ export default async function handler(req, res) {
 
   const { tone = 'smart', prototypeId = null, clinicianName = 'your clinician' } = req.body || {}
 
-  const toneObj = TONES.find(t => t.id === tone) ?? TONES[0]
+  const tones = getTonesForWorkspace(ws)
+  const toneObj = tones.find(t => t.id === tone) ?? tones[0]
   const toneModifier = ws.tone_modifiers?.[tone] || ''
 
   const prototypes = ws.patient_context?.prototypes || []
