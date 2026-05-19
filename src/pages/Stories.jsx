@@ -26,7 +26,7 @@ const STAGES = [
 ]
 
 const SELECT_CLS =
-  'rounded border border-border bg-background px-2.5 py-1 text-xs text-foreground ' +
+  'shrink-0 rounded border border-border bg-background px-2.5 py-1 text-xs text-foreground ' +
   'cursor-pointer hover:bg-accent/50 transition-colors focus:outline-none focus:ring-1 focus:ring-ring'
 
 /**
@@ -103,27 +103,28 @@ export default function Stories() {
 
   return (
     <main className="py-6 px-6 flex flex-col gap-4">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-baseline gap-3 min-w-0">
-          <h1 className="text-xl font-semibold text-foreground">{mineOnly ? 'My stories' : 'Stories'}</h1>
-          {!isLoading && stories.length > 0 ? (
-            <span className="text-xs text-muted-foreground truncate">
-              {stories.length === 1 ? '1 story' : `${stories.length} stories`}
-              {awaitingReviewCount > 0 ? ` · ${awaitingReviewCount} awaiting review` : ''}
-            </span>
-          ) : null}
+      {/* Sticky page chrome — keeps the title, view toggle, and filter
+          chips in view while the user scrolls through cards or the
+          kanban. -mx-6 px-6 extends the backdrop to the parent main's
+          edges so blurred content reads cleanly behind it. */}
+      <div className="sticky top-14 z-30 -mx-6 px-6 -mt-6 pt-6 pb-3 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 border-b border-border/60 flex flex-col gap-3">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-baseline gap-3 min-w-0">
+            <h1 className="text-xl font-semibold text-foreground">{mineOnly ? 'My stories' : 'Stories'}</h1>
+            {!isLoading && stories.length > 0 ? (
+              <span className="text-xs text-muted-foreground truncate">
+                {stories.length === 1 ? '1 story' : `${stories.length} stories`}
+                {awaitingReviewCount > 0 ? ` · ${awaitingReviewCount} awaiting review` : ''}
+              </span>
+            ) : null}
+          </div>
+          <StoriesViewToggle defaultView={defaultView} />
         </div>
-        <StoriesViewToggle defaultView={defaultView} />
-      </div>
 
-      {/* Campaign progress strip — shown whenever a campaign filter is active */}
-      {activeCampaignObj ? (
-        <CampaignProgressStrip campaign={activeCampaignObj} clinicians={clinicians} />
-      ) : null}
-
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-center gap-2">
+        {/* Filter bar — horizontal scroll on mobile so chips do not wrap
+            into 3+ rows and crowd the sticky header. */}
+        <div className="flex items-center gap-2 overflow-x-auto flex-nowrap md:flex-wrap -mx-6 px-6 md:mx-0 md:px-0 pb-1 md:pb-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* Owner — "Mine only" active chip. No selector form because the only
             two states are "all" and "me"; non-me clinician filtering is
             handled by the existing /clinicians/:id page. */}
@@ -131,7 +132,7 @@ export default function Stories() {
           <button
             type="button"
             onClick={clearOwner}
-            className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 text-primary px-3 py-1 text-xs font-medium hover:bg-primary/20 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 text-primary px-3 py-1 text-xs font-medium hover:bg-primary/20 transition-colors"
           >
             <User className="h-3 w-3" aria-hidden="true" />
             Mine only
@@ -144,7 +145,7 @@ export default function Stories() {
           <button
             type="button"
             onClick={clearCampaign}
-            className="inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 text-warning px-3 py-1 text-xs font-medium hover:bg-warning/20 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 text-warning px-3 py-1 text-xs font-medium hover:bg-warning/20 transition-colors"
           >
             <Target className="h-3 w-3" aria-hidden="true" />
             Campaign: {activeCampaignObj.name}
@@ -216,7 +217,14 @@ export default function Stories() {
             ))}
           </select>
         ) : null}
+        </div>
       </div>
+
+      {/* Campaign progress strip — shown whenever a campaign filter is
+          active. Lives below the sticky chrome so it scrolls with content. */}
+      {activeCampaignObj ? (
+        <CampaignProgressStrip campaign={activeCampaignObj} clinicians={clinicians} />
+      ) : null}
 
       {/* View dispatch */}
       {view === 'pipeline' ? (
