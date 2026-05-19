@@ -29,9 +29,19 @@ const SPEAKER_TEST_MESSAGE = "Hi, I'm Bernard. If you can hear me clearly, your 
  * Props:
  *   onContinue — called when the user is ready to start the interview
  */
+// Number of vertical bars in the rolling waveform. 14 reads as "voice
+// activity" without being noisy on small screens.
+const WAVEFORM_BARS = 14
+// Amplitude (0–1) the user must hit at least once before we consider the
+// mic "confirmed working". Calibrated against the rms*6 scaling in the
+// audio loop — a normal "hello" lands around 0.4–0.6.
+const VOICE_DETECTED_THRESHOLD = 0.18
+
 export default function MicCheck({ onContinue }) {
   const [status, setStatus] = useState('requesting')
   const [level, setLevel] = useState(0)
+  const [waveform, setWaveform] = useState(() => new Array(WAVEFORM_BARS).fill(0))
+  const [voiceDetected, setVoiceDetected] = useState(false)
   const [hasSpeechSynthesis, setHasSpeechSynthesis] = useState(true)
 
   const streamRef = useRef(null)
@@ -40,6 +50,11 @@ export default function MicCheck({ onContinue }) {
   const rafRef = useRef(null)
   const testUtteranceRef = useRef(null)
   const ttsRef = useRef(null)
+  // Roll the waveform on a slower cadence than the rAF tick — pushing on
+  // every frame produces a blurred high-frequency shimmer that doesn't read
+  // as "speech bars". ~30ms gives a clearly readable rolling animation.
+  const lastWaveformPushRef = useRef(0)
+  const voiceDetectedRef = useRef(false)
   function getTts() {
     if (!ttsRef.current) ttsRef.current = createTtsPlayer()
     return ttsRef.current
@@ -77,7 +92,7 @@ export default function MicCheck({ onContinue }) {
         setStatus('mic-active')
 
         const buf = new Uint8Array(analyser.frequencyBinCount)
-        function tick() {
+        function tick(now) {
           analyser.getByteTimeDomainData(buf)
           let sum = 0
           for (let i = 0; i < buf.length; i++) {
@@ -85,7 +100,28 @@ export default function MicCheck({ onContinue }) {
             sum += v * v
           }
           const rms = Math.sqrt(sum / buf.length)
-          setLevel(Math.min(1, rms * 6))
+          const norm = Math.min(1, rms * 6)
+          setLevel(norm)
+
+          // First time amplitude clears the threshold, lock in "voice
+          // detected" so the user can advance. Ref mirror avoids stale
+          // closure on the state.
+          if (!voiceDetectedRef.current && norm >= VOICE_DETECTED_THRESHOLD) {
+            voiceDetectedRef.current = true
+            setVoiceDetected(true)
+          }
+
+          // Append to waveform on a ~33ms cadence so the bars read as a
+          // rolling speech meter rather than a frame-rate shimmer.
+          if (!lastWaveformPushRef.current || now - lastWaveformPushRef.current >= 33) {
+            lastWaveformPushRef.current = now
+            setWaveform((prev) => {
+              const next = prev.slice(1)
+              next.push(norm)
+              return next
+            })
+          }
+
           rafRef.current = requestAnimationFrame(tick)
         }
         rafRef.current = requestAnimationFrame(tick)
@@ -229,36 +265,76 @@ export default function MicCheck({ onContinue }) {
                 </div>
               </div>
 
+              {/* Rolling waveform — 14 vertical bars showing recent
+                   amplitude. Reads as "voice waves" so the user has
+                   unambiguous visual feedback that mic input is reaching
+                   the page. */}
               <div
                 role="meter"
                 aria-label="Microphone level"
                 aria-valuenow={Math.round(level * 100)}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                className="w-full h-2 rounded-full bg-muted overflow-hidden"
+                className="w-full h-16 flex items-center justify-center gap-1.5 px-2"
               >
-                <div
-                  className="h-full rounded-full bg-primary transition-all duration-75"
-                  style={{ width: `${Math.max(4, level * 100)}%` }}
-                />
+                {waveform.map((amp, i) => {
+                  // Floor of ~10% so flat silence still renders thin bars
+                  // (vs. invisibly collapsing), and max of ~95% so loud
+                  // input doesn't slam against the container edge.
+                  const heightPct = Math.max(10, Math.min(95, amp * 110))
+                  return (
+                    <span
+                      key={i}
+                      aria-hidden="true"
+                      className={`flex-1 rounded-full transition-[height,background-color] duration-75 ${
+                        voiceDetected ? 'bg-primary' : 'bg-primary/40'
+                      }`}
+                      style={{ height: `${heightPct}%`, minHeight: '4px' }}
+                    />
+                  )
+                })}
               </div>
 
-              <div className="flex items-center gap-2 text-sm font-medium text-green-600">
-                <Icon as={CheckCircle2} size="md" />
-                Microphone ready
-              </div>
-
-              <p className="text-xs text-muted-foreground text-center">
-                Next, we&rsquo;ll check that you can hear Bernard.
-              </p>
+              {voiceDetected ? (
+                <>
+                  <div className="flex items-center gap-2 text-sm font-medium text-green-600">
+                    <Icon as={CheckCircle2} size="md" />
+                    Microphone working — we heard you
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Next, we&rsquo;ll check that you can hear Bernard.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="text-sm font-medium text-foreground text-center">
+                    Say something to test your mic
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Try &ldquo;hello&rdquo; &mdash; the bars above should move with your voice.
+                  </p>
+                </>
+              )}
 
               {hasSpeechSynthesis ? (
-                <Button className="w-full" size="lg" onClick={handleTestSpeakers}>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleTestSpeakers}
+                  disabled={!voiceDetected}
+                  title={voiceDetected ? undefined : 'Say something first so we can confirm your mic is picking up audio'}
+                >
                   <Icon as={Volume2} size="md" className="mr-2" />
                   Test speakers
                 </Button>
               ) : (
-                <Button className="w-full" size="lg" onClick={handleContinue}>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleContinue}
+                  disabled={!voiceDetected}
+                  title={voiceDetected ? undefined : 'Say something first so we can confirm your mic is picking up audio'}
+                >
                   Start interview
                 </Button>
               )}
