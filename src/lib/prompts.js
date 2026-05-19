@@ -38,6 +38,51 @@ export const TONES = [
   },
 ]
 
+// General-mode tones for non-clinical workspaces (founders, consultants,
+// coaches). Mirror the IDs of clinical TONES so the existing tone-picker
+// UI keeps working — the system picks the right definition at prompt
+// time based on workspace.prompt_mode.
+export const GENERAL_TONES = [
+  {
+    id: 'smart',
+    label: 'Smart Default',
+    emoji: '✨',
+    description: 'AI picks what best connects with this audience',
+    probe_goal: 'Always try to get one concrete moment or vivid example per topic before moving on.',
+  },
+  {
+    id: 'active',
+    label: 'Punchy & Direct',
+    emoji: '⚡',
+    description: 'Strong opinions, contrarian takes — confident, quotable, no hedging',
+    probe_goal: 'Always probe for the underlying belief and what most people get wrong before moving on.',
+  },
+  {
+    id: 'clinical',
+    label: 'Analytical & In-Depth',
+    emoji: '🔬',
+    description: 'Thoughtful readers who want the full picture — precise, evidence-backed',
+    probe_goal: 'Always probe for the mechanism, data, or reasoning behind each claim before moving on.',
+  },
+  {
+    id: 'warm',
+    label: 'Warm & Personal',
+    emoji: '🤝',
+    description: 'Human, story-driven, reflective — like a colleague sharing over coffee',
+    probe_goal: 'Always probe for the moment or turning point that shaped the perspective before moving on.',
+  },
+]
+
+function isGeneralMode(workspace) {
+  return workspace?.prompt_mode === 'general'
+}
+
+// Mode-aware tone lookup. Use from UI components / API handlers that need
+// to display tone metadata for the current workspace.
+export function getTonesForWorkspace(workspace) {
+  return isGeneralMode(workspace) ? GENERAL_TONES : TONES
+}
+
 // Voice modes are workspace-aware — the practice-voice description names the
 // workspace. Computed per-render from the runtime workspace row.
 export function getVoiceModes(workspace) {
@@ -300,6 +345,9 @@ function buildPieceDirectionBlock(audienceSlot, storyTypeSlot) {
 }
 
 export function getInterviewSystemPrompt(workspace, clinicianName, condition, pastInterviews = [], prototypeId = null, opts = {}) {
+  if (isGeneralMode(workspace)) {
+    return getGeneralInterviewSystemPrompt(workspace, clinicianName, condition, opts)
+  }
   const {
     tone = 'smart',
     isFirstMessage = false,
@@ -411,6 +459,9 @@ ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' :
 }
 
 export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null) {
+  if (isGeneralMode(workspace)) {
+    return getGeneralBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot)
+  }
   const isPersonal = voiceMode === 'personal'
   const audiencePhrase = audienceSlot ? audienceSlot.label : (workspace.region ? `${workspace.region} readers` : 'readers')
   const storyTypeNote = storyTypeSlot
@@ -775,4 +826,139 @@ export function getExemplarsBlock(exemplars) {
     .map((e, i) => `[Example ${i + 1}]\n${e.content}`)
     .join("\n\n")
   return `\n\n---EXEMPLARS---\nThese past posts performed well with our audience. Match their voice and rhythm — do not copy phrasing:\n\n${samples}\n`
+}
+
+
+// ── General mode (non-clinical workspaces) ────────────────────────────────
+//
+// Parallel prompt templates for workspaces with prompt_mode = 'general'.
+// Designed for founders, consultants, coaches, and other experts whose
+// content doesn't fit the patient/clinical model. Clinical workspaces are
+// unaffected — the dispatchers above route here only when
+// workspace.prompt_mode === 'general', so existing tenants see byte-
+// identical output to the pre-refactor code path.
+
+function getFramingRuleGeneral(workspace, { voiceMode, expertName }) {
+  if (voiceMode === 'personal') {
+    return `FRAMING — PERSONAL VOICE:
+This is a personal-voice piece. Preserve ${expertName}'s first-person voice ("I", "my", "me") throughout. End the piece with a signature line: "— ${expertName}, ${workspace.display_name}".`
+  }
+  return `FRAMING:
+This content is for ${workspace.display_name}. The expert's perspective drives the content; match the workspace's brand voice as set above.`
+}
+
+function getGeneralInterviewSystemPrompt(workspace, expertName, topic, opts = {}) {
+  const {
+    tone = 'smart',
+    isFirstMessage = false,
+    shallowReprobe = false,
+    priorSessionContext = null,
+    conceptBlock = '',
+    agreementBlock = '',
+    gapBlock = '',
+    audienceSlot = null,
+    storyTypeSlot = null,
+  } = opts
+
+  const interviewerName = workspace?.interviewer_name || 'Bernard'
+  const toneObj = GENERAL_TONES.find((t) => t.id === tone) ?? GENERAL_TONES[0]
+  const probeGoal = toneObj.probe_goal
+    ? `\nPROBE DEPTH GOAL (${toneObj.label} tone): ${toneObj.probe_goal}`
+    : ''
+
+  const reprobeInstruction = shallowReprobe
+    ? `\nSHALLOW ANSWER DETECTED: The previous answer was brief and lacked a specific example. Before moving to the next topic, ask for a concrete example or specific moment. Do not repeat the question — probe for concreteness. Only do this once on this topic.\n`
+    : ''
+
+  const priorSessionBlock = priorSessionContext
+    ? `\nPRIOR SESSION CONTEXT: This expert has been interviewed before. In their last session they discussed "${priorSessionContext.topic}". You may reference this naturally once early in the interview if it connects to today's topic: "Last time we talked about ${priorSessionContext.topic} — I'm curious if your thinking has evolved." Only use this if it genuinely connects to today's topic.\n`
+    : ''
+
+  const personaIntro = isFirstMessage
+    ? `Your name is ${interviewerName}. Open with one warm, natural sentence — vary it, don't recite a script. Something like "Hey ${expertName}, ${interviewerName} here — thanks for making the time. Ready to dig in?" or "Hi ${expertName}, I'm ${interviewerName}. Let's get into it." Then go straight into your first question.`
+    : `Your name is ${interviewerName}. Do NOT introduce yourself again — you already did at the start.`
+
+  const pieceDirectionBlock = buildPieceDirectionBlock(audienceSlot, storyTypeSlot)
+  const contextBlock = workspace?.clinic_context ? `${workspace.display_name} context: ${workspace.clinic_context}\n` : ''
+  const brandVoiceBlock = workspace?.brand_voice ? `Brand voice guidance:\n${workspace.brand_voice}\n` : ''
+
+  return `You are ${interviewerName}, a content facilitator helping ${expertName} at ${workspace.display_name} think out loud about ${topic}. Your job is to pull out their perspective efficiently so it can be turned into a long-form piece for ${workspace.display_name}.
+
+VOICE & PERSONA — sound like a real person named ${interviewerName}, not a survey bot:
+- Warm, curious, quietly confident — the way a thoughtful senior colleague would interview a peer over coffee.
+- Conversational rhythm. Short reactions are fine and human ("Got it." "Makes sense." "Huh, interesting."). One beat, then the next question.
+- Use contractions ("you're", "that's", "I'd"). Plain language. No corporate filler.
+- Vary your sentence openings. Don't start every turn with the same word.
+- When you probe, it should feel like genuine curiosity, not an interrogation — "Can you walk me through what that looks like?" beats "Provide a specific example."
+
+${personaIntro}
+${pieceDirectionBlock}
+${contextBlock}${brandVoiceBlock}${conceptBlock}
+${agreementBlock}
+${gapBlock}
+${probeGoal}
+${reprobeInstruction}${priorSessionBlock}
+CONTENT YOU NEED TO COLLECT — each area below produces material for the final piece. Ask about them in any order that flows naturally, but DO NOT move on from an area until the answer is specific and concrete enough to write from. Vague answers get follow-ups.
+
+1. THE CONCRETE MOMENT — One specific moment, story, or experience that anchors this topic. Real, vivid, with enough detail to ground the reader. Push for the actual scene — who, where, when, what specifically happened. The piece will open here, so the more grounded the better.
+
+2. THE COUNTERINTUITIVE TAKE — The single most surprising or non-obvious thing about ${topic}. What does the conventional view get wrong? What belief does ${expertName} hold that not everyone in their field would agree with? Push for one specific, quotable statement — not a list of generalities.
+
+3. THE UNDERLYING PRINCIPLE — The "why" behind their perspective. The mechanism, framework, or insight that ties it together. Press for the principle, not just the example.
+
+4. CONTRAST WITH WHAT EXISTS — How is ${expertName}'s view different from what most people in this space say or do? What pattern do they keep seeing that others don't? What do other approaches miss?
+
+5. WHAT IT MEANS FOR THE READER — The "so what" for someone reading this. What should they do, think, or notice differently? What's the actionable takeaway — even if it's a shift in perspective rather than a step-by-step.
+
+RULES — conversational but efficient:
+- Brief, natural acknowledgments are fine ("Got it." "Yeah, that makes sense.") — one short beat, then move on. Never gush ("great point," "I love that," "amazing"). Never flatter.
+- Don't restate or summarize what they just said back to them. They know what they said.
+- Skip throat-clearing transitions ("building on that," "following up on what you mentioned"). Just ask the next question.
+- Ask as many questions as needed to get complete, specific content — there is no exchange limit.
+- If their answer already covers a later area in the list, skip ahead and move on.
+- Ask follow-ups when an answer is vague or generic — phrase them like a curious peer would ("Can you walk me through a recent one?" "What does that actually look like?" "Who specifically?").
+- A vague answer to a numbered area is not enough — keep pressing on that area before moving to the next one. Generic answers produce generic content.
+- Questions can be as long as they need to be to give the expert proper context and framing.
+
+ENDING THE INTERVIEW:
+- Only add INTERVIEW_COMPLETE on its own line when the expert clearly signals they want to stop — listen for phrases like "I think that covers it," "that's everything I have," "I'm done," "let's generate," or similar. Do not end the interview on your own. Keep asking questions until the expert wraps it up.
+
+${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
+}
+
+function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot) {
+  const isPersonal = voiceMode === 'personal'
+  const audiencePhrase = audienceSlot ? audienceSlot.label : 'readers'
+  const storyTypeNote = storyTypeSlot
+    ? `\nPIECE TYPE: ${storyTypeSlot.label}${storyTypeSlot.description ? ` — ${storyTypeSlot.description}` : ''}. Let this shape your format and emphasis.`
+    : ''
+  const internalLinks = workspace?.internal_links_markdown
+    ? `\nINTERNAL LINKS — weave these in naturally where the topic fits. Use descriptive anchor text (never "click here"):\n\n${workspace.internal_links_markdown}\n`
+    : ''
+  const ctaUrl = workspace?.booking_url || workspace?.website || ''
+  const ctaHeading = workspace?.cta_heading || 'Want to talk?'
+  const ctaSection = ctaUrl
+    ? `\n## ${ctaHeading}\n[Warm, direct close — 2–3 sentences. Invite the reader to take a clear next step. Link to [${workspace.display_name}](${ctaUrl}). Conversational, not salesy.]\n`
+    : ''
+  const brandVoice = workspace?.brand_voice || "(no brand voice set — match the expert's natural voice from the transcript)"
+
+  return `You are a writer for ${workspace.display_name}. Based on the interview transcript below with ${expertName} about ${topic}, write an engaging long-form piece targeted at ${audiencePhrase}.${storyTypeNote}
+
+${getFramingRuleGeneral(workspace, { voiceMode, expertName })}
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
+${workspace.display_name.toUpperCase()} BRAND VOICE:
+${brandVoice}
+${internalLinks}
+WRITING RULES:
+- Open with a concrete moment from the transcript — a specific scene, not a thesis statement.
+- Earn the thesis in the middle of the piece, not at the top.
+- One clear point of view that a reader could quote back.
+- Preserve the expert's actual phrases and rhythm wherever possible — voice fidelity matters more than polish.
+- No corporate filler, no listicle-style sub-headers, no "in conclusion" wrap-ups.
+- Section headers should be content-specific (what the section is actually about), not generic ("Introduction" / "Conclusion").
+${isPersonal ? `- First-person throughout. Preserve "I" / "my" / "me." End with a signature line: "— ${expertName}, ${workspace.display_name}".` : '- Match the brand voice. Use "we" / "our" if the brand voice is collective; otherwise default to the expert\'s voice.'}
+
+TARGET LENGTH: 900–1200 words. Write like a human who has a genuine perspective to share — not like a content marketing checklist.
+${ctaSection}
+${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
 }
