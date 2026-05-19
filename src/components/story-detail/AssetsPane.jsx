@@ -5,6 +5,7 @@ import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
   ChevronDown, MessageSquare, Eye, RotateCcw, ExternalLink, Quote,
+  Calendar, Clock, AlertTriangle,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,7 @@ import {
   queryKeys,
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite } from '@/lib/publish'
-import { suggestScheduleTime } from '@/lib/scheduleHeuristics'
+import { suggestScheduleTime, explainPlatformSlot, findScheduleConflict } from '@/lib/scheduleHeuristics'
 import { buildImagesManifest } from '@/lib/publishImageMirror'
 import { extractProvenanceBlock } from '@/lib/provenance'
 import { toast, runWithToast } from '@/lib/toast'
@@ -467,6 +468,194 @@ function InspectDrawer({ piece, story }) {
   )
 }
 
+// Gather every scheduled content_item the React Query cache has seen, across
+// all stories lists. Used by the approve action sheet to (a) feed the
+// platform-aware suggestion engine so it skips slots within 2h of another
+// post, and (b) soft-warn when the user picks a custom time near another
+// scheduled post on the same platform. Free when Stories has already loaded.
+function getCachedScheduledItems(qc) {
+  const out = []
+  const lists = qc.getQueriesData({ queryKey: queryKeys.stories.all })
+  const seen = new Set()
+  for (const [, data] of lists) {
+    if (!Array.isArray(data)) continue
+    for (const story of data) {
+      for (const p of story?.pieces ?? []) {
+        if (!p?.scheduled_at) continue
+        if (seen.has(p.id)) continue
+        seen.add(p.id)
+        out.push({ id: p.id, platform: p.platform, scheduled_at: p.scheduled_at })
+      }
+    }
+  }
+  return out
+}
+
+function formatScheduledLabel(d) {
+  if (!d) return ''
+  return d.toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}
+
+// Action sheet shown on approved pieces. Replaces the old toggle-group +
+// Publish button with a primary suggested-time CTA, an explainer caption,
+// and inline alt actions (pick a time / publish now). Blog pieces collapse
+// to a single "Publish to website" button since the WP path is synchronous.
+function WhenToPublishCard({ piece, suggested, otherScheduled, onSchedule, onPublishNow, publishing }) {
+  const [mode, setMode] = useState('default') // 'default' | 'pick'
+  const [customAt, setCustomAt] = useState(
+    suggested ? toLocalDatetimeInput(suggested) : '',
+  )
+
+  const explainer = explainPlatformSlot(piece.platform)
+  const customDate = customAt ? new Date(customAt) : null
+  const customConflict = customDate && !Number.isNaN(customDate.getTime())
+    ? findScheduleConflict(piece.platform, customDate, otherScheduled)
+    : null
+  const customInPast = customDate && customDate.getTime() <= Date.now()
+
+  // Blog: synchronous publish, no scheduling choice.
+  if (piece.platform === 'blog') {
+    return (
+      <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+        <div className="text-xs font-medium text-muted-foreground">Publish</div>
+        <Button
+          size="sm"
+          onClick={onPublishNow}
+          disabled={publishing}
+          loading={publishing}
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          {!publishing && <Send className="h-3.5 w-3.5 mr-1.5" />}
+          Publish to Website
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Publishes immediately — the website webhook can take 30–90s.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 space-y-2.5">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Clock className="h-3.5 w-3.5" />
+        When to publish
+      </div>
+
+      {mode === 'default' && (
+        <>
+          {suggested ? (
+            <>
+              <Button
+                size="sm"
+                onClick={() => onSchedule(suggested)}
+                disabled={publishing}
+                loading={publishing}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {!publishing && <Calendar className="h-3.5 w-3.5 mr-1.5" />}
+                Schedule for {formatScheduledLabel(suggested)}
+              </Button>
+              {explainer && (
+                <p className="text-xs text-muted-foreground">
+                  {explainer}. Avoids slots within 2h of another scheduled post.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No open slot found in the next 60 days — pick a time below.
+            </p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs pt-1">
+            <button
+              type="button"
+              onClick={() => setMode('pick')}
+              disabled={publishing}
+              className="text-primary hover:underline"
+            >
+              Pick a different time
+            </button>
+            <span className="text-muted-foreground">•</span>
+            <button
+              type="button"
+              onClick={onPublishNow}
+              disabled={publishing}
+              className="text-primary hover:underline"
+            >
+              Publish now
+            </button>
+          </div>
+        </>
+      )}
+
+      {mode === 'pick' && (
+        <div className="space-y-2">
+          <Input
+            type="datetime-local"
+            value={customAt}
+            onChange={(e) => setCustomAt(e.target.value)}
+            min={toLocalDatetimeInput(new Date(Date.now() + 60_000))}
+            className="h-8 text-sm w-fit"
+          />
+          {customConflict && (
+            <div className="flex items-start gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+              <span>
+                Another {PLATFORM_META[piece.platform]?.label || piece.platform} post is scheduled near this time
+                {' — '}
+                {formatScheduledLabel(new Date(customConflict.scheduled_at))}.
+                You can still proceed.
+              </span>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                const d = new Date(customAt)
+                if (!customAt || Number.isNaN(d.getTime())) {
+                  toast.error('Pick a valid date and time')
+                  return
+                }
+                if (d.getTime() <= Date.now()) {
+                  toast.error('Pick a time in the future')
+                  return
+                }
+                onSchedule(d)
+              }}
+              disabled={publishing || !customAt || customInPast}
+              loading={publishing}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              {!publishing && <Calendar className="h-3.5 w-3.5 mr-1.5" />}
+              Schedule
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setMode('default')
+                setCustomAt(suggested ? toLocalDatetimeInput(suggested) : '')
+              }}
+              disabled={publishing}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ApprovalPanel({ piece }) {
   const { user } = useUser()
   const { canReview } = useUserRole()
@@ -480,26 +669,17 @@ function ApprovalPanel({ piece }) {
   const [changeRequestBody, setChangeRequestBody] = useState('')
   const [publishing, setPublishing] = useState(false)
 
-  // Schedule controls — Buffer-dispatched platforms only. Default to honoring
-  // the piece's pre-filled scheduled_at if it's still in the future. If expired
-  // or absent, default to "Now" (matches prior behaviour) but pre-populate the
-  // picker with the next platform-optimal slot (e.g. TikTok → next Tue/Wed/Fri
-  // 7-8pm) so flipping the toggle to Schedule lands on a sensible time without
-  // typing. Blog publishes are immediate and hide the toggle entirely.
-  const initialFutureSchedule = (() => {
-    if (!piece.scheduled_at) return null
-    const d = new Date(piece.scheduled_at)
-    return d.getTime() > Date.now() ? d : null
-  })()
-  const suggestedSchedule = useMemo(
-    () => (initialFutureSchedule ? null : suggestScheduleTime(piece.platform, [])),
-    [piece.platform, initialFutureSchedule],
+  // Cross-story scheduled items from the React Query cache. Free when Stories
+  // has already loaded; falls back to empty when it hasn't (e.g. direct URL
+  // into Story Detail), which is fine — the suggestion engine simply doesn't
+  // know about other-platform posts and the conflict warner stays silent.
+  const otherScheduled = useMemo(
+    () => getCachedScheduledItems(qc).filter((it) => it.id !== piece.id),
+    [qc, piece.id],
   )
-  const [publishMode, setPublishMode] = useState(initialFutureSchedule ? 'schedule' : 'now')
-  const [scheduledAtInput, setScheduledAtInput] = useState(
-    initialFutureSchedule
-      ? toLocalDatetimeInput(initialFutureSchedule)
-      : suggestedSchedule ? toLocalDatetimeInput(suggestedSchedule) : '',
+  const suggested = useMemo(
+    () => suggestScheduleTime(piece.platform, otherScheduled),
+    [piece.platform, otherScheduled],
   )
 
   const userEmail = user?.primaryEmailAddress?.emailAddress || user?.id || ''
@@ -542,25 +722,11 @@ function ApprovalPanel({ piece }) {
     }
   }
 
-  const handlePublish = async () => {
-    // Schedule validation — Buffer path only; blog publishes ignore the toggle.
-    let effectiveScheduledAt = null
-    if (piece.platform !== 'blog' && publishMode === 'schedule') {
-      if (!scheduledAtInput) {
-        toast.error('Pick a schedule time before publishing')
-        return
-      }
-      const scheduled = new Date(scheduledAtInput)
-      if (Number.isNaN(scheduled.getTime())) {
-        toast.error('Invalid schedule time')
-        return
-      }
-      if (scheduled.getTime() <= Date.now()) {
-        toast.error('Pick a time in the future')
-        return
-      }
-      effectiveScheduledAt = scheduled.toISOString()
-    }
+  // Unified publish path. Called from the action sheet with a Date for
+  // scheduled publishes, or null for publish-now. Blog publishes ignore the
+  // argument and go to the website webhook synchronously.
+  const handlePublish = async (scheduledDate) => {
+    const effectiveScheduledAt = scheduledDate ? scheduledDate.toISOString() : null
 
     setPublishing(true)
     try {
@@ -708,38 +874,19 @@ function ApprovalPanel({ piece }) {
         )}
       </div>
 
-      {/* Publish-timing controls — Buffer path only. Shown on approved pieces
-          so the reviewer can choose to send immediately or schedule on Buffer.
-          Blog publishes are immediate (the website webhook is synchronous). */}
-      {piece.status === 'approved' && canReview && piece.platform !== 'blog' && (
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-muted-foreground font-medium">Publish:</span>
-          <div className="inline-flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setPublishMode('now')}
-              className={`px-2.5 py-1 rounded-full border ${publishMode === 'now' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'}`}
-            >
-              Now
-            </button>
-            <button
-              type="button"
-              onClick={() => setPublishMode('schedule')}
-              className={`px-2.5 py-1 rounded-full border ${publishMode === 'schedule' ? 'bg-primary text-primary-foreground border-primary' : 'bg-muted text-muted-foreground border-border'}`}
-            >
-              Schedule
-            </button>
-          </div>
-          {publishMode === 'schedule' && (
-            <Input
-              type="datetime-local"
-              value={scheduledAtInput}
-              onChange={(e) => setScheduledAtInput(e.target.value)}
-              min={toLocalDatetimeInput(new Date(Date.now() + 60_000))}
-              className="h-8 text-sm w-fit"
-            />
-          )}
-        </div>
+      {/* When-to-publish action sheet — shown on approved pieces. The reviewer
+          can accept the suggested time (one click), pick a custom time, or
+          publish immediately. Blog pieces collapse to a single Publish button
+          since the website webhook is synchronous. */}
+      {piece.status === 'approved' && canReview && (
+        <WhenToPublishCard
+          piece={piece}
+          suggested={suggested}
+          otherScheduled={otherScheduled}
+          onSchedule={(d) => handlePublish(d)}
+          onPublishNow={() => handlePublish(null)}
+          publishing={publishing}
+        />
       )}
 
       {/* Action buttons */}
@@ -784,22 +931,6 @@ function ApprovalPanel({ piece }) {
             <XCircle className="h-3.5 w-3.5 mr-1.5 text-amber-600" />
             Request changes
             <ChevronDown className={`h-3 w-3 ml-1 transition-transform ${changeRequestOpen ? 'rotate-180' : ''}`} />
-          </Button>
-        )}
-
-        {/* Publish — reviewer only, approved */}
-        {piece.status === 'approved' && canReview && (
-          <Button
-            size="sm"
-            onClick={handlePublish}
-            disabled={publishing || isBusy}
-            loading={publishing}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            {!publishing && <Send className="h-3.5 w-3.5 mr-1.5" />}
-            {piece.platform === 'blog'
-              ? 'Publish to Website'
-              : publishMode === 'schedule' ? 'Schedule on Buffer' : 'Publish Now'}
           </Button>
         )}
 

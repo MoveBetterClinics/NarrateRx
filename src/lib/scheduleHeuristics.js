@@ -69,3 +69,67 @@ export function isOptimalDay(day) {
   }
   return false
 }
+
+// Human-readable explanation of why a platform's optimal slots fall where they
+// do. Surfaced as a caption under the suggested time in the approve action
+// sheet so the heuristic feels like a recommendation, not magic.
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const PLATFORM_LABELS = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  linkedin: 'LinkedIn',
+  blog: 'Blog',
+  email: 'Email',
+  youtube: 'YouTube',
+  tiktok: 'TikTok',
+  gbp: 'Google Business',
+  google_ads: 'Google Ads',
+  instagram_ads: 'Instagram Ads',
+  landing_page: 'Landing pages',
+}
+function formatDayRange(days) {
+  if (!days || days.length === 0) return ''
+  const sorted = [...days].sort((a, b) => a - b)
+  const contiguous = sorted.every((d, i) => i === 0 || d === sorted[i - 1] + 1)
+  if (contiguous && sorted.length > 1) {
+    return `${DAY_NAMES[sorted[0]]}–${DAY_NAMES[sorted[sorted.length - 1]]}`
+  }
+  return sorted.map((d) => DAY_NAMES[d]).join('/')
+}
+function formatHourRange(hours) {
+  if (!hours || hours.length === 0) return ''
+  const sorted = [...hours].sort((a, b) => a - b)
+  const fmt = (h) => {
+    if (h === 0) return '12am'
+    if (h === 12) return '12pm'
+    return h < 12 ? `${h}am` : `${h - 12}pm`
+  }
+  if (sorted.length === 1) return fmt(sorted[0])
+  return `${fmt(sorted[0])}–${fmt(sorted[sorted.length - 1])}`
+}
+export function explainPlatformSlot(platform) {
+  const prefs = PLATFORM_SCHEDULE_PREFS[platform]
+  if (!prefs) return null
+  const label = PLATFORM_LABELS[platform] || platform
+  return `${label} engages best ${formatDayRange(prefs.days)} ${formatHourRange(prefs.hours)}`
+}
+
+// Returns the closest scheduled item on the same platform within MIN_GAP_MS of
+// `candidateDate`, or null if no conflict. Used by the approve action sheet to
+// soft-warn (not block) when the user picks a custom time near another post.
+export function findScheduleConflict(platform, candidateDate, scheduledItems) {
+  if (!candidateDate || !scheduledItems?.length) return null
+  const t = candidateDate.getTime()
+  let closest = null
+  let closestDelta = Infinity
+  for (const item of scheduledItems) {
+    if (!item.scheduled_at || item.platform !== platform) continue
+    const other = new Date(item.scheduled_at).getTime()
+    const delta = Math.abs(other - t)
+    if (delta < MIN_GAP_MS && delta < closestDelta) {
+      closest = item
+      closestDelta = delta
+    }
+  }
+  return closest
+}
