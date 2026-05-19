@@ -40,11 +40,11 @@ function EditablePill({ value, options, placeholder, onChange, disabled }) {
     <label
       className={`relative inline-flex items-center gap-1 text-xs rounded-full transition-colors ${
         selected
-          ? 'text-muted-foreground bg-muted/60 hover:bg-muted px-2 py-0.5'
+          ? 'text-muted-foreground bg-muted/60 hover:bg-muted active:bg-muted px-2 py-1.5'
           // Unset state — call-to-action styling: dashed primary border,
           // primary-tinted text, "+" affordance. Reads as an action chip,
           // not a passive label, so clinicians notice missing metadata.
-          : 'text-primary bg-primary/5 border border-dashed border-primary/40 hover:bg-primary/10 hover:border-primary/60 font-medium px-2 py-0.5'
+          : 'text-primary bg-primary/5 border border-dashed border-primary/40 hover:bg-primary/10 hover:border-primary/60 active:bg-primary/10 font-medium px-2 py-1.5'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
     >
       {selected ? (

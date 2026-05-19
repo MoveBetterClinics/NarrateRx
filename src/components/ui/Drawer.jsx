@@ -20,15 +20,19 @@ const DrawerOverlay = React.forwardRef(({ className, ...props }, ref) => (
 ))
 DrawerOverlay.displayName = 'DrawerOverlay'
 
-const DrawerContent = React.forwardRef(({ className, children, ...props }, ref) => (
+const SIDE_CLASSES = {
+  right:
+    'fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
+  bottom:
+    'fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t bg-background shadow-xl pb-[env(safe-area-inset-bottom)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
+}
+
+const DrawerContent = React.forwardRef(({ className, children, side = 'right', ...props }, ref) => (
   <DrawerPortal>
     <DrawerOverlay />
     <DialogPrimitive.Content
       ref={ref}
-      className={cn(
-        'fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
-        className
-      )}
+      className={cn(SIDE_CLASSES[side] || SIDE_CLASSES.right, className)}
       {...props}
     >
       {children}

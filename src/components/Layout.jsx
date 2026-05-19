@@ -4,8 +4,8 @@ import { UserButton } from '@clerk/clerk-react'
 import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose,
-} from '@/components/ui/dialog'
+  Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
+} from '@/components/ui/Drawer'
 import { CampaignModeChip } from '@/components/CampaignWidget'
 import { workspace as STATIC_WORKSPACE } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -75,7 +75,7 @@ export default function Layout({ children }) {
               admin chrome, and campaign chip in a vertical stack. */}
           <button
             type="button"
-            className="md:hidden inline-flex items-center justify-center h-9 w-9 rounded-md border border-input text-muted-foreground hover:text-foreground"
+            className="md:hidden inline-flex items-center justify-center h-11 w-11 rounded-md border border-input text-muted-foreground hover:text-foreground active:bg-accent/40"
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
           >
@@ -84,61 +84,62 @@ export default function Layout({ children }) {
         </div>
       </header>
 
-      <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Menu</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-1">
+      <Drawer open={mobileOpen} onOpenChange={setMobileOpen}>
+        <DrawerContent side="bottom" className="px-4 pt-2 pb-4">
+          <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-muted" aria-hidden />
+          <DrawerHeader className="border-b-0 p-2">
+            <DrawerTitle>Menu</DrawerTitle>
+          </DrawerHeader>
+          <div className="overflow-y-auto space-y-1">
             {NAV_ITEMS.map((item) => (
-              <DialogClose asChild key={item.to}>
+              <DrawerClose asChild key={item.to}>
                 <Link
                   to={item.to}
-                  className={`block px-3 py-2 rounded-md text-sm font-medium ${item.match(location.pathname) ? 'bg-accent/40 text-foreground' : 'text-muted-foreground hover:bg-accent/30'}`}
+                  className={`block px-3 py-3 rounded-md text-base font-medium ${item.match(location.pathname) ? 'bg-accent/40 text-foreground' : 'text-muted-foreground active:bg-accent/30'}`}
                 >
                   {item.label}
                 </Link>
-              </DialogClose>
+              </DrawerClose>
             ))}
           </div>
-          <div className="pt-3 border-t space-y-1">
+          <div className="pt-3 mt-2 border-t space-y-1 overflow-y-auto">
             {role === 'admin' && (
-              <DialogClose asChild>
-                <Link to="/synthesis" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+              <DrawerClose asChild>
+                <Link to="/synthesis" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Layers className="h-4 w-4" /> Knowledge synthesis
                 </Link>
-              </DialogClose>
+              </DrawerClose>
             )}
             {role === 'admin' && (
-              <DialogClose asChild>
-                <Link to="/settings/workspace" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+              <DrawerClose asChild>
+                <Link to="/settings/workspace" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Building2 className="h-4 w-4" /> Workspace settings
                 </Link>
-              </DialogClose>
+              </DrawerClose>
             )}
             {isStaff && (
-              <DialogClose asChild>
-                <Link to="/settings/brand-kit" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+              <DrawerClose asChild>
+                <Link to="/settings/brand-kit" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Palette className="h-4 w-4" /> Brand Kit
                 </Link>
-              </DialogClose>
+              </DrawerClose>
             )}
-            <DialogClose asChild>
-              <Link to="/account" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+            <DrawerClose asChild>
+              <Link to="/account" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                 <UserCircle className="h-4 w-4" /> Your account
               </Link>
-            </DialogClose>
-            <DialogClose asChild>
-              <Link to="/settings/integrations" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-muted-foreground hover:bg-accent/30">
+            </DrawerClose>
+            <DrawerClose asChild>
+              <Link to="/settings/integrations" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                 <Settings className="h-4 w-4" /> Integrations
               </Link>
-            </DialogClose>
+            </DrawerClose>
             <div className="px-3 py-2">
               <CampaignModeChip />
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </DrawerContent>
+      </Drawer>
 
       <TrialBanner />
 
