@@ -506,7 +506,17 @@ function formatScheduledLabel(d) {
 // Publish button with a primary suggested-time CTA, an explainer caption,
 // and inline alt actions (pick a time / publish now). Blog pieces collapse
 // to a single "Publish to website" button since the WP path is synchronous.
-function WhenToPublishCard({ piece, suggested, otherScheduled, onSchedule, onPublishNow, publishing }) {
+//
+// bufferUseQueue: when true (workspace.buffer_use_queue), the primary CTA
+// flips to "Add to Buffer queue" — Buffer picks the next open slot from the
+// channel's own posting schedule. The explainer + heuristic suggestion are
+// hidden in this mode; "Pick a specific time" remains available as an alt.
+function WhenToPublishCard({
+  piece, suggested, otherScheduled,
+  bufferUseQueue,
+  onSchedule, onPublishToQueue, onPublishNow,
+  publishing,
+}) {
   const [mode, setMode] = useState('default') // 'default' | 'pick'
   const [customAt, setCustomAt] = useState(
     suggested ? toLocalDatetimeInput(suggested) : '',
@@ -550,7 +560,23 @@ function WhenToPublishCard({ piece, suggested, otherScheduled, onSchedule, onPub
 
       {mode === 'default' && (
         <>
-          {suggested ? (
+          {bufferUseQueue ? (
+            <>
+              <Button
+                size="sm"
+                onClick={onPublishToQueue}
+                disabled={publishing}
+                loading={publishing}
+                className="bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                {!publishing && <Calendar className="h-3.5 w-3.5 mr-1.5" />}
+                Add to Buffer queue
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Buffer will slot this into the next open spot on your channel&rsquo;s queue.
+              </p>
+            </>
+          ) : suggested ? (
             <>
               <Button
                 size="sm"
@@ -581,8 +607,21 @@ function WhenToPublishCard({ piece, suggested, otherScheduled, onSchedule, onPub
               disabled={publishing}
               className="text-primary hover:underline"
             >
-              Pick a different time
+              {bufferUseQueue ? 'Pick a specific time' : 'Pick a different time'}
             </button>
+            {!bufferUseQueue && (
+              <>
+                <span className="text-muted-foreground">•</span>
+                <button
+                  type="button"
+                  onClick={onPublishToQueue}
+                  disabled={publishing}
+                  className="text-primary hover:underline"
+                >
+                  Add to Buffer queue
+                </button>
+              </>
+            )}
             <span className="text-muted-foreground">•</span>
             <button
               type="button"
@@ -722,11 +761,14 @@ function ApprovalPanel({ piece }) {
     }
   }
 
-  // Unified publish path. Called from the action sheet with a Date for
-  // scheduled publishes, or null for publish-now. Blog publishes ignore the
-  // argument and go to the website webhook synchronously.
-  const handlePublish = async (scheduledDate) => {
+  // Unified publish path. Called from the action sheet with one of:
+  //   { scheduledAt: Date } — schedule at specific time (customScheduled)
+  //   { useQueue: true }    — add to Buffer's queue (shareNext)
+  //   {}                    — publish immediately (shareNow)
+  // Blog publishes ignore both args and go to the website webhook synchronously.
+  const handlePublish = async ({ scheduledAt: scheduledDate, useQueue } = {}) => {
     const effectiveScheduledAt = scheduledDate ? scheduledDate.toISOString() : null
+    const usingQueue = !!useQueue
 
     setPublishing(true)
     try {
@@ -770,8 +812,8 @@ function ApprovalPanel({ piece }) {
           resolvedUrl: result.postUrl || undefined,
         })
       } else {
-        const scheduling = !!effectiveScheduledAt
-        await runWithToast(
+        const scheduling = !!effectiveScheduledAt || usingQueue
+        const result = await runWithToast(
           publishAndTrack(
             {
               id: piece.id,
@@ -779,25 +821,32 @@ function ApprovalPanel({ piece }) {
               content: markdown,
               mediaUrls: piece.media_urls || [],
               scheduledAt: effectiveScheduledAt,
+              useQueue: usingQueue,
             },
             userEmail,
           ),
           {
-            loading: scheduling ? 'Scheduling on Buffer…' : 'Sending to Buffer…',
-            success: scheduling ? 'Scheduled on Buffer' : 'Sent to Buffer',
+            loading: usingQueue ? 'Adding to Buffer queue…'
+              : effectiveScheduledAt ? 'Scheduling on Buffer…'
+              : 'Sending to Buffer…',
+            success: usingQueue ? 'Added to Buffer queue'
+              : effectiveScheduledAt ? 'Scheduled on Buffer'
+              : 'Sent to Buffer',
             error: (e) => ({ message: 'Publish failed', description: e.message }),
           },
         )
         // publishAndTrack already set status + publishedAt; this pass writes the
         // approver audit trail and (for scheduled posts) persists the chosen
         // scheduled_at on the row so the calendar/header reflect the new time.
+        // In queue mode, Buffer returns the assigned dueAt — use that.
+        const queueDueAt = result?.buffer?.scheduledAt || null
         await updateStatus.mutateAsync({
           id: piece.id,
           status: scheduling ? 'scheduled' : 'published',
           approvedBy: userEmail,
           approvedAt: new Date().toISOString(),
           publishedAt: scheduling ? null : new Date().toISOString(),
-          scheduledAt: scheduling ? effectiveScheduledAt : null,
+          scheduledAt: scheduling ? (effectiveScheduledAt || queueDueAt) : null,
         })
         qc.invalidateQueries({ queryKey: queryKeys.stories.detail(piece.interview_id) })
       }
@@ -883,8 +932,10 @@ function ApprovalPanel({ piece }) {
           piece={piece}
           suggested={suggested}
           otherScheduled={otherScheduled}
-          onSchedule={(d) => handlePublish(d)}
-          onPublishNow={() => handlePublish(null)}
+          bufferUseQueue={!!workspace?.buffer_use_queue && piece.platform !== 'blog'}
+          onSchedule={(d) => handlePublish({ scheduledAt: d })}
+          onPublishToQueue={() => handlePublish({ useQueue: true })}
+          onPublishNow={() => handlePublish({})}
           publishing={publishing}
         />
       )}

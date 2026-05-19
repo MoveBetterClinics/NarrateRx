@@ -36,6 +36,7 @@ function formFromWorkspace(ws) {
     brand_hashtag:           ws.brand_hashtag           ?? '',
     spoken_url:              ws.spoken_url              ?? '',
     skip_review:             !!ws.skip_review,
+    buffer_use_queue:        !!ws.buffer_use_queue,
   }
 }
 
@@ -60,6 +61,7 @@ function formToPatch(form) {
     brand_hashtag:           form.brand_hashtag,
     spoken_url:              form.spoken_url,
     skip_review:             !!form.skip_review,
+    buffer_use_queue:        !!form.buffer_use_queue,
   }
 }
 
@@ -257,6 +259,26 @@ export default function WorkspaceSettings() {
             <div className="text-sm font-medium leading-tight">Skip review step</div>
             <div className="text-xs text-muted-foreground mt-1">
               Editors can publish directly from a draft. No reviewer approval required.
+            </div>
+          </div>
+        </label>
+      </SectionCard>
+
+      <SectionCard
+        title="Publish timing"
+        description="Where the approve action sheet defaults when picking a publish time."
+      >
+        <label className="flex items-start gap-3 rounded-lg border border-input p-3.5 cursor-pointer hover:bg-accent/30 transition-colors">
+          <input
+            type="checkbox"
+            checked={!!form.buffer_use_queue}
+            onChange={(e) => setForm((f) => ({ ...f, buffer_use_queue: e.target.checked }))}
+            className="mt-0.5 h-4 w-4"
+          />
+          <div className="flex-1 min-w-0">
+            <div className="text-sm font-medium leading-tight">Use Buffer&rsquo;s queue by default</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              When approving a post, the primary action becomes &ldquo;Add to Buffer queue&rdquo; — Buffer slots the post into the next open spot on your channel&rsquo;s schedule. Keep this off to use NarrateRx&rsquo;s platform-aware suggested times instead. &ldquo;Pick a specific time&rdquo; and &ldquo;Publish now&rdquo; remain available either way.
             </div>
           </div>
         </label>

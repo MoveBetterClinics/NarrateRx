@@ -71,12 +71,12 @@ const BUFFER_PLATFORMS = [
   'gbp',
 ]
 
-export async function publishItem(item, { scheduledAt } = {}) {
+export async function publishItem(item, { scheduledAt, useQueue } = {}) {
   const { platform, content, mediaUrls = [], locationIds, location_overrides } = item
   const results = {}
 
   if (BUFFER_PLATFORMS.includes(platform)) {
-    const body = { platform, content, mediaUrls, scheduledAt }
+    const body = { platform, content, mediaUrls, scheduledAt, useQueue }
     if (platform === 'gbp') {
       if (locationIds?.length) body.locationIds = locationIds
       // Pass per-location content overrides so the Buffer route posts distinct
@@ -179,17 +179,28 @@ export async function dispatchBrief({
   return { item: created, result }
 }
 
-// Publish one item to all relevant platforms at once
+// Publish one item to all relevant platforms at once.
+//
+// item.useQueue (boolean): when true on a Buffer platform, the post is added
+// to Buffer's existing queue (shareNext) instead of being given a specific
+// dueAt or fired immediately. The resulting content_items row is marked
+// `scheduled` even though we don't know the exact dueAt up-front — Buffer
+// returns one in the webhook payload and downstream sync fills it in.
 export async function publishAndTrack(item, userId) {
-  const result = await publishItem(item, { scheduledAt: item.scheduledAt })
+  const result = await publishItem(item, { scheduledAt: item.scheduledAt, useQueue: item.useQueue })
   const postId = result.buffer?.bufferId
+  const dueAt = result.buffer?.scheduledAt || null
+  const willBeScheduled = !!item.scheduledAt || !!item.useQueue
 
   await updateContentItem(item.id, {
-    status: item.scheduledAt ? 'scheduled' : 'published',
-    publishedAt: item.scheduledAt ? null : new Date().toISOString(),
+    status: willBeScheduled ? 'scheduled' : 'published',
+    publishedAt: willBeScheduled ? null : new Date().toISOString(),
     platformPostId: postId,
     bufferUpdateId: result.buffer?.bufferId,
     approvedBy: userId,
+    // When Buffer assigned the slot (queue mode), echo it back to the row so the
+    // calendar shows the right time without waiting for a webhook round-trip.
+    ...(item.useQueue && dueAt ? { scheduledAt: dueAt } : {}),
   })
 
   return result

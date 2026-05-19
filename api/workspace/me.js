@@ -32,6 +32,7 @@ const PATCHABLE_FIELDS = new Set([
   'story_type_options',
   'publish_topics',
   'skip_review',
+  'buffer_use_queue',
 ])
 
 // Caps for the curated pre-interview slot lists. Must stay in lockstep with

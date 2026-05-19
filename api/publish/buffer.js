@@ -126,7 +126,7 @@ async function handler(req, res) {
   // locationContents: { [workspace_locations.id]: string } — per-location body overrides.
   // Generated at draft time and stored in content_items.location_overrides.
   // Falls back to canonical `content` for any location without an override.
-  const { platform, content, mediaUrls = [], scheduledAt, locationIds, locationContents } = body
+  const { platform, content, mediaUrls = [], scheduledAt, useQueue, locationIds, locationContents } = body
   if (!platform || !content) return res.status(400).json({ error: 'Missing platform or content' })
 
   const service = PLATFORM_TO_SERVICE[platform]
@@ -183,9 +183,14 @@ async function handler(req, res) {
     channelIds = [match.id]
   }
 
-  // 2. Build post payload.
-  //    scheduledAt → customScheduled + dueAt; otherwise shareNow.
-  const mode = scheduledAt ? 'customScheduled' : 'shareNow'
+  // 2. Build post payload. Mode resolution:
+  //    - scheduledAt set → customScheduled + dueAt (specific time we computed)
+  //    - useQueue truthy → shareNext (Buffer slots it into the next open queue
+  //                       position for the channel; ignores scheduledAt)
+  //    - otherwise      → shareNow (immediate publish)
+  // scheduledAt + useQueue together: useQueue wins, scheduledAt is ignored.
+  const mode = useQueue ? 'shareNext' : (scheduledAt ? 'customScheduled' : 'shareNow')
+  const includeDueAt = mode === 'customScheduled'
   const preparedMedia = await prepareMediaForBuffer(mediaUrls)
   const assets = buildAssets(preparedMedia)
   const metadata = buildMetadata(platform, preparedMedia, content)
@@ -206,7 +211,7 @@ async function handler(req, res) {
       mode,
       assets,
       ...(metadata ? { metadata } : {}),
-      ...(scheduledAt ? { dueAt: new Date(scheduledAt).toISOString() } : {}),
+      ...(includeDueAt ? { dueAt: new Date(scheduledAt).toISOString() } : {}),
     }
     const r = await gql(BUFFER_TOKEN, `
       mutation CreatePost($input: CreatePostInput!) {
