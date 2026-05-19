@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Mic, CheckCircle2, MicOff, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Icon from '@/components/ui/Icon'
-import { primeAudioPlayback } from '@/lib/tts'
+import { primeAudioPlayback, createTtsPlayer } from '@/lib/tts'
+
+const SPEAKER_TEST_MESSAGE = "Hi, I'm Bernard. If you can hear me clearly, your speakers are working. Tap the button below to continue."
 
 /**
  * MicCheck — pre-interview audio gate (Strella pattern, extended).
@@ -37,6 +39,11 @@ export default function MicCheck({ onContinue }) {
   const analyserRef = useRef(null)
   const rafRef = useRef(null)
   const testUtteranceRef = useRef(null)
+  const ttsRef = useRef(null)
+  function getTts() {
+    if (!ttsRef.current) ttsRef.current = createTtsPlayer()
+    return ttsRef.current
+  }
 
   useEffect(() => {
     setHasSpeechSynthesis(typeof window !== 'undefined' && !!window.speechSynthesis)
@@ -98,61 +105,68 @@ export default function MicCheck({ onContinue }) {
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
       try { window.speechSynthesis?.cancel() } catch { /* ignore */ }
+      ttsRef.current?.cancel()
     }
   }, [])
 
-  // Plays a TTS sample inside a user-gesture handler. This call doubles as
-  // the iOS speechSynthesis "primer" — once it succeeds, later speak() calls
-  // from async contexts will also play. Must be called synchronously from a
-  // click handler; no awaits before synth.speak().
+  // Plays the speaker-check sample. Tries the neural TTS (ElevenLabs via
+  // /api/tts) first so the user hears the same voice they'll hear in the
+  // interview. Falls back to speechSynthesis if the neural path fails
+  // (env var missing, network error, etc.). Either way, the call originates
+  // inside a click handler so iOS gesture-activation is satisfied.
   function handleTestSpeakers() {
     setStatus('speaker-testing')
 
-    // The neural TTS used in the interview plays via <audio> elements, which
-    // iOS Safari blocks from programmatic .play() unless an Audio element has
-    // already been activated by a user gesture. Prime it here, alongside the
-    // synchronous speechSynthesis.speak() below.
+    // Synchronously prime <audio> within the gesture — must happen before any
+    // async fetch in the neural-TTS path.
     primeAudioPlayback()
 
-    try {
-      const synth = window.speechSynthesis
-      if (!synth) {
-        setStatus('speaker-failed')
-        return
-      }
-      synth.cancel()
-      const utterance = new SpeechSynthesisUtterance(
-        "Hi, I'm Bernard. If you can hear me clearly, your speakers are working. Tap the button below to continue."
-      )
-      utterance.rate = 1.0
-      utterance.pitch = 1.0
-      utterance.volume = 1.0
-      utterance.onend = () => {
-        // Leave the user in 'speaker-testing' so they can answer the yes/no
-        // prompt themselves — we don't auto-advance because some browsers
-        // fire onend even if no audio actually came out.
-      }
-      utterance.onerror = () => {
+    let usedFallback = false
+    function fallbackToSynthesis() {
+      if (usedFallback) return
+      usedFallback = true
+      try {
+        const synth = window.speechSynthesis
+        if (!synth) { setStatus('speaker-failed'); return }
+        synth.cancel()
+        const utterance = new SpeechSynthesisUtterance(SPEAKER_TEST_MESSAGE)
+        utterance.rate = 1.0
+        utterance.pitch = 1.0
+        utterance.volume = 1.0
+        utterance.onerror = () => setStatus('speaker-failed')
+        testUtteranceRef.current = utterance
+        synth.speak(utterance)
+      } catch {
         setStatus('speaker-failed')
       }
-      testUtteranceRef.current = utterance
-      synth.speak(utterance)
-    } catch {
-      setStatus('speaker-failed')
     }
+
+    getTts().speak(SPEAKER_TEST_MESSAGE, {
+      onError: () => {
+        // createTtsPlayer already falls back internally to speechSynthesis on
+        // its own playback errors, so this onError typically only fires when
+        // even synthesis is unavailable. Surface that as speaker-failed.
+        // Trigger our own fallback to be safe in case the internal fallback
+        // path didn't kick in.
+        fallbackToSynthesis()
+      },
+    })
   }
 
   function handleHeardIt() {
+    ttsRef.current?.cancel()
     try { window.speechSynthesis?.cancel() } catch { /* ignore */ }
     setStatus('speaker-ok')
   }
 
   function handleDidNotHear() {
+    ttsRef.current?.cancel()
     try { window.speechSynthesis?.cancel() } catch { /* ignore */ }
     setStatus('speaker-failed')
   }
 
   function handleRetry() {
+    ttsRef.current?.cancel()
     setStatus('mic-active')
   }
 
