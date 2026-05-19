@@ -748,6 +748,28 @@ function ApprovalPanel({ piece }) {
     }
   }
 
+  // Undo approve. Drops the piece back to in_review (or draft if the workspace
+  // skips the review step) and clears the approver audit trail so the next
+  // approver writes a fresh stamp. Only valid while status='approved' — once
+  // the piece is scheduled or published on Buffer, use Cancel/Delete instead.
+  const handleUnapprove = async () => {
+    try {
+      await updateStatus.mutateAsync({
+        id: piece.id,
+        status: skipReview ? 'draft' : 'in_review',
+        approvedBy: null,
+        approvedAt: null,
+      })
+      toast.success('Unapproved', {
+        description: skipReview
+          ? 'Back to draft. Approve again when ready.'
+          : 'Back to in review. Approve again when ready.',
+      })
+    } catch (err) {
+      toast.error('Failed to unapprove', { description: err.message })
+    }
+  }
+
   const handleRequestChanges = async (e) => {
     e.preventDefault()
     if (!changeRequestBody.trim()) return
@@ -968,6 +990,23 @@ function ApprovalPanel({ piece }) {
           >
             {!(isBusy && updateStatus.isPending) && <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />}
             Approve
+          </Button>
+        )}
+
+        {/* Unapprove — reviewer only, while still on approved (pre-Buffer). Once
+            the piece is scheduled or published the post lives on Buffer and the
+            undo path is Cancel scheduled / Delete published, not Unapprove. */}
+        {piece.status === 'approved' && canReview && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleUnapprove}
+            disabled={isBusy}
+            loading={isBusy && updateStatus.isPending}
+            className="border-amber-300 text-amber-700 hover:bg-amber-50"
+          >
+            {!(isBusy && updateStatus.isPending) && <RotateCcw className="h-3.5 w-3.5 mr-1.5" />}
+            Unapprove
           </Button>
         )}
 
