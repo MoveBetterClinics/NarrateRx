@@ -48,6 +48,21 @@ let sharedAudio = null
 let currentBlobUrl = null
 let isPrimed = false
 
+// Subscribers notified when the audio element fails persistently (route
+// change, audio-session interruption from CarPlay/headphones/incoming call,
+// etc.). UI can render a "Tap to restore audio" affordance to re-prime.
+/** @type {Set<() => void>} */
+const audioFailureSubscribers = new Set()
+
+export function onAudioPlaybackFailure(handler) {
+  audioFailureSubscribers.add(handler)
+  return () => audioFailureSubscribers.delete(handler)
+}
+
+function notifyAudioFailure() {
+  audioFailureSubscribers.forEach((h) => { try { h() } catch { /* ignore */ } })
+}
+
 function ensureSharedAudio() {
   if (typeof window === 'undefined') return null
   if (!sharedAudio) {
@@ -55,6 +70,25 @@ function ensureSharedAudio() {
     sharedAudio.preload = 'auto'
   }
   return sharedAudio
+}
+
+/**
+ * Tear down the shared audio element and reset priming. Call from inside a
+ * user gesture (followed immediately by primeAudioPlayback) when the audio
+ * session has been interrupted and the element is in a broken state — e.g.
+ * iOS audio route changed under us and .play() now silently no-ops.
+ */
+export function resetAudioPlayback() {
+  if (sharedAudio) {
+    try { sharedAudio.pause() } catch { /* ignore */ }
+    try { sharedAudio.src = '' } catch { /* ignore */ }
+    sharedAudio = null
+  }
+  if (currentBlobUrl) {
+    try { URL.revokeObjectURL(currentBlobUrl) } catch { /* ignore */ }
+    currentBlobUrl = null
+  }
+  isPrimed = false
 }
 
 function clearBlobUrl() {
@@ -222,7 +256,15 @@ export function createTtsPlayer() {
     onErrorHandler = () => {
       const err = a.error || new Error('audio playback failed')
       detachHandlers()
+      // Audio session is likely interrupted (iOS route change, BT
+      // disconnect, etc.). Tear down the element so the next user gesture
+      // can re-prime a fresh one — the existing element often stays in a
+      // broken state where .play() resolves silently.
+      resetAudioPlayback()
+      notifyAudioFailure()
       opts.onError?.(err)
+      // Still try synthesis as a last-ditch — harmless on iOS (silent), but
+      // works on desktop browsers where ElevenLabs may be the only fault.
       usingSynthesis = true
       speakViaSynthesis(text, opts)
     }
@@ -241,9 +283,14 @@ export function createTtsPlayer() {
       }
     } catch {
       // iOS autoplay block (element never primed, or unlock decayed under
-      // load), or element disposed mid-await. Fall through to synthesis.
+      // load), or element disposed mid-await. Fall through to synthesis,
+      // but also notify subscribers so the UI can offer a "Tap to restore
+      // audio" affordance — synthesis is silent on iOS in non-gesture
+      // contexts, so a fallback alone isn't a real recovery.
       if (signal.aborted) return
       detachHandlers()
+      resetAudioPlayback()
+      notifyAudioFailure()
       usingSynthesis = true
       speakViaSynthesis(text, opts)
     }

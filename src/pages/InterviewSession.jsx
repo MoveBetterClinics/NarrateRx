@@ -22,7 +22,7 @@ import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import MicCheck from '@/components/MicCheck'
-import { createTtsPlayer } from '@/lib/tts'
+import { createTtsPlayer, primeAudioPlayback, onAudioPlaybackFailure } from '@/lib/tts'
 
 // Concrete noun list for shallow-answer detection (Feature 2)
 const CONCRETE_NOUNS = ['patient', 'person', 'name', 'case', 'example', 'time', 'moment', 'client', 'athlete', 'runner', 'worker']
@@ -172,6 +172,10 @@ export default function InterviewSession() {
     !!(window.SpeechRecognition || window.webkitSpeechRecognition)
   const [typedAnswer, setTypedAnswer] = useState('')
   const [isSpeaking, setIsSpeaking] = useState(false)
+  // True after an audio playback failure (iOS route change, BT disconnect,
+  // audio-session interruption). Surfaces a "Tap to restore audio" button so
+  // the user can re-prime audio inside a fresh user gesture.
+  const [audioInterrupted, setAudioInterrupted] = useState(false)
   const [showInstructions, setShowInstructions] = useState(true)
   // micCheckPassed gates the mic check screen shown after the pre-interview
   // instructions but before the AI sends its first question.
@@ -465,6 +469,14 @@ export default function InterviewSession() {
     }
   }, [])
 
+  // Subscribe to global audio-playback failures (iOS route change, BT
+  // disconnect, audio session interruption). When one fires we surface a
+  // recovery button rather than letting the interview proceed silently.
+  useEffect(() => {
+    const unsubscribe = onAudioPlaybackFailure(() => setAudioInterrupted(true))
+    return unsubscribe
+  }, [])
+
   function speak(text) {
     setIsSpeaking(true)
     getTts().speak(text, {
@@ -475,6 +487,18 @@ export default function InterviewSession() {
       },
       onError: () => setIsSpeaking(false),
     })
+  }
+
+  // Called from inside the user-gesture "Restore audio" click handler.
+  // Rebuilds a primed <audio> element and re-speaks the most recent
+  // assistant message so the user catches up on what they missed.
+  function handleRestoreAudio() {
+    primeAudioPlayback()
+    setAudioInterrupted(false)
+    const lastAssistant = [...messagesRef.current].reverse().find((m) => m.role === 'assistant')
+    if (lastAssistant && !interviewComplete) {
+      speak(stripGapToken(stripAgreementToken(stripContrastToken(lastAssistant.content))))
+    }
   }
 
   useEffect(() => {
@@ -1343,6 +1367,28 @@ export default function InterviewSession() {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {!interviewComplete && isOwner && audioInterrupted && (
+        <div className="pt-3 pb-1 shrink-0">
+          <button
+            type="button"
+            onClick={handleRestoreAudio}
+            className="w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 active:bg-amber-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            aria-label="Audio interrupted. Tap to restore audio and replay the last question."
+          >
+            <div className="flex items-center gap-3">
+              <Volume2 className="h-5 w-5 text-amber-700 shrink-0" aria-hidden="true" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-amber-900">Audio interrupted</p>
+                <p className="text-xs text-amber-800">
+                  Tap to restore audio and replay the last question. Often happens when headphones or CarPlay change connection.
+                </p>
+              </div>
+              <RefreshCw className="h-4 w-4 text-amber-700 shrink-0" aria-hidden="true" />
+            </div>
+          </button>
         </div>
       )}
 
