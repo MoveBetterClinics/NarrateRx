@@ -134,17 +134,6 @@ export const ATOM_DEFINITIONS = {
   ],
 }
 
-// Suggested publish date for an atom slot: anchor + (slot - 1) weeks at 9am UTC.
-// Used by the draft endpoint to pre-fill content_items.scheduled_at so each
-// drafted atom is auto-placed on the calendar at the cadence the Plan implies.
-// Returns an ISO string; the anchor is typically interview.created_at.
-export function suggestedScheduledAt(anchorIso, slot) {
-  const d = new Date(anchorIso)
-  d.setDate(d.getDate() + (Math.max(1, slot) - 1) * 7)
-  d.setUTCHours(9, 0, 0, 0)
-  return d.toISOString()
-}
-
 // Map a workspace enabled_outputs channel id (from src/lib/outputChannels.js)
 // to the ATOM_DEFINITIONS platform key it corresponds to. Most channel ids
 // match an atom platform 1:1 (facebook, linkedin, gbp, pinterest, tiktok,
