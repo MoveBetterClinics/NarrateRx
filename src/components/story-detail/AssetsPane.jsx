@@ -14,6 +14,7 @@ import { ClinicianChip } from '@/components/ClinicianChip'
 import { PLATFORM_META, STATUS_META } from '@/lib/contentMeta'
 import { getStageToken } from '@/lib/stageTokens'
 import { getPatientPrototypesUi } from '@/lib/prompts'
+import { LENGTH_PRESETS, resolveLengthPreset } from '@/lib/lengthPresets'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import {
@@ -339,10 +340,23 @@ function RegenerateButton({ piece, story }) {
   const workspace = useWorkspace()
   const [confirming, setConfirming] = useState(false)
 
+  // Length preset is only meaningful for blog (the only long-form piece with a
+  // server-side regenerate prompt today). Seeded from the piece's persisted
+  // preset, then the clinician's preferred default, then 'standard'.
+  const isBlog = piece.platform === 'blog'
+  const initialLengthPreset = resolveLengthPreset(
+    piece.length_preset,
+    story?.clinician?.preferred_length,
+  )
+  const [lengthPreset, setLengthPreset] = useState(initialLengthPreset)
+
   const handleRegenerate = async () => {
     setConfirming(false)
     try {
-      await regenerate.mutateAsync({ id: piece.id })
+      await regenerate.mutateAsync({
+        id: piece.id,
+        ...(isBlog ? { lengthPreset } : {}),
+      })
       toast.success('Regenerated', { description: 'Content rewritten and reset to draft.' })
     } catch (e) {
       toast.error('Regeneration failed', { description: e.message })
@@ -365,6 +379,10 @@ function RegenerateButton({ piece, story }) {
       if (proto?.label) bullets.push(`'${proto.label}' prototype`)
     }
     if (story?.tone) bullets.push(`${story.tone} tone`)
+    if (isBlog) {
+      const preset = LENGTH_PRESETS.find((p) => p.id === lengthPreset)
+      if (preset) bullets.push(`${preset.label} length`)
+    }
     return bullets
   })()
 
@@ -379,16 +397,41 @@ function RegenerateButton({ piece, story }) {
 
   if (confirming) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs">
-        <span className="text-amber-800">
-          Replace this draft with a fresh AI generation? Current text and approval state will be lost.
-          {piece.clinician_name && (
-            <span className="block mt-0.5 text-amber-700/80">
-              Bernard will apply {piece.clinician_name}&rsquo;s voice settings.
-            </span>
-          )}
-        </span>
-        <div className="ml-auto flex gap-1.5 shrink-0">
+      <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs space-y-2">
+        <div className="flex items-start gap-2">
+          <span className="text-amber-800">
+            Replace this draft with a fresh AI generation? Current text and approval state will be lost.
+            {piece.clinician_name && (
+              <span className="block mt-0.5 text-amber-700/80">
+                Bernard will apply {piece.clinician_name}&rsquo;s voice settings.
+              </span>
+            )}
+          </span>
+        </div>
+        {isBlog && (
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-amber-200">
+            <span className="text-amber-800 font-medium mr-1">Length:</span>
+            {LENGTH_PRESETS.map((p) => {
+              const selected = p.id === lengthPreset
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setLengthPreset(p.id)}
+                  title={`${p.description} (${p.targetWords} words)`}
+                  className={`rounded-full border px-2 py-0.5 text-2xs transition ${
+                    selected
+                      ? 'border-amber-500 bg-amber-200 text-amber-900 font-medium'
+                      : 'border-amber-300 bg-white text-amber-700 hover:bg-amber-100'
+                  }`}
+                >
+                  {p.emoji} {p.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <div className="flex gap-1.5 justify-end">
           <Button
             size="sm"
             variant="outline"

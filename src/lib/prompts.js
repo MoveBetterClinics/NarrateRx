@@ -1,3 +1,5 @@
+import { getLengthPreset, DEFAULT_LENGTH_PRESET } from './lengthPresets.js'
+
 // All paradigm content (tone modifiers, interview/PNW context, patient
 // prototypes, topic suggestions) is now stored per-workspace in JSONB
 // columns and read at render time. Empty / missing → empty string
@@ -261,6 +263,17 @@ ${examples}
 `
 }
 
+// Resolve the TARGET LENGTH line for blog prompts. When the caller passes an
+// explicit length preset ('tight' / 'expansive'), substitute that preset's
+// override line for the prompt's hardcoded default; otherwise (null or
+// 'standard') return the default unchanged. Centralized here so both clinical
+// and general blog prompts share the same behavior.
+function resolveBlogLengthLine(presetId, defaultLine) {
+  if (!presetId || presetId === DEFAULT_LENGTH_PRESET) return defaultLine
+  const preset = getLengthPreset(presetId)
+  return preset?.overrideLengthLine || defaultLine
+}
+
 // Appended to long-form generation prompts (blog + minimal-edits). Instructs
 // the model to emit a single trailing JSON block that maps each paragraph in
 // the generated content back to a user-message index + character span in the
@@ -458,9 +471,9 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
-export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null) {
+export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null, lengthPreset = null) {
   if (isGeneralMode(workspace)) {
-    return getGeneralBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot)
+    return getGeneralBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset)
   }
   const isPersonal = voiceMode === 'personal'
   const audiencePhrase = audienceSlot ? audienceSlot.label : (workspace.region ? `${workspace.region} readers` : 'readers')
@@ -526,7 +539,7 @@ ${isPersonal ? '' : `
 ---
 *${workspace.display_name} · ${workspace.location}*
 `}
-TARGET LENGTH: 700–950 words. Write like a human who genuinely cares about helping people move better — not like a content marketing checklist.
+${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 700–950 words. Write like a human who genuinely cares about helping people move better — not like a content marketing checklist.')}
 ${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
 }
 
@@ -926,7 +939,7 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
-function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot) {
+function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset = null) {
   const isPersonal = voiceMode === 'personal'
   const audiencePhrase = audienceSlot ? audienceSlot.label : 'readers'
   const storyTypeNote = storyTypeSlot
@@ -958,7 +971,7 @@ WRITING RULES:
 - Section headers should be content-specific (what the section is actually about), not generic ("Introduction" / "Conclusion").
 ${isPersonal ? `- First-person throughout. Preserve "I" / "my" / "me." End with a signature line: "— ${expertName}, ${workspace.display_name}".` : '- Match the brand voice. Use "we" / "our" if the brand voice is collective; otherwise default to the expert\'s voice.'}
 
-TARGET LENGTH: 900–1200 words. Write like a human who has a genuine perspective to share — not like a content marketing checklist.
+${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 900–1200 words. Write like a human who has a genuine perspective to share — not like a content marketing checklist.')}
 ${ctaSection}
 ${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
 }

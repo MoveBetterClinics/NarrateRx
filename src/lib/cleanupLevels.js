@@ -16,9 +16,9 @@ export const CLEANUP_LEVELS = [
   },
   {
     id: 'balanced',
-    label: 'Balanced',
+    label: 'Light cleanup',
     emoji: '⚖️',
-    description: 'Remove filler words and re-flow run-ons, keep the voice intact.',
+    description: 'Remove filler words and re-flow run-ons, keep the voice intact. (Does not affect blog or newsletter length — use the Length picker on the piece for that.)',
   },
   {
     id: 'polished',

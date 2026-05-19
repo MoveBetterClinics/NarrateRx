@@ -31,6 +31,9 @@ import {
 } from '../../src/lib/prompts.js'
 import { applyLocationOverlay } from '../../src/lib/locationOverlay.js'
 import { extractProvenanceBlock } from '../../src/lib/provenance.js'
+import { resolveLengthPreset, LENGTH_PRESETS } from '../../src/lib/lengthPresets.js'
+
+const VALID_LENGTH_PRESETS = new Set(LENGTH_PRESETS.map((p) => p.id))
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -67,8 +70,11 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   const wsFilter = `workspace_id=eq.${ws.id}`
 
-  const { id } = req.body || {}
+  const { id, length_preset: bodyLengthPreset } = req.body || {}
   if (!id) return err(res, 'Missing id')
+  if (bodyLengthPreset != null && !VALID_LENGTH_PRESETS.has(bodyLengthPreset)) {
+    return err(res, `Invalid length_preset: ${bodyLengthPreset}`)
+  }
 
   // Load the content_item under workspace scope.
   const itemRes = await sb(`content_items?id=eq.${id}&${wsFilter}&select=*`)
@@ -91,13 +97,14 @@ export default async function handler(req, res) {
   if (!ivRows.length) return err(res, 'Interview not found', 404)
   const interview = ivRows[0]
 
-  // Load clinician (name + voice_notes) — workspace-scoped to prevent FK leakage.
+  // Load clinician (name + voice_notes + preferred_length) — workspace-scoped to prevent FK leakage.
   let clinicianName = ''
   let voiceNotes = ''
   let voicePhrases = []
+  let clinicianPreferredLength = null
   if (interview.clinician_id) {
     const [clinRes, phrasesRes] = await Promise.all([
-      sb(`clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name,voice_notes`),
+      sb(`clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name,voice_notes,preferred_length`),
       // Top voice phrase anchors (Phase C.2). Weight desc → strongest first.
       sb(
         `clinician_voice_phrases?clinician_id=eq.${interview.clinician_id}&${wsFilter}` +
@@ -106,13 +113,22 @@ export default async function handler(req, res) {
     ])
     if (clinRes.ok) {
       const rows = await clinRes.json()
-      clinicianName = rows[0]?.name ?? ''
-      voiceNotes    = rows[0]?.voice_notes ?? ''
+      clinicianName            = rows[0]?.name ?? ''
+      voiceNotes               = rows[0]?.voice_notes ?? ''
+      clinicianPreferredLength = rows[0]?.preferred_length ?? null
     }
     if (phrasesRes.ok) {
       voicePhrases = await phrasesRes.json()
     }
   }
+
+  // Resolve length preset: explicit request body wins, else persisted on the
+  // piece, else clinician default, else 'standard'. Only consulted by the
+  // blog path below.
+  const effectiveLengthPreset = resolveLengthPreset(
+    bodyLengthPreset ?? item.length_preset,
+    clinicianPreferredLength,
+  )
 
   // Look up a content_plan_atom that owns this piece, if any.
   const atomRes = await sb(
@@ -247,6 +263,9 @@ export default async function handler(req, res) {
         interview.prototype_id,
         voiceNotes,
         voicePhrases,
+        null, // audienceSlot — not currently threaded through regenerate
+        null, // storyTypeSlot — not currently threaded through regenerate
+        effectiveLengthPreset,
       ) + buildVerbatimBlock(interview.verbatim_flags)
 
       const messages = [
@@ -280,6 +299,11 @@ export default async function handler(req, res) {
       approved_at:         null,
       reviewed_by:         null,
       updated_at:          new Date().toISOString(),
+    }
+    // Persist the length preset on the piece only when the request explicitly
+    // supplied one. Leaves legacy pieces with NULL → 'inherit clinician default'.
+    if (bodyLengthPreset != null && updatedBlogPost) {
+      patch.length_preset = bodyLengthPreset
     }
     const upd = await sb(`content_items?id=eq.${id}&${wsFilter}`, {
       method: 'PATCH',
