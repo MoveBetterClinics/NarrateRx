@@ -71,14 +71,14 @@ export default function StoryCard({ story }) {
         queryFn: () => fetchStory(id),
         staleTime: 30_000,
       })}
-      className="block bg-card rounded-lg shadow-sm border border-border p-4 hover:shadow-md hover:border-border/60 transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="block bg-white rounded-2xl border border-border p-4 shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:-translate-y-0.5 hover:border-[#fde0d2] hover:shadow-[0_8px_24px_-16px_rgba(15,23,42,0.18)] transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
     >
       {/* Top row: topic (primary, differentiating) + stage badge */}
       <div className="flex items-start justify-between gap-2 mb-2">
-        <p className="text-sm font-medium text-foreground line-clamp-2 leading-snug min-w-0">
+        <p className="text-sm font-semibold text-foreground line-clamp-2 leading-snug min-w-0">
           {topic || <span className="italic text-muted-foreground">No topic set</span>}
         </p>
-        <span className={`shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${badgeClass}`}>
+        <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${badgeClass}`}>
           {stageLabel}
         </span>
       </div>
@@ -101,7 +101,7 @@ export default function StoryCard({ story }) {
           {platforms.map((p) => (
             <span
               key={p}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground bg-muted border border-border rounded px-1.5 py-0.5"
+              className="inline-flex items-center gap-1 text-2xs font-semibold text-slate-600 bg-slate-50 border border-slate-200 rounded-full px-2 py-0.5"
             >
               <span className={`w-1.5 h-1.5 rounded-full ${PLATFORM_DOT[p] ?? 'bg-gray-400'}`} />
               {PLATFORM_SHORT[p] ?? p}
@@ -117,7 +117,7 @@ export default function StoryCard({ story }) {
           {last_activity_at ? ` · ${formatRelativeDate(last_activity_at)}` : ''}
         </span>
         {campaign_id && campaign_name ? (
-          <span className="inline-flex items-center gap-1 shrink-0 text-xs font-medium rounded px-1.5 py-0.5 border border-warning/30 bg-warning/10 text-warning">
+          <span className="inline-flex items-center gap-1 shrink-0 text-2xs font-semibold rounded-full px-2 py-0.5 border border-warning/30 bg-warning/10 text-warning">
             <Target className="w-3 h-3" aria-hidden="true" />
             {campaign_name}
           </span>

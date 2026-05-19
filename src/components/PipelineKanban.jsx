@@ -12,12 +12,15 @@ import { getContentStatusToken } from '@/lib/contentStatusTokens'
 // on the story/asset card (StoryDetail → AssetsPane), never here. Lane
 // colours (accent/badge) and labels come from contentStatusTokens — this
 // file only owns lane order, icon, and publisher-inbox flagging.
+// Per-lane accent rail color (used by the blend theme — the colored 4px
+// bar next to each lane heading). These align with contentStatusTokens
+// hues so the rail reinforces the badge color rather than competing.
 const LANES = [
-  { id: 'draft',     icon: FileText,     publisherInbox: false },
-  { id: 'in_review', icon: Clock,        publisherInbox: false },
-  { id: 'approved',  icon: CheckCircle2, publisherInbox: true  },
-  { id: 'scheduled', icon: CalendarDays, publisherInbox: false },
-  { id: 'published', icon: Send,         publisherInbox: false },
+  { id: 'draft',     icon: FileText,     publisherInbox: false, rail: '#94a3b8' /* slate-400 */ },
+  { id: 'in_review', icon: Clock,        publisherInbox: false, rail: '#d97706' /* amber-600 */ },
+  { id: 'approved',  icon: CheckCircle2, publisherInbox: true,  rail: '#e36525' /* primary    */ },
+  { id: 'scheduled', icon: CalendarDays, publisherInbox: false, rail: '#7c3aed' /* violet-600 */ },
+  { id: 'published', icon: Send,         publisherInbox: false, rail: '#059669' /* emerald-600 */ },
 ]
 
 export default function PipelineKanban({ items }) {
@@ -38,21 +41,38 @@ export default function PipelineKanban({ items }) {
 function Lane({ lane, items, isPublisherInbox }) {
   const Icon = lane.icon
   const token = getContentStatusToken(lane.id)
+  // Publisher inbox gets the warm-tint card treatment (matches .nx-card-hi)
+  // so the "do this now" lane visually pops above the others. Other lanes
+  // stay on neutral card surface.
+  const surface = isPublisherInbox
+    ? 'border-[#f3d3b5] bg-gradient-to-b from-white to-[#fefaf7] shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-18px_rgba(227,101,37,0.25)]'
+    : 'border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.03)]'
   return (
-    <div
-      className={`rounded-xl border p-3 ${token.accent} ${
-        isPublisherInbox ? 'bg-blue-50/60' : 'bg-card'
-      }`}
-    >
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-1.5">
-          <Icon className={`h-3.5 w-3.5 ${isPublisherInbox ? 'text-blue-600' : 'text-muted-foreground'}`} />
-          <span className={`text-xs font-medium ${isPublisherInbox ? 'text-blue-700' : ''}`}>{token.label}</span>
+    <div className={`rounded-2xl border p-3 ${surface}`}>
+      <div className="flex items-center justify-between gap-2 mb-3 px-1">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="inline-block w-1 h-5 rounded-full shrink-0"
+            style={{ background: lane.rail }}
+            aria-hidden="true"
+          />
+          <Icon className={`h-3.5 w-3.5 ${isPublisherInbox ? 'text-primary' : 'text-muted-foreground'}`} />
+          <span className={`text-sm font-bold tracking-tight ${isPublisherInbox ? 'text-[#7a3a14]' : 'text-foreground'}`}>
+            {token.label}
+          </span>
           {isPublisherInbox && items.length > 0 && (
-            <span className="text-3xs font-semibold uppercase tracking-wide text-blue-500 ml-0.5">your queue</span>
+            <span className="text-3xs font-bold uppercase tracking-wider text-primary ml-0.5">
+              your queue
+            </span>
           )}
         </div>
-        <span className={`text-3xs font-medium rounded-full px-1.5 py-0.5 ${token.badge}`}>
+        <span
+          className={
+            isPublisherInbox
+              ? 'text-3xs font-bold rounded-full px-2 py-0.5 bg-primary text-primary-foreground'
+              : `text-3xs font-semibold rounded-full px-2 py-0.5 ${token.badge}`
+          }
+        >
           {items.length}
         </span>
       </div>
@@ -91,25 +111,25 @@ function Card({ item }) {
   return (
     <Link
       to={href}
-      className="block rounded-lg border bg-background p-2 text-xs space-y-1.5 hover:border-primary/30 hover:bg-accent/20 transition-colors"
+      className="block rounded-xl border border-border bg-white p-2.5 text-xs space-y-1.5 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#fde0d2] hover:shadow-[0_8px_20px_-16px_rgba(15,23,42,0.18)]"
     >
       <div className="flex items-center justify-between gap-1.5">
-        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${pm.bg}`}>
+        <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${pm.bg}`}>
           <Icon className={`h-2.5 w-2.5 ${pm.color}`} />
-          <span className={`text-3xs font-medium ${pm.color}`}>{pm.label}</span>
+          <span className={`text-3xs font-semibold ${pm.color}`}>{pm.label}</span>
         </div>
         <div className="flex items-center gap-1">
           {showVoiceDrift && <VoiceDriftChip provenance={item.provenance} />}
           {hasMedia && <ImageIcon className="h-3 w-3 text-muted-foreground" />}
         </div>
       </div>
-      <p className="font-medium leading-snug line-clamp-2">{item.topic}</p>
+      <p className="font-semibold leading-snug line-clamp-2 text-foreground">{item.topic}</p>
       {snippet && <p className="text-muted-foreground text-2xs line-clamp-2">{snippet}</p>}
-      <div className="flex items-center justify-between gap-2 text-3xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 text-3xs text-muted-foreground pt-1 border-t border-slate-100">
         <span className="truncate">
           {scheduledAt ? scheduledAt.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' }) : formatRelativeDate(item.updated_at)}
         </span>
-        <span className="text-primary shrink-0 inline-flex items-center gap-0.5">
+        <span className="text-primary shrink-0 inline-flex items-center gap-0.5 font-semibold">
           <ExternalLink className="h-2.5 w-2.5" />
           Open
         </span>

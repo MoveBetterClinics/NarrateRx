@@ -25,7 +25,7 @@ export default function StoriesViewToggle({ defaultView = 'cards' }) {
   }
 
   return (
-    <div className="inline-flex items-center bg-gray-100 rounded-lg p-1 gap-0.5">
+    <div className="inline-flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-0.5">
       {VIEWS.map(({ key, label }) => {
         const isActive = current === key
         return (
@@ -35,8 +35,8 @@ export default function StoriesViewToggle({ defaultView = 'cards' }) {
             onClick={() => setView(key)}
             className={
               isActive
-                ? 'px-3 py-1.5 text-sm font-medium text-gray-900 bg-white shadow-sm rounded-md transition-all'
-                : 'px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 rounded-md transition-all'
+                ? 'px-3 py-1.5 text-sm font-semibold text-foreground bg-white shadow-sm rounded-lg transition-all ring-1 ring-slate-200/60'
+                : 'px-3 py-1.5 text-sm font-medium text-slate-500 hover:text-foreground rounded-lg transition-all'
             }
           >
             {label}

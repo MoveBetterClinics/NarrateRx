@@ -26,8 +26,9 @@ const STAGES = [
 ]
 
 const SELECT_CLS =
-  'shrink-0 rounded border border-border bg-background px-2.5 py-1 text-xs text-foreground ' +
-  'cursor-pointer hover:bg-accent/50 transition-colors focus:outline-none focus:ring-1 focus:ring-ring'
+  'shrink-0 rounded-full border border-border bg-white px-3 py-1.5 text-xs font-medium text-foreground ' +
+  'cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-colors ' +
+  'focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50'
 
 /**
  * Stories page — top-level IA surface.
@@ -111,11 +112,21 @@ export default function Stories() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-3 min-w-0">
-            <h1 className="text-xl font-semibold text-foreground">{mineOnly ? 'My stories' : 'Stories'}</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center">
+              <span className="nx-rail" aria-hidden="true" />
+              {mineOnly ? 'My stories' : 'Stories'}
+            </h1>
             {!isLoading && stories.length > 0 ? (
-              <span className="text-xs text-muted-foreground truncate">
+              <span className="text-sm text-muted-foreground truncate">
                 {stories.length === 1 ? '1 story' : `${stories.length} stories`}
-                {awaitingReviewCount > 0 ? ` · ${awaitingReviewCount} awaiting review` : ''}
+                {awaitingReviewCount > 0 ? (
+                  <>
+                    {' · '}
+                    <span className="text-primary font-semibold">
+                      {awaitingReviewCount} awaiting review
+                    </span>
+                  </>
+                ) : ''}
               </span>
             ) : null}
           </div>
@@ -132,7 +143,7 @@ export default function Stories() {
           <button
             type="button"
             onClick={clearOwner}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 text-primary px-3 py-1 text-xs font-medium hover:bg-primary/20 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-[hsl(20_60%_95%)] text-[#c04d18] px-3 py-1.5 text-xs font-semibold hover:bg-[hsl(20_70%_92%)] transition-colors"
           >
             <User className="h-3 w-3" aria-hidden="true" />
             Mine only
@@ -145,7 +156,7 @@ export default function Stories() {
           <button
             type="button"
             onClick={clearCampaign}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 text-warning px-3 py-1 text-xs font-medium hover:bg-warning/20 transition-colors"
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-warning/40 bg-warning/10 text-warning px-3 py-1.5 text-xs font-semibold hover:bg-warning/20 transition-colors"
           >
             <Target className="h-3 w-3" aria-hidden="true" />
             Campaign: {activeCampaignObj.name}

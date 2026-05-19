@@ -25,12 +25,13 @@ export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
 
   if (targetTotal === 0) {
     return (
-      <div className="rounded-lg border border-warning/30 bg-warning/10 text-warning p-4">
-        <div className="flex items-center gap-3">
-          <Target className="h-5 w-5 shrink-0" aria-hidden="true" />
-          <span className="font-medium">{campaign.name}</span>
-          <span className="text-sm text-warning/90">No clinicians targeted yet</span>
-        </div>
+      <div className="nx-grad-ribbon flex items-center gap-3 flex-wrap">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-xs font-semibold">
+          <Target className="h-3.5 w-3.5" aria-hidden="true" />
+          Active campaign
+        </span>
+        <span className="font-semibold text-sm">{campaign.name}</span>
+        <span className="text-xs text-white/85">No clinicians targeted yet</span>
       </div>
     )
   }
@@ -42,54 +43,53 @@ export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
   })
 
   return (
-    <div className="rounded-lg border border-warning/30 bg-warning/10 text-warning p-4">
-      <div className="flex items-start gap-3">
-        <Target className="h-5 w-5 mt-0.5 shrink-0" aria-hidden="true" />
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span className="font-medium">{campaign.name} campaign</span>
-            <span className="text-sm text-warning/90">
-              {contributed} of {targetTotal}{' '}
-              {targetTotal === 1 ? 'clinician has' : 'clinicians have'} contributed
-            </span>
-          </div>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-white/30 overflow-hidden">
+    <div className="nx-grad-ribbon">
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 border border-white/30 px-2.5 py-0.5 text-xs font-semibold shrink-0">
+            <Target className="h-3.5 w-3.5" aria-hidden="true" />
+            Active campaign
+          </span>
+          <span className="font-semibold text-sm truncate">
+            {campaign.name} — {contributed} of {targetTotal}{' '}
+            {targetTotal === 1 ? 'clinician has' : 'clinicians have'} contributed
+          </span>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="h-1.5 w-32 sm:w-40 rounded-full bg-white/25 overflow-hidden">
             <div
-              className="h-full bg-warning transition-all duration-300"
+              className="h-full bg-white transition-all duration-300"
               style={{ width: `${pct}%` }}
             />
           </div>
-          {pendingClinicians.length > 0 ? (
-            <>
-              <button
-                type="button"
-                onClick={() => setShowPending((v) => !v)}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-warning hover:underline"
-              >
-                {showPending ? 'Hide pending' : "View who's pending"}
-                {showPending
-                  ? <ChevronUp className="h-3 w-3" aria-hidden="true" />
-                  : <ChevronDown className="h-3 w-3" aria-hidden="true" />}
-              </button>
-              {showPending ? (
-                <ul className="mt-3 flex flex-col gap-1.5">
-                  {pendingClinicians.map(({ id, name }) => (
-                    <li key={id} className="flex items-center gap-2">
-                      <ClinicianChip id={id} name={name} size="sm" showName
-                        nameClassName="text-warning/90 text-xs font-medium"
-                      />
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-            </>
-          ) : (
-            <p className="mt-2 text-xs font-medium text-warning/90">
-              All targeted clinicians have contributed.
-            </p>
-          )}
+          <span className="text-xs font-semibold opacity-90 tabular-nums">{pct}%</span>
         </div>
       </div>
+      {pendingClinicians.length > 0 ? (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setShowPending((v) => !v)}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-white/90 hover:text-white hover:underline underline-offset-2"
+          >
+            {showPending ? 'Hide pending' : "View who's pending"}
+            {showPending
+              ? <ChevronUp className="h-3 w-3" aria-hidden="true" />
+              : <ChevronDown className="h-3 w-3" aria-hidden="true" />}
+          </button>
+          {showPending ? (
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {pendingClinicians.map(({ id, name }) => (
+                <li key={id} className="flex items-center gap-2 bg-white/10 border border-white/15 rounded-full pl-1 pr-3 py-0.5">
+                  <ClinicianChip id={id} name={name} size="sm" showName
+                    nameClassName="text-white/95 text-xs font-medium"
+                  />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   )
 }

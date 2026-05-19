@@ -1,0 +1,429 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NarrateRx — Stories (Blend)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0b1220; --ink-2: #1f2937; --ink-soft: #475569;
+    --bg: #f7f8fb; --paper: #ffffff;
+    --line: #e5e7eb; --line-soft: #eef2f7;
+
+    --primary: #e36525; --primary-2: #c04d18; --primary-3: #7a3a14;
+    --tint: #fff7f0; --tint-2: #fde0d2;
+
+    --emerald: #059669; --emerald-bg: #ecfdf5;
+    --amber: #d97706;   --amber-bg:   #fff7ed;
+    --sky: #0284c7;     --sky-bg:     #e0f2fe;
+    --violet: #7c3aed;  --violet-bg:  #f5f3ff;
+    --rose: #e11d48;    --rose-bg:    #fff1f2;
+    --slate-bg: #f1f5f9;
+
+    --grad: linear-gradient(135deg, #ff7a3d 0%, #f43f5e 55%, #7c3aed 100%);
+  }
+  html, body { background: var(--bg); color: var(--ink); font-family: 'Geist','Inter',system-ui,sans-serif; }
+  h1, h2, h3, h4 { letter-spacing: -0.025em; font-weight: 700; }
+  .container-narrow { max-width: 1280px; margin: 0 auto; padding: 24px; }
+
+  .card { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,0.03); }
+  .pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 600; line-height: 1.4; white-space: nowrap; }
+  .pill-emerald { background: var(--emerald-bg); color: var(--emerald); }
+  .pill-amber   { background: var(--amber-bg);   color: var(--amber);   }
+  .pill-sky     { background: var(--sky-bg);     color: var(--sky);     }
+  .pill-violet  { background: var(--violet-bg);  color: var(--violet);  }
+  .pill-rose    { background: var(--rose-bg);    color: var(--rose);    }
+  .pill-tint    { background: var(--tint);       color: var(--primary-2); border: 1px solid var(--tint-2); }
+  .pill-ink     { background: var(--slate-bg);   color: var(--ink-soft);}
+  .pill-primary { background: var(--primary);    color: #fff;           }
+
+  .btn-primary { background: var(--primary); color: #fff; font-weight: 600; border-radius: 10px; box-shadow: 0 1px 0 rgba(0,0,0,0.05), 0 6px 16px -10px rgba(227,101,37,0.55); transition: background .15s; }
+  .btn-primary:hover { background: var(--primary-2); }
+  .btn-secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); font-weight: 600; border-radius: 10px; }
+  .btn-secondary:hover { background: #f8fafc; }
+  .btn-ghost { color: var(--ink-2); font-weight: 500; border-radius: 8px; }
+  .btn-ghost:hover { background: var(--slate-bg); }
+
+  .topbar { background: #fff; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 40; }
+
+  .grad-ribbon { background: var(--grad); border-radius: 12px; padding: 12px 18px; color: #fff; }
+  .accent { color: var(--primary); }
+  .eyebrow { font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); }
+
+  /* Chips row */
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:6px 11px; border-radius:999px; font-size:12.5px; font-weight:500; color:var(--ink-2); background:#fff; border:1px solid var(--line); cursor:pointer; }
+  .chip:hover { border-color:#cbd5e1; }
+  .chip.active { background:var(--ink); color:#fff; border-color:var(--ink); }
+  .chip.active-orange { background:var(--tint); color:var(--primary-2); border-color:var(--tint-2); }
+
+  /* Tab toggle */
+  .view-toggle { display:inline-flex; padding:3px; background:var(--slate-bg); border-radius:10px; border:1px solid var(--line); }
+  .view-toggle button { padding:5px 12px; font-size:12px; font-weight:600; color:var(--ink-soft); border-radius:7px; }
+  .view-toggle button.on { background:#fff; color:var(--ink); box-shadow: 0 1px 2px rgba(15,23,42,0.06); }
+
+  /* Pipeline column */
+  .col-header { display:flex; align-items:center; justify-content:space-between; padding: 0 4px 10px 4px; }
+  .col-rail   { display:inline-block; width: 4px; height: 18px; border-radius: 999px; margin-right: 8px; vertical-align: middle; }
+  .col { background: var(--paper); border: 1px solid var(--line); border-radius: 14px; padding: 10px; min-height: 360px; }
+
+  /* Story card */
+  .story { background: #fff; border:1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 8px; transition: transform .12s, border-color .12s, box-shadow .12s; cursor: grab; }
+  .story:hover { transform: translateY(-1px); border-color: var(--tint-2); box-shadow: 0 8px 20px -16px rgba(15,23,42,0.18); }
+  .story.featured { border-color: var(--tint-2); background: linear-gradient(180deg, var(--tint), #fff); }
+  .story-title { font-weight: 600; font-size: 13.5px; line-height: 1.35; }
+  .meta { font-size: 11.5px; color: var(--ink-soft); }
+  .avatar { height: 22px; width: 22px; border-radius: 999px; display:inline-flex; align-items:center; justify-content:center; font-size: 10px; font-weight: 700; }
+  .platform-dots { display:inline-flex; gap:3px; }
+  .platform-dot { height:8px; width:8px; border-radius:999px; }
+
+  .progress { height: 4px; border-radius: 999px; background: #eef2f7; overflow: hidden; }
+  .progress > i { display: block; height: 100%; border-radius: 999px; background: var(--primary); }
+
+  .verbatim-mark { padding: 0 4px; border-radius: 3px; background: #fef3c7; color: #92400e; font-weight: 600; }
+</style>
+</head>
+<body>
+
+<!-- ============== TOPBAR ============== -->
+<div class="topbar">
+  <div class="container-narrow flex items-center justify-between" style="padding-top:12px;padding-bottom:12px;">
+    <div class="flex items-center gap-3">
+      <div class="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-sm" style="background: var(--grad);">N</div>
+      <div class="text-base font-bold tracking-tight">NarrateRx</div>
+      <span class="pill pill-tint">Move Better · People</span>
+    </div>
+    <div class="flex items-center gap-1 text-sm">
+      <button class="btn-ghost px-3 py-1.5">Home</button>
+      <button class="btn-ghost px-3 py-1.5" style="background:var(--slate-bg);color:var(--ink);">Stories</button>
+      <button class="btn-ghost px-3 py-1.5">Library</button>
+      <button class="btn-ghost px-3 py-1.5">Synthesis</button>
+      <button class="btn-ghost px-3 py-1.5">Settings</button>
+      <div class="h-8 w-8 rounded-full ml-2 ring-2 ring-white" style="background:linear-gradient(135deg,#cbd5e1,#94a3b8);"></div>
+    </div>
+  </div>
+</div>
+
+<div class="container-narrow">
+
+  <!-- ============== PAGE HEADER ============== -->
+  <div class="flex items-center justify-between gap-4 mb-4 flex-wrap">
+    <div class="flex items-baseline gap-3 min-w-0">
+      <h1 class="text-2xl font-bold">Stories</h1>
+      <span class="text-sm text-slate-500">37 stories · <span class="accent font-semibold">3 awaiting review</span></span>
+    </div>
+    <div class="flex items-center gap-2">
+      <div class="view-toggle">
+        <button class="on">Pipeline</button>
+        <button>Cards</button>
+        <button>Calendar</button>
+        <button>Themes</button>
+      </div>
+      <button class="btn-secondary px-3 py-1.5 text-sm inline-flex items-center gap-1">Export</button>
+      <button class="btn-primary px-4 py-1.5 text-sm">+ New interview</button>
+    </div>
+  </div>
+
+  <!-- ============== CAMPAIGN PROGRESS RIBBON (slim gradient — kept as "the moment") ============== -->
+  <div class="grad-ribbon mb-4 flex items-center justify-between gap-4 flex-wrap">
+    <div class="flex items-center gap-3 min-w-0">
+      <span class="pill" style="background:rgba(255,255,255,0.2);color:#fff;border:1px solid rgba(255,255,255,0.3);">Active campaign</span>
+      <div class="font-semibold text-sm">"Spring Running Series" — 8 of 12 stories in the queue</div>
+    </div>
+    <div class="flex items-center gap-3">
+      <div class="h-1.5 w-40 rounded-full" style="background:rgba(255,255,255,0.25)">
+        <div class="h-full rounded-full bg-white" style="width:66%"></div>
+      </div>
+      <span class="text-xs font-semibold opacity-90">66%</span>
+      <button class="text-xs font-semibold underline underline-offset-2 opacity-90 hover:opacity-100">Manage →</button>
+    </div>
+  </div>
+
+  <!-- ============== FILTER CHIPS ============== -->
+  <div class="flex items-center gap-2 mb-5 flex-wrap">
+    <span class="eyebrow mr-1">Filter</span>
+    <div class="chip active">All stories</div>
+    <div class="chip">Mine only</div>
+    <div class="chip active-orange"><span class="h-1.5 w-1.5 rounded-full" style="background:var(--primary)"></span>Spring Running ×</div>
+
+    <span class="mx-2 h-5 w-px bg-slate-200"></span>
+
+    <div class="chip">Platform: All</div>
+    <div class="chip">Stage: All</div>
+    <div class="chip">Location: All</div>
+    <div class="chip">Archetype: Recreational athlete</div>
+
+    <span class="ml-auto text-xs text-slate-500">Sorted: recent activity</span>
+  </div>
+
+  <!-- ============== PIPELINE BOARD ============== -->
+  <div class="grid grid-cols-5 gap-4">
+
+    <!-- Capture -->
+    <div>
+      <div class="col-header">
+        <h3 class="text-sm font-bold flex items-center"><span class="col-rail" style="background:var(--sky)"></span>Capture</h3>
+        <span class="pill pill-ink">4</span>
+      </div>
+      <div class="col">
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-sky">Interviewing</span>
+            <span class="meta">14m ago</span>
+          </div>
+          <div class="story-title">Pediatric scoliosis screening</div>
+          <div class="meta mt-1">8 of 12 prompts</div>
+          <div class="progress mt-2"><i style="width:66%"></i></div>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="avatar" style="background:var(--tint); color:var(--primary-2);">MQ</div>
+            <button class="text-xs font-semibold accent">Resume →</button>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-sky">In progress</span>
+            <span class="meta">1d</span>
+          </div>
+          <div class="story-title">Why we use TPI golf assessments</div>
+          <div class="meta mt-1">3 of 10 prompts</div>
+          <div class="progress mt-2"><i style="width:30%; background:var(--sky);"></i></div>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="avatar" style="background:var(--sky-bg); color:var(--sky);">MQ</div>
+            <button class="text-xs font-semibold accent">Resume →</button>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-ink">Queued</span>
+            <span class="meta">3d</span>
+          </div>
+          <div class="story-title">Postpartum return-to-running</div>
+          <div class="meta mt-1">Topic-gap suggestion</div>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="avatar" style="background:var(--violet-bg); color:var(--violet);">SK</div>
+            <span class="meta">Dr. Khan</span>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-ink">Queued</span>
+            <span class="meta">5d</span>
+          </div>
+          <div class="story-title">When tennis elbow isn't from tennis</div>
+          <div class="meta mt-1">Topic suggestion</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drafting -->
+    <div>
+      <div class="col-header">
+        <h3 class="text-sm font-bold flex items-center"><span class="col-rail" style="background:var(--amber)"></span>Drafting</h3>
+        <span class="pill pill-ink">3</span>
+      </div>
+      <div class="col">
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-amber">Synthesizing</span>
+            <span class="meta">2h</span>
+          </div>
+          <div class="story-title">Why "more stretching" isn't the answer for tight hamstrings</div>
+          <div class="meta mt-1">AI building outline · 4 sources</div>
+          <div class="platform-dots mt-3"><span class="platform-dot" style="background:var(--emerald)"></span><span class="platform-dot" style="background:var(--amber)"></span><span class="platform-dot" style="background:var(--violet)"></span></div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-amber">Drafting</span>
+            <span class="meta">5h</span>
+          </div>
+          <div class="story-title">The 6-week plantar fasciitis comeback</div>
+          <div class="meta mt-1">Blog · Email · Social</div>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="platform-dots"><span class="platform-dot" style="background:var(--emerald)"></span><span class="platform-dot" style="background:var(--amber)"></span><span class="platform-dot" style="background:var(--violet)"></span></div>
+            <span class="text-xs font-semibold" style="color:var(--amber)">⚑ 2 verbatims</span>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-amber">Drafting</span>
+            <span class="meta">1d</span>
+          </div>
+          <div class="story-title">Concussion return-to-sport criteria for HS athletes</div>
+          <div class="meta mt-1">Blog only</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Review -->
+    <div>
+      <div class="col-header">
+        <h3 class="text-sm font-bold flex items-center"><span class="col-rail" style="background:var(--primary)"></span>Review</h3>
+        <span class="pill pill-primary">3</span>
+      </div>
+      <div class="col" style="background: linear-gradient(180deg, var(--tint), #fff); border-color: var(--tint-2);">
+        <div class="story featured">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-emerald">Blog</span>
+            <span class="meta">96% voice</span>
+          </div>
+          <div class="story-title">Spotting a hip-flexor strain early in runners</div>
+          <div class="meta mt-1">Reviewed-by: pending you</div>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="avatar" style="background:var(--tint-2); color:var(--primary-2);">MQ</div>
+            <button class="btn-primary px-3 py-1 text-[11px]">Review →</button>
+          </div>
+        </div>
+
+        <div class="story featured">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-amber">Email</span>
+            <span class="meta" style="color:var(--amber)">⚑ swap</span>
+          </div>
+          <div class="story-title">Knee pain after a "successful" surgery</div>
+          <div class="meta mt-1">1 <span class="verbatim-mark">verbatim</span> needs your eye</div>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="avatar" style="background:var(--tint-2); color:var(--primary-2);">MQ</div>
+            <button class="btn-primary px-3 py-1 text-[11px]">Review →</button>
+          </div>
+        </div>
+
+        <div class="story featured">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-violet">Social · 4</span>
+            <span class="meta" style="color:var(--violet)">ready</span>
+          </div>
+          <div class="story-title">3 signs you're moving wrong in your golf swing</div>
+          <div class="mt-2 flex gap-1">
+            <div class="h-1 flex-1 rounded-full" style="background:var(--violet)"></div>
+            <div class="h-1 flex-1 rounded-full" style="background:var(--violet)"></div>
+            <div class="h-1 flex-1 rounded-full" style="background:var(--violet)"></div>
+            <div class="h-1 flex-1 rounded-full bg-slate-200"></div>
+          </div>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="avatar" style="background:var(--violet-bg); color:var(--violet);">DK</div>
+            <button class="btn-primary px-3 py-1 text-[11px]">Review →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scheduled -->
+    <div>
+      <div class="col-header">
+        <h3 class="text-sm font-bold flex items-center"><span class="col-rail" style="background:var(--violet)"></span>Scheduled</h3>
+        <span class="pill pill-ink">2</span>
+      </div>
+      <div class="col">
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-violet">Buffer</span>
+            <span class="meta">Tue 9:00 AM</span>
+          </div>
+          <div class="story-title">Why stretching feels good but doesn't fix the issue</div>
+          <div class="meta mt-1">IG + FB · 2 variants</div>
+          <div class="platform-dots mt-3"><span class="platform-dot" style="background:#d946ef"></span><span class="platform-dot" style="background:#1877f2"></span></div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-violet">Buffer</span>
+            <span class="meta">Thu 11:30</span>
+          </div>
+          <div class="story-title">Mom-of-three's plantar fasciitis success</div>
+          <div class="meta mt-1">Email blast · 1,240 recipients</div>
+          <div class="mt-3 flex items-center justify-between">
+            <span class="pill pill-amber">Email</span>
+            <button class="text-xs font-semibold accent">Edit →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Published -->
+    <div>
+      <div class="col-header">
+        <h3 class="text-sm font-bold flex items-center"><span class="col-rail" style="background:var(--emerald)"></span>Published</h3>
+        <span class="pill pill-emerald">25</span>
+      </div>
+      <div class="col">
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-emerald">Live</span>
+            <span class="meta">2d</span>
+          </div>
+          <div class="story-title">When ankle sprains don't heal — the missing rehab phase</div>
+          <div class="meta mt-1">Blog · 1.4k views</div>
+          <div class="mt-3 flex items-center justify-between">
+            <div class="flex items-center gap-1.5 text-xs"><span class="accent font-semibold">↗</span><span class="text-slate-600">+28% vs last</span></div>
+            <button class="text-xs font-semibold accent">View →</button>
+          </div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-emerald">Live</span>
+            <span class="meta">5d</span>
+          </div>
+          <div class="story-title">The hidden cost of "just push through it"</div>
+          <div class="meta mt-1">Email · 38% open</div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-emerald">Live</span>
+            <span class="meta">1w</span>
+          </div>
+          <div class="story-title">Why your kid's knee pain isn't growing pains</div>
+          <div class="meta mt-1">Blog + Social · 3.2k</div>
+        </div>
+
+        <div class="story">
+          <div class="flex items-center justify-between mb-2">
+            <span class="pill pill-emerald">Live</span>
+            <span class="meta">1w</span>
+          </div>
+          <div class="story-title">Hip mobility for desk workers — the 4-minute fix</div>
+          <div class="meta mt-1">IG Reel · 12.8k views</div>
+        </div>
+
+        <button class="w-full mt-2 py-2 text-xs font-semibold text-slate-500 hover:text-slate-700">Show 21 more →</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ============== AT-A-GLANCE FOOTER ============== -->
+  <div class="grid grid-cols-4 gap-4 mt-7">
+    <div class="card p-4">
+      <div class="eyebrow">Voice match · 30d avg</div>
+      <div class="text-2xl font-bold mt-1" style="color:var(--emerald);">94%</div>
+    </div>
+    <div class="card p-4">
+      <div class="eyebrow">Verbatim flags resolved</div>
+      <div class="text-2xl font-bold mt-1">18<span class="text-sm font-normal text-slate-500"> / 22</span></div>
+    </div>
+    <div class="card p-4">
+      <div class="eyebrow">Avg time to publish</div>
+      <div class="text-2xl font-bold mt-1">3.2d</div>
+    </div>
+    <div class="card p-4">
+      <div class="eyebrow">Top platform · 30d</div>
+      <div class="text-2xl font-bold mt-1" style="color:var(--violet);">Instagram</div>
+    </div>
+  </div>
+
+  <div class="text-center text-xs text-slate-500 mt-8 pb-6">
+    Stories · pipeline view · blend theme · slim gradient ribbon for active campaign · semantic colors per stage
+  </div>
+</div>
+
+</body>
+</html>

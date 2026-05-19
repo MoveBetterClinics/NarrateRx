@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>NarrateRx — Visual Directions</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Space+Grotesk:wght@500;600;700&family=Geist:wght@400;500;600;700;800&family=Titillium+Web:wght@400;600;700&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          inter: ['Inter','system-ui','sans-serif'],
+          fraunces: ['Fraunces','Georgia','serif'],
+          grotesk: ['"Space Grotesk"','system-ui','sans-serif'],
+          geist: ['Geist','system-ui','sans-serif'],
+          titillium: ['"Titillium Web"','system-ui','sans-serif'],
+        },
+      },
+    },
+  }
+</script>
+<style>
+  body { background: #f3f4f6; }
+
+  /* ---------- Direction 1 — Editorial Vibrant ---------- */
+  .d1 {
+    --ink: #0c0a09;
+    --ink-2: #292524;
+    --paper: #fbfaf7;
+    --line: #e7e3d8;
+    --primary: #e36525;
+    --primary-2: #c04d18;
+    --tint: #fdf1e7;
+    --emerald: #047857;
+    --amber: #b45309;
+  }
+  .d1 { background: var(--paper); color: var(--ink); font-family: 'Inter', system-ui, sans-serif; }
+  .d1 h1, .d1 h2, .d1 .display { font-family: 'Fraunces', Georgia, serif; letter-spacing: -0.02em; }
+  .d1 .card { background: #fff; border: 1px solid var(--line); border-radius: 16px; }
+  .d1 .pill { border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+  .d1 .btn-primary { background: var(--primary); color: #fff; border-radius: 10px; font-weight: 600; }
+  .d1 .btn-primary:hover { background: var(--primary-2); }
+  .d1 .btn-ghost { color: var(--ink-2); border-radius: 10px; font-weight: 500; }
+  .d1 .accent { color: var(--primary); }
+  .d1 .rule { border-color: var(--line); }
+
+  /* ---------- Direction 2 — Confident Gradient ---------- */
+  .d2 {
+    --ink: #0b1220;
+    --ink-2: #1f2937;
+    --bg: #f7f8fb;
+    --line: #e5e7eb;
+    --primary: #ea580c;
+    --primary-2: #c2410c;
+    --grad-from: #ff7a3d;
+    --grad-via: #f43f5e;
+    --grad-to: #6d28d9;
+    --tint: #fff1e6;
+  }
+  .d2 { background: var(--bg); color: var(--ink); font-family: 'Geist','Inter',system-ui,sans-serif; }
+  .d2 h1, .d2 h2, .d2 .display { font-family: 'Geist','Inter',system-ui,sans-serif; letter-spacing: -0.03em; font-weight: 700; }
+  .d2 .card { background: #fff; border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 1px 0 rgba(0,0,0,0.02), 0 8px 24px -16px rgba(15,23,42,0.10); }
+  .d2 .hero { background: linear-gradient(135deg, var(--grad-from) 0%, var(--grad-via) 55%, var(--grad-to) 100%); color: #fff; border-radius: 22px; }
+  .d2 .btn-primary { background: var(--ink); color: #fff; border-radius: 12px; font-weight: 600; }
+  .d2 .btn-primary:hover { background: #111827; }
+  .d2 .pill { border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+  .d2 .chip-grad { background: linear-gradient(135deg, #ff7a3d, #f43f5e); color: #fff; }
+  .d2 .accent { color: var(--primary); }
+
+  /* ---------- Direction 3 — Refined Spectrum ---------- */
+  .d3 {
+    --ink: #0f172a;
+    --ink-2: #334155;
+    --bg: #f8fafc;
+    --line: #e2e8f0;
+    --primary: #e36525;
+    --primary-2: #c04d18;
+    --sky: #0284c7;
+    --emerald: #059669;
+    --amber: #d97706;
+    --violet: #7c3aed;
+  }
+  .d3 { background: var(--bg); color: var(--ink); font-family: '"Space Grotesk"','Inter',system-ui,sans-serif; }
+  .d3 h1, .d3 h2, .d3 .display { font-family: '"Space Grotesk"','Inter',system-ui,sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+  .d3 .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 1px 2px rgba(15,23,42,0.04); }
+  .d3 .card-hi { background: linear-gradient(180deg, #fff, #fefcfb); border: 1px solid #f1d9c6; }
+  .d3 .btn-primary { background: var(--primary); color: #fff; border-radius: 10px; font-weight: 600; box-shadow: 0 1px 0 rgba(0,0,0,0.05), 0 6px 16px -8px rgba(227,101,37,0.5); }
+  .d3 .btn-primary:hover { background: var(--primary-2); }
+  .d3 .pill { border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; }
+  .d3 .ring-accent { box-shadow: 0 0 0 2px rgba(227,101,37,0.15); }
+  .d3 .accent { color: var(--primary); }
+
+  /* Tabs */
+  .tabs { position: sticky; top: 0; z-index: 50; background: #ffffff; border-bottom: 1px solid #e5e7eb; }
+  .tab { padding: 10px 14px; font-weight: 600; font-size: 14px; color: #475569; border-bottom: 2px solid transparent; cursor: pointer; }
+  .tab.active { color: #0f172a; border-bottom-color: #e36525; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Generic */
+  .container-narrow { max-width: 1180px; margin: 0 auto; padding: 28px; }
+</style>
+</head>
+<body class="font-inter">
+
+<div class="tabs">
+  <div class="container-narrow flex items-center justify-between" style="padding-top:12px;padding-bottom:0;">
+    <div class="flex items-center gap-2">
+      <span class="font-semibold tracking-tight">NarrateRx · Visual Directions</span>
+      <span class="text-xs text-slate-500">— pick one to take further</span>
+    </div>
+    <div class="flex gap-1">
+      <div class="tab active" data-tab="1">1 · Editorial Vibrant</div>
+      <div class="tab" data-tab="2">2 · Confident Gradient</div>
+      <div class="tab" data-tab="3">3 · Refined Spectrum</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================= -->
+<!-- DIRECTION 1 — Editorial Vibrant                                    -->
+<!-- ================================================================= -->
+<section class="panel active" data-panel="1">
+  <div class="d1">
+    <div class="container-narrow">
+
+      <!-- header -->
+      <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-3">
+          <div class="h-9 w-9 rounded-lg" style="background:var(--primary)"></div>
+          <div class="font-fraunces text-2xl">NarrateRx</div>
+          <span class="pill" style="background:var(--tint);color:var(--primary-2)">Move Better · People</span>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+          <button class="btn-ghost px-3 py-2">Library</button>
+          <button class="btn-ghost px-3 py-2">Stories</button>
+          <button class="btn-ghost px-3 py-2">Settings</button>
+          <div class="h-9 w-9 rounded-full bg-stone-300"></div>
+        </div>
+      </div>
+
+      <!-- hero greeting -->
+      <div class="mb-8">
+        <div class="text-sm font-semibold tracking-wide uppercase accent">Good morning, Michael</div>
+        <h1 class="display text-5xl mt-2 leading-[1.05]">Three patient stories<br/>are waiting on your voice.</h1>
+        <p class="mt-3 text-stone-600 max-w-2xl text-lg">Pick up a draft, run a fresh interview, or review what's ready to publish. Your tone, your phrasing — never auto-generated noise.</p>
+        <div class="mt-5 flex gap-2">
+          <button class="btn-primary px-5 py-3">Start an interview →</button>
+          <button class="btn-ghost px-5 py-3 border rule">Review 3 drafts</button>
+        </div>
+      </div>
+
+      <!-- top stats row -->
+      <div class="grid grid-cols-4 gap-4 mb-8">
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-stone-500 font-semibold">This week</div>
+          <div class="display text-4xl mt-1">7</div>
+          <div class="text-sm text-stone-600">interviews captured</div>
+        </div>
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-stone-500 font-semibold">Drafts</div>
+          <div class="display text-4xl mt-1 accent">3</div>
+          <div class="text-sm text-stone-600">awaiting your review</div>
+        </div>
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-stone-500 font-semibold">Published</div>
+          <div class="display text-4xl mt-1">12</div>
+          <div class="text-sm text-stone-600">in the last 30 days</div>
+        </div>
+        <div class="card p-5" style="background:var(--tint);border-color:#f3d3b5">
+          <div class="text-xs uppercase tracking-wide font-semibold" style="color:var(--primary-2)">Voice match</div>
+          <div class="display text-4xl mt-1" style="color:var(--primary-2)">94%</div>
+          <div class="text-sm" style="color:#7a3a14">vs. your last 20 accepted edits</div>
+        </div>
+      </div>
+
+      <!-- two-column -->
+      <div class="grid grid-cols-3 gap-5">
+        <div class="col-span-2 space-y-4">
+          <div class="card p-5">
+            <div class="flex items-baseline justify-between">
+              <h2 class="text-xl">Pick up where you left off</h2>
+              <span class="text-xs text-stone-500">2 in progress</span>
+            </div>
+            <div class="mt-4 divide-y rule">
+              <div class="py-3 flex items-center justify-between">
+                <div>
+                  <div class="font-semibold">Pediatric scoliosis screening — Dr. Quasney</div>
+                  <div class="text-sm text-stone-600">Resumed 14 min ago · 8 of 12 prompts answered</div>
+                </div>
+                <button class="btn-primary px-4 py-2 text-sm">Resume</button>
+              </div>
+              <div class="py-3 flex items-center justify-between">
+                <div>
+                  <div class="font-semibold">Why we use TPI golf assessments</div>
+                  <div class="text-sm text-stone-600">Started yesterday · 3 of 10 prompts answered</div>
+                </div>
+                <button class="btn-ghost px-4 py-2 text-sm border rule">Resume</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-5">
+            <div class="flex items-baseline justify-between">
+              <h2 class="text-xl">Drafts to review</h2>
+              <span class="text-xs text-stone-500">3 pieces · 1 blog · 1 email · 1 social</span>
+            </div>
+            <div class="mt-4 grid grid-cols-3 gap-3">
+              <div class="border rule rounded-xl p-4 hover:shadow-sm transition">
+                <span class="pill" style="background:#ecfdf5;color:var(--emerald)">Blog</span>
+                <div class="font-semibold mt-2 leading-snug">How runners can spot a hip-flexor strain early</div>
+                <div class="text-xs text-stone-500 mt-2">Ready · voice 96%</div>
+              </div>
+              <div class="border rule rounded-xl p-4 hover:shadow-sm transition">
+                <span class="pill" style="background:#fef3c7;color:var(--amber)">Email</span>
+                <div class="font-semibold mt-2 leading-snug">Why we still see knee pain after a "successful" surgery</div>
+                <div class="text-xs text-stone-500 mt-2">Needs a verbatim swap</div>
+              </div>
+              <div class="border rule rounded-xl p-4 hover:shadow-sm transition">
+                <span class="pill" style="background:var(--tint);color:var(--primary-2)">Social</span>
+                <div class="font-semibold mt-2 leading-snug">3 signs you're moving wrong in your golf swing</div>
+                <div class="text-xs text-stone-500 mt-2">Ready · 4 variants</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- right rail -->
+        <div class="space-y-4">
+          <div class="card p-5">
+            <h2 class="text-lg">Plan your next interview</h2>
+            <p class="text-sm text-stone-600 mt-1">Topics your audience hasn't heard from you yet.</p>
+            <div class="mt-3 space-y-2">
+              <div class="flex items-center justify-between p-3 rounded-lg" style="background:var(--tint)">
+                <div class="font-semibold text-sm">Postpartum core rehab — return-to-running</div>
+                <span class="text-xs accent font-bold">Gap</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-lg bg-stone-50">
+                <div class="font-semibold text-sm">When tennis elbow isn't from tennis</div>
+                <span class="text-xs text-stone-500">Suggested</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-lg bg-stone-50">
+                <div class="font-semibold text-sm">Concussion return-to-sport criteria</div>
+                <span class="text-xs text-stone-500">Suggested</span>
+              </div>
+            </div>
+            <button class="btn-primary w-full mt-4 py-2 text-sm">Start with the gap topic</button>
+          </div>
+
+          <div class="card p-5" style="background:#0c0a09;color:#fbfaf7;border-color:#0c0a09">
+            <div class="text-xs uppercase tracking-wider opacity-70">Your voice, this week</div>
+            <div class="display text-3xl mt-2 leading-tight">"Stop letting pain be the loudest signal in your body."</div>
+            <div class="text-sm mt-3 opacity-80">Accepted verbatim 4× · trending up</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- interview snippet preview -->
+      <div class="mt-10">
+        <div class="text-xs uppercase tracking-wide text-stone-500 font-semibold mb-3">Interview surface — quick peek</div>
+        <div class="card p-7">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="h-2 w-2 rounded-full bg-rose-500 animate-pulse"></div>
+            <div class="text-sm font-semibold">Recording · 4:12</div>
+            <div class="ml-auto flex gap-2">
+              <button class="btn-ghost px-3 py-1.5 text-sm border rule">Pause</button>
+              <button class="btn-primary px-3 py-1.5 text-sm">Finish</button>
+            </div>
+          </div>
+          <div class="display text-3xl leading-snug">When a patient comes in with chronic low back pain, what's the first question you actually want answered?</div>
+          <div class="mt-4 text-stone-700">
+            "I want to know what they've already <span class="px-1.5 rounded" style="background:var(--tint);color:var(--primary-2);font-weight:600">tried and given up on</span> — that tells me where the trust got broken…"
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center text-xs text-stone-500 mt-10">Direction 1 · Editorial Vibrant — Fraunces display + Inter body, warm paper, single accent</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<!-- DIRECTION 2 — Confident Gradient                                   -->
+<!-- ================================================================= -->
+<section class="panel" data-panel="2">
+  <div class="d2">
+    <div class="container-narrow">
+
+      <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-3">
+          <div class="h-9 w-9 rounded-xl" style="background:linear-gradient(135deg,#ff7a3d,#f43f5e)"></div>
+          <div class="text-xl font-bold tracking-tight">NarrateRx</div>
+          <span class="pill chip-grad">Move Better · People</span>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+          <button class="px-3 py-2 rounded-lg hover:bg-slate-100">Library</button>
+          <button class="px-3 py-2 rounded-lg hover:bg-slate-100">Stories</button>
+          <button class="px-3 py-2 rounded-lg hover:bg-slate-100">Settings</button>
+          <div class="h-9 w-9 rounded-full bg-slate-300"></div>
+        </div>
+      </div>
+
+      <!-- HERO -->
+      <div class="hero p-8 mb-6 relative overflow-hidden">
+        <div class="absolute -right-20 -top-20 h-72 w-72 rounded-full" style="background:rgba(255,255,255,0.12);filter:blur(20px);"></div>
+        <div class="absolute -left-10 -bottom-20 h-60 w-60 rounded-full" style="background:rgba(255,255,255,0.10);filter:blur(20px);"></div>
+        <div class="relative">
+          <div class="text-sm font-semibold uppercase tracking-widest opacity-80">Good morning, Michael</div>
+          <h1 class="display text-5xl mt-3 leading-[1.05]">3 stories. Your voice.<br/>15 minutes of your day.</h1>
+          <p class="mt-3 max-w-2xl text-white/85 text-lg">Resume a draft, capture a new patient story, or push approved content to Buffer.</p>
+          <div class="mt-6 flex gap-3">
+            <button class="bg-white text-slate-900 font-semibold px-5 py-3 rounded-xl shadow hover:bg-slate-100">▶ Start an interview</button>
+            <button class="bg-white/10 hover:bg-white/20 text-white font-semibold px-5 py-3 rounded-xl backdrop-blur">Review 3 drafts</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- stats -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">This week</div>
+          <div class="text-3xl font-bold mt-1">7</div>
+          <div class="text-sm text-slate-600 mt-0.5">interviews captured</div>
+          <div class="mt-2 h-1.5 w-full rounded-full bg-slate-100"><div class="h-full rounded-full" style="width:70%;background:linear-gradient(90deg,#ff7a3d,#f43f5e)"></div></div>
+        </div>
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Drafts</div>
+          <div class="text-3xl font-bold mt-1 accent">3</div>
+          <div class="text-sm text-slate-600 mt-0.5">awaiting your review</div>
+          <div class="mt-2 flex gap-1"><span class="pill chip-grad text-[10px]">1 blog</span><span class="pill bg-rose-100 text-rose-700 text-[10px]">1 email</span><span class="pill bg-violet-100 text-violet-700 text-[10px]">1 social</span></div>
+        </div>
+        <div class="card p-5">
+          <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Published</div>
+          <div class="text-3xl font-bold mt-1">12</div>
+          <div class="text-sm text-slate-600 mt-0.5">last 30 days · +4 vs prior</div>
+        </div>
+        <div class="card p-5" style="background:linear-gradient(135deg,#1f2937,#0b1220);color:#fff;border-color:#0b1220">
+          <div class="text-xs uppercase tracking-wide text-white/70 font-semibold">Voice match</div>
+          <div class="text-3xl font-bold mt-1">94%</div>
+          <div class="text-sm text-white/80 mt-0.5">vs. your last 20 edits</div>
+        </div>
+      </div>
+
+      <!-- 2col -->
+      <div class="grid grid-cols-3 gap-5">
+        <div class="col-span-2 space-y-5">
+          <div class="card p-6">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl">Pick up where you left off</h2>
+              <span class="pill bg-slate-100 text-slate-700">2 in progress</span>
+            </div>
+            <div class="mt-4 space-y-3">
+              <div class="flex items-center justify-between p-4 rounded-xl border" style="border-color:#fde0d2;background:linear-gradient(180deg,#fff7f0,#fff)">
+                <div>
+                  <div class="font-semibold">Pediatric scoliosis screening</div>
+                  <div class="text-sm text-slate-600">Resumed 14 min ago · 8 of 12 prompts</div>
+                  <div class="mt-2 h-1.5 w-56 rounded-full bg-slate-200"><div class="h-full rounded-full" style="width:66%;background:linear-gradient(90deg,#ff7a3d,#f43f5e)"></div></div>
+                </div>
+                <button class="btn-primary px-4 py-2 text-sm">Resume →</button>
+              </div>
+              <div class="flex items-center justify-between p-4 rounded-xl border">
+                <div>
+                  <div class="font-semibold">Why we use TPI golf assessments</div>
+                  <div class="text-sm text-slate-600">Yesterday · 3 of 10 prompts</div>
+                  <div class="mt-2 h-1.5 w-56 rounded-full bg-slate-200"><div class="h-full rounded-full" style="width:30%;background:linear-gradient(90deg,#ff7a3d,#f43f5e)"></div></div>
+                </div>
+                <button class="px-4 py-2 text-sm rounded-xl border hover:bg-slate-50">Resume</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-6">
+            <div class="flex items-center justify-between">
+              <h2 class="text-xl">Drafts ready for review</h2>
+              <button class="text-sm font-semibold accent">See all →</button>
+            </div>
+            <div class="mt-4 grid grid-cols-3 gap-3">
+              <div class="rounded-xl p-4 border hover:shadow-md transition">
+                <div class="flex items-center justify-between">
+                  <span class="pill bg-emerald-100 text-emerald-700">Blog</span>
+                  <span class="text-xs font-semibold text-emerald-700">96% voice</span>
+                </div>
+                <div class="font-semibold mt-3 leading-snug">Spotting a hip-flexor strain early in runners</div>
+              </div>
+              <div class="rounded-xl p-4 border hover:shadow-md transition">
+                <div class="flex items-center justify-between">
+                  <span class="pill bg-rose-100 text-rose-700">Email</span>
+                  <span class="text-xs font-semibold text-amber-700">needs swap</span>
+                </div>
+                <div class="font-semibold mt-3 leading-snug">Knee pain after a "successful" surgery</div>
+              </div>
+              <div class="rounded-xl p-4 border hover:shadow-md transition">
+                <div class="flex items-center justify-between">
+                  <span class="pill bg-violet-100 text-violet-700">Social · 4</span>
+                  <span class="text-xs font-semibold text-emerald-700">ready</span>
+                </div>
+                <div class="font-semibold mt-3 leading-snug">3 signs you're moving wrong in your golf swing</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-5">
+          <div class="card p-6">
+            <h2 class="text-lg">Plan your next interview</h2>
+            <p class="text-sm text-slate-600 mt-1">Audience gaps + suggestions.</p>
+            <div class="mt-3 space-y-2">
+              <div class="flex items-center justify-between p-3 rounded-xl" style="background:linear-gradient(135deg,#fff1e6,#fde0d2)">
+                <div class="font-semibold text-sm">Postpartum core rehab — return-to-running</div>
+                <span class="pill chip-grad">Gap</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50">
+                <div class="font-semibold text-sm">When tennis elbow isn't from tennis</div>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-xl bg-slate-50">
+                <div class="font-semibold text-sm">Concussion return-to-sport criteria</div>
+              </div>
+            </div>
+            <button class="btn-primary w-full mt-4 py-2.5 text-sm">Start with the gap →</button>
+          </div>
+
+          <div class="rounded-2xl p-6 text-white" style="background:linear-gradient(135deg,#6d28d9,#1e40af)">
+            <div class="text-xs uppercase tracking-widest opacity-80">This week's voice</div>
+            <div class="text-2xl font-bold mt-2 leading-snug">"Stop letting pain be the loudest signal in your body."</div>
+            <div class="text-sm mt-3 opacity-90">Accepted verbatim 4× — trending up ↑</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10">
+        <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-3">Interview surface — quick peek</div>
+        <div class="card p-7">
+          <div class="flex items-center gap-3 mb-4">
+            <div class="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse"></div>
+            <div class="text-sm font-semibold">Recording · 4:12</div>
+            <div class="ml-auto flex gap-2">
+              <button class="px-3 py-1.5 text-sm rounded-lg border hover:bg-slate-50">Pause</button>
+              <button class="btn-primary px-3 py-1.5 text-sm">Finish</button>
+            </div>
+          </div>
+          <h3 class="text-3xl font-bold leading-snug tracking-tight">When a patient comes in with chronic low back pain, what's the first question you actually want answered?</h3>
+          <div class="mt-4 text-slate-700 text-lg leading-relaxed">"I want to know what they've already <span class="px-1.5 rounded font-semibold" style="background:linear-gradient(135deg,#ffe4d3,#ffd6e0);color:#9f1239">tried and given up on</span> — that tells me where the trust got broken…"</div>
+        </div>
+      </div>
+
+      <div class="text-center text-xs text-slate-500 mt-10">Direction 2 · Confident Gradient — Geist sans, signature warm→magenta→violet gradient, bold dark CTAs</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================= -->
+<!-- DIRECTION 3 — Refined Spectrum                                     -->
+<!-- ================================================================= -->
+<section class="panel" data-panel="3">
+  <div class="d3">
+    <div class="container-narrow">
+
+      <div class="flex items-center justify-between mb-8">
+        <div class="flex items-center gap-3">
+          <div class="h-9 w-9 rounded-lg flex items-center justify-center text-white font-bold" style="background:var(--primary)">N</div>
+          <div class="text-xl font-bold tracking-tight">NarrateRx</div>
+          <span class="pill" style="background:#fff;border:1px solid var(--line);color:var(--ink-2)">Move Better · People</span>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+          <button class="px-3 py-2 rounded-lg hover:bg-slate-100">Library</button>
+          <button class="px-3 py-2 rounded-lg hover:bg-slate-100">Stories</button>
+          <button class="px-3 py-2 rounded-lg hover:bg-slate-100">Settings</button>
+          <div class="h-9 w-9 rounded-full bg-slate-300"></div>
+        </div>
+      </div>
+
+      <div class="flex items-end justify-between mb-6">
+        <div>
+          <div class="text-sm font-semibold uppercase tracking-widest text-slate-500">Good morning, Michael</div>
+          <h1 class="display text-4xl mt-2 leading-tight">Your patients are talking.<br/><span class="accent">Let's get their stories out.</span></h1>
+        </div>
+        <div class="flex gap-2">
+          <button class="px-4 py-2.5 rounded-lg border bg-white text-sm font-semibold hover:bg-slate-50">Review 3 drafts</button>
+          <button class="btn-primary px-5 py-2.5 text-sm">Start an interview</button>
+        </div>
+      </div>
+
+      <!-- semantic stats — three color tokens used purposefully -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="card p-5">
+          <div class="flex items-center justify-between">
+            <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">This week</div>
+            <div class="text-[11px] font-bold text-slate-400">↗ +2</div>
+          </div>
+          <div class="text-3xl font-bold mt-1">7</div>
+          <div class="text-sm text-slate-600">interviews captured</div>
+        </div>
+        <div class="card p-5 card-hi ring-accent">
+          <div class="flex items-center justify-between">
+            <div class="text-xs uppercase tracking-wide font-semibold" style="color:var(--primary-2)">Drafts</div>
+            <span class="pill" style="background:var(--primary);color:#fff">action</span>
+          </div>
+          <div class="text-3xl font-bold mt-1 accent">3</div>
+          <div class="text-sm text-slate-600">awaiting review</div>
+        </div>
+        <div class="card p-5">
+          <div class="flex items-center justify-between">
+            <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Published</div>
+            <div class="text-[11px] font-bold" style="color:var(--emerald)">↗ +4</div>
+          </div>
+          <div class="text-3xl font-bold mt-1">12</div>
+          <div class="text-sm text-slate-600">last 30 days</div>
+        </div>
+        <div class="card p-5">
+          <div class="flex items-center justify-between">
+            <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold">Voice match</div>
+            <span class="pill" style="background:#ecfdf5;color:var(--emerald)">strong</span>
+          </div>
+          <div class="text-3xl font-bold mt-1" style="color:var(--emerald)">94%</div>
+          <div class="text-sm text-slate-600">vs. last 20 edits</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-5">
+        <div class="col-span-2 space-y-5">
+
+          <div class="card p-6">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="h-7 w-1 rounded-full" style="background:var(--primary)"></div>
+                <h2 class="text-xl">Pick up where you left off</h2>
+              </div>
+              <span class="pill" style="background:#f1f5f9;color:#475569">2 in progress</span>
+            </div>
+            <div class="mt-4 space-y-2">
+              <div class="flex items-center justify-between p-4 rounded-xl border hover:border-orange-300 transition" style="border-color:var(--line)">
+                <div class="flex items-center gap-4">
+                  <div class="h-10 w-10 rounded-full flex items-center justify-center" style="background:#fef3c7;color:var(--amber)">●</div>
+                  <div>
+                    <div class="font-semibold">Pediatric scoliosis screening</div>
+                    <div class="text-sm text-slate-600">14 min ago · 8 of 12 prompts</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="h-1.5 w-32 rounded-full bg-slate-200"><div class="h-full rounded-full" style="width:66%;background:var(--primary)"></div></div>
+                  <button class="btn-primary px-4 py-2 text-sm">Resume</button>
+                </div>
+              </div>
+              <div class="flex items-center justify-between p-4 rounded-xl border" style="border-color:var(--line)">
+                <div class="flex items-center gap-4">
+                  <div class="h-10 w-10 rounded-full flex items-center justify-center" style="background:#e0f2fe;color:var(--sky)">●</div>
+                  <div>
+                    <div class="font-semibold">Why we use TPI golf assessments</div>
+                    <div class="text-sm text-slate-600">Yesterday · 3 of 10 prompts</div>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="h-1.5 w-32 rounded-full bg-slate-200"><div class="h-full rounded-full" style="width:30%;background:var(--sky)"></div></div>
+                  <button class="px-4 py-2 text-sm rounded-lg border hover:bg-slate-50">Resume</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-6">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="h-7 w-1 rounded-full" style="background:var(--emerald)"></div>
+                <h2 class="text-xl">Drafts ready for review</h2>
+              </div>
+              <button class="text-sm font-semibold accent">See all →</button>
+            </div>
+            <div class="mt-4 grid grid-cols-3 gap-3">
+              <div class="rounded-xl p-4 border hover:border-orange-300 transition" style="border-color:var(--line)">
+                <div class="flex items-center justify-between">
+                  <span class="pill" style="background:#ecfdf5;color:var(--emerald)">Blog</span>
+                  <span class="text-[11px] font-bold" style="color:var(--emerald)">96%</span>
+                </div>
+                <div class="font-semibold mt-3 leading-snug">Spotting a hip-flexor strain early in runners</div>
+                <div class="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                  <span>Approve</span><span>·</span><span>Edit</span><span>·</span><span>Publish</span>
+                </div>
+              </div>
+              <div class="rounded-xl p-4 border hover:border-orange-300 transition" style="border-color:var(--line)">
+                <div class="flex items-center justify-between">
+                  <span class="pill" style="background:#fff7ed;color:var(--amber)">Email</span>
+                  <span class="text-[11px] font-bold" style="color:var(--amber)">swap</span>
+                </div>
+                <div class="font-semibold mt-3 leading-snug">Knee pain after a "successful" surgery</div>
+                <div class="mt-3 text-xs" style="color:var(--amber)">1 verbatim needs your eye</div>
+              </div>
+              <div class="rounded-xl p-4 border hover:border-orange-300 transition" style="border-color:var(--line)">
+                <div class="flex items-center justify-between">
+                  <span class="pill" style="background:#f5f3ff;color:var(--violet)">Social</span>
+                  <span class="text-[11px] font-bold" style="color:var(--violet)">4 variants</span>
+                </div>
+                <div class="font-semibold mt-3 leading-snug">3 signs you're moving wrong in your golf swing</div>
+                <div class="mt-3 flex gap-1">
+                  <div class="h-1 flex-1 rounded-full" style="background:var(--violet)"></div>
+                  <div class="h-1 flex-1 rounded-full" style="background:var(--violet)"></div>
+                  <div class="h-1 flex-1 rounded-full" style="background:var(--violet)"></div>
+                  <div class="h-1 flex-1 rounded-full bg-slate-200"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-5">
+          <div class="card p-6">
+            <div class="flex items-center gap-2 mb-1">
+              <div class="h-7 w-1 rounded-full" style="background:var(--sky)"></div>
+              <h2 class="text-lg">Plan your next interview</h2>
+            </div>
+            <p class="text-sm text-slate-600 mt-1">Topics your audience hasn't heard yet.</p>
+            <div class="mt-3 space-y-2">
+              <div class="flex items-center justify-between p-3 rounded-lg border" style="background:#fff7ed;border-color:#fed7aa">
+                <div class="font-semibold text-sm">Postpartum core rehab — return-to-running</div>
+                <span class="pill" style="background:var(--primary);color:#fff">Gap</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                <div class="font-semibold text-sm">When tennis elbow isn't from tennis</div>
+                <span class="text-xs text-slate-500">suggested</span>
+              </div>
+              <div class="flex items-center justify-between p-3 rounded-lg bg-slate-50">
+                <div class="font-semibold text-sm">Concussion return-to-sport criteria</div>
+                <span class="text-xs text-slate-500">suggested</span>
+              </div>
+            </div>
+            <button class="btn-primary w-full mt-4 py-2.5 text-sm">Start with the gap →</button>
+          </div>
+
+          <div class="card p-6" style="background:#0f172a;color:#fff;border-color:#0f172a">
+            <div class="text-xs uppercase tracking-widest opacity-70">Voice this week</div>
+            <div class="text-xl font-bold mt-2 leading-snug">"Stop letting pain be the loudest signal in your body."</div>
+            <div class="mt-4 flex items-center gap-3 text-xs">
+              <span class="pill" style="background:rgba(5,150,105,0.2);color:#6ee7b7">✓ verbatim 4×</span>
+              <span class="pill" style="background:rgba(2,132,199,0.2);color:#7dd3fc">trending ↑</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10">
+        <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-3">Interview surface — quick peek</div>
+        <div class="card p-7">
+          <div class="flex items-center gap-3 mb-5">
+            <div class="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse"></div>
+            <div class="text-sm font-semibold">Recording · 4:12</div>
+            <div class="ml-3 flex items-center gap-1">
+              <div class="h-3 w-1 rounded-full bg-orange-400"></div>
+              <div class="h-5 w-1 rounded-full bg-orange-500"></div>
+              <div class="h-7 w-1 rounded-full" style="background:var(--primary)"></div>
+              <div class="h-4 w-1 rounded-full bg-orange-500"></div>
+              <div class="h-6 w-1 rounded-full bg-orange-400"></div>
+              <div class="h-3 w-1 rounded-full bg-orange-300"></div>
+            </div>
+            <div class="ml-auto flex gap-2">
+              <button class="px-3 py-1.5 text-sm rounded-lg border hover:bg-slate-50">Pause</button>
+              <button class="btn-primary px-3 py-1.5 text-sm">Finish</button>
+            </div>
+          </div>
+          <div class="text-xs uppercase tracking-wide text-slate-500 font-semibold mb-2">Prompt 4 of 12</div>
+          <h3 class="text-2xl font-bold leading-snug tracking-tight">When a patient comes in with chronic low back pain, what's the first question you actually want answered?</h3>
+          <div class="mt-5 p-4 rounded-xl border-l-4" style="background:#f8fafc;border-left-color:var(--primary)">
+            <div class="text-xs uppercase tracking-wide font-semibold text-slate-500 mb-1">Your answer · transcribing</div>
+            <div class="text-slate-700 text-base leading-relaxed">"I want to know what they've already <span class="px-1.5 rounded font-semibold" style="background:#fef3c7;color:var(--amber)">tried and given up on</span> — that tells me where the trust got broken with the body…"</div>
+          </div>
+          <div class="mt-4 flex gap-2 text-xs">
+            <span class="pill" style="background:#fef3c7;color:var(--amber)">⚑ verbatim flag</span>
+            <span class="pill" style="background:#ecfdf5;color:var(--emerald)">✓ on-voice</span>
+            <span class="pill" style="background:#f1f5f9;color:#475569">2 more prompts queued</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="text-center text-xs text-slate-500 mt-10">Direction 3 · Refined Spectrum — Space Grotesk, brand orange + semantic emerald/sky/amber/violet used purposefully, soft depth</div>
+    </div>
+  </div>
+</section>
+
+<script>
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      const id = tab.dataset.tab;
+      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+      document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.dataset.panel === id));
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+  });
+</script>
+</body>
+</html>
