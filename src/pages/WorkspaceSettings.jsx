@@ -12,6 +12,7 @@ import { useUserRole } from '@/lib/useUserRole'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import SchedulePrefsSection from '@/components/settings/SchedulePrefsSection'
 
 // General tab — identity, web presence, social handles, approval workflow,
 // and content strings. Logos / colors / brandbook moved to Brand Kit;
@@ -37,6 +38,7 @@ function formFromWorkspace(ws) {
     spoken_url:              ws.spoken_url              ?? '',
     skip_review:             !!ws.skip_review,
     buffer_use_queue:        !!ws.buffer_use_queue,
+    schedule_prefs:          ws.schedule_prefs ?? null,
   }
 }
 
@@ -62,6 +64,7 @@ function formToPatch(form) {
     spoken_url:              form.spoken_url,
     skip_review:             !!form.skip_review,
     buffer_use_queue:        !!form.buffer_use_queue,
+    schedule_prefs:          form.schedule_prefs ?? null,
   }
 }
 
@@ -289,6 +292,17 @@ export default function WorkspaceSettings() {
             </div>
           </div>
         </label>
+      </SectionCard>
+
+      <SectionCard
+        title="Optimal posting times"
+        description="Per-platform day/hour preferences that drive the suggested time on the approve action sheet and the optimal-time tint on the calendar."
+        className="lg:col-span-2"
+      >
+        <SchedulePrefsSection
+          value={form.schedule_prefs}
+          onChange={(v) => setForm((f) => ({ ...f, schedule_prefs: v }))}
+        />
       </SectionCard>
 
       <SectionCard

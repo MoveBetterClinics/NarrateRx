@@ -721,9 +721,12 @@ function formatScheduledLabel(d) {
 // flips to "Add to Buffer queue" — Buffer picks the next open slot from the
 // channel's own posting schedule. The explainer + heuristic suggestion are
 // hidden in this mode; "Pick a specific time" remains available as an alt.
+//
+// prefsOverride: workspace.schedule_prefs JSONB — replaces the global
+// PLATFORM_SCHEDULE_PREFS for the explainer caption when present.
 function WhenToPublishCard({
   piece, suggested, otherScheduled,
-  bufferUseQueue,
+  bufferUseQueue, prefsOverride,
   onSchedule, onPublishToQueue, onPublishNow,
   publishing,
 }) {
@@ -732,7 +735,7 @@ function WhenToPublishCard({
     suggested ? toLocalDatetimeInput(suggested) : '',
   )
 
-  const explainer = explainPlatformSlot(piece.platform)
+  const explainer = explainPlatformSlot(piece.platform, prefsOverride)
   const customDate = customAt ? new Date(customAt) : null
   const customConflict = customDate && !Number.isNaN(customDate.getTime())
     ? findScheduleConflict(piece.platform, customDate, otherScheduled)
@@ -926,9 +929,10 @@ function ApprovalPanel({ piece }) {
     () => getCachedScheduledItems(qc).filter((it) => it.id !== piece.id),
     [qc, piece.id],
   )
+  const prefsOverride = workspace?.schedule_prefs
   const suggested = useMemo(
-    () => suggestScheduleTime(piece.platform, otherScheduled),
-    [piece.platform, otherScheduled],
+    () => suggestScheduleTime(piece.platform, otherScheduled, undefined, prefsOverride),
+    [piece.platform, otherScheduled, prefsOverride],
   )
 
   const userEmail = user?.primaryEmailAddress?.emailAddress || user?.id || ''
@@ -1198,6 +1202,7 @@ function ApprovalPanel({ piece }) {
           suggested={suggested}
           otherScheduled={otherScheduled}
           bufferUseQueue={!!workspace?.buffer_use_queue && piece.platform !== 'blog'}
+          prefsOverride={prefsOverride}
           onSchedule={(d) => handlePublish({ scheduledAt: d })}
           onPublishToQueue={() => handlePublish({ useQueue: true })}
           onPublishNow={() => handlePublish({})}

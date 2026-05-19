@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import EmptyState from '@/components/EmptyState'
 import { PLATFORM_META } from '@/lib/contentMeta'
 import { isOptimalSlot, isOptimalDay } from '@/lib/scheduleHeuristics'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -110,6 +111,8 @@ export default function StoriesCalendarView({ stories, isLoading }) {
 }
 
 function MonthView({ current, today, items, onPrev, onNext }) {
+  const workspace = useWorkspace()
+  const prefsOverride = workspace?.schedule_prefs
   const byDate = useMemo(() => {
     const map = {}
     items.forEach((item) => {
@@ -136,7 +139,7 @@ function MonthView({ current, today, items, onPrev, onNext }) {
       </div>
       <div className="grid grid-cols-7 border-b">
         {DAY_NAMES.map((d, i) => (
-          <div key={d} className={`py-2 text-center text-xs font-medium ${isOptimalDay(i) ? 'text-success' : 'text-muted-foreground'}`}>{d}</div>
+          <div key={d} className={`py-2 text-center text-xs font-medium ${isOptimalDay(i, prefsOverride) ? 'text-success' : 'text-muted-foreground'}`}>{d}</div>
         ))}
       </div>
       <div className="grid grid-cols-7">
@@ -146,7 +149,7 @@ function MonthView({ current, today, items, onPrev, onNext }) {
           const dayItems = byDate[dateStr] || []
           const dow = new Date(current.getFullYear(), current.getMonth(), day).getDay()
           const isToday = dateStr === isoDate(today)
-          const optimal = isOptimalDay(dow)
+          const optimal = isOptimalDay(dow, prefsOverride)
           return (
             <div
               key={day}
@@ -168,6 +171,8 @@ function MonthView({ current, today, items, onPrev, onNext }) {
 }
 
 function WeekView({ anchor, today, items, onPrev, onNext }) {
+  const workspace = useWorkspace()
+  const prefsOverride = workspace?.schedule_prefs
   const HOURS = Array.from({ length: 15 }, (_, i) => 7 + i)
   const days = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(anchor)
@@ -208,7 +213,7 @@ function WeekView({ anchor, today, items, onPrev, onNext }) {
           <Fragment key={h}>
             <div className="border-b border-r text-3xs text-muted-foreground py-2 px-2">{h}:00</div>
             {days.map((d, di) => {
-              const optimal = isOptimalSlot(d.getDay(), h)
+              const optimal = isOptimalSlot(d.getDay(), h, prefsOverride)
               const slotItems = byDayHour[`${isoDate(d)}|${h}`] || []
               return (
                 <div

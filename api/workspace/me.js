@@ -33,7 +33,45 @@ const PATCHABLE_FIELDS = new Set([
   'publish_topics',
   'skip_review',
   'buffer_use_queue',
+  'schedule_prefs',
 ])
+
+// Platforms recognized in schedule_prefs. Mirrors PLATFORM_SCHEDULE_PREFS in
+// src/lib/scheduleHeuristics.js. Unknown platforms are silently dropped.
+const SCHEDULE_PREF_PLATFORMS = new Set([
+  'instagram', 'facebook', 'linkedin', 'blog', 'email',
+  'youtube', 'tiktok', 'gbp', 'google_ads', 'instagram_ads', 'landing_page',
+])
+
+// Shape: { [platform]: { days: number[], hours: number[] } | null }
+// Returns the cleaned object on success, or null on shape error.
+function sanitizeSchedulePrefs(value) {
+  if (value === null) return null
+  if (typeof value !== 'object' || Array.isArray(value)) return null
+  const out = {}
+  for (const [platform, entry] of Object.entries(value)) {
+    if (!SCHEDULE_PREF_PLATFORMS.has(platform)) continue
+    if (entry === null) { out[platform] = null; continue }
+    if (typeof entry !== 'object' || Array.isArray(entry)) return null
+    const { days, hours } = entry
+    if (!Array.isArray(days) || days.length === 0 || days.length > 7) return null
+    if (!Array.isArray(hours) || hours.length === 0 || hours.length > 24) return null
+    const cleanDays = []
+    for (const d of days) {
+      if (!Number.isInteger(d) || d < 0 || d > 6) return null
+      if (!cleanDays.includes(d)) cleanDays.push(d)
+    }
+    const cleanHours = []
+    for (const h of hours) {
+      if (!Number.isInteger(h) || h < 0 || h > 23) return null
+      if (!cleanHours.includes(h)) cleanHours.push(h)
+    }
+    cleanDays.sort((a, b) => a - b)
+    cleanHours.sort((a, b) => a - b)
+    out[platform] = { days: cleanDays, hours: cleanHours }
+  }
+  return out
+}
 
 // Caps for the curated pre-interview slot lists. Must stay in lockstep with
 // MAX_CATALOG_SLOTS / MAX_CUSTOM_SLOTS in src/lib/interviewOptionsCatalog.js
@@ -263,6 +301,14 @@ async function handler(req, res) {
         const cleaned = sanitizePublishTopics(value)
         if (cleaned === null) return res.status(400).json({ error: 'invalid-publish-topics' })
         patch.publish_topics = cleaned
+        continue
+      }
+      if (key === 'schedule_prefs') {
+        const cleaned = sanitizeSchedulePrefs(value)
+        if (cleaned === null && value !== null) {
+          return res.status(400).json({ error: 'invalid-schedule-prefs' })
+        }
+        patch.schedule_prefs = cleaned
         continue
       }
       patch[key] = value

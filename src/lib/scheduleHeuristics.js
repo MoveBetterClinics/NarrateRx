@@ -29,13 +29,33 @@ export const PLATFORM_SCHEDULE_PREFS = {
 // room to breathe.
 export const MIN_GAP_MS = 2 * 60 * 60 * 1000
 
+// Returns the effective preferences table for a workspace. `overrides` is the
+// workspaces.schedule_prefs JSONB: { [platform]: { days, hours } | null }.
+// Per-platform: a present, valid entry replaces the default; null/missing
+// keeps the default. Returns a fresh object — safe to consume directly.
+export function resolveSchedulePrefs(overrides) {
+  if (!overrides || typeof overrides !== 'object') return { ...PLATFORM_SCHEDULE_PREFS }
+  const merged = { ...PLATFORM_SCHEDULE_PREFS }
+  for (const [platform, value] of Object.entries(overrides)) {
+    if (!value) continue // null or missing → keep default
+    if (!Array.isArray(value.days) || !Array.isArray(value.hours)) continue
+    if (value.days.length === 0 || value.hours.length === 0) continue
+    merged[platform] = { days: [...value.days], hours: [...value.hours] }
+  }
+  return merged
+}
+
 // Picks the next available slot for `platform` given currently-scheduled items.
 // Walks forward up to 60 days from `fromDate` (defaults to now), only accepting
 // days in the platform's preferred-day list and hours in its preferred-hour
 // list, while avoiding slots within MIN_GAP_MS of an already-scheduled post.
 // Returns a Date or null if no slot found within the 60-day horizon.
-export function suggestScheduleTime(platform, scheduledItems, fromDate) {
-  const prefs = PLATFORM_SCHEDULE_PREFS[platform] || { days: [1, 2, 3, 4, 5], hours: [9, 14] }
+//
+// overrides: optional workspaces.schedule_prefs JSONB. When provided, the
+// platform's preferences are replaced by the override before slot search.
+export function suggestScheduleTime(platform, scheduledItems, fromDate, overrides) {
+  const prefsTable = resolveSchedulePrefs(overrides)
+  const prefs = prefsTable[platform] || { days: [1, 2, 3, 4, 5], hours: [9, 14] }
   const busy = scheduledItems.map((i) => new Date(i.scheduled_at).getTime()).filter(Boolean)
   const now = fromDate || new Date()
   for (let d = 0; d <= 60; d++) {
@@ -54,8 +74,8 @@ export function suggestScheduleTime(platform, scheduledItems, fromDate) {
 
 // True if any platform's optimal-window prefs include this (day, hour) slot.
 // Used to drive the subtle heatmap tinting in the week view.
-export function isOptimalSlot(day, hour) {
-  for (const prefs of Object.values(PLATFORM_SCHEDULE_PREFS)) {
+export function isOptimalSlot(day, hour, overrides) {
+  for (const prefs of Object.values(resolveSchedulePrefs(overrides))) {
     if (prefs.days.includes(day) && prefs.hours.includes(hour)) return true
   }
   return false
@@ -63,8 +83,8 @@ export function isOptimalSlot(day, hour) {
 
 // True if any platform's optimal-day list contains this day — used for the
 // month-view heatmap (one tint per day rather than per-hour).
-export function isOptimalDay(day) {
-  for (const prefs of Object.values(PLATFORM_SCHEDULE_PREFS)) {
+export function isOptimalDay(day, overrides) {
+  for (const prefs of Object.values(resolveSchedulePrefs(overrides))) {
     if (prefs.days.includes(day)) return true
   }
   return false
@@ -107,11 +127,12 @@ function formatHourRange(hours) {
   if (sorted.length === 1) return fmt(sorted[0])
   return `${fmt(sorted[0])}–${fmt(sorted[sorted.length - 1])}`
 }
-export function explainPlatformSlot(platform) {
-  const prefs = PLATFORM_SCHEDULE_PREFS[platform]
+export function explainPlatformSlot(platform, overrides) {
+  const prefs = resolveSchedulePrefs(overrides)[platform]
   if (!prefs) return null
   const label = PLATFORM_LABELS[platform] || platform
-  return `${label} engages best ${formatDayRange(prefs.days)} ${formatHourRange(prefs.hours)}`
+  const overridden = overrides?.[platform] ? ' (workspace preference)' : ''
+  return `${label} engages best ${formatDayRange(prefs.days)} ${formatHourRange(prefs.hours)}${overridden}`
 }
 
 // Returns the closest scheduled item on the same platform within MIN_GAP_MS of
