@@ -84,6 +84,20 @@ export default function MicCheck({ onContinue }) {
   }, [])
 
   function handleContinue() {
+    // iOS Safari requires speechSynthesis.speak() to be invoked from within a
+    // user-gesture handler at least once per page; otherwise subsequent calls
+    // (made after async work like sendToAI) produce silent failures. Prime it
+    // here with a near-silent utterance so the real TTS fires later.
+    try {
+      const synth = window.speechSynthesis
+      if (synth) {
+        synth.cancel()
+        const primer = new SpeechSynthesisUtterance(' ')
+        primer.volume = 0
+        synth.speak(primer)
+      }
+    } catch { /* ignore */ }
+
     // Clean up before handing off — interview will open its own mic session
     cancelAnimationFrame(rafRef.current)
     audioCtxRef.current?.close().catch(() => {})
