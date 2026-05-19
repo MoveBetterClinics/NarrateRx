@@ -8,7 +8,6 @@ import { generateText } from 'ai'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
-import { suggestedScheduledAt } from '../_lib/atomPlan.js'
 import { getContextBlock } from '../_lib/conceptRetrieval.js'
 import { extractProvenanceBlock } from '../../src/lib/provenance.js'
 
@@ -175,10 +174,10 @@ export default async function handler(req, res) {
       }
     }
 
-    // Create the content_item. Auto-anchor the suggested publish date based on
-    // the atom's slot (interview.created_at + (slot - 1) weeks) so drafted
-    // atoms land on the calendar at the cadence the Plan implies. Clinician
-    // can always override before scheduling.
+    // Create the content_item. scheduled_at stays null until a reviewer
+    // approves and picks a time — the prior "anchor + (slot-1) weeks"
+    // pre-fill made every draft look committed to a calendar date before
+    // anyone had agreed to it.
     const itemPayload = {
       workspace_id:   ws.id,
       interview_id:   atom.interview_id,
@@ -187,11 +186,9 @@ export default async function handler(req, res) {
       topic:          interview.topic,
       platform:       atom.platform,
       content:        caption,
-      // Snapshot the AI's output so future edits can be diffed for voice memory
       ai_original_content: caption,
       overlay_text,
       status:         'draft',
-      scheduled_at:   suggestedScheduledAt(interview.created_at, atom.slot),
       media_urls:     [],
       location_id:    interview.location_id ?? null,
     }
