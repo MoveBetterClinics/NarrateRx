@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Mic, CheckCircle2, MicOff, Volume2, VolumeX } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Icon from '@/components/ui/Icon'
+import { primeAudioPlayback } from '@/lib/tts'
 
 /**
  * MicCheck — pre-interview audio gate (Strella pattern, extended).
@@ -107,6 +108,12 @@ export default function MicCheck({ onContinue }) {
   function handleTestSpeakers() {
     setStatus('speaker-testing')
 
+    // The neural TTS used in the interview plays via <audio> elements, which
+    // iOS Safari blocks from programmatic .play() unless an Audio element has
+    // already been activated by a user gesture. Prime it here, alongside the
+    // synchronous speechSynthesis.speak() below.
+    primeAudioPlayback()
+
     try {
       const synth = window.speechSynthesis
       if (!synth) {
@@ -150,6 +157,11 @@ export default function MicCheck({ onContinue }) {
   }
 
   function handleContinue() {
+    // Defensive: also prime <audio> here for paths that skip the speaker
+    // check entirely (e.g. mic-denied "Continue anyway", or environments
+    // without speechSynthesis where the speaker-check button is hidden).
+    primeAudioPlayback()
+
     // Clean up before handing off — interview will open its own mic session
     cancelAnimationFrame(rafRef.current)
     audioCtxRef.current?.close().catch(() => {})
