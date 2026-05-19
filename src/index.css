@@ -4,62 +4,65 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 10%;
+    /* ── Core surfaces ──────────────────────────────────────────────────
+       Background warmed slightly off pure white; foreground darker than
+       before (was 0% 10%) so default body copy reads as real ink, not
+       muted gray. */
+    --background: 220 22% 97%;         /* #f7f8fb soft cool-paper */
+    --foreground: 222 47% 8%;          /* near-black ink */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 10%;
+    --card-foreground: 222 47% 8%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 10%;
+    --popover-foreground: 222 47% 8%;
 
-    /* Brand primary (human deployment: Move Better Orange #E36525). Equine
-       and animals deployments will swap these values per brand.colors. */
+    /* Brand primary — Move Better Orange #E36525 (kept). */
     --primary: 20 76% 52%;
     --primary-foreground: 0 0% 100%;
 
-    /* Light grey backgrounds */
-    --secondary: 0 0% 95%;
-    --secondary-foreground: 0 0% 15%;
+    /* Secondary / muted greys — pulled cooler to harmonize with the new
+       slate ink so muted text doesn't read as warm-beige against the
+       paper background. */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 47% 12%;
 
-    --muted: 0 0% 95%;
-    --muted-foreground: 210 2% 44%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;   /* slate-500 */
 
-    /* Soft orange tint for accents */
+    /* Soft orange tint — used for hover surfaces, gap-highlight banners,
+       and the Review-stage column background. */
     --accent: 20 60% 95%;
     --accent-foreground: 20 76% 38%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Brand grey (human deployment: Move Better Grey #6E7072) */
-    --border: 210 5% 88%;
-    --input: 210 5% 88%;
+    --border: 214 32% 91%;             /* slate-200 */
+    --input: 214 32% 91%;
     --ring: 20 76% 52%;
-    --radius: 0.5rem;
+    --radius: 0.625rem;                /* 10px — tighter than the old 8px */
 
     /* ── Voice-fidelity semantic tokens ────────────────────────────────────
-       These three colors encode the cross-staff probe signals surfaced during
-       interviews and in the approval/drift surfaces. Using tokens (rather than
-       hardcoded amber/emerald/sky) lets a future tenant theme override all
-       three with a single CSS block.
+       Cross-staff probe signals surfaced during interviews and in the
+       approval/drift surfaces. Using tokens (rather than hardcoded amber/
+       emerald/sky) lets a future tenant theme override all three with a
+       single CSS block.
          verbatim-accent  — amber;  verbatim flags, gap probes, "not yet captured"
          agreement-signal — emerald; shared-view badges, completion, success
          contrast-signal  — sky;    different-angle badges, cross-staff contrast */
-    --verbatim-accent:   38 92% 50%;   /* amber-500 equivalent */
-    --agreement-signal: 152 76% 40%;   /* emerald-600 equivalent */
-    --contrast-signal:  199 95% 40%;   /* sky-600 equivalent */
+    --verbatim-accent:   38 92% 50%;
+    --agreement-signal: 152 76% 40%;
+    --contrast-signal:  199 95% 40%;
 
     /* ── General status tokens ─────────────────────────────────────────────
-       Use these for generic UI status — toasts, completed states, warning
-       banners, info callouts. They intentionally overlap in hue with the
-       voice-fidelity tokens above (success == agreement-signal == emerald-600,
-       warning == verbatim-accent == amber-500) but carry different semantics:
-       the voice-fidelity tokens are reserved for cross-staff probe signals
-       in interview/approval surfaces, while these are for everyday status.
-       Keep them separate so a tenant theme can rebrand probe signals without
+       Generic UI status — toasts, completed states, warning banners, info
+       callouts. They intentionally overlap in hue with the voice-fidelity
+       tokens above (success == agreement-signal == emerald-600, warning ==
+       verbatim-accent == amber-500) but carry different semantics. Keep them
+       separate so a tenant theme can rebrand probe signals without
        affecting the rest of the app's status UI. */
-    --success: 152 76% 40%;   /* emerald-600 equivalent */
-    --warning:  38 92% 50%;   /* amber-500 equivalent */
-    --info:    199 95% 40%;   /* sky-600 equivalent */
+    --success: 152 76% 40%;
+    --warning:  38 92% 50%;
+    --info:    199 95% 40%;
   }
 }
 
@@ -69,12 +72,15 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Titillium Web', system-ui, sans-serif;
-    font-feature-settings: "rlig" 1, "calt" 1;
+    font-family: 'Geist', 'Inter', system-ui, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Titillium Web', system-ui, sans-serif;
-    font-weight: 600;
+    font-family: 'Geist', 'Inter', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.025em;
   }
   a {
     @apply text-primary;
@@ -84,5 +90,145 @@
      underline off the descenders so the type stays legible. */
   a:hover {
     @apply underline underline-offset-2;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────────
+   COMPONENT UTILITIES — blend theme
+   New utility classes used by Home, Stories, and the Interview surface to
+   carry the "premium clinical + energetic modern" visual language. Keep
+   these in @layer components so they can be @apply-composed if needed.
+   ──────────────────────────────────────────────────────────────────────── */
+@layer components {
+
+  /* Pills — semantic chips. Use ONE of these per pill; do not stack. */
+  .nx-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    border-radius: 9999px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  .nx-pill-emerald { background: #ecfdf5; color: #059669; }
+  .nx-pill-amber   { background: #fff7ed; color: #d97706; }
+  .nx-pill-sky     { background: #e0f2fe; color: #0284c7; }
+  .nx-pill-violet  { background: #f5f3ff; color: #7c3aed; }
+  .nx-pill-rose    { background: #fff1f2; color: #e11d48; }
+  .nx-pill-tint    { background: #fff7f0; color: #c04d18; border: 1px solid #fde0d2; }
+  .nx-pill-ink     { background: #f1f5f9; color: #475569; }
+  .nx-pill-primary { background: hsl(var(--primary)); color: #fff; }
+
+  /* Accent rail — colored 4px bar that sits to the left of a section
+     heading. Use the inline style="background: …" to pick the hue. */
+  .nx-rail {
+    display: inline-block;
+    width: 4px; height: 22px;
+    border-radius: 9999px;
+    margin-right: 10px;
+    vertical-align: middle;
+    background: hsl(var(--primary));
+  }
+
+  /* Signature gradient — used once per page as "the moment." Reserve for
+     hero ribbons, campaign progress strips, brand-mark badges. Do NOT use
+     for buttons (use .nx-btn-primary). */
+  .nx-grad {
+    background: linear-gradient(135deg, #ff7a3d 0%, #f43f5e 55%, #7c3aed 100%);
+    color: #fff;
+  }
+  .nx-grad-text {
+    background: linear-gradient(135deg, #ff7a3d 0%, #f43f5e 55%, #7c3aed 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .nx-grad-ribbon {
+    background: linear-gradient(135deg, #ff7a3d 0%, #f43f5e 55%, #7c3aed 100%);
+    color: #fff;
+    border-radius: 12px;
+    padding: 12px 18px;
+  }
+
+  /* Cards — depth without heaviness. .nx-card-hi is the warm-tint variant
+     used to flag the "do this next" surface (Drafts stat on Home, Review
+     column on Stories). */
+  .nx-card {
+    background: #fff;
+    border: 1px solid hsl(var(--border));
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.03), 0 8px 24px -18px rgba(15,23,42,0.10);
+  }
+  .nx-card-hi {
+    background: linear-gradient(180deg, #fff, #fefaf7);
+    border: 1px solid #f3d3b5;
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -18px rgba(227,101,37,0.22);
+  }
+
+  /* Buttons — solid-orange primary with a subtle warm shadow, neutral
+     secondary, ink-dark variant for finish/destructive-ish surfaces. */
+  .nx-btn-primary {
+    background: hsl(var(--primary));
+    color: #fff;
+    font-weight: 600;
+    border-radius: 10px;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.05), 0 6px 16px -10px rgba(227,101,37,0.55);
+    transition: background .15s ease;
+  }
+  .nx-btn-primary:hover { background: #c04d18; }
+  .nx-btn-secondary {
+    background: #fff;
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border));
+    font-weight: 600;
+    border-radius: 10px;
+  }
+  .nx-btn-secondary:hover { background: #f8fafc; }
+  .nx-btn-dark {
+    background: hsl(var(--foreground));
+    color: #fff;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .nx-btn-dark:hover { background: #111827; }
+
+  /* Eyebrow label — small all-caps section labels above headings. */
+  .nx-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Verbatim mark — soft amber highlight used in interview transcripts
+     and draft-review surfaces to flag a clinician's verbatim phrase. */
+  .nx-verbatim {
+    padding: 0 4px;
+    border-radius: 3px;
+    background: #fef3c7;
+    color: #92400e;
+    font-weight: 600;
+  }
+
+  /* Progress bar — slim, gradient fill. .nx-progress-flat uses a single
+     orange fill instead of the gradient (less visual noise when many
+     bars stack in one view). */
+  .nx-progress {
+    height: 6px;
+    border-radius: 9999px;
+    background: #eef2f7;
+    overflow: hidden;
+  }
+  .nx-progress > i {
+    display: block;
+    height: 100%;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, #ff7a3d, #f43f5e);
+  }
+  .nx-progress-flat > i {
+    background: hsl(var(--primary));
   }
 }
