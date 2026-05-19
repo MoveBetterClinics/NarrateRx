@@ -22,6 +22,7 @@ import { applyLocationOverlay } from '@/lib/locationOverlay'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import MicCheck from '@/components/MicCheck'
+import { createTtsPlayer } from '@/lib/tts'
 
 // Concrete noun list for shallow-answer detection (Feature 2)
 const CONCRETE_NOUNS = ['patient', 'person', 'name', 'case', 'example', 'time', 'moment', 'client', 'athlete', 'runner', 'worker']
@@ -201,6 +202,13 @@ export default function InterviewSession() {
   const reprobedIndexesRef = useRef(new Set())
   // Prior session context for returning clinicians
   const priorSessionContextRef = useRef(null)
+  // Neural-TTS player (ElevenLabs) with speechSynthesis fallback. Constructed
+  // lazily so SSR / no-window environments don't blow up. See src/lib/tts.js.
+  const ttsRef = useRef(null)
+  function getTts() {
+    if (!ttsRef.current) ttsRef.current = createTtsPlayer()
+    return ttsRef.current
+  }
   // Learned practice knowledge from concept graph — fetched once at session start
   const conceptBlockRef   = useRef('')
   const agreementBlockRef = useRef('')
@@ -451,42 +459,22 @@ export default function InterviewSession() {
 
   useEffect(() => {
     return () => {
+      ttsRef.current?.cancel()
       window.speechSynthesis?.cancel()
       recognitionRef.current?.abort()
     }
   }, [])
 
-  function getBestVoice() {
-    const voices = window.speechSynthesis.getVoices()
-    const priority = [
-      v => v.name === 'Google US English',
-      v => v.name.startsWith('Google') && v.lang.startsWith('en'),
-      v => v.name.includes('Samantha') && v.localService,
-      v => v.name.includes('Enhanced') && v.lang.startsWith('en'),
-      v => v.lang === 'en-US' && v.localService,
-      v => v.lang.startsWith('en'),
-    ]
-    for (const test of priority) {
-      const match = voices.find(test)
-      if (match) return match
-    }
-    return null
-  }
-
   function speak(text) {
-    if (!window.speechSynthesis) return
-    window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
-    utterance.voice = getBestVoice()
-    utterance.rate = 1.1
-    utterance.pitch = 1.0
     setIsSpeaking(true)
-    utterance.onend = () => {
-      setIsSpeaking(false)
-      autoListenRef.current = true
-    }
-    utterance.onerror = () => setIsSpeaking(false)
-    window.speechSynthesis.speak(utterance)
+    getTts().speak(text, {
+      onStart: () => setIsSpeaking(true),
+      onEnd: () => {
+        setIsSpeaking(false)
+        autoListenRef.current = true
+      },
+      onError: () => setIsSpeaking(false),
+    })
   }
 
   useEffect(() => {
@@ -647,6 +635,7 @@ export default function InterviewSession() {
     }
     if (isListening) return
 
+    ttsRef.current?.cancel()
     window.speechSynthesis?.cancel()
     setIsSpeaking(false)
     setTranscript('')
@@ -753,6 +742,7 @@ export default function InterviewSession() {
   const [outputData, setOutputData] = useState(null)
 
   function leaveInterview() {
+    ttsRef.current?.cancel()
     window.speechSynthesis?.cancel()
     recognitionRef.current?.abort()
     // Flush session_state immediately before leaving so resume works
@@ -867,6 +857,7 @@ export default function InterviewSession() {
     setError('')
     blogStreamingTextRef.current = ''
     setBlogStreamingTokens(0)
+    ttsRef.current?.cancel()
     window.speechSynthesis?.cancel()
     // Kick off the transcript cleanup pass in parallel with the blog draft.
     // It writes cleaned_messages on the interview row independently, so
