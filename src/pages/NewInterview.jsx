@@ -344,14 +344,22 @@ export default function NewInterview() {
             toneSlot={toneSlot}
             cleanupSlot={cleanupSlot}
             tuneOpen={tuneOpen}
-            onTuneToggle={() => setTuneOpen((o) => !o)}
+            onTuneToggle={() => setTuneOpen((o) => {
+              const next = !o
+              if (next) {
+                setTimeout(() => {
+                  document.querySelector('[data-tune-section]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }, 50)
+              }
+              return next
+            })}
             canSaveRecipe={!selectedRecipeId && !!resolvedClinician}
             onSaveRecipe={() => setSaveRecipeOpen(true)}
           />
 
           {/* Tune drawer — individual lever pickers */}
           {tuneOpen && (
-            <div className="space-y-4 border-t pt-4">
+            <div data-tune-section className="space-y-4 border-t pt-4 scroll-mt-20">
               <InterviewSlotPicker
                 label="Who is this piece for?"
                 options={audienceOptions}
@@ -820,7 +828,7 @@ function TopicChip({ label, count, priority, onClick, disabled }) {
     <button
       onClick={onClick}
       disabled={disabled}
-      className="group flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-input hover:bg-primary hover:text-primary-foreground hover:border-primary transition-colors disabled:opacity-50"
+      className="group flex items-center gap-1.5 text-xs px-3 py-2 min-h-[36px] rounded-full border border-input hover:bg-primary hover:text-primary-foreground hover:border-primary active:bg-primary/90 active:text-primary-foreground transition-colors disabled:opacity-50"
     >
       {label}
       {count > 0 && (

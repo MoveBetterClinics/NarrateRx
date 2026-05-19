@@ -1046,9 +1046,9 @@ export default function InterviewSession() {
     : null
 
   return (
-    <div className={`flex h-[calc(100vh-7rem)] ${showOutput ? 'gap-0 overflow-hidden' : 'max-w-2xl mx-auto'}`}>
+    <div className={`flex flex-col md:flex-row h-[calc(100dvh-7rem)] ${showOutput ? 'gap-0 overflow-hidden' : 'max-w-2xl mx-auto'}`}>
       {/* ── Left: interview transcript pane ── */}
-      <div className={`flex flex-col min-w-0 transition-all duration-300 ease-out ${showOutput ? 'w-1/2 pr-4' : 'flex-1'}`}>
+      <div className={`flex flex-col min-w-0 transition-all duration-300 ease-out ${showOutput ? 'hidden md:flex md:w-1/2 md:pr-4' : 'flex-1'}`}>
       <div className="flex items-center gap-3 pb-4 shrink-0">
         <Button variant="ghost" size="icon" asChild>
           <Link to={`/clinician/${clinicianId}`}>
@@ -1109,7 +1109,7 @@ export default function InterviewSession() {
                 disabled={!canFinish}
                 title={canFinish ? undefined : finishHelper}
                 aria-label={canFinish ? 'Finish interview' : finishHelper}
-                className="gap-1.5"
+                className="gap-1.5 min-h-[44px] sm:min-h-0"
               >
                 <Sparkles className="h-3.5 w-3.5" />
                 Finish
@@ -1120,10 +1120,10 @@ export default function InterviewSession() {
                 onClick={handlePause}
                 title="Save and pause — you can resume later"
                 aria-label="Pause interview"
-                className="gap-1 text-muted-foreground hover:text-foreground px-2"
+                className="gap-1 text-muted-foreground hover:text-foreground px-2 min-h-[44px] sm:min-h-0"
               >
                 <PauseCircle className="h-4 w-4" />
-                <span className="text-xs">Pause</span>
+                <span className="hidden sm:inline text-xs">Pause</span>
               </Button>
             </div>
           )
@@ -1131,17 +1131,21 @@ export default function InterviewSession() {
       </div>
 
       <div className="flex items-center gap-1.5 pb-3 -mt-1 shrink-0 flex-wrap">
-        <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+        <Badge variant="outline" className="hidden sm:inline-flex text-xs gap-1 text-foreground/70">
           {toneObj.emoji} {toneObj.label}
         </Badge>
-        <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+        <Badge variant="outline" className="hidden sm:inline-flex text-xs gap-1 text-foreground/70">
           {voiceObj.emoji} {voiceObj.label}
         </Badge>
         {prototypeObj && (
-          <Badge variant="outline" className="text-xs gap-1 text-foreground/70">
+          <Badge variant="outline" className="hidden sm:inline-flex text-xs gap-1 text-foreground/70">
             {prototypeObj.emoji} {prototypeObj.label}
           </Badge>
         )}
+        {/* Mobile: compact emoji-only summary so the row doesn't eat ~40px of viewport */}
+        <span className="sm:hidden text-xs text-muted-foreground" aria-label={`Tone ${toneObj.label}, voice ${voiceObj.label}`}>
+          {toneObj.emoji} {voiceObj.emoji}{prototypeObj ? ` ${prototypeObj.emoji}` : ''}
+        </span>
         {!interviewComplete && userMessageCount > 0 && (
           <InterviewProgress count={userMessageCount} />
         )}
@@ -1340,7 +1344,7 @@ export default function InterviewSession() {
       )}
 
       {!interviewComplete && isOwner && hasSpeechRecognition && (
-        <div className="pt-4 pb-1 shrink-0 flex flex-col items-center gap-3">
+        <div className="pt-4 pb-1 shrink-0 flex flex-col items-center gap-3" style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}>
           {transcript && (
             <div
               aria-live="polite"
@@ -1387,7 +1391,7 @@ export default function InterviewSession() {
       )}
 
       {!interviewComplete && isOwner && !hasSpeechRecognition && (
-        <div className="pt-4 pb-1 shrink-0 flex flex-col gap-2">
+        <div className="pt-4 pb-1 shrink-0 flex flex-col gap-2" style={{ paddingBottom: 'max(0.25rem, env(safe-area-inset-bottom))' }}>
           <p
             role="status"
             aria-live="polite"
@@ -1416,7 +1420,7 @@ export default function InterviewSession() {
               placeholder="Type your answer here…"
               rows={3}
               disabled={isStreaming || isGenerating || isSpeaking}
-              className="flex-1 rounded-xl border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+              className="flex-1 rounded-xl border bg-background px-3 py-2 text-base md:text-sm resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
               aria-label="Type your answer"
             />
             <Button
@@ -1460,7 +1464,7 @@ export default function InterviewSession() {
 
       {/* ── Right: inline output panel (slides in on generation complete) ── */}
       <div
-        className={`flex-shrink-0 w-1/2 border-l bg-background overflow-hidden transition-transform duration-300 ease-out ${
+        className={`flex-shrink-0 w-full md:w-1/2 md:border-l bg-background overflow-hidden transition-transform duration-300 ease-out ${
           showOutput ? 'translate-x-0' : 'translate-x-full hidden'
         }`}
       >

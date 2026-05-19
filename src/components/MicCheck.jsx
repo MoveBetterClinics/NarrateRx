@@ -289,7 +289,7 @@ export default function MicCheck({ onContinue }) {
               <button
                 type="button"
                 onClick={handleTestSpeakers}
-                className="text-xs text-muted-foreground underline hover:text-foreground"
+                className="text-xs text-muted-foreground underline hover:text-foreground active:text-foreground py-2 px-3 min-h-[44px]"
               >
                 Play again
               </button>
