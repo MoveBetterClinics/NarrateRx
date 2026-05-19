@@ -263,8 +263,15 @@ export default function NewInterview() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-xl font-bold">New Interview</h1>
-          <p className="text-sm text-muted-foreground">Set up and start in one screen</p>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center">
+            <span
+              className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+              style={{ background: 'hsl(var(--primary))' }}
+              aria-hidden="true"
+            />
+            New Interview
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">Set up and start in one screen</p>
         </div>
       </div>
 

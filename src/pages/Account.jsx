@@ -92,7 +92,14 @@ export default function Account() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Your account</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center">
+            <span
+              className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+              style={{ background: '#94a3b8' }}
+              aria-hidden="true"
+            />
+            Your account
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Update your profile, email, password, multi-factor authentication, and active sessions.
           </p>

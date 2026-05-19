@@ -136,7 +136,14 @@ export default function Integrations() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Integrations</h1>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center">
+          <span
+            className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+            style={{ background: '#7c3aed' }}
+            aria-hidden="true"
+          />
+          Integrations
+        </h1>
         <p className="text-muted-foreground text-sm mt-1">
           Connect publishing platforms so NarrateRx can push finished posts straight from the Content Hub.
           Credentials are stored encrypted (AES-256-GCM) and decrypted only at publish time.

@@ -259,7 +259,14 @@ export default function Synthesis() {
           <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground mb-3">
             <ArrowLeft className="h-3.5 w-3.5" /> Dashboard
           </Link>
-          <h1 className="text-2xl font-semibold">Knowledge synthesis</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center">
+            <span
+              className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+              style={{ background: '#0284c7' }}
+              aria-hidden="true"
+            />
+            Knowledge synthesis
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Cross-staff concept coverage for {workspace?.display_name}
           </p>

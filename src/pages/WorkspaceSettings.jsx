@@ -168,7 +168,14 @@ export default function WorkspaceSettings() {
       {/* Sticky header / save bar */}
       <div className="md:sticky md:top-14 z-20 py-4 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border/60 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">General</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center">
+            <span
+              className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+              style={{ background: '#94a3b8' }}
+              aria-hidden="true"
+            />
+            General
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Identity, web presence, and content strings used across prompts and link previews.
           </p>

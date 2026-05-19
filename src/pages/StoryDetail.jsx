@@ -170,7 +170,12 @@ export default function StoryDetail() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-xl font-semibold text-foreground leading-snug">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground leading-snug flex items-center">
+                <span
+                  className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+                  style={{ background: 'hsl(var(--primary))' }}
+                  aria-hidden="true"
+                />
                 {story.topic || 'Untitled interview'}
               </h1>
               <Badge className={`text-xs border-0 shrink-0 ${stageMeta.badge}`}>

@@ -397,7 +397,14 @@ export default function MediaHub() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold">Library</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center">
+            <span
+              className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+              style={{ background: '#7c3aed' }}
+              aria-hidden="true"
+            />
+            Library
+          </h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Your whole clinic&apos;s media — interview clips, B-roll, photos, and brand assets. Interview uploads also feed the editor brief queue; everything else is tagged for search and reuse.
           </p>

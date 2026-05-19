@@ -27,7 +27,14 @@ export default function Members() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Members</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center">
+            <span
+              className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+              style={{ background: '#0284c7' }}
+              aria-hidden="true"
+            />
+            Members
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Invite teammates, change roles, and manage workspace access.
           </p>
