@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Copy, Check, FileText, ExternalLink, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Copy, Check, FileText, ExternalLink, RefreshCw, Send, Keyboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -163,6 +163,13 @@ export default function InterviewSession() {
   const [error, setError] = useState('')
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
+  // Typed-answer fallback. SpeechRecognition is unavailable on iOS Safari
+  // (and any non-Chromium browser); when absent, the mic UI is replaced by a
+  // textarea + Send button. We compute support once at mount so we don't
+  // re-detect on every render.
+  const hasSpeechRecognition = typeof window !== 'undefined' &&
+    !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  const [typedAnswer, setTypedAnswer] = useState('')
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [showInstructions, setShowInstructions] = useState(true)
   // micCheckPassed gates the mic check screen shown after the pre-interview
@@ -483,6 +490,9 @@ export default function InterviewSession() {
   }
 
   useEffect(() => {
+    // Skip auto-listen on browsers without SpeechRecognition (iOS Safari etc.) —
+    // the typed-answer fallback UI is shown instead.
+    if (!hasSpeechRecognition) return
     if (!isSpeaking && autoListenRef.current && !isStreaming && !interviewComplete) {
       autoListenRef.current = false
       const timer = setTimeout(() => startListening(), 400)
@@ -631,7 +641,8 @@ export default function InterviewSession() {
   function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) {
-      setError('Speech recognition is not supported. Please use Chrome.')
+      // No-op: the typed-answer fallback UI is rendered instead. Don't set an
+      // error — that would push iOS users into a dead-end state.
       return
     }
     if (isListening) return
@@ -689,41 +700,42 @@ export default function InterviewSession() {
     recognitionRef.current?.stop()
   }
 
-  useEffect(() => {
-    if (isListening) return
-    const text = transcriptRef.current.trim()
+  // Shared submit path for both voice (auto-fires when isListening flips
+  // false with text captured) and typed-answer (Send button on iOS/non-SR
+  // browsers). Extracted so the typed path runs the same emotion-detect +
+  // save + sendToAI sequence as voice.
+  function submitUserText(rawText) {
+    const text = (rawText || '').trim()
     if (!text) return
 
     setTranscript('')
     transcriptRef.current = ''
+    setTypedAnswer('')
 
     const userMessage = { role: 'user', content: text }
     const updated = [...messagesRef.current, userMessage]
     setMessages(updated)
 
-    // Detect emotional state from the last 3 user messages before calling AI.
-    // The ref is read (and cleared) inside sendToAI so the injection is
-    // scoped to this single exchange only.
     const recentUserMessages = updated
       .filter((m) => m.role === 'user')
       .slice(-3)
       .map((m) => m.content)
     emotionStateRef.current = detectEmotionalState(recentUserMessages)
 
-    // Opt-out phrases (RESIST_PHRASES) may appear mid-utterance as well as
-    // at the end. If the whole message is just an opt-out phrase and contains
-    // no other content, we still send it so the AI's back-off injection works
-    // naturally — we don't strip it the way STOP_PHRASES are stripped.
-
     if (user?.id) {
       saveMessages(interviewId, { messages: updated }, user.id)
     }
 
     sendToAI(updated)
-    // `saveMessages` is a stable scope-level helper, and `user.id` doesn't
-    // change mid-session (the auth-gated route remounts on user change).
-    // Listing them here would re-create this callback on every render and
-    // churn downstream effects that depend on it.
+  }
+
+  useEffect(() => {
+    if (isListening) return
+    if (!transcriptRef.current.trim()) return
+    submitUserText(transcriptRef.current)
+    // `submitUserText` is a stable scope-level helper. `saveMessages` and
+    // `user.id` likewise — listing them would re-create the effect on every
+    // render and churn downstream consumers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isListening, interviewId, sendToAI])
 
@@ -1336,7 +1348,7 @@ export default function InterviewSession() {
         </div>
       )}
 
-      {!interviewComplete && isOwner && (
+      {!interviewComplete && isOwner && hasSpeechRecognition && (
         <div className="pt-4 pb-1 shrink-0 flex flex-col items-center gap-3">
           {transcript && (
             <div
@@ -1380,6 +1392,53 @@ export default function InterviewSession() {
               : <Mic className="h-6 w-6" aria-hidden="true" />
             }
           </button>
+        </div>
+      )}
+
+      {!interviewComplete && isOwner && !hasSpeechRecognition && (
+        <div className="pt-4 pb-1 shrink-0 flex flex-col gap-2">
+          <p
+            role="status"
+            aria-live="polite"
+            className="text-xs text-muted-foreground h-4 flex items-center gap-1.5"
+          >
+            {isStreaming ? '' : isSpeaking ? (
+              <><Volume2 className="h-3 w-3 animate-pulse" aria-hidden="true" /> Speaking…</>
+            ) : (
+              <><Keyboard className="h-3 w-3" aria-hidden="true" /> Type your answer — voice input isn&rsquo;t supported in this browser</>
+            )}
+          </p>
+          <div className="flex items-end gap-2">
+            <textarea
+              value={typedAnswer}
+              onChange={(e) => setTypedAnswer(e.target.value)}
+              onKeyDown={(e) => {
+                // Cmd/Ctrl+Enter sends; plain Enter inserts newline so users
+                // can write multi-paragraph answers.
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault()
+                  if (!isStreaming && !isGenerating && !isSpeaking && typedAnswer.trim()) {
+                    submitUserText(typedAnswer)
+                  }
+                }
+              }}
+              placeholder="Type your answer here…"
+              rows={3}
+              disabled={isStreaming || isGenerating || isSpeaking}
+              className="flex-1 rounded-xl border bg-background px-3 py-2 text-sm resize-none focus:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50"
+              aria-label="Type your answer"
+            />
+            <Button
+              onClick={() => submitUserText(typedAnswer)}
+              disabled={isStreaming || isGenerating || isSpeaking || !typedAnswer.trim()}
+              size="lg"
+              aria-label="Send answer"
+              className="h-[44px] shrink-0"
+            >
+              <Send className="h-4 w-4 mr-1.5" aria-hidden="true" />
+              Send
+            </Button>
+          </div>
         </div>
       )}
 
