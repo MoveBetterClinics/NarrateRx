@@ -1,13 +1,31 @@
 // Neural TTS client. Fetches audio from /api/tts (ElevenLabs proxy) and plays
-// it back via an Audio element. Falls back to window.speechSynthesis on error
-// so the interview keeps working even if ElevenLabs is unreachable or the env
-// var isn't configured.
+// it back via a long-lived <audio> element. Falls back to
+// window.speechSynthesis on error so the interview keeps working even if
+// ElevenLabs is unreachable or the env var isn't configured.
 //
-// iOS Safari note: the Audio element must be "user-activated" before the
-// first programmatic .play() works. MicCheck primes a silent <audio> inside
-// the user's click handler so subsequent neural-TTS playback succeeds.
+// iOS audio-unlock model:
+//   iOS Safari (and iOS Chrome, both WebKit) only allows HTMLMediaElement.play()
+//   to produce sound if the element has been "user-activated" — i.e. .play()
+//   was called inside a user-gesture handler — AND the play() call happens
+//   close enough to that gesture (or on a previously activated element).
+//
+//   Crucially, the activation is PER-ELEMENT: a fresh `new Audio()` is locked
+//   even if some other element on the page is already unlocked. The audio
+//   also "decays" out of gesture context: if you fetch a blob asynchronously
+//   and then call .play() seconds later, you're outside the gesture window
+//   and need a previously-activated element.
+//
+//   We solve both with ONE shared, module-level <audio> element. It's primed
+//   inside the MicCheck click handler (which makes a silent .play() call →
+//   unlocks the element). All later speak() calls reuse the same element by
+//   swapping .src — no fresh `new Audio()`, so the unlock persists for the
+//   entire page lifetime.
 //
 // Usage:
+//   import { primeAudioPlayback, createTtsPlayer } from '@/lib/tts'
+//   // inside a click handler somewhere early:
+//   primeAudioPlayback()
+//   // later:
 //   const tts = createTtsPlayer()
 //   tts.speak('Hello there', { onStart, onEnd })
 //   tts.cancel()
@@ -15,6 +33,78 @@
 import { apiFetchResponse } from '@/lib/api'
 
 /** @typedef {{ onStart?: () => void; onEnd?: () => void; onError?: (e: unknown) => void; voiceId?: string }} SpeakOptions */
+
+// A 100ms silent MP3 — used to gesture-prime <audio> playback on iOS WebKit.
+export const SILENT_MP3 =
+  'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AAAaQAAAgAAA0gAAABExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU='
+
+// Module-level shared audio element. Created lazily; reused for every speak()
+// call. Once primed inside a user gesture, it stays unlocked for the page
+// lifetime — so subsequent async .play() calls (after fetching the next TTS
+// blob) succeed even though they're well outside the gesture window.
+/** @type {HTMLAudioElement | null} */
+let sharedAudio = null
+/** @type {string | null} */
+let currentBlobUrl = null
+let isPrimed = false
+
+function ensureSharedAudio() {
+  if (typeof window === 'undefined') return null
+  if (!sharedAudio) {
+    sharedAudio = new Audio()
+    sharedAudio.preload = 'auto'
+  }
+  return sharedAudio
+}
+
+function clearBlobUrl() {
+  if (currentBlobUrl) {
+    try { URL.revokeObjectURL(currentBlobUrl) } catch { /* ignore */ }
+    currentBlobUrl = null
+  }
+}
+
+/**
+ * Call this synchronously from inside a user-gesture handler (click, tap,
+ * keydown). It plays a silent MP3 on the shared <audio> element, which
+ * "user-activates" the element on iOS WebKit. All subsequent .play() calls
+ * on the same element will then succeed even from async contexts (e.g. after
+ * awaiting a fetch).
+ */
+export function primeAudioPlayback() {
+  const a = ensureSharedAudio()
+  if (!a) return
+  // Already activated — re-priming would interrupt anything currently playing
+  // (e.g. the speaker-test ElevenLabs sample). Idempotent no-op.
+  if (isPrimed) return
+  try {
+    // Resetting src to a silent MP3 inside the gesture both activates the
+    // element and gets it into a "playing" state we can interrupt cleanly.
+    a.src = SILENT_MP3
+    a.volume = 0
+    a.muted = false
+    const p = a.play()
+    if (p && typeof p.then === 'function') {
+      p.then(() => {
+        // Once activated, restore volume so real TTS plays at full output.
+        // Don't pause here — leaving the silent buffer playing for 100ms is
+        // imperceptible and avoids racing the next .src assignment.
+        a.volume = 1
+        isPrimed = true
+      }).catch(() => {
+        // Activation failed (rare — usually means no gesture context). Leave
+        // isPrimed=false; the next gesture call will try again.
+      })
+    } else {
+      a.volume = 1
+      isPrimed = true
+    }
+  } catch { /* ignore */ }
+}
+
+export function isAudioPrimed() {
+  return isPrimed
+}
 
 function speakViaSynthesis(text, { onStart, onEnd, onError }) {
   if (typeof window === 'undefined' || !window.speechSynthesis) {
@@ -52,27 +142,25 @@ function speakViaSynthesis(text, { onStart, onEnd, onError }) {
 }
 
 export function createTtsPlayer() {
-  /** @type {HTMLAudioElement | null} */
-  let audio = null
   /** @type {AbortController | null} */
   let abort = null
-  /** @type {string | null} */
-  let blobUrl = null
   let usingSynthesis = false
+  /** @type {((this: HTMLAudioElement, ev: Event) => unknown) | null} */
+  let onEndHandler = null
+  /** @type {((this: HTMLAudioElement, ev: Event) => unknown) | null} */
+  let onPlayingHandler = null
+  /** @type {((this: HTMLAudioElement, ev: Event) => unknown) | null} */
+  let onErrorHandler = null
 
-  function teardownAudio() {
-    if (audio) {
-      audio.onended = null
-      audio.onerror = null
-      audio.onplaying = null
-      try { audio.pause() } catch { /* ignore */ }
-      audio.src = ''
-      audio = null
-    }
-    if (blobUrl) {
-      try { URL.revokeObjectURL(blobUrl) } catch { /* ignore */ }
-      blobUrl = null
-    }
+  function detachHandlers() {
+    const a = sharedAudio
+    if (!a) return
+    if (onEndHandler) a.removeEventListener('ended', onEndHandler)
+    if (onPlayingHandler) a.removeEventListener('playing', onPlayingHandler)
+    if (onErrorHandler) a.removeEventListener('error', onErrorHandler)
+    onEndHandler = null
+    onPlayingHandler = null
+    onErrorHandler = null
   }
 
   /**
@@ -96,7 +184,6 @@ export function createTtsPlayer() {
       })
     } catch {
       if (signal.aborted) return
-      // Network/4xx/5xx → graceful fallback
       usingSynthesis = true
       speakViaSynthesis(text, opts)
       return
@@ -115,23 +202,48 @@ export function createTtsPlayer() {
     }
     if (signal.aborted) return
 
-    blobUrl = URL.createObjectURL(blob)
-    audio = new Audio(blobUrl)
-    audio.onplaying = () => opts.onStart?.()
-    audio.onended = () => { opts.onEnd?.(); teardownAudio() }
-    audio.onerror = () => {
-      opts.onError?.(audio?.error || new Error('audio playback failed'))
-      teardownAudio()
-      // Last-resort fallback if MP3 fails to play (rare).
+    const a = ensureSharedAudio()
+    if (!a) {
+      usingSynthesis = true
+      speakViaSynthesis(text, opts)
+      return
+    }
+
+    // Revoke the previous utterance's blob URL once we have the next one
+    // ready, so we don't leak object URLs across the session.
+    clearBlobUrl()
+    currentBlobUrl = URL.createObjectURL(blob)
+
+    onPlayingHandler = () => opts.onStart?.()
+    onEndHandler = () => {
+      detachHandlers()
+      opts.onEnd?.()
+    }
+    onErrorHandler = () => {
+      const err = a.error || new Error('audio playback failed')
+      detachHandlers()
+      opts.onError?.(err)
       usingSynthesis = true
       speakViaSynthesis(text, opts)
     }
+    a.addEventListener('playing', onPlayingHandler)
+    a.addEventListener('ended', onEndHandler)
+    a.addEventListener('error', onErrorHandler)
+
+    a.src = currentBlobUrl
+    a.volume = 1
+    a.muted = false
+
     try {
-      await audio.play()
+      const p = a.play()
+      if (p && typeof p.then === 'function') {
+        await p
+      }
     } catch {
-      // iOS autoplay block, or element disposed mid-await.
+      // iOS autoplay block (element never primed, or unlock decayed under
+      // load), or element disposed mid-await. Fall through to synthesis.
       if (signal.aborted) return
-      teardownAudio()
+      detachHandlers()
       usingSynthesis = true
       speakViaSynthesis(text, opts)
     }
@@ -139,7 +251,13 @@ export function createTtsPlayer() {
 
   function cancel() {
     if (abort) { try { abort.abort() } catch { /* ignore */ } abort = null }
-    teardownAudio()
+    detachHandlers()
+    if (sharedAudio) {
+      try { sharedAudio.pause() } catch { /* ignore */ }
+      // Do NOT clear sharedAudio.src — that can "deactivate" the element on
+      // some iOS versions, forcing us to re-prime. Leave the previous blob
+      // URL loaded; it'll be swapped on the next speak().
+    }
     if (usingSynthesis && typeof window !== 'undefined') {
       try { window.speechSynthesis?.cancel() } catch { /* ignore */ }
       usingSynthesis = false
@@ -147,20 +265,4 @@ export function createTtsPlayer() {
   }
 
   return { speak, cancel }
-}
-
-// A 100ms silent MP3 — used by MicCheck to gesture-prime <audio> playback on
-// iOS Safari, the same way we prime speechSynthesis. Calling .play() on this
-// inside a click handler makes subsequent programmatic Audio.play() calls
-// succeed for the rest of the page lifetime.
-export const SILENT_MP3 =
-  'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQxAADB8AAAaQAAAgAAA0gAAABExBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU='
-
-export function primeAudioPlayback() {
-  try {
-    const a = new Audio(SILENT_MP3)
-    a.volume = 0
-    const p = a.play()
-    if (p && typeof p.then === 'function') p.catch(() => { /* ignore */ })
-  } catch { /* ignore */ }
 }
