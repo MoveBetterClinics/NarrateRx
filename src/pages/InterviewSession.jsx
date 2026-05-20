@@ -23,6 +23,7 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import MicCheck from '@/components/MicCheck'
 import { createTtsPlayer, primeAudioPlayback, onAudioPlaybackFailure } from '@/lib/tts'
+import { useRegisterBusy } from '@/lib/appBusy'
 
 // Concrete noun list for shallow-answer detection (Feature 2)
 const CONCRETE_NOUNS = ['patient', 'person', 'name', 'case', 'example', 'time', 'moment', 'client', 'athlete', 'runner', 'worker']
@@ -191,6 +192,14 @@ export default function InterviewSession() {
     !!(window.SpeechRecognition || window.webkitSpeechRecognition)
   const [typedAnswer, setTypedAnswer] = useState('')
   const [isSpeaking, setIsSpeaking] = useState(false)
+  // Tell app-wide consumers (e.g. the auto-update modal) not to interrupt
+  // the user while a recording/streaming/generation is in flight. A
+  // window.location.reload() in the middle of any of these wipes the
+  // in-memory transcript before it's saved.
+  useRegisterBusy(
+    'interview-session',
+    isListening || isSpeaking || isStreaming || isGenerating,
+  )
   // True after an audio playback failure (iOS route change, BT disconnect,
   // audio-session interruption). Surfaces a "Tap to restore audio" button so
   // the user can re-prime audio inside a fresh user gesture.

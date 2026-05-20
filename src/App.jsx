@@ -38,13 +38,15 @@ const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
 const Synthesis = lazy(() => import('@/pages/Synthesis'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
-import { UploadProgressProvider } from '@/lib/UploadProgressContext'
+import { UploadProgressProvider, useUploadProgress } from '@/lib/UploadProgressContext'
 import UploadTray from '@/components/UploadTray'
 import ErrorBoundary from '@/components/ErrorBoundary'
 import RouteErrorBoundary from '@/components/RouteErrorBoundary'
 import { setSentryUser, setSentryWorkspace } from '@/lib/sentry'
 import { Toaster } from '@/lib/toast'
 import UpdateAvailableModal from '@/components/UpdateAvailableModal'
+import { useVersionCheck } from '@/lib/useVersionCheck'
+import { useAppBusy } from '@/lib/appBusy'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Single shared QueryClient. Defaults: staleTime 30s, gcTime 5min,
@@ -348,8 +350,39 @@ function ProtectedAppWithProvider() {
             Lives at the protected-app layer so progress survives modal
             close and in-app navigation. */}
         <UploadTray />
+        {/* Auto-update notifier — lifted here (inside UploadProgressProvider)
+            so it can suppress the reload prompt while uploads/recordings are
+            in flight. window.location.reload() mid-recording would discard
+            the in-memory transcript before it's persisted. */}
+        <VersionUpdateHost />
       </UploadProgressProvider>
     </WorkspaceProvider>
+  )
+}
+
+function VersionUpdateHost() {
+  const { update, reload, dismiss } = useVersionCheck()
+  const { hasActiveUploads } = useUploadProgress()
+  const interactiveBusy = useAppBusy()
+  const busy = hasActiveUploads || interactiveBusy
+
+  function handleReload() {
+    if (busy) {
+      const ok = window.confirm(
+        'You have work in progress (a recording, generation, or upload). Reloading now may discard unsaved changes. Reload anyway?',
+      )
+      if (!ok) return
+    }
+    reload()
+  }
+
+  return (
+    <UpdateAvailableModal
+      open={Boolean(update) && !busy}
+      update={update}
+      onReload={handleReload}
+      onDismiss={dismiss}
+    />
   )
 }
 
@@ -387,7 +420,6 @@ export default function App() {
             </Routes>
           </BrowserRouter>
           <Toaster richColors position="top-right" closeButton />
-          <UpdateAvailableModal />
         </ClerkProvider>
       </QueryClientProvider>
     </ErrorBoundary>

@@ -8,14 +8,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
-import { useVersionCheck } from '@/lib/useVersionCheck'
 
-export default function UpdateAvailableModal() {
-  const { update, reload, dismiss } = useVersionCheck()
-  const open = Boolean(update)
-
+export default function UpdateAvailableModal({ open, update, onReload, onDismiss }) {
   return (
-    <Dialog open={open} onOpenChange={(next) => { if (!next) dismiss() }}>
+    <Dialog open={open} onOpenChange={(next) => { if (!next) onDismiss?.() }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -37,8 +33,8 @@ export default function UpdateAvailableModal() {
         )}
 
         <DialogFooter>
-          <Button variant="ghost" onClick={dismiss}>Later</Button>
-          <Button onClick={reload}>Reload now</Button>
+          <Button variant="ghost" onClick={onDismiss}>Later</Button>
+          <Button onClick={onReload}>Reload now</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
