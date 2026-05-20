@@ -68,7 +68,7 @@ function SidebarItem({ item }) {
       to={item.to}
       className={`flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-sm transition-colors ${
         isActive
-          ? 'bg-success/10 text-success font-medium'
+          ? 'bg-[hsl(20_60%_95%)] text-[#c04d18] font-semibold ring-1 ring-[#fde0d2]'
           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
       }`}
     >
@@ -99,7 +99,7 @@ function SidebarSubGroup({ item }) {
               to={child.to}
               className={`block px-2.5 py-1.5 rounded-md text-sm transition-colors ${
                 isActive
-                  ? 'bg-success/10 text-success font-medium'
+                  ? 'bg-[hsl(20_60%_95%)] text-[#c04d18] font-semibold ring-1 ring-[#fde0d2]'
                   : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
             >
@@ -129,10 +129,10 @@ function MobileNavRail({ visibleItems }) {
           <NavLink
             key={item.to}
             to={item.to}
-            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors min-h-[36px] ${
+            className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors min-h-[36px] ${
               isActive
-                ? 'border-success/40 bg-success/10 text-success'
-                : 'border-border bg-background text-muted-foreground active:bg-accent/40 hover:text-foreground'
+                ? 'border-[#fde0d2] bg-[hsl(20_60%_95%)] text-[#c04d18]'
+                : 'border-border bg-white text-muted-foreground active:bg-accent/40 hover:text-foreground hover:border-slate-300'
             }`}
           >
             <item.icon className="h-3.5 w-3.5 shrink-0" />
@@ -168,8 +168,13 @@ export default function SettingsLayout() {
       {/* Desktop sidebar */}
       <aside className="hidden md:block w-52 shrink-0 pt-6 pr-2 border-r border-border">
         <div className="sticky top-20 space-y-6">
-          <div>
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground px-2.5 mb-1">
+          <div className="flex items-center gap-2 px-2.5 mb-1">
+            <span
+              className="inline-block w-1 h-5 rounded-full"
+              style={{ background: 'hsl(var(--primary))' }}
+              aria-hidden="true"
+            />
+            <h2 className="text-base font-bold tracking-tight text-foreground">
               Settings
             </h2>
           </div>

@@ -46,7 +46,14 @@ export default function LocationsSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Locations</h1>
+        <h1 className="text-2xl font-bold tracking-tight flex items-center">
+          <span
+            className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+            style={{ background: 'hsl(var(--primary))' }}
+            aria-hidden="true"
+          />
+          Locations
+        </h1>
         <p className="text-muted-foreground text-sm mt-1">
           Each physical site you operate. The primary location&apos;s city, state, keyword, and hashtag flow into all generated content. Per-post location targeting comes online in a follow-up.
         </p>

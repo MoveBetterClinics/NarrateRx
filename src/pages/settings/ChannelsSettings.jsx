@@ -156,7 +156,14 @@ export default function ChannelsSettings() {
       {/* Sticky header / save bar */}
       <div className="md:sticky md:top-14 z-20 py-4 bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70 border-b border-border/60 flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">Output channels</h1>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center">
+            <span
+              className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+              style={{ background: 'hsl(var(--primary))' }}
+              aria-hidden="true"
+            />
+            Output channels
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Toggle the channels this workspace generates content for. Each interview lets the author pick a subset.
           </p>
@@ -172,9 +179,16 @@ export default function ChannelsSettings() {
       </div>
 
       {groups.map((group) => (
-        <Card key={group.label} className="shadow-none">
+        <Card key={group.label} className="rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
           <CardHeader className="pb-4">
-            <CardTitle className="text-base">{group.label}</CardTitle>
+            <div className="flex items-center gap-2">
+              <span
+                className="inline-block w-1 h-5 rounded-full shrink-0"
+                style={{ background: 'hsl(var(--primary))' }}
+                aria-hidden="true"
+              />
+              <CardTitle className="text-lg font-bold">{group.label}</CardTitle>
+            </div>
             <CardDescription className="text-xs">
               {group.channels.length} channel{group.channels.length === 1 ? '' : 's'}
             </CardDescription>

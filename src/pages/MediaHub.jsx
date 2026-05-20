@@ -464,7 +464,7 @@ export default function MediaHub() {
               value={status}
               onChange={(e) => setStatus(e.target.value)}
               aria-label="Filter by status"
-              className="text-2xs h-7 px-2 rounded-md border border-border bg-background text-foreground"
+              className="text-2xs h-7 px-3 rounded-full border border-border bg-white text-foreground font-medium cursor-pointer hover:border-slate-300 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50"
             >
               {STATUS_FILTERS.map((s) => (
                 <option key={s.id || 'all-status'} value={s.id}>{s.label}</option>
@@ -585,22 +585,27 @@ export default function MediaHub() {
       {/* Collections — editorial groupings; collapsed by default so the chip
           strip above isn't competing with another chip row. Header shows the
           active selection so it remains discoverable when collapsed. */}
-      <div className="rounded-lg border bg-card">
+      <div className="rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
         <button
           onClick={() => setCollectionsOpen((v) => !v)}
-          className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-muted/40 transition-colors rounded-t-lg"
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors rounded-t-2xl"
         >
-          <div className="flex items-center gap-2 text-2xs">
+          <div className="flex items-center gap-2 text-xs">
+            <span
+              className="inline-block w-1 h-5 rounded-full shrink-0"
+              style={{ background: '#7c3aed' }}
+              aria-hidden="true"
+            />
             {collectionsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            <span className="font-semibold text-foreground">Collections</span>
+            <span className="text-base font-bold tracking-tight text-foreground">Collections</span>
             {collectionId && (
-              <span className="text-muted-foreground">· filtered</span>
+              <span className="text-2xs text-primary font-semibold">· filtered</span>
             )}
           </div>
           <span className="text-2xs text-muted-foreground">Editorial groupings — campaigns, series, ad-hoc sets</span>
         </button>
         {collectionsOpen && (
-          <div className="border-t px-3 py-2">
+          <div className="border-t border-slate-100 px-3 py-2">
             <CollectionsBar
               selectedId={collectionId}
               onSelect={setCollectionId}

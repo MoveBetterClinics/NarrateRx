@@ -125,7 +125,12 @@ export default function InterviewDefaultsPage() {
             Back: Patients &amp; topics
           </Link>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight mt-0.5">
+        <h1 className="text-2xl font-bold tracking-tight mt-0.5 flex items-center">
+          <span
+            className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+            style={{ background: 'hsl(var(--primary))' }}
+            aria-hidden="true"
+          />
           What clinicians see at interview start
         </h1>
         <p className="text-muted-foreground text-sm mt-1.5 leading-relaxed">

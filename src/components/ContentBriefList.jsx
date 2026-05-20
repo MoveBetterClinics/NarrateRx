@@ -50,17 +50,22 @@ export default function ContentBriefList({ refreshKey, expandedDefault = true })
   const pendingCount = briefs.filter((b) => !['rejected', 'archived', 'published'].includes(b.status)).length
 
   return (
-    <div className="rounded-lg border bg-card">
+    <div className="rounded-2xl border border-border bg-card shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
       <button
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors rounded-t-lg"
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/40 transition-colors rounded-t-2xl"
       >
         <div className="flex items-center gap-2">
+          <span
+            className="inline-block w-1 h-5 rounded-full shrink-0"
+            style={{ background: '#d97706' }}
+            aria-hidden="true"
+          />
           {expanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-          <Sparkles className="h-4 w-4 text-primary" />
-          <span className="font-semibold text-sm">Edit briefs</span>
+          <Sparkles className="h-4 w-4 text-amber-600" />
+          <span className="text-base font-bold tracking-tight">Edit briefs</span>
           {pendingCount > 0 && (
-            <Badge variant="secondary" className="ml-1 text-3xs">{pendingCount} active</Badge>
+            <span className="ml-1 inline-flex items-center rounded-full bg-amber-50 text-amber-700 text-2xs font-bold px-2 py-0.5">{pendingCount} active</span>
           )}
         </div>
         <span className="text-2xs text-muted-foreground">

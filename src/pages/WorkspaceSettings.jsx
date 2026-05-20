@@ -171,7 +171,7 @@ export default function WorkspaceSettings() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center">
             <span
               className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
-              style={{ background: '#94a3b8' }}
+              style={{ background: 'hsl(var(--primary))' }}
               aria-hidden="true"
             />
             General
@@ -376,9 +376,16 @@ function DangerZone({ workspace, getToken }) {
   }
 
   return (
-    <Card className="border-destructive/30 shadow-none">
+    <Card className="rounded-2xl border-destructive/30 shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
       <CardHeader>
-        <CardTitle className="text-base text-destructive">Danger zone</CardTitle>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block w-1 h-5 rounded-full shrink-0"
+            style={{ background: 'hsl(var(--destructive))' }}
+            aria-hidden="true"
+          />
+          <CardTitle className="text-lg font-bold text-destructive">Danger zone</CardTitle>
+        </div>
         <CardDescription>
           Destructive actions. Read carefully — these affect every member of the workspace.
         </CardDescription>
@@ -441,9 +448,16 @@ function DangerZone({ workspace, getToken }) {
 
 function SectionCard({ title, description, children, className = '' }) {
   return (
-    <Card className={`shadow-none ${className}`}>
+    <Card className={`rounded-2xl shadow-[0_1px_2px_rgba(15,23,42,0.03)] ${className}`}>
       <CardHeader className="pb-4">
-        <CardTitle className="text-base">{title}</CardTitle>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block w-1 h-5 rounded-full shrink-0"
+            style={{ background: 'hsl(var(--primary))' }}
+            aria-hidden="true"
+          />
+          <CardTitle className="text-lg font-bold">{title}</CardTitle>
+        </div>
         {description && <CardDescription className="text-xs">{description}</CardDescription>}
       </CardHeader>
       <CardContent className="space-y-5">

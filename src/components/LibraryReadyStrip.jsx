@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Send, ChevronRight } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
 import IconPrim from '@/components/ui/Icon'
 import { useStories } from '@/lib/queries'
 import { PLATFORM_META } from '@/lib/contentMeta'
@@ -65,15 +64,20 @@ export default function LibraryReadyStrip() {
   if (pieces.length === 0) return null
 
   return (
-    <section className="rounded-xl border border-blue-200 bg-blue-50/40 p-4 sm:p-5">
+    <section className="rounded-2xl border border-[#f3d3b5] bg-gradient-to-b from-white to-[#fefaf7] p-4 sm:p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-18px_rgba(227,101,37,0.22)]">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-widest text-blue-700">
-          <IconPrim as={Send} size="sm" />
+        <div className="flex items-center gap-2 text-base font-bold tracking-tight text-foreground">
+          <span
+            className="inline-block w-1 h-5 rounded-full shrink-0"
+            style={{ background: 'hsl(var(--primary))' }}
+            aria-hidden="true"
+          />
+          <IconPrim as={Send} size="sm" className="text-primary" />
           Ready to distribute
         </div>
-        <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-3xs border-0">
+        <span className="inline-flex items-center rounded-full bg-primary text-primary-foreground text-2xs font-bold px-2 py-0.5">
           {pieces.length} {pieces.length === 1 ? 'piece' : 'pieces'} · approved
-        </Badge>
+        </span>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
@@ -84,7 +88,7 @@ export default function LibraryReadyStrip() {
             <Link
               key={p.id}
               to={`/stories/${p.storyId}`}
-              className="group flex flex-col gap-2 rounded-lg border border-blue-100 bg-white p-3 hover:border-blue-300 transition-colors"
+              className="group flex flex-col gap-2 rounded-xl border border-border bg-white p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#fde0d2] hover:shadow-[0_8px_20px_-16px_rgba(15,23,42,0.18)]"
             >
               <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-medium w-fit ${pm.bg} ${pm.color}`}>
                 <Icon className="h-3 w-3" />
@@ -93,7 +97,7 @@ export default function LibraryReadyStrip() {
               <div className="text-xs font-semibold text-foreground truncate">{p.clinicianName || 'Unknown clinician'}</div>
               <div className="text-2xs text-muted-foreground line-clamp-2">{p.topic}</div>
               <VoiceChip provenance={p.provenance} />
-              <span className="mt-auto inline-flex items-center justify-end gap-0.5 text-2xs font-medium text-blue-700 group-hover:text-blue-900 transition-colors">
+              <span className="mt-auto inline-flex items-center justify-end gap-0.5 text-2xs font-bold text-primary group-hover:underline underline-offset-2 transition-colors">
                 Attach media <IconPrim as={ChevronRight} size="xs" />
               </span>
             </Link>
@@ -103,7 +107,7 @@ export default function LibraryReadyStrip() {
 
       {pieces.length > 8 && (
         <p className="mt-3 text-2xs text-muted-foreground">
-          Showing first 8 — see all <Link to="/stories?view=pipeline" className="font-medium text-blue-700 hover:underline">in the pipeline view</Link>.
+          Showing first 8 — see all <Link to="/stories?view=pipeline" className="font-semibold text-primary hover:underline underline-offset-2">in the pipeline view</Link>.
         </p>
       )}
     </section>
