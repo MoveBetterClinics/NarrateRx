@@ -664,6 +664,32 @@ export function useRegenerateContentItem() {
   })
 }
 
+// Split a single blog content_item into a multi-part series. Calls the
+// two-pass cluster+write pipeline server-side. On success the original blog
+// is archived and N new draft pieces appear with series_id / series_part /
+// series_total populated.
+export function useSplitBlogIntoSeries() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: 'Series generation failed',
+    mutationFn: ({ id, parts, lengthPreset }) =>
+      apiFetch('/api/content-items/split-into-series', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          parts,
+          ...(lengthPreset != null ? { length_preset: lengthPreset } : {}),
+        }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.stories.all })
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
+    },
+  })
+}
+
 export function useUpdateContentItemStatus() {
   const qc = useQueryClient()
   return useAppMutation({

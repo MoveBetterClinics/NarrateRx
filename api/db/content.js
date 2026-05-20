@@ -39,14 +39,14 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,overlay_text,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,location_overrides,notes,reviewed_by,approved_by,approved_at,performed_well,archived_at,hashtag_suggestions,buffer_metrics,buffer_metrics_fetched_at,provenance,length_preset,created_at,updated_at'
+const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,overlay_text,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,location_overrides,notes,reviewed_by,approved_by,approved_at,performed_well,archived_at,hashtag_suggestions,buffer_metrics,buffer_metrics_fetched_at,provenance,length_preset,series_id,series_part,series_total,created_at,updated_at'
 
 // Slim shape for the Stories list (Cards / Pipeline / Calendar / Themes views).
 // Drops heavy columns (`content`, `media_urls`, `buffer_metrics`, `notes`, etc.)
 // that the list views don't render — full row is still available via id-fetch
 // or the per-piece review screen. See buildStories() in src/lib/stories.js for
 // the consuming shape.
-const SELECT_CARD = 'id,interview_id,workspace_id,platform,status,scheduled_at,published_at,updated_at,provenance'
+const SELECT_CARD = 'id,interview_id,workspace_id,platform,status,scheduled_at,published_at,updated_at,provenance,series_id,series_part,series_total'
 
 // Slim shape for the "What's working" top-performers widget. Only needs
 // metrics + display fields — drops content body, media_urls, notes, etc.

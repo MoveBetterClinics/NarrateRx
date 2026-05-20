@@ -5,7 +5,7 @@ import { useUser } from '@clerk/clerk-react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
   ChevronDown, MessageSquare, Eye, RotateCcw, ExternalLink, Quote,
-  Calendar, Clock, AlertTriangle,
+  Calendar, Clock, AlertTriangle, Layers,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,7 @@ import {
   useUpdateContentItem,
   useUpdateContentItemStatus,
   useRegenerateContentItem,
+  useSplitBlogIntoSeries,
   queryKeys,
 } from '@/lib/queries'
 import { publishAndTrack, publishBlogToWebsite, cancelBufferPost } from '@/lib/publish'
@@ -473,6 +474,171 @@ function RegenerateButton({ piece, story }) {
   )
 }
 
+// "Part X of Y" badge + quick-jump links to sibling parts. Rendered on any
+// content_item that has series_id populated. Siblings are computed from the
+// pieces array already in scope (no extra fetch — sibling parts are inserted
+// against the same interview and arrive together).
+function SeriesBadge({ active, pieces, onJump }) {
+  // React Compiler memoizes this — no manual useMemo needed.
+  const siblings = active?.series_id
+    ? pieces
+        .filter((p) => p.series_id === active.series_id)
+        .sort((a, b) => (a.series_part || 0) - (b.series_part || 0))
+    : []
+
+  if (siblings.length === 0) return null
+  const total = active.series_total || siblings.length
+
+  return (
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded bg-violet-100 text-violet-800">
+      <Layers className="h-3.5 w-3.5" />
+      <span className="text-xs font-medium">
+        Part {active.series_part || '?'} of {total}
+      </span>
+      {siblings.length > 1 && (
+        <span className="ml-1 flex items-center gap-0.5">
+          {siblings.map((s) => {
+            const isActive = s.id === active.id
+            return (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => !isActive && onJump(s.id)}
+                disabled={isActive}
+                title={isActive ? `You are on Part ${s.series_part}` : `Jump to Part ${s.series_part}`}
+                className={`min-w-[1.25rem] rounded px-1 text-2xs font-medium transition ${
+                  isActive
+                    ? 'bg-violet-300 text-violet-900 cursor-default'
+                    : 'bg-white text-violet-700 hover:bg-violet-200 border border-violet-200'
+                }`}
+              >
+                {s.series_part}
+              </button>
+            )
+          })}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// Split a long-interview blog into a 2- to 4-part series. Only rendered on
+// blog pieces that are not already part of a series. On confirm, the server
+// runs cluster + write passes; the original blog is archived and N new draft
+// pieces appear under the same interview.
+function SplitIntoSeriesButton({ piece }) {
+  const split = useSplitBlogIntoSeries()
+  const [, setSearchParams] = useSearchParams()
+  const [confirming, setConfirming] = useState(false)
+  const [parts, setParts] = useState(2)
+
+  if (piece.platform !== 'blog') return null
+  if (piece.series_id) return null
+
+  const handleSplit = async () => {
+    setConfirming(false)
+    try {
+      const result = await split.mutateAsync({ id: piece.id, parts })
+      const n = result?.parts?.length ?? parts
+      // The source piece (`piece.id`) is now archived; the URL's `?piece=`
+      // param still points to it, so AssetsPane would either resolve to
+      // -1 → 0 (jumps to whatever's at index 0) or stay on the stale id.
+      // Navigate to the new Part 1 explicitly so the UI lands on a real piece.
+      const part1 = result?.parts?.find?.((p) => p.series_part === 1)
+      if (part1?.id) {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev)
+          next.set('piece', part1.id)
+          return next
+        }, { replace: true })
+      }
+      toast.success(
+        `Split into ${n}-part series`,
+        { description: 'New drafts created. Original blog archived for rollback.' },
+      )
+    } catch (e) {
+      toast.error('Series generation failed', {
+        description: e?.message || 'Try again — the planner sometimes needs a second pass.',
+      })
+    }
+  }
+
+  if (split.isPending) {
+    return (
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Planning + writing — this can take 1–3 minutes (one Opus pass to plan, one per part).
+      </div>
+    )
+  }
+
+  if (confirming) {
+    return (
+      <div className="rounded-md border border-violet-300 bg-violet-50 px-3 py-2 text-xs space-y-2">
+        <div className="text-violet-900">
+          <div className="font-medium mb-0.5">Split this blog into a series?</div>
+          <div className="text-violet-800/80">
+            The full interview will be re-planned and written as multiple linked posts, each focused on one thread. Your current blog will be archived (kept for rollback). Each new part is a fresh draft and needs review before publish.
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-violet-200">
+          <span className="text-violet-900 font-medium mr-1">Parts:</span>
+          {[2, 3, 4].map((n) => {
+            const selected = n === parts
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setParts(n)}
+                className={`rounded-full border px-2.5 py-0.5 text-2xs transition ${
+                  selected
+                    ? 'border-violet-500 bg-violet-200 text-violet-900 font-medium'
+                    : 'border-violet-300 bg-white text-violet-700 hover:bg-violet-100'
+                }`}
+              >
+                {n} parts
+              </button>
+            )
+          })}
+          <span className="ml-auto text-2xs text-violet-700/70 italic">
+            The planner may return fewer parts if there isn&rsquo;t enough material.
+          </span>
+        </div>
+        <div className="flex gap-1.5 justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs border-violet-400 text-violet-700 hover:bg-violet-100"
+            onClick={handleSplit}
+          >
+            Split into {parts} parts
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={() => setConfirming(false)}
+          >
+            Cancel
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      className="h-7 text-xs gap-1.5"
+      onClick={() => setConfirming(true)}
+    >
+      <Layers className="h-3 w-3" />
+      Split into series
+    </Button>
+  )
+}
+
 // ── InspectDrawer ─────────────────────────────────────────────────────────────
 // Collapsible drawer housing Regenerate + live channel preview. Collapsed by
 // default so the primary write loop (body → approval) is uncluttered — expand
@@ -495,6 +661,7 @@ function InspectDrawer({ piece, story }) {
       {open && (
         <div className="border-t p-3 space-y-3">
           <RegenerateButton piece={piece} story={story} />
+          <SplitIntoSeriesButton piece={piece} />
           <div>
             <p className="mb-2 text-2xs font-medium uppercase tracking-wide text-muted-foreground">Preview</p>
             <PostPreview
@@ -1375,6 +1542,9 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
             <PlatformIcon className={`h-3.5 w-3.5 ${pm.color}`} />
             <span className={`text-xs font-medium ${pm.color}`}>{pm.label}</span>
           </div>
+          {active?.series_id && (
+            <SeriesBadge active={active} pieces={pieces} onJump={handleSelectPiece} />
+          )}
           {(() => {
             const fmt = (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' })
             if (active?.status === 'published') {

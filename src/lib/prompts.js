@@ -975,3 +975,210 @@ ${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 900–1200 words. Write li
 ${ctaSection}
 ${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Multi-part blog series (2026-05-19)
+//
+// When an interview's natural content exceeds what a single blog can hold,
+// the "Split into series" action breaks it into N (2–4) linked posts. The
+// flow is two-pass:
+//
+//   1. CLUSTER PASS — getSeriesClusterSystemPrompt(): the model reads the
+//      full transcript and returns a JSON plan: N coherent threads, each
+//      with a title, a paragraph-long brief, and a list of transcript
+//      moments / quotes that belong in that thread. NO prose written here.
+//
+//   2. WRITE PASS — getSeriesPartSystemPrompt(): called N times, once per
+//      cluster. The model writes a full blog post focused on that thread,
+//      using the cluster brief as the angle. The full transcript is in
+//      context so the model can pull supporting quotes from anywhere, but
+//      the cluster brief tells it which thread to follow.
+//
+// This is how we honor the "app manages what the interview creates, not
+// the interview itself" principle — the interview can run as long as it
+// wants; the system splits the output downstream.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// CLUSTER PASS — reads the full transcript and returns a JSON plan grouping
+// the interview's material into N coherent blog-post threads. No prose; just
+// a structural brief that the per-part writer can build from.
+export function getSeriesClusterSystemPrompt(workspace, clinicianName, condition, parts, voiceMode = 'practice') {
+  const isPersonal = voiceMode === 'personal'
+  const isGeneral = isGeneralMode(workspace)
+  const subjectLabel = isGeneral ? 'topic' : 'condition'
+  const voiceLine = isPersonal
+    ? `These posts will be written in ${clinicianName}'s first-person voice.`
+    : `These posts will be written in ${workspace.display_name}'s team voice.`
+
+  return `You are an editorial planner for ${workspace.display_name}. The interview transcript below covers ${condition} in more depth than a single blog post can hold. Your job is to plan a ${parts}-part blog series — each part a standalone post on one coherent thread from the interview.
+
+${voiceLine} You are NOT writing prose in this step. You are returning a JSON plan that the writer will use to produce each part.
+
+PLANNING RULES:
+- Read the entire transcript first. Identify every major idea, story, mechanism, patient example, contrarian take, or clinical specific the expert offered.
+- Cluster those ideas into ${parts} threads. Each thread must be coherent enough to support a full blog post on its own — a reader should be able to read any one part without the others and get a complete piece.
+- Threads must NOT be sequential slices ("first third of the interview," "middle third"). Cluster by ${subjectLabel}/idea, not by transcript timestamp.
+- Do not invent threads. If the interview only has enough material for ${parts - 1} coherent threads, return ${parts - 1} — the writer will only produce as many parts as you plan.
+- Every major point from the transcript MUST be assigned to exactly one thread. If something feels orphaned, put it in the thread it fits best — leaving it out defeats the purpose of splitting.
+- Order parts so they read well together if a reader does follow the whole series. Part 1 should be the strongest standalone hook; later parts can assume the reader knows the basics.
+
+OUTPUT FORMAT — return ONLY this JSON, nothing else (no preamble, no code fences, no commentary):
+
+{
+  "series_title": "<a unifying title that could prefix any part, e.g. 'The ${condition} Files' or 'Rethinking ${condition}'>",
+  "parts": [
+    {
+      "part": 1,
+      "title": "<headline for this specific post — must work standalone>",
+      "brief": "<2–4 sentence summary: what thread is this? what's the angle? what's the reader's takeaway?>",
+      "anchor_moments": [
+        "<short description of a specific transcript moment this part should pull from — e.g. 'the soccer-player story about returning to play in 6 weeks'>",
+        "<another anchor moment>"
+      ],
+      "key_quotes": [
+        "<a direct quote (verbatim, from the transcript) the writer should try to preserve>",
+        "<another quote>"
+      ]
+    }
+    // ... one object per part, up to ${parts}
+  ]
+}
+
+Return valid JSON only. No markdown, no explanation, no "Here's the plan:" preamble.`
+}
+
+// WRITE PASS — given the cluster brief for ONE part, write that part as a full
+// blog post. Mirrors getBlogPostSystemPrompt's voice/CTA/link rules so each
+// part is publishable on its own; differs in that the structure is content-
+// derived (driven by the cluster brief), not the fixed 6-section template.
+//
+// `cluster` is the parts[i] object from the cluster JSON.
+// `siblingSummaries` is an array of { part, title } for the OTHER parts so the
+// writer can add cross-references and avoid stepping on their material.
+export function getSeriesPartSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], lengthPreset = null, cluster = null, siblingSummaries = [], seriesTitle = '') {
+  if (isGeneralMode(workspace)) {
+    return getGeneralSeriesPartSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, lengthPreset, cluster, siblingSummaries, seriesTitle)
+  }
+  const isPersonal = voiceMode === 'personal'
+  const partNum = cluster?.part || 1
+  const partTitle = cluster?.title || `Part ${partNum}`
+  const brief = cluster?.brief || ''
+  const anchorMoments = Array.isArray(cluster?.anchor_moments) ? cluster.anchor_moments : []
+  const keyQuotes = Array.isArray(cluster?.key_quotes) ? cluster.key_quotes : []
+
+  const siblingsBlock = siblingSummaries.length
+    ? `\nSIBLING PARTS in this series (do NOT cover their material in depth — gesture at them, link to them, and stay in your lane):\n${siblingSummaries.map((s) => `  • Part ${s.part}: ${s.title}`).join('\n')}\n`
+    : ''
+
+  const anchorsBlock = anchorMoments.length
+    ? `\nANCHOR MOMENTS this part must include (pull these specific moments from the transcript — they're why this thread exists):\n${anchorMoments.map((a) => `  • ${a}`).join('\n')}\n`
+    : ''
+
+  const quotesBlock = keyQuotes.length
+    ? `\nKEY QUOTES to preserve verbatim wherever they fit naturally (these are the clinician's actual words from the transcript):\n${keyQuotes.map((q) => `  • "${q}"`).join('\n')}\n`
+    : ''
+
+  return `You are a content writer for ${workspace.display_name} in ${workspace.location}. You are writing Part ${partNum} of a multi-part blog series about ${condition} based on an interview with ${clinicianName}. The full transcript is in the conversation history above.
+
+${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
+${workspace.display_name.toUpperCase()} BRAND VOICE:
+${workspace.brand_voice}
+
+${formatPatientContextForPrompt(workspace, prototypeId)}
+
+THIS PART'S ANGLE:
+  Title: ${partTitle}
+  Brief: ${brief}
+${anchorsBlock}${quotesBlock}${siblingsBlock}
+STRUCTURE — this is a series part, NOT a generic blog. The structure should follow the brief above, not a fixed template. Use as many content-specific section headings as the material warrants. Do NOT use generic section headings ("Introduction," "What's Going On," "Our Approach," "Conclusion") — every heading must describe what the section is actually about.
+
+LINK BUILDING — internal links to other ${workspace.display_name} content where the topic fits. Use descriptive anchor text (never "click here"):
+
+${workspace.internal_links_markdown}
+
+External links — add 1–2 to authoritative, non-competing sources where they support a claim (Mayo Clinic, NIH/PubMed, Cleveland Clinic, ACA).
+
+LINKING RULES:
+- Aim for 2–4 internal links and 1–2 external links per post
+- Anchor text must be descriptive and natural
+- Spread links throughout
+- The CTA section must link to ${workspace.booking_url}
+
+BLOG POST FORMAT (write in Markdown):
+
+# ${partTitle}
+
+[Hook paragraph: open with a concrete moment from the transcript that anchors *this thread*. 2–3 sentences. Make the reader feel they've landed in the right post.]
+
+[Content sections — heading and body each driven by the brief and anchor moments above. Build the thread from the transcript. Lean on the clinician's actual phrasing wherever it fits.]
+
+${siblingSummaries.length ? `[Late in the piece, weave in a natural reference to the other parts of the series — something like "I dug into <Part X's topic> separately" with a link. Do NOT do a "click here to read more" listicle dump; reference siblings only where they genuinely fit the narrative.]\n\n` : ''}## Ready to Move Better?
+[Warm, encouraging CTA — 3 sentences. Invite the reader to book at [${workspace.display_name}](${workspace.booking_url}). Conversational, not salesy.]
+${isPersonal ? '' : `
+---
+*${workspace.display_name} · ${workspace.location} · ${seriesTitle ? `${seriesTitle} — ` : ''}Part ${partNum}*
+`}
+${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 700–950 words. Write like a human who genuinely cares about helping people move better — not like a content marketing checklist.')}
+
+CRITICAL — stay in your lane: this is Part ${partNum} of the series. Do NOT try to cover everything the interview touched on. Pull the material that belongs to *this thread* (per the brief and anchor moments) and let the sibling parts handle theirs.
+${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
+}
+
+// General-paradigm variant of the series part writer. Parallels
+// getGeneralBlogPostSystemPrompt's voice/structure relaxations.
+function getGeneralSeriesPartSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, lengthPreset, cluster, siblingSummaries, seriesTitle) {
+  const isPersonal = voiceMode === 'personal'
+  const partNum = cluster?.part || 1
+  const partTitle = cluster?.title || `Part ${partNum}`
+  const brief = cluster?.brief || ''
+  const anchorMoments = Array.isArray(cluster?.anchor_moments) ? cluster.anchor_moments : []
+  const keyQuotes = Array.isArray(cluster?.key_quotes) ? cluster.key_quotes : []
+  const internalLinks = workspace?.internal_links_markdown
+    ? `\nINTERNAL LINKS — weave these in naturally where the topic fits:\n\n${workspace.internal_links_markdown}\n`
+    : ''
+  const ctaUrl = workspace?.booking_url || workspace?.website || ''
+  const ctaHeading = workspace?.cta_heading || 'Want to talk?'
+  const ctaSection = ctaUrl
+    ? `\n## ${ctaHeading}\n[Warm, direct close — 2–3 sentences. Link to [${workspace.display_name}](${ctaUrl}).]\n`
+    : ''
+  const brandVoice = workspace?.brand_voice || "(no brand voice set — match the expert's natural voice from the transcript)"
+
+  const siblingsBlock = siblingSummaries.length
+    ? `\nSIBLING PARTS in this series (don't cover their material in depth — gesture at them, link to them, and stay in your lane):\n${siblingSummaries.map((s) => `  • Part ${s.part}: ${s.title}`).join('\n')}\n`
+    : ''
+  const anchorsBlock = anchorMoments.length
+    ? `\nANCHOR MOMENTS this part must include:\n${anchorMoments.map((a) => `  • ${a}`).join('\n')}\n`
+    : ''
+  const quotesBlock = keyQuotes.length
+    ? `\nKEY QUOTES to preserve verbatim wherever they fit naturally:\n${keyQuotes.map((q) => `  • "${q}"`).join('\n')}\n`
+    : ''
+
+  return `You are a writer for ${workspace.display_name}. You are writing Part ${partNum} of a multi-part series about ${topic} based on an interview with ${expertName}.
+
+${getFramingRuleGeneral(workspace, { voiceMode, expertName })}
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
+${workspace.display_name.toUpperCase()} BRAND VOICE:
+${brandVoice}
+${internalLinks}
+THIS PART'S ANGLE:
+  Title: ${partTitle}
+  Brief: ${brief}
+${anchorsBlock}${quotesBlock}${siblingsBlock}
+WRITING RULES:
+- Open with a concrete moment from the transcript anchored to *this thread*, not a thesis statement.
+- Structure follows the brief — content-specific section headings, no generic templates.
+- Preserve the expert's actual phrases and rhythm wherever possible.
+- No corporate filler, no listicle sub-headers, no "in conclusion" wrap-ups.
+${isPersonal ? `- First-person throughout. End with a signature line: "— ${expertName}, ${workspace.display_name}".` : '- Match the brand voice.'}
+${siblingSummaries.length ? `- Late in the piece, weave in a natural reference to one or more sibling parts (link to them) — only where it genuinely fits the narrative.` : ''}
+
+# ${partTitle}
+
+${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 900–1200 words. Write like a human who has a genuine perspective to share — not like a content marketing checklist.')}
+${ctaSection}
+${seriesTitle ? `\n*${seriesTitle} — Part ${partNum}*\n` : ''}
+CRITICAL — stay in your lane: this is Part ${partNum} of the series. Do NOT try to cover everything the interview touched on. Pull the material that belongs to *this thread* and let the sibling parts handle theirs.
+${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
+}
+

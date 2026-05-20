@@ -312,9 +312,16 @@ export default async function handler(req, res) {
     if (!upd.ok) return dbErr(res, upd, 'Update failed')
     const updRows = await upd.json()
 
-    // If we regenerated the blog, also refresh interview.outputs.blogPost
-    // so subsequent atom regenerations use the latest source.
-    if (updatedBlogPost) {
+    // Keep interview.outputs.blogPost in sync with the blog editorial summary
+    // that atoms regenerate against. Rules:
+    //   • Single-post blog (no series_id) — always refresh on regen.
+    //   • Series Part 1 — refresh (Part 1 is the editorial summary for atoms).
+    //   • Series Part 2+ — DO NOT refresh (would clobber Part 1's content with
+    //     a tangential thread's content, polluting downstream atoms).
+    const shouldSyncOutputs = updatedBlogPost && (
+      !item.series_id || item.series_part === 1
+    )
+    if (shouldSyncOutputs) {
       const nextOutputs = { ...(interview.outputs || {}), blogPost: updatedBlogPost }
       await sb(`interviews?id=eq.${interview.id}&${wsFilter}`, {
         method: 'PATCH',
