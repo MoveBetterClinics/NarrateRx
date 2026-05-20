@@ -97,8 +97,7 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'method_not_allowed', message: 'POST only' })
   }
 
-  const limited = await enforceLimit(req, res, 'publish-blog-inbound')
-  if (limited) return
+  if (!(await enforceLimit(req, res, 'publish-blog-inbound'))) return
 
   const expectedSecret = process.env.NARRATERX_PUBLISH_SECRET
   const ghToken        = process.env.GITHUB_TOKEN_NARRATERX_PUBLISH

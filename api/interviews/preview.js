@@ -14,8 +14,7 @@ import { getTonesForWorkspace } from '../../src/lib/prompts.js'
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const limited = await enforceLimit(req, res, 'interview-preview')
-  if (limited) return
+  if (!(await enforceLimit(req, res, 'interview-preview'))) return
 
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
