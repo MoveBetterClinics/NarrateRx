@@ -98,13 +98,33 @@ function kindFromType(t) {
   return null
 }
 
-function checkFile(file, purpose) {
+// macOS Photos drag-drop substitutes rendered preview JPEGs for the source
+// video at the OS pasteboard boundary. We can't get the .MOV back from the
+// drop event, but we can spot the substitution and explain it to the user.
+// Heuristic: iCloud Photos' internal-UUID + suffix pattern on the filename,
+// OR (for drops) an image landing in a video-only purpose.
+const PHOTOS_PREVIEW_FILENAME_RE = /^[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}_\d+_\d+_[a-z]\.jpe?g$/i
+
+function looksLikeMacPhotosPreview(file, purpose, { fromDrop } = {}) {
+  if (PHOTOS_PREVIEW_FILENAME_RE.test(file.name || '')) return true
+  const kind = kindFromType(file.type || '')
+  const purposeWantsVideo = purpose === 'interview' || purpose === 'broll'
+  return Boolean(fromDrop && kind === 'image' && purposeWantsVideo)
+}
+
+const PHOTOS_PREVIEW_MESSAGE =
+  'macOS Photos sent us a preview frame, not the video. Export the original to Finder first (Photos → File → Export → Export Unmodified Original), or use "click to browse" below instead of dragging — both bypass this.'
+
+function checkFile(file, purpose, opts = {}) {
   const t = file.type || ''
   const kind = kindFromType(t)
   if (t && !kind) {
     return `Unsupported file type (${t}). Only images and videos are accepted.`
   }
   if (kind && !acceptsKind(purpose, kind)) {
+    if (looksLikeMacPhotosPreview(file, purpose, opts)) {
+      return PHOTOS_PREVIEW_MESSAGE
+    }
     const expected = purpose === 'photo' ? 'a photo' :
                      purpose === 'interview' ? 'a video' :
                      purpose === 'broll' ? 'a video' :
@@ -217,7 +237,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
     }
   }
 
-  async function handleFiles(fileList) {
+  async function handleFiles(fileList, opts = {}) {
     const files = Array.from(fileList || [])
     if (!files.length) return
 
@@ -226,7 +246,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
     const accepted = []
     const newRejected = []
     for (const f of files) {
-      const error = checkFile(f, purpose)
+      const error = checkFile(f, purpose, opts)
       if (error) {
         newRejected.push({ id: crypto.randomUUID(), name: f.name, error })
       } else {
@@ -258,7 +278,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   function handleDrop(e) {
     e.preventDefault()
     setDragOver(false)
-    handleFiles(e.dataTransfer.files)
+    handleFiles(e.dataTransfer.files, { fromDrop: true })
   }
 
   return (
@@ -498,6 +518,11 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           <p className="text-sm font-medium mb-0.5">
             {dropZoneHeadline(purpose)}
           </p>
+          {(purpose === 'interview' || purpose === 'broll') && (
+            <p className="text-2xs text-muted-foreground/80 mb-1">
+              Dragging from macOS Photos? Use &ldquo;click to browse&rdquo; — Photos&apos; drag handler sends preview frames, not the source video.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Marked as <span className="font-medium">{purposeMeta.label.toLowerCase()}</span>
             {showSpeakerRole ? ` · ${labelForSpeaker(speakerRole)}` : ''}
