@@ -22,7 +22,9 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 // 'facebook' retired 2026-05-10 — FB routes through Buffer.
 // 'gbp' retired 2026-05-11 — GBP routes through Buffer (per-location channel
 //   IDs live on workspace_locations.gbp_location_id).
-const KNOWN_SERVICES = new Set(['buffer', 'wordpress', 'astro_github', 'website', 'tdc'])
+// 'drive' uses OAuth (api/integrations/drive/*) for write — listed here only
+//   so the standard GET/DELETE paths can read/remove the row uniformly.
+const KNOWN_SERVICES = new Set(['buffer', 'wordpress', 'astro_github', 'website', 'tdc', 'drive'])
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -55,6 +57,12 @@ async function handler(req, res) {
     const { service, config, secret } = body
     if (!service || !KNOWN_SERVICES.has(service)) {
       return res.status(400).json({ error: 'unknown-service' })
+    }
+    // 'drive' is OAuth-only; the credential row is written by the OAuth
+    // callback, not by an admin pasting a secret. Refuse a manual PUT so a
+    // crafted request can't overwrite the refresh token with arbitrary text.
+    if (service === 'drive') {
+      return res.status(400).json({ error: 'oauth-only', message: 'Google Drive must be connected via /api/integrations/drive/connect.' })
     }
     if (typeof secret !== 'string' || !secret) {
       return res.status(400).json({ error: 'secret-required' })

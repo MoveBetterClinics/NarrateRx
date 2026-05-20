@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '@clerk/clerk-react'
 import {
   ExternalLink,
@@ -7,13 +8,19 @@ import {
   ChevronUp,
   Sparkles,
   Mail,
+  HardDrive,
+  Loader2,
+  CheckCircle2,
+  XCircle,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
+import { Button } from '@/components/ui/button'
 import CredentialForm from '@/components/CredentialForm'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
-import { apiFetch } from '@/lib/api'
+import { apiFetch, apiFetchResponse } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 // Customer-facing publishing connect page. Per-workspace credentials are
 // stored encrypted via /api/workspace/credentials. Buffer is the recommended
@@ -179,6 +186,13 @@ export default function Integrations() {
             />
           )
         })}
+
+        <GoogleDriveCard
+          row={services?.find?.((s) => s.service === 'drive') || null}
+          loading={services === null && isAdmin}
+          disabled={!isAdmin}
+          onChange={reload}
+        />
       </div>
 
       {showTdc && <TrustDrivenCareCard />}
@@ -252,6 +266,215 @@ function IntegrationCard({ integration, row, loading, disabled, getToken, onChan
   )
 }
 
+
+// Reason codes the OAuth callback uses in ?drive=error&reason=…. Mapped to
+// human copy so the toast actually tells the admin what went wrong.
+const DRIVE_ERROR_COPY = {
+  access_denied: 'You declined the Google permission prompt — no changes saved.',
+  exchange_failed: 'Google rejected the OAuth code. Try connecting again.',
+  persist_failed: 'Connected to Google, but we couldn’t save the credential. Try again or contact support.',
+}
+
+function GoogleDriveCard({ row, loading, disabled, onChange }) {
+  const [open, setOpen] = useState(!row)
+  const [connecting, setConnecting] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const configured = Boolean(row)
+  const connectedEmail = row?.config?.account_email || null
+
+  // Surface the OAuth callback's outcome as a toast, then strip the query
+  // params so a reload doesn't replay it. Runs once per param value.
+  useEffect(() => {
+    const status = searchParams.get('drive')
+    if (!status) return
+    if (status === 'connected') {
+      toast.success('Google Drive connected.')
+      onChange?.()
+    } else if (status === 'error') {
+      const reason = searchParams.get('reason') || 'unknown'
+      toast.error(DRIVE_ERROR_COPY[reason] || `Drive connect failed: ${reason}`)
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('drive')
+    next.delete('reason')
+    setSearchParams(next, { replace: true })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function handleConnect() {
+    setConnecting(true)
+    setTestResult(null)
+    try {
+      const data = await apiFetch('/api/integrations/drive/connect', { method: 'POST' })
+      if (!data?.url) throw new Error('No OAuth URL returned')
+      window.location.assign(data.url)
+    } catch (err) {
+      setConnecting(false)
+      if (err?.status === 503) {
+        toast.error('Google Drive OAuth client isn’t configured on this deployment yet.')
+      } else if (err?.status === 403) {
+        toast.error('Only workspace admins can connect Google Drive.')
+      } else {
+        toast.error(err?.message || 'Couldn’t start the Google connect flow.')
+      }
+    }
+  }
+
+  async function handleDisconnect() {
+    if (!window.confirm('Disconnect Google Drive for this workspace? Previously imported assets will remain in the Library, but new imports will require reconnecting.')) {
+      return
+    }
+    setDisconnecting(true)
+    try {
+      await apiFetchResponse('/api/integrations/drive/disconnect', { method: 'DELETE' })
+      toast.success('Google Drive disconnected.')
+      setTestResult(null)
+      onChange?.()
+    } catch (err) {
+      toast.error(err?.message || 'Couldn’t disconnect Google Drive.')
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  async function handleTest() {
+    setTesting(true)
+    setTestResult(null)
+    try {
+      const data = await apiFetch('/api/integrations/drive/test')
+      setTestResult({ ok: true, email: data?.user?.email || null, name: data?.user?.name || null })
+    } catch (err) {
+      if (err?.status === 412) {
+        setTestResult({ ok: false, message: 'Reconnect required — Google revoked access or the token is missing.' })
+      } else {
+        setTestResult({ ok: false, message: err?.message || 'Test failed.' })
+      }
+    } finally {
+      setTesting(false)
+    }
+  }
+
+  return (
+    <div className="rounded-xl border bg-card overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-accent/30 transition-colors text-left"
+      >
+        <div className="flex items-start gap-3 min-w-0">
+          <HardDrive className="h-5 w-5 text-primary shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-medium">Google Drive</p>
+              {configured ? (
+                <span className="text-3xs uppercase tracking-wide bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                  Connected
+                </span>
+              ) : !loading ? (
+                <span className="text-3xs uppercase tracking-wide bg-muted text-muted-foreground px-1.5 py-0.5 rounded">
+                  Not connected
+                </span>
+              ) : null}
+            </div>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              Pull source photos and videos from your existing Drive archive into the Media Library. We never write to your Drive — read-only access only.
+            </p>
+            {configured && connectedEmail && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Connected as <span className="font-medium">{connectedEmail}</span>
+              </p>
+            )}
+            <div className="flex gap-1 mt-1.5 flex-wrap">
+              <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Media import</span>
+              <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Read-only</span>
+            </div>
+          </div>
+        </div>
+        {open ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-5 border-t pt-4">
+          <div>
+            <p className="text-sm font-medium mb-2">How it works</p>
+            <ol className="space-y-1.5">
+              {[
+                'Click Connect Google Drive below — you’ll be sent to Google to choose an account and approve read-only access.',
+                'Back in the Library, use Import from Drive to browse and pick files. Selected files copy into NarrateRx and run through the normal Library pipeline (tagging, transcription, thumbnails).',
+                'Drive stays the master archive. NarrateRx only holds the subset you’ve pulled into the Library.',
+              ].map((step, i) => (
+                <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+                  <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
+                  {step}
+                </li>
+              ))}
+            </ol>
+          </div>
+
+          <Separator />
+
+          {!configured ? (
+            <div>
+              <Button onClick={handleConnect} disabled={disabled || connecting}>
+                {connecting ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Redirecting to Google…</>
+                ) : (
+                  <>Connect Google Drive</>
+                )}
+              </Button>
+              {disabled && (
+                <p className="text-xs text-muted-foreground mt-2">Admins only.</p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={handleTest} disabled={testing}>
+                  {testing ? (
+                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Testing…</>
+                  ) : (
+                    <>Test connection</>
+                  )}
+                </Button>
+                <Button variant="outline" onClick={handleConnect} disabled={connecting}>
+                  {connecting ? 'Reconnecting…' : 'Reconnect (switch account)'}
+                </Button>
+                <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={handleDisconnect} disabled={disconnecting}>
+                  {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+                </Button>
+              </div>
+
+              {testResult && (
+                <div className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
+                  testResult.ok
+                    ? 'border-green-200 bg-green-50 text-green-800'
+                    : 'border-destructive/30 bg-destructive/5 text-destructive'
+                }`}>
+                  {testResult.ok ? (
+                    <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
+                  ) : (
+                    <XCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    {testResult.ok ? (
+                      <>
+                        Connection works. {testResult.email ? <>Drive is reachable as <span className="font-medium">{testResult.email}</span>.</> : null}
+                      </>
+                    ) : (
+                      <>{testResult.message}</>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function SetupSteps({ integration }) {
   return (
