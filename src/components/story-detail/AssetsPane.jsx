@@ -1013,7 +1013,16 @@ function ApprovalPanel({ piece }) {
         const lines = markdown.split('\n')
         const titleLine = lines.find((l) => /^#\s/.test(l))
         const title = titleLine ? titleLine.replace(/^#+\s+/, '').trim() : (piece.topic || 'Blog Post')
-        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        // Cap slug at ~60 chars on a hyphen boundary so URLs stay readable.
+        // Falls back to a hard cut if the title is one very long word.
+        const SLUG_MAX = 60
+        const rawSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+        let slug = rawSlug
+        if (rawSlug.length > SLUG_MAX) {
+          const truncated = rawSlug.slice(0, SLUG_MAX)
+          const lastHyphen = truncated.lastIndexOf('-')
+          slug = (lastHyphen > SLUG_MAX / 2 ? truncated.slice(0, lastHyphen) : truncated).replace(/-+$/, '')
+        }
         const descLine = lines.find((l) => l.trim() && !/^#/.test(l) && !/^!\[/.test(l))
         const description = descLine?.trim().slice(0, 200) || title
         const pubDate = new Date().toISOString().slice(0, 10)
