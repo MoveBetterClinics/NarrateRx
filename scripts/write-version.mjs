@@ -29,15 +29,20 @@ const sha = resolveSha()
 const builtAt = new Date().toISOString()
 const payload = { sha, builtAt }
 
-// CI builds MUST resolve a real SHA — otherwise the client's auto-update
-// poller silently never fires (or, worse, never matches against the
-// running bundle's BUILT_SHA and shows a perpetual "new version" modal).
-// Local builds without git are still fine; they fall through to "dev" and
-// the client-side hook short-circuits on BUILT_SHA === 'dev'.
-const isCi = !!(process.env.VERCEL || process.env.CI)
-if (isCi && sha === 'dev') {
-  console.error('[write-version] CI build resolved sha="dev" — refusing to ship a deploy without a real SHA. Check VERCEL_GIT_COMMIT_SHA / git availability in the build environment.')
+// Hard-fail only when a git-triggered Vercel deploy lost its SHA — that's a
+// real bug (Vercel sets VERCEL_GIT_PROVIDER + VERCEL_GIT_COMMIT_SHA together
+// on git-triggered builds, so a provider-without-sha state means something
+// broke). CLI deploys (`vercel deploy --prod` from a machine with no .git in
+// the upload) legitimately have neither var set; let those through with a
+// "dev" sha — the client-side hook short-circuits on BUILT_SHA === 'dev'
+// (see src/lib/useVersionCheck.js), so the auto-update modal simply won't
+// fire for that deploy.
+if (process.env.VERCEL_GIT_PROVIDER && !process.env.VERCEL_GIT_COMMIT_SHA) {
+  console.error('[write-version] Git-triggered Vercel build is missing VERCEL_GIT_COMMIT_SHA — refusing to ship without a real SHA.')
   process.exit(1)
+}
+if (sha === 'dev') {
+  console.warn('[write-version] resolved sha="dev" — auto-update notifier will be disabled for this build. For CLI prod deploys, use `npm run deploy:prod` to inject the local git SHA.')
 }
 
 const outPath = path.join(root, 'public', 'version.json')

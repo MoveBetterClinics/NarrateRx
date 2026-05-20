@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src api middleware.js --max-warnings 0",
     "test": "vitest run",
-    "verify-bundles": "node scripts/verify-function-bundles.mjs"
+    "verify-bundles": "node scripts/verify-function-bundles.mjs",
+    "deploy:prod": "vercel deploy --prod --build-env VERCEL_GIT_COMMIT_SHA=$(git rev-parse HEAD)"
   },
   "dependencies": {
     "@clerk/backend": "^1.13.0",
