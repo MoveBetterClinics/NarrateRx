@@ -1410,7 +1410,19 @@ function ApprovalPanel({ piece }) {
  * The full ReviewPost editor remains accessible via the "Open for editing" link.
  */
 export default function AssetsPane({ story, onProvenanceHighlight }) {
-  const pieces = useMemo(() => story?.pieces ?? [], [story?.pieces])
+  // Sort so series parts appear in series_part order within their series.
+  // The content API returns rows by created_at.desc, which doesn't match
+  // series_part ordering, so without this the tabs would render as e.g.
+  // [Part 2, Part 1, Part 3] while the SeriesBadge below shows the true part.
+  const pieces = useMemo(() => {
+    const base = story?.pieces ?? []
+    return [...base].sort((a, b) => {
+      if (a.series_id && a.series_id === b.series_id) {
+        return (a.series_part || 0) - (b.series_part || 0)
+      }
+      return 0
+    })
+  }, [story?.pieces])
   const [searchParams, setSearchParams] = useSearchParams()
   const pieceParam = searchParams.get('piece')
   const initialIdx = pieceParam
@@ -1514,7 +1526,13 @@ export default function AssetsPane({ story, onProvenanceHighlight }) {
             const total = platformCounts[piece.platform]
             platformIdx[piece.platform] = (platformIdx[piece.platform] || 0) + 1
             const nth = platformIdx[piece.platform]
-            const label = total > 1 ? `${meta.label} ${nth}/${total}` : meta.label
+            // For series pieces, label with the canonical series_part/series_total
+            // so the tab number matches the SeriesBadge in the active panel.
+            const seriesLabel = piece.series_id && piece.series_part && (piece.series_total || total)
+              ? `${meta.label} ${piece.series_part}/${piece.series_total || total}`
+              : null
+            const label = seriesLabel
+              || (total > 1 ? `${meta.label} ${nth}/${total}` : meta.label)
             const statusDot = STATUS_DOT[piece.status] ?? 'bg-slate-300'
             const statusLabel = STATUS_META[piece.status]?.label ?? piece.status
             const preview = typeof piece.content === 'string' ? piece.content.slice(0, 80) : ''
