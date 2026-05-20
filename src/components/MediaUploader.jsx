@@ -515,12 +515,20 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           }`}
         >
           <Upload className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
-          <p className="text-sm font-medium mb-0.5">
+          <p className="text-sm font-medium mb-2">
             {dropZoneHeadline(purpose)}
           </p>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); inputRef.current?.click() }}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-white hover:bg-primary/90 transition-colors mb-2"
+          >
+            <Folder className="h-3.5 w-3.5" />
+            Browse files
+          </button>
           {(purpose === 'interview' || purpose === 'broll') && (
             <p className="text-2xs text-muted-foreground/80 mb-1">
-              Dragging from macOS Photos? Use &ldquo;click to browse&rdquo; — Photos&apos; drag handler sends preview frames, not the source video.
+              Dragging from macOS Photos? Use the Browse files button — Photos&apos; drag handler sends preview frames, not the source video.
             </p>
           )}
           <p className="text-xs text-muted-foreground">
@@ -616,11 +624,11 @@ function labelForSpeaker(id) {
 }
 
 function dropZoneHeadline(purpose) {
-  if (purpose === 'photo')     return 'Drop photos here, or click to browse'
-  if (purpose === 'interview') return 'Drop interview clips here, or click to browse'
-  if (purpose === 'broll')     return 'Drop B-roll videos here, or click to browse'
-  if (purpose === 'brand')     return 'Drop brand assets here, or click to browse'
-  return 'Drop your files here, or click to browse'
+  if (purpose === 'photo')     return 'Drag photos here'
+  if (purpose === 'interview') return 'Drag interview clips here'
+  if (purpose === 'broll')     return 'Drag B-roll videos here'
+  if (purpose === 'brand')     return 'Drag brand assets here'
+  return 'Drag your files here'
 }
 
 function dropZoneHint(purpose) {
