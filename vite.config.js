@@ -25,6 +25,14 @@ export default defineConfig({
   define: {
     __BUILD_SHA__: JSON.stringify(resolveBuildSha()),
   },
+  // ES-format workers so we can use dynamic `import()` inside the worker
+  // body. Default is IIFE which rejects code splits. Needed by
+  // src/lib/heicWorker.js — it polyfills `self.window = self` before
+  // heic2any module-init runs (heic2any writes to window.libheif at top
+  // level), and a static import would be hoisted ahead of the polyfill.
+  worker: {
+    format: 'es',
+  },
   test: {
     exclude: ['tests/e2e/**', '.claude/**', 'node_modules/**'],
   },
