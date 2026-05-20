@@ -13,6 +13,7 @@ import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { OUTPUT_CHANNELS, EXPORT_SHAPES, PUBLISH_MODES } from '@/lib/outputChannels'
+import { SaveBar } from '@/components/settings/helpers'
 
 // Icon per channel id. Falls back to Radio for any new channel we forget to map.
 const CHANNEL_ICONS = {
@@ -220,6 +221,19 @@ export default function ChannelsSettings() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Mobile-only sticky-bottom save bar — the top header bar that
+          holds Save is non-sticky on mobile (PR #657). */}
+      <div className="md:hidden">
+        <SaveBar
+          saving={saving}
+          saved={saved}
+          error={error}
+          isDirty={isDirty}
+          onSave={handleSave}
+          onDiscard={() => setForm(pristine)}
+        />
+      </div>
     </div>
   )
 }
