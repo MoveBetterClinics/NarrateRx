@@ -79,6 +79,28 @@ await pipeline(Readable.fromWeb(r.body), createWriteStream(localPath))
 
 Peak memory is then bounded by the stream's internal buffer (a few MB), independent of source size. Reference: `api/_lib/thumbnail.js`, `api/_lib/tagAsset.js` (PR #318 fixed the OOM that was killing video-thumbnail backfill).
 
+## Async pipelines and the detail-drawer refresh contract
+
+When a feature writes meaningful row fields from background work (`waitUntil`, queued jobs, webhook callbacks — anything that PATCHes the row 5+ seconds after the user-facing request returns), the list view's existing refetch-on-upload covers grid/thumbnail freshness but the detail drawer does NOT see the update without help. Without this, users opening the drawer immediately after a triggering action see stale state (e.g. `status='raw'` while the pipeline still runs) and assume the feature is broken.
+
+Rule: any PR that adds a new pipeline-PATCHed column on `media_assets` / `content_items` / `interviews` must also ensure the relevant detail view re-reads the row while the pipeline is still pending. The canonical pattern (see `src/components/MediaDetail.jsx`):
+
+```js
+const { data: liveAsset } = useQuery({
+  queryKey: ['media-asset', asset.id],
+  queryFn: () => getMediaAsset(asset.id),
+  initialData: asset,
+  refetchInterval: (q) => {
+    if (!pipelinePending(q.state.data)) return false
+    if (Date.now() - pollStartRef.current.at > 60_000) return false  // hard cap
+    return 2000
+  },
+  refetchOnWindowFocus: false,
+})
+```
+
+`pipelinePending` is a row-shape predicate (`!web_blob_url` for photos, `transcode_status in ('pending', 'processing')` for videos, etc.). The 60s hard cap matters — silent pipeline failures must not produce an infinite polling loop. Editable form state stays seeded from the original `asset` prop on `asset.id` change so in-progress user edits aren't clobbered by a poll round-trip.
+
 ## Lint ratchet
 The `npm run lint` script enforces a `--max-warnings <N>` ceiling (currently 152, set during the pre-launch audit). The ratchet should drift **down** over time, not up. Rule:
 
@@ -136,6 +158,8 @@ PRs need to merge close to when they're opened, not batch-stacked indefinitely. 
 4. **Same-file overlap = base on the older PR, not main.** Before opening a follow-up PR, check whether your next branch touches a file an open PR also touches (`gh pr diff <num> --name-only` per open PR). If yes, base it on that PR's branch (`git fetch && git checkout -b <next> origin/<open-pr-branch>`) instead of `origin/main`. Otherwise the older PR is guaranteed to conflict when the newer ones land first, and auto-merge silently stalls — you only notice when someone asks "did it ship?". Cheaper to base correctly than to rebase three files of conflicts later. (Lesson from the 2026-05-19 approve-flow stack: PRs B/C/E/F all touched `AssetsPane.jsx`; PR D opened mid-stack stalled on a three-way conflict because E/F merged first.)
 
 5. **Check for merged-while-you-worked PRs.** Before the next feature branch, run `gh pr list --state merged --search 'merged:>=<session-start-iso>'`. Catches the case where a parallel agent shipped overlapping work — surfaces conflicts in seconds instead of at end-of-session.
+
+5. **If two agents share a worktree, neither owns it.** When you discover you're not alone in the working tree (a `git branch --show-current` shows an unfamiliar branch, untracked files you didn't create appear, your edits get reverted between an Edit and the next Read, or `git status` shows a divergent branch), do NOT keep editing in place. Stash your work, create a fresh branch off `origin/main`, and pop the stash there. If files were reverted before you could stash, cherry-pick your commit onto a clean branch from `origin/main` instead. Do not push commits to a branch the other agent appears to own — that's how PRs end up containing a mix of work that shouldn't ship together.
 
 When work *has* batched (long autonomous run, lots of stacked PRs), triage rather than mass-merge: identify which PRs are now duplicative of merged work, which can rebase cleanly, and which need to be re-done against the current shape of the codebase.
 
