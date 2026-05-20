@@ -51,12 +51,17 @@ export function Textarea2({ label, value, onChange, rows = 4, hint, mono = false
   )
 }
 
-// Shared save-bar used by all sub-pages. Sticky at the bottom of the form
-// when there are unsaved changes.
+// Shared save-bar used by all sub-pages. On mobile it sticks to the
+// bottom of the viewport (with safe-area padding) so the user can save
+// from anywhere on a long form without scrolling to the bottom. On md+
+// it's an inline block that appears after the form content.
 export function SaveBar({ saving, saved, error, isDirty, onSave, onDiscard }) {
   if (!isDirty && !saved && !error) return null
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-muted/40 px-4 py-3 mt-6">
+    <div
+      className="sticky bottom-0 z-20 md:static -mx-6 md:mx-0 px-4 py-3 mt-6 flex items-center justify-between gap-4 border md:rounded-lg border-x-0 md:border-x border-border bg-background/95 md:bg-muted/40 backdrop-blur md:backdrop-blur-none supports-[backdrop-filter]:bg-background/85"
+      style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
+    >
       <p className="text-xs text-muted-foreground">
         {saved
           ? 'Saved.'

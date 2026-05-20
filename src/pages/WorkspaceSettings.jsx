@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
+import { SaveBar } from '@/components/settings/helpers'
 import { useUserRole } from '@/lib/useUserRole'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
@@ -348,6 +349,20 @@ export default function WorkspaceSettings() {
       </div>
 
       <DangerZone workspace={ws} getToken={getToken} />
+
+      {/* Mobile-only sticky-bottom save bar — the page header bar that
+          holds Save is non-sticky on mobile (PR #657), so without this
+          the user has to scroll back to the top of a long form to save. */}
+      <div className="md:hidden">
+        <SaveBar
+          saving={saving}
+          saved={saved}
+          error={error}
+          isDirty={isDirty}
+          onSave={handleSave}
+          onDiscard={() => setForm(pristineForm)}
+        />
+      </div>
     </div>
   )
 }
