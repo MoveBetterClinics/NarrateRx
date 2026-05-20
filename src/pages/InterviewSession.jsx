@@ -142,6 +142,25 @@ export default function InterviewSession() {
   const mountedOnOutputPath = useRef(
     typeof window !== 'undefined' && window.location.pathname.endsWith('/output')
   )
+  // Track the visual viewport height so the interview wrapper shrinks when
+  // the iOS keyboard opens. `100dvh` accounts for the address bar but NOT
+  // the soft keyboard — without this, the typed-answer dock (and its
+  // textarea) end up hidden behind the keyboard on iPhone. Falls back to
+  // null on browsers without visualViewport; the CSS calc handles those.
+  const [vvHeight, setVvHeight] = useState(null)
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.visualViewport) return
+    const vv = window.visualViewport
+    const update = () => setVvHeight(vv.height)
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    update()
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
+
   const runtimeWorkspace = useWorkspace()
   const VOICE_MODES = getVoiceModes(runtimeWorkspace)
   const PATIENT_PROTOTYPES_UI = getPatientPrototypesUi(runtimeWorkspace)
@@ -1070,7 +1089,10 @@ export default function InterviewSession() {
     : null
 
   return (
-    <div className={`flex flex-col md:flex-row h-[calc(100dvh-7rem)] ${showOutput ? 'gap-0 overflow-hidden' : 'max-w-2xl mx-auto'}`}>
+    <div
+      className={`flex flex-col md:flex-row h-[calc(100dvh-7.5rem)] ${showOutput ? 'gap-0 overflow-hidden' : 'max-w-2xl mx-auto'}`}
+      style={vvHeight ? { height: `calc(${vvHeight}px - 7.5rem)` } : undefined}
+    >
       {/* ── Left: interview transcript pane ── */}
       <div className={`flex flex-col min-w-0 transition-all duration-300 ease-out ${showOutput ? 'hidden md:flex md:w-1/2 md:pr-4' : 'flex-1'}`}>
       <div className="flex items-center gap-3 pb-4 shrink-0">

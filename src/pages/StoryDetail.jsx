@@ -139,7 +139,7 @@ export default function StoryDetail() {
 
   if (isError || !story) {
     return (
-      <div className="p-6 space-y-4">
+      <div className="py-6 space-y-4">
         <Link
           to="/stories"
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -156,7 +156,7 @@ export default function StoryDetail() {
   const stageMeta = getStageToken(stage)
 
   return (
-    <div className="space-y-5 p-6">
+    <div className="space-y-5 py-6">
       {/* Header */}
       <div className="space-y-2">
         <Link

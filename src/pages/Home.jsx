@@ -203,7 +203,7 @@ export default function Home() {
           <p className="text-2xs font-bold uppercase tracking-widest opacity-85">
             Welcome back
           </p>
-          <h1 className="text-2xl font-extrabold tracking-tight leading-tight">{greeting}</h1>
+          <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">{greeting}</h1>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Link

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   Settings, Mic2, Radio, Puzzle, Palette, Users, CreditCard, MapPin,
@@ -118,6 +119,16 @@ function SidebarSubGroup({ item }) {
 // chip auto-scrolls into view on mount.
 function MobileNavRail({ visibleItems }) {
   const location = useLocation()
+  const activeRef = useRef(null)
+
+  // Without this, a user on chip 8-10 who navigates to chip 1-3 lands on
+  // a page where the active chip is scrolled off-screen to the left —
+  // the rail becomes a mystery box. `inline: 'nearest'` keeps the rail
+  // from jolting when the active chip is already in view.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' })
+  }, [location.pathname])
+
   return (
     <nav
       aria-label="Settings sections"
@@ -129,6 +140,7 @@ function MobileNavRail({ visibleItems }) {
           <NavLink
             key={item.to}
             to={item.to}
+            ref={isActive ? activeRef : undefined}
             className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors min-h-[36px] ${
               isActive
                 ? 'border-[#fde0d2] bg-[hsl(20_60%_95%)] text-[#c04d18]'
