@@ -24,6 +24,7 @@
 // keeps the unit boundary clean and testable.
 
 import sharp from 'sharp'
+import heicConvert from 'heic-convert'
 import { put as blobPut } from '@vercel/blob'
 import { generateText } from 'ai'
 
@@ -186,17 +187,32 @@ export async function processImageUpload({ assetId, blobUrl, declaredMime }) {
   const heic = isHeicMime(declaredMime) || isHeicBuffer(sourceBytes)
   const target = chooseWebFormat(declaredMime, heic)
 
+  // Two-stage decode for HEIC: heic-convert (pure-JS, environment-independent)
+  // produces a JPEG buffer, then sharp resizes/re-encodes it. Sharp's libheif
+  // binding is unreliable across Vercel's Linux Lambda images and rejects
+  // some iPhone Live Photo / iCloud-re-encoded HEIC variants outright. Don't
+  // try sharp's HEIC path at all — heic-convert handles every HEIC we've
+  // seen in the wild. JPEG/PNG/etc. continue to flow straight into sharp.
+  let bytesForSharp = sourceBytes
+  if (heic) {
+    try {
+      const jpegBuffer = await heicConvert({
+        buffer: sourceBytes,
+        format: 'JPEG',
+        quality: 0.92,
+      })
+      bytesForSharp = Buffer.from(jpegBuffer)
+    } catch (e) {
+      console.error(`[imagePipeline] asset ${assetId}: heic-convert decode failed:`, e?.message)
+      throw e
+    }
+  }
+
   let resized
   try {
-    resized = await resizeImage(sourceBytes, target)
+    resized = await resizeImage(bytesForSharp, target)
   } catch (e) {
-    if (heic) {
-      // sharp build without libheif → can't decode. Surface clearly so we
-      // know whether the runtime needs a different sharp build.
-      console.error(`[imagePipeline] asset ${assetId}: HEIC decode failed (libheif not available?):`, e?.message)
-    } else {
-      console.error(`[imagePipeline] asset ${assetId}: resize failed:`, e?.message)
-    }
+    console.error(`[imagePipeline] asset ${assetId}: resize failed:`, e?.message)
     throw e
   }
 
