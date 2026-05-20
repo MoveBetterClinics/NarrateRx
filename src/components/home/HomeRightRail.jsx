@@ -88,7 +88,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
           <span className="inline-block w-1 h-5 rounded-full shrink-0" style={{ background: '#7c3aed' }} aria-hidden="true" />
           <CalendarClock className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-bold tracking-tight flex-1">Scheduled this week</h2>
+          <h2 className="text-base font-bold tracking-tight flex-1">Scheduled this week</h2>
         </div>
         {upcoming.length === 0 ? (
           <p className="px-4 py-4 text-sm text-muted-foreground">
@@ -122,7 +122,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
           <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
             <span className="inline-block w-1 h-5 rounded-full shrink-0" style={{ background: '#059669' }} aria-hidden="true" />
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-bold tracking-tight flex-1">What&apos;s working</h2>
+            <h2 className="text-base font-bold tracking-tight flex-1">What&apos;s working</h2>
           </div>
           <ul className="divide-y">
             {topPerformers.map((item) => (
@@ -162,7 +162,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
           <span className="inline-block w-1 h-5 rounded-full shrink-0" style={{ background: '#0284c7' }} aria-hidden="true" />
           <Sparkles className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-bold tracking-tight flex-1">Questions patients are asking</h2>
+          <h2 className="text-base font-bold tracking-tight flex-1">Questions patients are asking</h2>
           <button
             type="button"
             onClick={handleRefresh}
@@ -203,7 +203,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
           <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
             <span className="inline-block w-1 h-5 rounded-full shrink-0" style={{ background: '#94a3b8' }} aria-hidden="true" />
             <MapPin className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-bold tracking-tight flex-1">Locations</h2>
+            <h2 className="text-base font-bold tracking-tight flex-1">Locations</h2>
           </div>
           <ul className="divide-y">
             {locations.map((loc) => {
@@ -238,7 +238,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
           <span className="inline-block w-1 h-5 rounded-full shrink-0" style={{ background: '#d97706' }} aria-hidden="true" />
           <Bot className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-sm font-bold tracking-tight flex-1">Bernard</h2>
+          <h2 className="text-base font-bold tracking-tight flex-1">Bernard</h2>
         </div>
         <p className="px-4 py-4 text-sm text-muted-foreground">
           Bernard is analyzing your workspace…

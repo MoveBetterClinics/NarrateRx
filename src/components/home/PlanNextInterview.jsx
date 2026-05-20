@@ -43,7 +43,7 @@ export default function PlanNextInterview({
               aria-hidden="true"
             />
             <Icon as={TrendingUp} size="md" className="text-primary" />
-            <h2 className="text-sm font-bold tracking-tight text-foreground">
+            <h2 className="text-xl font-bold tracking-tight text-foreground">
               {isEmpty ? 'Start with a high-impact topic' : 'Plan your next interview'}
             </h2>
           </div>

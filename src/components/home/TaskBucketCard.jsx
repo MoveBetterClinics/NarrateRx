@@ -30,14 +30,14 @@ export default function TaskBucketCard({
     : 'rounded-2xl border border-border bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]'
   return (
     <div id={id} className={surface}>
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100">
+      <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-100">
         <span
-          className="inline-block w-1 h-5 rounded-full shrink-0"
+          className="inline-block w-1 h-6 rounded-full shrink-0"
           style={{ background: accent }}
           aria-hidden="true"
         />
         <span className="text-muted-foreground">{icon}</span>
-        <h2 className="text-sm font-bold tracking-tight flex-1">{title}</h2>
+        <h2 className="text-lg font-bold tracking-tight flex-1">{title}</h2>
         {items.length > 0 && (
           <span
             className={
