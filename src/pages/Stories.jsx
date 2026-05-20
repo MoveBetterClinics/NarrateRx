@@ -13,6 +13,7 @@ import StoriesPipelineView from '@/components/stories/StoriesPipelineView'
 import StoriesCalendarView from '@/components/stories/StoriesCalendarView'
 import StoriesThemesView from '@/components/stories/StoriesThemesView'
 import CampaignProgressStrip from '@/components/stories/CampaignProgressStrip'
+import StoriesAtAGlance from '@/components/stories/StoriesAtAGlance'
 import UsageGate from '@/components/billing/UsageGate'
 
 const PLATFORMS = Object.keys(PLATFORM_META)
@@ -249,6 +250,11 @@ export default function Stories() {
       ) : (
         <StoriesCardsView stories={stories} isLoading={isLoading} />
       )}
+
+      {/* At-a-glance KPI footer — derived from the same `stories` data the
+          views above are rendering, so no extra fetch. Auto-hides when the
+          workspace has no stories yet. */}
+      {!isLoading ? <StoriesAtAGlance stories={stories} /> : null}
     </main>
   )
 }

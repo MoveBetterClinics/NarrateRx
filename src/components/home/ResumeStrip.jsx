@@ -23,15 +23,15 @@ export default function ResumeStrip({ interviews, currentUserId, clinicians = []
     <div>
       <div className="flex items-center gap-2 mb-3">
         <span
-          className="inline-block w-1 h-5 rounded-full shrink-0"
+          className="inline-block w-1 h-6 rounded-full shrink-0"
           style={{ background: 'hsl(var(--primary))' }}
           aria-hidden="true"
         />
-        <PlayCircle className="h-4 w-4 text-primary" />
-        <h2 className="text-sm font-bold tracking-tight text-foreground">
+        <PlayCircle className="h-5 w-5 text-primary" />
+        <h2 className="text-xl font-bold tracking-tight text-foreground">
           Pick up where you left off
         </h2>
-        <span className="text-xs text-muted-foreground">· {interviews.length} active</span>
+        <span className="text-sm text-muted-foreground">· {interviews.length} active</span>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {visible.map((i) => (

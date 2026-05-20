@@ -91,7 +91,7 @@ export default function GettingStarted() {
             aria-hidden="true"
           />
           <Icon as={Sparkles} size="md" className="text-primary" />
-          <h2 className="text-sm font-bold tracking-tight">Getting started</h2>
+          <h2 className="text-xl font-bold tracking-tight">Getting started</h2>
           <span className="text-xs text-muted-foreground">
             · {doneCount} of {items.length} done
           </span>

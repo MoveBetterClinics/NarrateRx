@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { FileText, Eye, Clock, Loader2, RefreshCw, ChevronRight, Send, BookOpen } from 'lucide-react'
+import { FileText, Clock, Loader2, RefreshCw, ChevronRight, Send, BookOpen } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'
 import { useStories, useClinicianSummaries } from '@/lib/queries'
@@ -11,7 +11,9 @@ import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { getPatientPrototypesUi } from '@/lib/prompts'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { greetingFor } from '@/components/home/helpers'
+import DraftsReadyRow from '@/components/home/DraftsReadyRow'
 import GettingStarted from '@/components/home/GettingStarted'
+import HomeStats from '@/components/home/HomeStats'
 import ResumeStrip from '@/components/home/ResumeStrip'
 import PlanNextInterview from '@/components/home/PlanNextInterview'
 import TaskBucketCard from '@/components/home/TaskBucketCard'
@@ -124,19 +126,12 @@ export default function Home() {
     [stories]
   )
 
-  // ── Task bucket 2: Awaiting review ─────────────────────────────────────────
-  // Stories that have at least one piece with status === 'in_review'.
-  // Only shown to users who canReview — staff without review permissions
-  // don't need to see others' queues.
-  const awaitingReview = useMemo(
-    () =>
-      canReview
-        ? stories.filter((s) =>
-            (s.pieces || []).some((p) => p.status === 'in_review')
-          )
-        : [],
-    [stories, canReview]
-  )
+  // ── Awaiting review ─────────────────────────────────────────────────────
+  // Bucket 2 used to be a story-level TaskBucketCard. As of the mockup
+  // parity pass the surface is now piece-level (DraftsReadyRow), which
+  // re-derives pending pieces from `stories` directly — no separate
+  // useMemo needed here. `canReview` still gates rendering at the JSX
+  // site below.
 
   // ── Task bucket 3: Ready to distribute ─────────────────────────────────────
   // Stories with at least one approved piece — publisher's inbox. Only shown
@@ -221,6 +216,13 @@ export default function Home() {
         </div>
       </div>
 
+      {/* Stat row — pulled from useStories, no extra fetch. Wired to real
+          data (interviews this week, drafts awaiting work + piece-platform
+          breakdown, published last-30d + delta, voice-match average across
+          recent pieces' provenance). Hidden when the workspace has no
+          stories yet so the onboarding flow stays focused. */}
+      {stories.length > 0 ? <HomeStats stories={stories} /> : null}
+
       {/* Pre-roll: one section at a time. Priority: resume in-progress >
           coverage gaps (active workspace) > getting started (new workspace). */}
       {resumeInterviews.length > 0 ? (
@@ -300,38 +302,14 @@ export default function Home() {
             )}
           />
 
-          <TaskBucketCard
-            id="review"
-            title="Awaiting your review"
-            icon={<Eye className="h-4 w-4" />}
-            accent={ACCENT.review}
-            highlight
-            items={awaitingReview}
-            emptyMessage="Nothing in review — all clear."
-            renderItem={(s) => {
-              const reviewPiece = (s.pieces || []).find((p) => p.status === 'in_review')
-              return (
-                <Link
-                  key={s.id}
-                  to={`/stories/${s.id}`}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors group"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {reviewPiece?.platform
-                        ? `${reviewPiece.platform.charAt(0).toUpperCase()}${reviewPiece.platform.slice(1)} · `
-                        : ''}
-                      {s.clinicianName}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">{s.topic}</p>
-                  </div>
-                  <span className="text-xs font-medium text-primary text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
-                    Review <ChevronRight className="h-3 w-3" />
-                  </span>
-                </Link>
-              )
-            }}
-          />
+          {/* Drafts ready for review — replaces the old vertical TaskBucket
+              with the mockup's horizontal 3-card row. Piece-level (not
+              story-level) so the user can see "this blog · this email ·
+              this social" at a glance. Auto-hides when nothing is in
+              review. The `awaitingReview` memo above stays in scope for
+              parity with the bucket index but is no longer rendered here —
+              DraftsReadyRow re-derives pieces from `stories` directly. */}
+          {canReview ? <DraftsReadyRow stories={stories} /> : null}
 
           {readyToDistribute.length > 0 && (
             <TaskBucketCard
