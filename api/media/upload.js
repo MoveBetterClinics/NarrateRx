@@ -7,6 +7,7 @@ import sharp from 'sharp'
 import ffmpegStaticPath from 'ffmpeg-static'
 import { segmentAndPersist } from '../_lib/segmentInterview.js'
 import { generateAndPersistThumbnail } from '../_lib/thumbnail.js'
+import { processImageUpload } from '../_lib/imagePipeline.js'
 import { recordAudit, snapshot } from '../_lib/audit.js'
 import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
@@ -60,14 +61,17 @@ async function sb(path, init = {}) {
   })
 }
 
-// HEIC/HEIF intentionally absent: the browser uploader transcodes those to
-// JPEG client-side (src/lib/mediaLib.js) so the canonical blob is always
-// renderable. Keeping HEIC out of the allowlist makes that invariant a
-// hard contract — any path that bypasses the client transcode (e.g. a curl
-// of a raw .heic) is rejected at the handshake instead of producing a
-// preview-broken asset row downstream.
+// HEIC/HEIF are accepted here AND transcoded client-side by the browser
+// uploader (src/lib/mediaLib.js → maybeTranscodeHeic via heic2any). The
+// server-side image pipeline (api/_lib/imagePipeline.js) is the safety net:
+// any direct API upload that arrives as raw HEIC is decoded with sharp +
+// libheif and the web variant is emitted as JPEG before any consumer reads
+// `blob_url`. Both paths converge on the same hybrid storage shape:
+// original_blob_url retains the as-uploaded bytes, web_blob_url + blob_url
+// point at the renderable variant.
 const ALLOWED_MIME = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'image/heic', 'image/heif',
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v',
 ]
 
@@ -391,6 +395,52 @@ async function handler(req, res) {
                 })
                 .catch((e) => console.error('Auto-pipeline failed:', e?.message)),
             )
+
+            // Image pipeline — sharp resize + (HEIC→JPEG when needed) + AI
+            // alt-text. Runs in parallel with tagging because it doesn't
+            // depend on tags. PATCHes the row with original_blob_url +
+            // web_blob_url + web_width + web_height + alt_text (when
+            // available) and re-points blob_url at the web variant so all
+            // downstream consumers (lists, blog publish, social previews)
+            // serve the resized variant without per-call-site changes.
+            if (insertedRow.kind === 'photo') {
+              waitUntil(
+                processImageUpload({
+                  assetId:      insertedRow.id,
+                  blobUrl:      blob.url,
+                  declaredMime: blob.contentType,
+                })
+                  .then(async (result) => {
+                    if (!result) return  // skipped (too large to decode safely)
+                    const patch = {
+                      original_blob_url: result.originalBlobUrl,
+                      web_blob_url:      result.webBlobUrl,
+                      web_width:         result.webWidth,
+                      web_height:        result.webHeight,
+                      blob_url:          result.webBlobUrl,
+                      mime_type:         result.webMime,
+                      size_bytes:        result.webSizeBytes,
+                      width:             result.webWidth,
+                      height:            result.webHeight,
+                    }
+                    // Don't overwrite a user-set alt_text. The completion
+                    // webhook runs once shortly after upload; if the user
+                    // already typed alt text in a follow-up edit by then,
+                    // we'd rather keep theirs.
+                    if (result.altText && !insertedRow.alt_text) {
+                      patch.alt_text = result.altText
+                    }
+                    const upd = await sb(
+                      `media_assets?id=eq.${insertedRow.id}&${scopeColumn}=eq.${scopeId}`,
+                      { method: 'PATCH', body: JSON.stringify(patch) },
+                    )
+                    if (!upd.ok) {
+                      console.error('[upload] image-pipeline PATCH failed:', upd.status, await upd.text())
+                    }
+                  })
+                  .catch((e) => console.error('Image pipeline failed:', e?.message)),
+              )
+            }
 
             // Poster-frame extraction runs in parallel with tagging — neither
             // depends on the other, and a thumbnail is the user-visible signal

@@ -195,7 +195,11 @@ export default function UploadTray() {
                 )}
                 {r.status === 'done' && (
                   <div className="mt-1 text-2xs text-muted-foreground">
-                    {r.slowIndex ? 'Still processing — will appear shortly.' : 'Done.'}
+                    {r.slowIndex
+                      ? 'Still processing — will appear shortly.'
+                      : (r.optimizedSize && r.originalSize && r.optimizedSize < r.originalSize)
+                          ? `Optimized for web: ${formatBytes(r.originalSize)} → ${formatBytes(r.optimizedSize)}. Original kept.`
+                          : 'Done.'}
                   </div>
                 )}
                 {r.status === 'error' && (

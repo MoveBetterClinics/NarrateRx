@@ -17,16 +17,46 @@ const UploadProgressContext = createContext(null)
 // Same poll loop that MediaUploader used to own. Kept here so the context
 // can drive the full lifecycle (upload → indexing → done) without exposing
 // a leaky "rows are queryable" check to call sites.
+//
+// Returns the matched row (when present) so callers that need post-pipeline
+// state (e.g. web_blob_url, size_bytes after resize) can read it without a
+// second list call. Matches a row when EITHER blob_url or original_blob_url
+// equals the just-uploaded blob URL — the image pipeline re-points blob_url
+// at the web variant once it finishes, so the original URL only sticks on
+// original_blob_url after the PATCH lands.
 async function waitForAssetIndexed(blobUrl, { timeoutMs = 8000, intervalMs = 500 } = {}) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     try {
       const rows = await listMedia({ limit: 20, compact: true })
-      if (Array.isArray(rows) && rows.some((r) => r.blob_url === blobUrl)) return true
+      const match = Array.isArray(rows)
+        ? rows.find((r) => r.blob_url === blobUrl || r.original_blob_url === blobUrl)
+        : null
+      if (match) return match
     } catch { /* keep polling */ }
     await new Promise((r) => setTimeout(r, intervalMs))
   }
-  return false
+  return null
+}
+
+// After the row is indexed, poll a few more times for the image pipeline to
+// re-point blob_url at the web variant (signaled by web_blob_url being set).
+// Bounded short-poll because the pipeline runs immediately after the row
+// insert — typical settle is ~1–3s for a 4 MB iPhone photo. If the pipeline
+// errors out, this just times out and the tray shows the basic "Done." state.
+async function waitForPipelineSettle(blobUrl, { timeoutMs = 12000, intervalMs = 750 } = {}) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const rows = await listMedia({ limit: 20, compact: true })
+      const match = Array.isArray(rows)
+        ? rows.find((r) => r.original_blob_url === blobUrl || r.blob_url === blobUrl)
+        : null
+      if (match?.web_blob_url) return match
+    } catch { /* keep polling */ }
+    await new Promise((r) => setTimeout(r, intervalMs))
+  }
+  return null
 }
 
 export function UploadProgressProvider({ children }) {
@@ -110,10 +140,28 @@ export function UploadProgressProvider({ children }) {
         r.id === id ? { ...r, status: 'indexing', progress: 100, loaded: r.total || r.size, transcoding: false } : r,
       ))
       const indexed = await waitForAssetIndexed(blob.url)
+      // Capture pre-pipeline size so the savings hint compares against the
+      // file the user actually picked, not whatever the server happens to
+      // record post-pipeline. file.size is already the post-HEIC-transcode
+      // bytes when client-side HEIC conversion fired.
+      const originalSize = file.size || 0
       setUploads((prev) => prev.map((r) =>
-        r.id === id ? { ...r, status: 'done', slowIndex: !indexed } : r,
+        r.id === id ? { ...r, status: 'done', slowIndex: !indexed, originalSize } : r,
       ))
       notifyUploaded()
+
+      // Images get an extra short poll for the resize/AI-alt pipeline to
+      // settle so the tray can show "Optimized 4.2 MB → 380 KB". Best-effort
+      // — if it times out, the tray just stays on the basic "Done." copy.
+      if (file.type?.startsWith('image/')) {
+        waitForPipelineSettle(blob.url).then((settled) => {
+          if (!settled?.size_bytes) return
+          setUploads((prev) => prev.map((r) =>
+            r.id === id ? { ...r, optimizedSize: settled.size_bytes } : r,
+          ))
+        })
+      }
+
       return blob
     } catch (e) {
       setUploads((prev) => prev.map((r) =>
