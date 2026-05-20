@@ -1,0 +1,16 @@
+{
+  "$schema": "Each entry should describe a single deploy. The 'sha' field is matched against the deployed commit SHA (either short or full form). Place newest entries first. Markdown is NOT rendered — keep 'changes' as plain strings.",
+  "releases": [
+    {
+      "sha": "e7a521a",
+      "date": "2026-05-19",
+      "title": "Auto-update notifications",
+      "changes": [
+        "The app now alerts you when a new version is available — no more hard refresh.",
+        "Approved pieces can be unapproved.",
+        "Buffer queue mode in the publish action sheet.",
+        "Redesigned post-approve publish UX."
+      ]
+    }
+  ]
+}

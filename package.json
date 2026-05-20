@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/write-version.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "backup:db": "bash scripts/backup-db.sh",

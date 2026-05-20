@@ -44,6 +44,7 @@ import ErrorBoundary from '@/components/ErrorBoundary'
 import RouteErrorBoundary from '@/components/RouteErrorBoundary'
 import { setSentryUser, setSentryWorkspace } from '@/lib/sentry'
 import { Toaster } from '@/lib/toast'
+import UpdateAvailableModal from '@/components/UpdateAvailableModal'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // Single shared QueryClient. Defaults: staleTime 30s, gcTime 5min,
@@ -386,6 +387,7 @@ export default function App() {
             </Routes>
           </BrowserRouter>
           <Toaster richColors position="top-right" closeButton />
+          <UpdateAvailableModal />
         </ClerkProvider>
       </QueryClientProvider>
     </ErrorBoundary>
