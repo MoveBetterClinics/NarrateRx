@@ -9,11 +9,31 @@ const DISMISSED_KEY = 'narraterx:dismissed-update-sha'
 // eslint-disable-next-line no-undef
 const BUILT_SHA = typeof __BUILD_SHA__ === 'string' ? __BUILD_SHA__ : 'dev'
 
+// Threshold below which a SHA is treated as a "short" identifier (e.g. the
+// 7-char prefix git uses in release notes) and prefix-matching is allowed.
+// Both deployed and dismissed SHAs are always full 40-char hashes, so
+// prefix-matching them against each other would create false collisions on
+// shared prefixes (~1 in 16M for two 7-char prefixes — small but non-zero).
+const SHORT_SHA_MAX = 12
+
 function shaMatches(a, b) {
   if (!a || !b) return false
   const x = String(a).toLowerCase()
   const y = String(b).toLowerCase()
-  return x === y || x.startsWith(y) || y.startsWith(x)
+  if (x === y) return true
+  // Only allow prefix matching when one side is demonstrably short; never
+  // prefix-match two full SHAs against each other.
+  if (x.length <= SHORT_SHA_MAX && y.startsWith(x)) return true
+  if (y.length <= SHORT_SHA_MAX && x.startsWith(y)) return true
+  return false
+}
+
+function readDismissedSha() {
+  try {
+    return localStorage.getItem(DISMISSED_KEY) || ''
+  } catch {
+    return ''
+  }
 }
 
 async function fetchVersion() {
@@ -54,19 +74,15 @@ export function useVersionCheck() {
     let cancelled = false
     let timer = null
 
-    const dismissedSha = (() => {
-      try {
-        return localStorage.getItem(DISMISSED_KEY) || ''
-      } catch {
-        return ''
-      }
-    })()
-
     async function check() {
       try {
         const { sha: serverSha } = await fetchVersion()
         if (cancelled) return
         if (shaMatches(serverSha, BUILT_SHA)) return
+        // Re-read each tick — the user may have dismissed a previous notice
+        // mid-session, and we want subsequent deploys to honor that without
+        // a page reload to refresh the closure.
+        const dismissedSha = readDismissedSha()
         if (dismissedSha && shaMatches(serverSha, dismissedSha)) return
 
         const notes = await fetchReleaseNotes(serverSha)
@@ -83,6 +99,7 @@ export function useVersionCheck() {
     }
 
     function schedule() {
+      if (timer) clearTimeout(timer)
       timer = setTimeout(async () => {
         if (cancelled) return
         if (document.visibilityState === 'visible') await check()
@@ -91,7 +108,12 @@ export function useVersionCheck() {
     }
 
     function onVisibility() {
-      if (document.visibilityState === 'visible') check()
+      if (document.visibilityState !== 'visible') return
+      // Reset the polling clock and check immediately. Without the reset,
+      // a still-pending timer can fire moments later and double up the
+      // check — racing two fetches and possibly resolving stale notes last.
+      check()
+      schedule()
     }
 
     check()

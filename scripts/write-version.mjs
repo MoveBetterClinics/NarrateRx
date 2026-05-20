@@ -29,6 +29,17 @@ const sha = resolveSha()
 const builtAt = new Date().toISOString()
 const payload = { sha, builtAt }
 
+// CI builds MUST resolve a real SHA — otherwise the client's auto-update
+// poller silently never fires (or, worse, never matches against the
+// running bundle's BUILT_SHA and shows a perpetual "new version" modal).
+// Local builds without git are still fine; they fall through to "dev" and
+// the client-side hook short-circuits on BUILT_SHA === 'dev'.
+const isCi = !!(process.env.VERCEL || process.env.CI)
+if (isCi && sha === 'dev') {
+  console.error('[write-version] CI build resolved sha="dev" — refusing to ship a deploy without a real SHA. Check VERCEL_GIT_COMMIT_SHA / git availability in the build environment.')
+  process.exit(1)
+}
+
 const outPath = path.join(root, 'public', 'version.json')
 fs.mkdirSync(path.dirname(outPath), { recursive: true })
 fs.writeFileSync(outPath, JSON.stringify(payload, null, 2) + '\n')
