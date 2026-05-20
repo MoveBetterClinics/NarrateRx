@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film, ChevronDown, ChevronRight } from 'lucide-react'
+import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film, ChevronDown, ChevronRight, HardDrive } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog'
 import EmptyState from '@/components/EmptyState'
 import MediaUploader from '@/components/MediaUploader'
+import DriveImportPicker from '@/components/DriveImportPicker'
 import MediaGrid from '@/components/MediaGrid'
 import MediaDetail from '@/components/MediaDetail'
 import ContentBriefList from '@/components/ContentBriefList'
@@ -104,6 +105,7 @@ export default function MediaHub() {
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [uploadOpen, setUploadOpen] = useState(false)
+  const [driveImportOpen, setDriveImportOpen] = useState(false)
   // Date-grouped (default) vs. workflow-lifecycle sections. Date grouping
   // matches the Library mockup — Recent / This month / Earlier — and is the
   // mental model most users bring to a media library. The opt-in workflow
@@ -434,6 +436,26 @@ export default function MediaHub() {
         </Dialog>
       )}
 
+      {/* Drive import modal — uses the per-workspace Google OAuth credential
+          to browse the admin's connected Drive and pull selected files into
+          the Library through the standard pipeline. */}
+      {canUpload && (
+        <Dialog open={driveImportOpen} onOpenChange={setDriveImportOpen}>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>Import from Google Drive</DialogTitle>
+              <DialogDescription>
+                Browse your workspace’s connected Drive and pull selected files into the Library. Imported files run through the same tagging and thumbnail pipeline as direct uploads.
+              </DialogDescription>
+            </DialogHeader>
+            <DriveImportPicker
+              onComplete={refresh}
+              onClose={() => setDriveImportOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
       {/* Edit briefs — collapsed by default so the Library opens visual-first.
           Pending-count badge stays visible on the collapsed header so nothing
           gets buried. */}
@@ -480,6 +502,18 @@ export default function MediaHub() {
             >
               <UploadIcon className="h-3.5 w-3.5" />
               Upload
+            </Button>
+          )}
+
+          {canUpload && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setDriveImportOpen(true)}
+              className="h-7 gap-1.5 text-2xs rounded-full"
+            >
+              <HardDrive className="h-3.5 w-3.5" />
+              Import from Drive
             </Button>
           )}
 
