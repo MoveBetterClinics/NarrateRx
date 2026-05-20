@@ -36,11 +36,13 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
   }
 
   const isAtomPublished = (a) => a.status === 'drafted' && !!a.content_piece?.published_at
+  const isAtomApproved  = (a) => a.status === 'drafted' && !isAtomPublished(a) && a.content_piece?.status === 'approved'
   const totalAtoms     = atoms.length
   const publishedCount = atoms.filter(isAtomPublished).length
-  const draftedCount   = atoms.filter((a) => a.status === 'drafted' && !isAtomPublished(a)).length
+  const approvedCount  = atoms.filter(isAtomApproved).length
+  const draftedCount   = atoms.filter((a) => a.status === 'drafted' && !isAtomPublished(a) && !isAtomApproved(a)).length
   const skippedCount   = atoms.filter((a) => a.status === 'skipped').length
-  const pendingCount   = totalAtoms - publishedCount - draftedCount - skippedCount
+  const pendingCount   = totalAtoms - publishedCount - approvedCount - draftedCount - skippedCount
 
   async function handleDraft(atom) {
     setDraftingId(atom.id)
@@ -78,6 +80,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
         </div>
         <div className="flex gap-2 text-xs text-muted-foreground shrink-0">
           {publishedCount > 0 && <span className="text-blue-700 font-medium">{publishedCount} published</span>}
+          {approvedCount > 0 && <span className="text-primary font-medium">{approvedCount} approved</span>}
           {draftedCount > 0 && <span className="text-green-700 font-medium">{draftedCount} drafted</span>}
           {pendingCount > 0 && <span>{pendingCount} pending</span>}
           {skippedCount > 0 && <span className="text-muted-foreground">{skippedCount} skipped</span>}
@@ -157,7 +160,9 @@ function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, on
   const isSkipped = atom.status === 'skipped'
   const isDrafted = atom.status === 'drafted'
   const publishedAt = atom.content_piece?.published_at
+  const pieceStatus = atom.content_piece?.status
   const isPublished = isDrafted && !!publishedAt
+  const isApproved  = isDrafted && !isPublished && pieceStatus === 'approved'
   const publishedDateLabel = publishedAt
     ? new Date(publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : null
@@ -173,6 +178,10 @@ function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, on
           {isPublished ? (
             <Badge className="text-xs bg-blue-100 text-blue-700 border-0 px-1.5 py-0">
               Published{publishedDateLabel ? ` · ${publishedDateLabel}` : ''}
+            </Badge>
+          ) : isApproved ? (
+            <Badge className="text-xs bg-primary/15 text-primary border-0 px-1.5 py-0">
+              Approved · add media
             </Badge>
           ) : isDrafted && (
             <Badge className="text-xs bg-green-100 text-green-700 border-0 px-1.5 py-0">
