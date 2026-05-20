@@ -126,6 +126,26 @@ function renderPostHtml({ data, body }) {
 
   const bodyHtml = marked.parse(body, { gfm: true, breaks: false })
 
+  // Hero image rendered between the title hero and the body — gives every
+  // post a visual anchor without forcing the writer to put `![](...)` inline.
+  // Alt text falls back to title when Studio sends the original filename
+  // (which is useless as alt text — e.g. "IMG_1234.jpeg").
+  const heroSrc = data.hero || ''
+  const heroAltCandidate = data.heroAlt || ''
+  const looksLikeFilename = /\.(jpe?g|png|gif|webp|avif|heic)$/i.test(heroAltCandidate) || /^[A-F0-9-]{20,}_/i.test(heroAltCandidate)
+  const heroAlt = (heroAltCandidate && !looksLikeFilename) ? heroAltCandidate : title
+  const heroBlock = heroSrc
+    ? `
+<section class="upost-hero-image">
+  <div class="container">
+    <figure class="upost-hero-figure">
+      <img src="${escapeHtml(heroSrc)}" alt="${escapeHtml(heroAlt)}" loading="eager" />
+    </figure>
+  </div>
+</section>
+`
+    : ''
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -159,7 +179,7 @@ ${HEADER}
     </div>
   </div>
 </section>
-
+${heroBlock}
 <section class="uband">
   <div class="container">
     <article class="upost-body">
@@ -183,12 +203,22 @@ function renderIndexHtml(posts) {
     const title = p.data.title || 'Untitled'
     const description = p.data.description || ''
     const dateLabel = formatDate(p.data.pubDate)
-    return `      <li class="upost-card">
+    const hero = p.data.hero || ''
+    const heroAltCandidate = p.data.heroAlt || ''
+    const looksLikeFilename = /\.(jpe?g|png|gif|webp|avif|heic)$/i.test(heroAltCandidate) || /^[A-F0-9-]{20,}_/i.test(heroAltCandidate)
+    const heroAlt = (heroAltCandidate && !looksLikeFilename) ? heroAltCandidate : title
+    const heroThumb = hero
+      ? `<div class="upost-card-thumb"><img src="${escapeHtml(hero)}" alt="${escapeHtml(heroAlt)}" loading="lazy" /></div>`
+      : ''
+    return `      <li class="upost-card${hero ? ' upost-card-with-thumb' : ''}">
         <a href="/blog/${slug}" class="upost-card-link">
-          <p class="upost-card-meta">${dateLabel ? `<time datetime="${p.data.pubDate}">${dateLabel}</time>` : ''} · ${readTime(p.body)}</p>
-          <h2 class="upost-card-title">${escapeHtml(title)}</h2>
-          ${description ? `<p class="upost-card-desc">${escapeHtml(description)}</p>` : ''}
-          <p class="upost-card-cta">Read post <span class="arrow">→</span></p>
+          ${heroThumb}
+          <div class="upost-card-body">
+            <p class="upost-card-meta">${dateLabel ? `<time datetime="${p.data.pubDate}">${dateLabel}</time>` : ''} · ${readTime(p.body)}</p>
+            <h2 class="upost-card-title">${escapeHtml(title)}</h2>
+            ${description ? `<p class="upost-card-desc">${escapeHtml(description)}</p>` : ''}
+            <p class="upost-card-cta">Read post <span class="arrow">→</span></p>
+          </div>
         </a>
       </li>`
   }).join('\n')
