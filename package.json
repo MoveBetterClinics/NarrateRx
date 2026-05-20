@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild": "node scripts/write-version.mjs",
+    "prebuild": "node scripts/write-version.mjs && node scripts/build-blog.mjs",
     "build": "vite build",
+    "build:blog": "node scripts/build-blog.mjs",
     "preview": "vite preview",
     "backup:db": "bash scripts/backup-db.sh",
     "backup:blobs": "node scripts/backup-blobs.mjs",
