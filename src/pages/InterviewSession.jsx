@@ -228,6 +228,20 @@ export default function InterviewSession() {
   // 700ms mark after TTS ends) and then bail to "tap to talk" rather than
   // looping forever.
   const autoListenAbortRetryRef = useRef(0)
+  // "User is answering right now" — set true on mic-on, false when the user
+  // explicitly ends their turn (taps mic, says a stop phrase, interview ends).
+  // Used to auto-resume the SpeechRecognition engine through thinking pauses:
+  // browsers throw 'no-speech' after a few seconds of silence and end the
+  // session, but if the user is still in their answer turn we silently
+  // restart the engine so pauses don't cut them off.
+  const userAnswerActiveRef = useRef(false)
+  // Cap auto-restarts per turn so a stuck mic can't loop forever. With a
+  // typical 3-7s no-speech timeout this is ~3 minutes of pure silence —
+  // far more thinking time than any answer needs.
+  const restartCountRef = useRef(0)
+  const RESTART_CAP = 30
+  // Stable timer ref so we can cancel pending restarts on stop/cleanup.
+  const restartTimerRef = useRef(null)
   const finalTranscriptRef = useRef('')
   const interviewRef = useRef(null)
   const pastInterviewsRef = useRef([])
@@ -498,6 +512,8 @@ export default function InterviewSession() {
     return () => {
       ttsRef.current?.cancel()
       window.speechSynthesis?.cancel()
+      userAnswerActiveRef.current = false
+      clearTimeout(restartTimerRef.current)
       recognitionRef.current?.abort()
     }
   }, [])
@@ -693,7 +709,7 @@ export default function InterviewSession() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clinician, interview, showInstructions, micCheckPassed])
 
-  function startListening() {
+  function startListening({ preserveTranscript = false } = {}) {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SR) {
       // No-op: the typed-answer fallback UI is rendered instead. Don't set an
@@ -705,9 +721,17 @@ export default function InterviewSession() {
     ttsRef.current?.cancel()
     window.speechSynthesis?.cancel()
     setIsSpeaking(false)
-    setTranscript('')
-    transcriptRef.current = ''
-    finalTranscriptRef.current = ''
+
+    // Fresh turn: clear the transcript buffer and reset the restart counter.
+    // For an auto-resume restart (browser ended the session during a thinking
+    // pause), preserve everything the user has already said.
+    if (!preserveTranscript) {
+      setTranscript('')
+      transcriptRef.current = ''
+      finalTranscriptRef.current = ''
+      restartCountRef.current = 0
+      userAnswerActiveRef.current = true
+    }
 
     const recognition = new SR()
     recognition.continuous = true
@@ -732,6 +756,10 @@ export default function InterviewSession() {
       if (gotFinal) {
         const cleaned = detectAndStripStopPhrase(finalTranscriptRef.current)
         if (cleaned !== null) {
+          // Stop phrase detected — end the answer turn so onend doesn't
+          // auto-resume after we call stop().
+          userAnswerActiveRef.current = false
+          clearTimeout(restartTimerRef.current)
           finalTranscriptRef.current = cleaned
           transcriptRef.current = cleaned.trim()
           setTranscript(cleaned.trim())
@@ -740,20 +768,49 @@ export default function InterviewSession() {
       }
     }
 
-    recognition.onend = () => setIsListening(false)
+    // Helper: schedule a silent restart of the recognition engine so the
+    // user can keep their turn through a thinking pause. Returns true if a
+    // restart was scheduled, false if we've hit the cap or the user is no
+    // longer in their answer turn.
+    function maybeAutoResume(delayMs) {
+      if (!userAnswerActiveRef.current) return false
+      if (interviewComplete || isStreaming) return false
+      if (restartCountRef.current >= RESTART_CAP) {
+        userAnswerActiveRef.current = false
+        return false
+      }
+      restartCountRef.current += 1
+      clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = setTimeout(() => {
+        if (userAnswerActiveRef.current && !interviewComplete) {
+          startListening({ preserveTranscript: true })
+        }
+      }, delayMs)
+      return true
+    }
+
+    recognition.onend = () => {
+      // If the user is still in their answer turn (no stop phrase, no manual
+      // stop, no submit), silently restart to ride through a thinking pause.
+      // Otherwise let isListening flip false so the submit effect can fire.
+      if (maybeAutoResume(200)) return
+      setIsListening(false)
+    }
 
     recognition.onerror = (e) => {
-      setIsListening(false)
-
-      // 'no-speech' fires when the engine times out without hearing anything
-      // — benign, the user just hasn't spoken yet. They'll tap mic again.
-      if (e.error === 'no-speech') return
+      // 'no-speech' is the canonical "user paused too long" signal. Treat
+      // it as a thinking pause and resume silently.
+      if (e.error === 'no-speech') {
+        if (maybeAutoResume(200)) return
+        setIsListening(false)
+        return
+      }
 
       // 'aborted' on iOS Chrome usually means the audio session is still
       // tied up with TTS playback that just ended. Retry once with a longer
-      // delay; if it fails twice in a row, bail to "tap to talk" without
-      // surfacing a scary error.
+      // delay; this is independent of the answer-turn auto-resume.
       if (e.error === 'aborted') {
+        setIsListening(false)
         if (autoListenAbortRetryRef.current < 1 &&
             !interviewComplete && !isStreaming && !isSpeaking) {
           autoListenAbortRetryRef.current += 1
@@ -761,19 +818,21 @@ export default function InterviewSession() {
             if (!interviewComplete && !isListening) startListening()
           }, 1500)
         }
-        // Either way, don't surface the error — the user can still tap mic.
         return
       }
 
-      // 'not-allowed' / 'service-not-allowed' = permission denied. That's
-      // worth telling the user, but framed as a recoverable issue.
+      // Permission errors — flag explicitly, end the answer turn.
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        userAnswerActiveRef.current = false
+        setIsListening(false)
         setError('Microphone permission was denied. You can type your answer instead.')
         return
       }
 
-      // Other errors ('network', 'audio-capture', 'bad-grammar', etc.) get a
-      // generic message but stay non-blocking — they can still type.
+      // Other errors — non-blocking message, end the answer turn so the
+      // user can retry.
+      userAnswerActiveRef.current = false
+      setIsListening(false)
       setError(`Microphone trouble (${e.error}). Tap mic to retry or type your answer instead.`)
     }
 
@@ -792,6 +851,9 @@ export default function InterviewSession() {
   }
 
   function stopListening() {
+    // Explicit stop — end the answer turn so onend doesn't auto-resume.
+    userAnswerActiveRef.current = false
+    clearTimeout(restartTimerRef.current)
     recognitionRef.current?.stop()
   }
 
@@ -850,6 +912,8 @@ export default function InterviewSession() {
   function leaveInterview() {
     ttsRef.current?.cancel()
     window.speechSynthesis?.cancel()
+    userAnswerActiveRef.current = false
+    clearTimeout(restartTimerRef.current)
     recognitionRef.current?.abort()
     // Flush session_state immediately before leaving so resume works
     // even if the debounced auto-save hasn't fired yet.
@@ -1507,7 +1571,7 @@ export default function InterviewSession() {
               </span>
             ) : isListening ? (
               <span className="flex items-center gap-1.5 text-red-500">
-                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — say &quot;done&quot; or tap mic to send
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — take your time. Say &quot;done&quot; or tap mic to send.
               </span>
             ) : 'Tap to speak'}
           </p>
