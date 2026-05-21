@@ -222,7 +222,16 @@ export default function CredentialForm({
         {testResult?.ok && (
           <span className="text-xs text-green-600 flex items-center gap-1">
             <Icon as={CheckCircle2} size="sm" />
-            Verified{testResult.info?.account ? ` · ${testResult.info.account}` : ''}
+            Verified{
+              // Each tester returns a different info shape: buffer→account,
+              // beehiiv→publication, wordpress/astro/website→endpoint.
+              // Render the first one present so admins see what they connected to.
+              (() => {
+                const info = testResult.info || {}
+                const label = info.account || info.publication || info.endpoint
+                return label ? ` · ${label}` : ''
+              })()
+            }
           </span>
         )}
         {testResult && !testResult.ok && (
