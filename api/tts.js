@@ -42,13 +42,19 @@ export default async function handler(req, res) {
   const apiKey = process.env.ELEVENLABS_API_KEY
   if (!apiKey) return res.status(503).json({ error: 'TTS not configured' })
 
-  const { text, voiceId } = req.body || {}
+  const { text, voiceId, speed: bodySpeed } = req.body || {}
   if (!text || typeof text !== 'string') return res.status(400).json({ error: 'Missing text' })
   const trimmed = text.trim().slice(0, MAX_TEXT_LENGTH)
   if (!trimmed) return res.status(400).json({ error: 'Empty text' })
 
   const voice = voiceId || process.env.TTS_DEFAULT_VOICE_ID || DEFAULT_VOICE_ID
   const model = process.env.TTS_DEFAULT_MODEL_ID || DEFAULT_MODEL_ID
+
+  // Playback speed — ElevenLabs accepts 0.7 (slower) … 1.2 (faster), default 1.0.
+  // Tune globally via TTS_DEFAULT_SPEED env var; per-request override via body.
+  // Clamp aggressively — upstream 422s on out-of-range values.
+  const rawSpeed = Number(bodySpeed ?? process.env.TTS_DEFAULT_SPEED ?? 1.0)
+  const speed = Number.isFinite(rawSpeed) ? Math.min(1.2, Math.max(0.7, rawSpeed)) : 1.0
 
   const url = `https://api.elevenlabs.io/v1/text-to-speech/${encodeURIComponent(voice)}/stream?output_format=mp3_44100_128`
 
@@ -64,7 +70,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         text: trimmed,
         model_id: model,
-        voice_settings: { stability: 0.4, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true },
+        voice_settings: { stability: 0.4, similarity_boost: 0.75, style: 0.0, use_speaker_boost: true, speed },
       }),
     })
   } catch (e) {
