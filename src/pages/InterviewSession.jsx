@@ -512,7 +512,14 @@ export default function InterviewSession() {
 
   function speak(text) {
     setIsSpeaking(true)
+    // Per-clinician TTS preferences live on clinicians.tts_settings (JSONB).
+    // Today only `speed` is exposed in the UI; voiceId is reserved for a
+    // future per-clinician voice picker. Falls through to env-var defaults
+    // server-side when these are undefined.
+    const tts = clinician?.tts_settings || {}
     getTts().speak(text, {
+      voiceId: tts.voice_id || undefined,
+      speed: typeof tts.speed === 'number' ? tts.speed : undefined,
       onStart: () => setIsSpeaking(true),
       onEnd: () => {
         setIsSpeaking(false)
@@ -1127,7 +1134,7 @@ export default function InterviewSession() {
   // Mic check gate: shown after instructions are dismissed but before the AI
   // sends its first question. onContinue flips micCheckPassed → true.
   if (!micCheckPassed) {
-    return <MicCheck onContinue={() => setMicCheckPassed(true)} />
+    return <MicCheck onContinue={() => setMicCheckPassed(true)} ttsSettings={clinician?.tts_settings} />
   }
 
   const displayMessages = messages.filter((m) => !m.content?.includes(COMPLETE_TOKEN))

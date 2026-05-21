@@ -37,7 +37,7 @@ const WAVEFORM_BARS = 14
 // audio loop — a normal "hello" lands around 0.4–0.6.
 const VOICE_DETECTED_THRESHOLD = 0.18
 
-export default function MicCheck({ onContinue }) {
+export default function MicCheck({ onContinue, ttsSettings }) {
   const [status, setStatus] = useState('requesting')
   const [level, setLevel] = useState(0)
   const [waveform, setWaveform] = useState(() => new Array(WAVEFORM_BARS).fill(0))
@@ -178,6 +178,8 @@ export default function MicCheck({ onContinue }) {
     }
 
     getTts().speak(SPEAKER_TEST_MESSAGE, {
+      voiceId: ttsSettings?.voice_id || undefined,
+      speed: typeof ttsSettings?.speed === 'number' ? ttsSettings.speed : undefined,
       onError: () => {
         // createTtsPlayer already falls back internally to speechSynthesis on
         // its own playback errors, so this onError typically only fires when

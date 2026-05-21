@@ -39,7 +39,7 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
 }
 
 const CLINICIAN_RECIPE_FIELDS = 'default_audience,default_story_type,default_tone,default_voice_mode'
-const CLINICIAN_BASE_FIELDS = `id,name,user_id,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,preferred_length,${CLINICIAN_RECIPE_FIELDS}`
+const CLINICIAN_BASE_FIELDS = `id,name,user_id,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,preferred_length,tts_settings,${CLINICIAN_RECIPE_FIELDS}`
 const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email,verbatim_flags,messages,session_state,location_id,prototype_id,campaign_id,campaign:campaigns(id,name)'
 
 // Slim shape for the Stories list. Drops the heavy `messages` and `session_state`
@@ -181,11 +181,18 @@ export default async function handler(req, res) {
 
     if (!id) return err(res, 'Missing id')
 
-    const PATCHABLE = new Set(['default_audience', 'default_story_type', 'default_tone', 'default_voice_mode', 'voice_notes', 'preferred_length'])
+    const PATCHABLE = new Set(['default_audience', 'default_story_type', 'default_tone', 'default_voice_mode', 'voice_notes', 'preferred_length', 'tts_settings'])
     const body = req.body || {}
     const patch = { updated_at: new Date().toISOString() }
     for (const [k, v] of Object.entries(body)) {
-      if (PATCHABLE.has(k)) patch[k] = v === '' ? null : v
+      if (!PATCHABLE.has(k)) continue
+      // tts_settings is a JSONB blob — preserve object as-is; coerce ''→null
+      // applies only to scalar columns.
+      if (k === 'tts_settings') {
+        patch[k] = (v && typeof v === 'object') ? v : {}
+      } else {
+        patch[k] = v === '' ? null : v
+      }
     }
     if (Object.keys(patch).length <= 1) return err(res, 'No patchable fields')
 
