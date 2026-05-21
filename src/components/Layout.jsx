@@ -38,7 +38,7 @@ export default function Layout({ children }) {
           <Link to="/" className="flex items-center gap-3 min-w-0">
             <img src={logoSrc} alt={logoAlt} className="h-9 w-auto shrink-0" />
             <div className="hidden sm:block border-l border-border pl-3 min-w-0">
-              <p className="text-xs font-semibold leading-none text-foreground truncate" style={{ fontFamily: "'Titillium Web', sans-serif" }}>
+              <p className="text-xs font-semibold leading-none text-foreground truncate">
                 NarrateRx
               </p>
               <p className="text-3xs text-muted-foreground mt-0.5 leading-none truncate" title={APP_BYLINE}>

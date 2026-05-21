@@ -86,7 +86,7 @@ function ConceptRow({ concept, totalClinicians, onDraft }) {
           <Button
             variant="ghost" size="sm"
             onClick={() => onDraft(concept)}
-            className="shrink-0 text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity -mr-1 h-7 gap-1"
+            className="shrink-0 text-xs text-muted-foreground hover:text-primary transition-colors -mr-1 h-7 gap-1"
           >
             Draft content <ChevronRight className="h-3 w-3" />
           </Button>
@@ -262,7 +262,7 @@ export default function Synthesis() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center">
             <span
               className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
-              style={{ background: '#0284c7' }}
+              style={{ background: 'hsl(var(--primary))' }}
               aria-hidden="true"
             />
             Knowledge synthesis

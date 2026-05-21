@@ -295,7 +295,7 @@ export default function Home() {
                   <p className="text-sm font-medium truncate">{s.clinicianName}</p>
                   <p className="text-xs text-muted-foreground truncate">{s.topic}</p>
                 </div>
-                <span className="text-xs font-medium text-primary text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
+                <span className="text-xs font-medium text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
                   Start drafting <ChevronRight className="h-3 w-3" />
                 </span>
               </Link>
@@ -334,7 +334,7 @@ export default function Home() {
                         {approvedCount > 1 ? ` · ${approvedCount} pieces` : ''}
                       </p>
                     </div>
-                    <span className="text-xs font-medium text-primary text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
+                    <span className="text-xs font-medium text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
                       Distribute <ChevronRight className="h-3 w-3" />
                     </span>
                   </Link>
@@ -364,7 +364,7 @@ export default function Home() {
                       : 'Last interview over 30 days ago'}
                   </p>
                 </div>
-                <span className="text-xs font-medium text-primary text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
+                <span className="text-xs font-medium text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
                   Schedule <ChevronRight className="h-3 w-3" />
                 </span>
               </Link>
