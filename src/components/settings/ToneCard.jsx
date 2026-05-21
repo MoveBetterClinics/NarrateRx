@@ -26,6 +26,8 @@ export function ToneCard({ toneObj, label, value, onChange, systemDefault }) {
           <p className="text-sm font-medium leading-tight">{label}</p>
           {hasContent ? (
             <p className="text-xs text-muted-foreground mt-0.5 truncate">{value.slice(0, 80)}{value.length > 80 ? '…' : ''}</p>
+          ) : systemDefault ? (
+            <p className="text-xs text-muted-foreground/60 mt-0.5 truncate italic">{systemDefault.slice(0, 90)}{systemDefault.length > 90 ? '…' : ''}</p>
           ) : (
             <p className="text-xs text-muted-foreground/60 mt-0.5 italic">Using system default</p>
           )}

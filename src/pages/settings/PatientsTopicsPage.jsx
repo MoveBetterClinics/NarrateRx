@@ -14,7 +14,7 @@
 
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { Loader2, ArrowLeft, ArrowRight } from 'lucide-react'
+import { Loader2, ArrowLeft, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { Section, SaveBar } from '@/components/settings/helpers'
 import { useUserRole } from '@/lib/useUserRole'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
@@ -181,8 +181,8 @@ export default function PatientsTopicsPage() {
         />
       </Section>
 
-      {/* Topic suggestions */}
-      <Section
+      {/* Topic suggestions — collapsible to keep page length manageable */}
+      <CollapsibleSection
         title={`What ${interviewerName} asks about`}
         description={`The interview topics ${interviewerName} proposes. Tag each topic with the archetypes it serves — leave untagged to offer it to everyone.`}
       >
@@ -191,10 +191,10 @@ export default function PatientsTopicsPage() {
           patientContextJson={form.patient_context_json}
           onChange={set('topic_suggestions_json')}
         />
-      </Section>
+      </CollapsibleSection>
 
-      {/* Condition bank — structured editor replaces the legacy raw-JSON textarea */}
-      <Section
+      {/* Condition bank — collapsible; less frequently edited than archetypes */}
+      <CollapsibleSection
         title="Condition bank"
         description={`Per-condition steering briefs. When an interview topic matches a condition key (or a keyword alias), ${interviewerName} reads the matching brief to sharpen his questions.`}
       >
@@ -202,13 +202,42 @@ export default function PatientsTopicsPage() {
           value={form.interview_context_json}
           onChange={set('interview_context_json')}
         />
-      </Section>
+      </CollapsibleSection>
 
       <SaveBar
         saving={saving} saved={saved} error={error} isDirty={isDirty}
         onSave={handleSave}
         onDiscard={() => { setForm(pristine); setError(null) }}
       />
+    </div>
+  )
+}
+
+function CollapsibleSection({ title, description, children }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-lg border border-input bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="w-full flex items-start justify-between gap-3 px-4 py-3.5 text-left hover:bg-accent/20 rounded-lg"
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold leading-tight">{title}</p>
+          {description && (
+            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{description}</p>
+          )}
+        </div>
+        {open
+          ? <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+        }
+      </button>
+      {open && (
+        <div className="border-t border-input px-4 pb-4 pt-3">
+          {children}
+        </div>
+      )}
     </div>
   )
 }
