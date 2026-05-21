@@ -19,7 +19,20 @@ import { encryptSecret, decryptSecret } from './credentialCrypto.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-export const DRIVE_OAUTH_SCOPES = ['https://www.googleapis.com/auth/drive.readonly']
+// `drive.file` (NOT `drive.readonly`): the app can only read/write files the
+// user explicitly picked via the Google Picker. This is a non-sensitive scope —
+// no Google verification required, no Testing-mode 7-day token expiry, no
+// 100-user cap. The Picker (loaded browser-side in DriveImportPicker.jsx)
+// "registers" each picked file with our app, after which the workspace's
+// access token can download it via the standard drive.files.get?alt=media
+// path.
+//
+// Switching from drive.readonly to drive.file (PR #687, 2026-05-20) makes
+// external clinic onboarding trivial — the consent screen reads "see only
+// files you pick" instead of "see all your Drive files". Existing
+// drive.readonly tokens keep working (broader scope = superset) but should
+// be reconnected for hygiene.
+export const DRIVE_OAUTH_SCOPES = ['https://www.googleapis.com/auth/drive.file']
 const STATE_TTL_MS = 10 * 60 * 1000
 const STATE_LABEL = 'drive_oauth_state_v1'
 

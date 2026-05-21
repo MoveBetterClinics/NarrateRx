@@ -379,7 +379,7 @@ function GoogleDriveCard({ row, loading, disabled, onChange }) {
               ) : null}
             </div>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Pull source photos and videos from your existing Drive archive into the Media Library. We never write to your Drive — read-only access only.
+              Pull source photos and videos from your Drive into the Media Library. NarrateRx can only see files you specifically pick — we never see the rest of your Drive.
             </p>
             {configured && connectedEmail && (
               <p className="text-xs text-muted-foreground mt-1">
@@ -388,7 +388,7 @@ function GoogleDriveCard({ row, loading, disabled, onChange }) {
             )}
             <div className="flex gap-1 mt-1.5 flex-wrap">
               <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Media import</span>
-              <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Read-only</span>
+              <span className="text-xs bg-muted px-2 py-0.5 rounded-full text-muted-foreground">Per-file access</span>
             </div>
           </div>
         </div>
@@ -401,9 +401,9 @@ function GoogleDriveCard({ row, loading, disabled, onChange }) {
             <p className="text-sm font-medium mb-2">How it works</p>
             <ol className="space-y-1.5">
               {[
-                'Click Connect Google Drive below — you’ll be sent to Google to choose an account and approve read-only access.',
-                'Back in the Library, use Import from Drive to browse and pick files. Selected files copy into NarrateRx and run through the normal Library pipeline (tagging, transcription, thumbnails).',
-                'Drive stays the master archive. NarrateRx only holds the subset you’ve pulled into the Library.',
+                'Click Connect Google Drive below — you’ll be sent to Google to sign in and grant NarrateRx the ability to read files you later pick.',
+                'Back in the Library, use Import from Drive. Google’s own file picker opens; the files you select are the only files NarrateRx ever sees.',
+                'Selected files copy into NarrateRx and run through the normal Library pipeline (tagging, transcription, thumbnails). Drive stays the master archive.',
               ].map((step, i) => (
                 <li key={i} className="flex gap-2 text-sm text-muted-foreground">
                   <span className="text-primary font-semibold shrink-0">{i + 1}.</span>
