@@ -102,7 +102,7 @@ const { data: liveAsset } = useQuery({
 `pipelinePending` is a row-shape predicate (`!web_blob_url` for photos, `transcode_status in ('pending', 'processing')` for videos, etc.). The 60s hard cap matters — silent pipeline failures must not produce an infinite polling loop. Editable form state stays seeded from the original `asset` prop on `asset.id` change so in-progress user edits aren't clobbered by a poll round-trip.
 
 ## Lint ratchet
-The `npm run lint` script enforces a `--max-warnings <N>` ceiling (currently 152, set during the pre-launch audit). The ratchet should drift **down** over time, not up. Rule:
+The `npm run lint` script enforces a `--max-warnings <N>` ceiling (currently **0** — the ratchet has been driven all the way down from 152 at the pre-launch audit). The ratchet should drift **down** over time, not up. Rule:
 
 - A PR may not raise the ratchet ceiling without fixing an equal-or-greater number of warnings elsewhere in the same PR.
 - If you introduce 1 new warning, fix at least 1 old one and keep the ceiling unchanged.
