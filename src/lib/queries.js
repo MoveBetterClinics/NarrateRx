@@ -66,9 +66,10 @@ export const queryKeys = {
     detail: (id) => ['interviews', 'detail', id],
   },
   contentItems: {
-    all:    ['contentItems'],
-    list:   (filters = {}) => ['contentItems', 'list', filters],
-    detail: (id) => ['contentItems', 'detail', id],
+    all:      ['contentItems'],
+    list:     (filters = {}) => ['contentItems', 'list', filters],
+    detail:   (id) => ['contentItems', 'detail', id],
+    keystone: (ivId) => ['contentItems', 'keystone', ivId],
   },
   contentPlan: {
     all:              ['contentPlan'],
@@ -368,6 +369,20 @@ export function useContentPlanAtoms(interviewId, options = {}) {
   return useQuery({
     queryKey: queryKeys.contentPlan.atoms(interviewId),
     queryFn: () => fetchContentPlanAtoms(interviewId),
+    enabled: !!interviewId,
+    ...options,
+  })
+}
+
+// Keystone long-form piece (the blog post) for an interview. Sits above the
+// atom groups in ContentPlanPanel as the source piece the atoms derive from.
+export function useKeystoneBlog(interviewId, options = {}) {
+  return useQuery({
+    queryKey: queryKeys.contentItems.keystone(interviewId),
+    queryFn: async () => {
+      const rows = await fetchContentItems({ interviewId, platform: 'blog', limit: 1 })
+      return Array.isArray(rows) && rows.length ? rows[0] : null
+    },
     enabled: !!interviewId,
     ...options,
   })

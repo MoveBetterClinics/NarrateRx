@@ -4,11 +4,12 @@ import { apiFetch } from '@/lib/api'
 
 export function fetchContentItems(filters = {}) {
   const params = new URLSearchParams()
-  if (filters.status)   params.set('status', filters.status)
-  if (filters.platform) params.set('platform', filters.platform)
-  if (filters.from)     params.set('from', filters.from)
-  if (filters.to)       params.set('to', filters.to)
-  if (filters.limit)    params.set('limit', String(filters.limit))
+  if (filters.status)      params.set('status', filters.status)
+  if (filters.platform)    params.set('platform', filters.platform)
+  if (filters.from)        params.set('from', filters.from)
+  if (filters.to)          params.set('to', filters.to)
+  if (filters.limit)       params.set('limit', String(filters.limit))
+  if (filters.interviewId) params.set('interviewId', filters.interviewId)
   // 'only' → archived rows only; 'all' → live + archived. Omitting hides
   // archived rows (the default the Hub wants).
   if (filters.archived) params.set('archived', String(filters.archived))

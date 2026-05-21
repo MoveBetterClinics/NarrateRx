@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Sparkles, SkipForward, RotateCcw, ExternalLink, CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react'
+import { Loader2, Sparkles, SkipForward, RotateCcw, ExternalLink, CheckCircle2, ChevronDown, ChevronUp, Star, ArrowDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import IconPrim from '@/components/ui/Icon'
-import { useContentPlanAtoms, useDraftAtom, useSkipAtom } from '@/lib/queries'
+import { useContentPlanAtoms, useDraftAtom, useSkipAtom, useKeystoneBlog } from '@/lib/queries'
 import { ATOM_DEFINITIONS, PLATFORM_UI, SLOT_LABELS, formatSlotDate } from '@/lib/atomPlan'
 
 // ContentPlanPanel renders the full 4-week content plan for an interview.
@@ -12,6 +12,7 @@ import { ATOM_DEFINITIONS, PLATFORM_UI, SLOT_LABELS, formatSlotDate } from '@/li
 // current status. "Draft this" calls the AI on demand; "Skip" dismisses it.
 export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSelectPiece }) {
   const { data: atoms = [], isLoading } = useContentPlanAtoms(interviewId)
+  const { data: keystone = null }       = useKeystoneBlog(interviewId)
   const draftMutation  = useDraftAtom()
   const skipMutation   = useSkipAtom()
   const [collapsed, setCollapsed] = useState({})
@@ -68,6 +69,12 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
     setCollapsed((prev) => ({ ...prev, [platform]: !prev[platform] }))
   }
 
+  const platformDerivedCounts = Object.entries(byPlatform).map(([platform, list]) => ({
+    platform,
+    label: PLATFORM_UI[platform]?.label ?? platform,
+    count: list.length,
+  }))
+
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -75,7 +82,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
         <div>
           <h2 className="text-base font-semibold">Content Plan</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {totalAtoms} atoms across {Object.keys(byPlatform).length} platforms — drafts auto-schedule to the week shown so they trickle out over 4 weeks.
+            {keystone ? '1 keystone + ' : ''}{totalAtoms} atoms across {Object.keys(byPlatform).length} platforms — drafts auto-schedule to the week shown so they trickle out over 4 weeks.
           </p>
         </div>
         <div className="flex gap-2 text-xs text-muted-foreground shrink-0">
@@ -86,6 +93,16 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
           {skippedCount > 0 && <span className="text-muted-foreground">{skippedCount} skipped</span>}
         </div>
       </div>
+
+      {/* Keystone hero — the long-form blog the atoms derive from. */}
+      {keystone && (
+        <KeystoneHeroCard
+          keystone={keystone}
+          derivedCounts={platformDerivedCounts}
+          interviewId={interviewId}
+          onSelectPiece={onSelectPiece}
+        />
+      )}
 
       {/* Platform groups */}
       {Object.entries(byPlatform).map(([platform, platformAtoms]) => {
@@ -154,6 +171,115 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
       })}
     </div>
   )
+}
+
+function KeystoneHeroCard({ keystone, derivedCounts, interviewId, onSelectPiece }) {
+  const isPublished = keystone.status === 'published' && !!keystone.published_at
+  const isApproved  = !isPublished && keystone.status === 'approved'
+  const publishedDateLabel = keystone.published_at
+    ? new Date(keystone.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : null
+
+  const previewText = extractKeystonePreview(keystone.content)
+  const hostname    = keystone.resolved_url ? safeHostname(keystone.resolved_url) : null
+
+  const actionLabel = isPublished ? 'View post' : 'View draft'
+
+  return (
+    <div className="rounded-xl border border-primary/30 bg-primary/5 shadow-[0_8px_24px_-12px_rgba(47,95,255,0.25)] overflow-hidden">
+      {/* Header band */}
+      <div className="px-5 pt-4 pb-2 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <IconPrim as={Star} size="sm" className="text-primary fill-primary" />
+          <span className="text-xs font-semibold tracking-wide uppercase text-primary">Keystone</span>
+          <span className="text-xs text-muted-foreground">· Long-form source piece</span>
+        </div>
+        {isPublished ? (
+          <Badge className="text-xs bg-blue-100 text-blue-700 border-0 px-1.5 py-0">
+            Published{publishedDateLabel ? ` · ${publishedDateLabel}` : ''}
+          </Badge>
+        ) : isApproved ? (
+          <Badge className="text-xs bg-primary/15 text-primary border-0 px-1.5 py-0">
+            Approved
+          </Badge>
+        ) : (
+          <Badge className="text-xs bg-green-100 text-green-700 border-0 px-1.5 py-0">
+            Drafted
+          </Badge>
+        )}
+      </div>
+
+      {/* Body */}
+      <div className="px-5 pb-4 flex items-end justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h3 className="text-lg font-semibold leading-snug">{keystone.topic || 'Untitled blog post'}</h3>
+          {previewText && (
+            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{previewText}</p>
+          )}
+
+          {derivedCounts.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <span className="text-muted-foreground">Derived:</span>
+              {derivedCounts.map(({ platform, label, count }) => {
+                const ui = PLATFORM_UI[platform]
+                return (
+                  <span key={platform} className="inline-flex items-center gap-1 text-foreground/80">
+                    <span className={`h-1.5 w-1.5 rounded-full ${ui?.dot ?? 'bg-muted-foreground'}`} />
+                    {count} {label}
+                  </span>
+                )
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {onSelectPiece ? (
+            <Button
+              size="sm"
+              className="h-8 text-xs gap-1"
+              onClick={() => onSelectPiece(keystone.id)}
+            >
+              {actionLabel}
+            </Button>
+          ) : (
+            <Button size="sm" className="h-8 text-xs gap-1" asChild>
+              <Link to={interviewId ? `/stories/${interviewId}?piece=${keystone.id}` : `/stories/${keystone.id}`}>
+                {actionLabel}
+                <IconPrim as={ExternalLink} size="xs" />
+              </Link>
+            </Button>
+          )}
+          {isPublished && hostname && (
+            <span className="text-2xs text-muted-foreground">on {hostname}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Connector hint */}
+      <div className="px-5 pb-3 -mt-1 flex items-center gap-1.5 text-2xs text-primary/80">
+        <IconPrim as={ArrowDown} size="xs" />
+        Feeds the atoms below
+      </div>
+    </div>
+  )
+}
+
+function extractKeystonePreview(markdown) {
+  if (!markdown || typeof markdown !== 'string') return null
+  // Strip markdown headings, bold/italic markers, and link syntax for a clean preview.
+  const stripped = markdown
+    .replace(/^#+\s+.*$/gm, '')           // drop heading lines
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // drop image syntax
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // unwrap [text](url)
+    .replace(/[*_`>#]/g, '')              // drop common markdown punctuation
+    .replace(/\s+/g, ' ')
+    .trim()
+  return stripped.slice(0, 260)
+}
+
+function safeHostname(url) {
+  try { return new URL(url).hostname.replace(/^www\./, '') } catch { return null }
 }
 
 function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, onDraft, onSkip, onReset, onSelectPiece }) {

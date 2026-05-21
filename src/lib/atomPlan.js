@@ -46,16 +46,16 @@ export const ATOM_DEFINITIONS = {
 }
 
 export const PLATFORM_UI = {
-  instagram: { label: 'Instagram',         icon: Instagram, color: 'text-pink-600',   bg: 'bg-pink-50',   border: 'border-pink-200' },
-  linkedin:  { label: 'LinkedIn',          icon: Linkedin,  color: 'text-sky-700',    bg: 'bg-sky-50',    border: 'border-sky-200'  },
-  facebook:  { label: 'Facebook',          icon: Facebook,  color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-200' },
-  gbp:       { label: 'Google Business',   icon: MapPin,    color: 'text-green-700',  bg: 'bg-green-50',  border: 'border-green-200'},
-  pinterest: { label: 'Pinterest',         icon: Pin,       color: 'text-red-500',    bg: 'bg-red-50',    border: 'border-red-200'  },
-  tiktok:    { label: 'TikTok / Reels',    icon: Music2,    color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', border: 'border-fuchsia-200' },
-  twitter:   { label: 'X / Twitter',       icon: Twitter,   color: 'text-slate-700',   bg: 'bg-slate-50',  border: 'border-slate-200' },
-  threads:   { label: 'Threads',           icon: AtSign,    color: 'text-zinc-700',    bg: 'bg-zinc-50',   border: 'border-zinc-200'  },
-  bluesky:   { label: 'Bluesky',           icon: Cloud,     color: 'text-sky-600',     bg: 'bg-sky-50',    border: 'border-sky-200'   },
-  mastodon:  { label: 'Mastodon',          icon: Hash,      color: 'text-violet-600',  bg: 'bg-violet-50', border: 'border-violet-200'},
+  instagram: { label: 'Instagram',         icon: Instagram, color: 'text-pink-600',    bg: 'bg-pink-50',    border: 'border-pink-200',    dot: 'bg-pink-500'    },
+  linkedin:  { label: 'LinkedIn',          icon: Linkedin,  color: 'text-sky-700',     bg: 'bg-sky-50',     border: 'border-sky-200',     dot: 'bg-sky-600'     },
+  facebook:  { label: 'Facebook',          icon: Facebook,  color: 'text-blue-600',    bg: 'bg-blue-50',    border: 'border-blue-200',    dot: 'bg-blue-600'    },
+  gbp:       { label: 'Google Business',   icon: MapPin,    color: 'text-green-700',   bg: 'bg-green-50',   border: 'border-green-200',   dot: 'bg-green-600'   },
+  pinterest: { label: 'Pinterest',         icon: Pin,       color: 'text-red-500',     bg: 'bg-red-50',     border: 'border-red-200',     dot: 'bg-red-500'     },
+  tiktok:    { label: 'TikTok / Reels',    icon: Music2,    color: 'text-fuchsia-600', bg: 'bg-fuchsia-50', border: 'border-fuchsia-200', dot: 'bg-fuchsia-600' },
+  twitter:   { label: 'X / Twitter',       icon: Twitter,   color: 'text-slate-700',   bg: 'bg-slate-50',   border: 'border-slate-200',   dot: 'bg-slate-700'   },
+  threads:   { label: 'Threads',           icon: AtSign,    color: 'text-zinc-700',    bg: 'bg-zinc-50',    border: 'border-zinc-200',    dot: 'bg-zinc-700'    },
+  bluesky:   { label: 'Bluesky',           icon: Cloud,     color: 'text-sky-600',     bg: 'bg-sky-50',     border: 'border-sky-200',     dot: 'bg-sky-500'     },
+  mastodon:  { label: 'Mastodon',          icon: Hash,      color: 'text-violet-600',  bg: 'bg-violet-50',  border: 'border-violet-200',  dot: 'bg-violet-600'  },
 }
 
 export const SLOT_LABELS = ['Week 1', 'Week 2', 'Week 3', 'Week 4']
