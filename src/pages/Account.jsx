@@ -15,6 +15,8 @@ import { Label } from '@/components/ui/label'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
 import { syncClinicianName } from '@/lib/api'
+import { useClinicianSummaries, useClinician } from '@/lib/queries'
+import VoicePlaybackCard from '@/components/VoicePlaybackCard'
 
 function DisplayNameCard() {
   const { user } = useUser()
@@ -81,6 +83,44 @@ function DisplayNameCard() {
   )
 }
 
+// Resolves the signed-in user's Self clinician in the current workspace
+// (the row where clinicians.user_id === Clerk user id), then renders the
+// VoicePlaybackCard against that clinician's tts_settings. If the user
+// doesn't have a Self clinician yet — they haven't completed their first
+// interview — show a friendly hint instead of an empty card.
+function VoicePlaybackSection() {
+  const { user } = useUser()
+  const { data: summaries = [], isLoading: summariesLoading } = useClinicianSummaries()
+  const selfSummary = user?.id
+    ? summaries.find((c) => c.user_id === user.id)
+    : null
+  // Pull the full clinician row (the summaries view doesn't include
+  // tts_settings — see CLINICIAN_FIELDS_CARD in api/db/clinicians.js).
+  const { data: clinician, isLoading: clinicianLoading } = useClinician(selfSummary?.id)
+
+  if (summariesLoading || (selfSummary && clinicianLoading)) {
+    return (
+      <div className="rounded-lg border bg-card p-5">
+        <p className="text-sm text-muted-foreground">Loading voice settings&hellip;</p>
+      </div>
+    )
+  }
+
+  if (!selfSummary) {
+    return (
+      <div className="rounded-lg border bg-card p-5 space-y-1">
+        <h2 className="text-sm font-semibold">Voice pace</h2>
+        <p className="text-xs text-muted-foreground">
+          Start your first interview to set up your personal voice pace. You&rsquo;ll be able to adjust how fast Bernard speaks once your clinician profile exists.
+        </p>
+      </div>
+    )
+  }
+
+  if (!clinician) return null
+  return <VoicePlaybackCard clinician={clinician} />
+}
+
 export default function Account() {
   useDocumentTitle('Your account')
   return (
@@ -107,6 +147,8 @@ export default function Account() {
       </div>
 
       <DisplayNameCard />
+
+      <VoicePlaybackSection />
 
       <UserProfile routing="path" path="/account" />
     </div>

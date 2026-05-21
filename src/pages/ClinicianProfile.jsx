@@ -23,7 +23,6 @@ import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOption
 import { getCleanupLevel } from '@/lib/cleanupLevels'
 import VoiceNotesPanel from '@/components/VoiceNotesPanel'
 import VoiceFreshnessCard from '@/components/VoiceFreshnessCard'
-import VoicePlaybackCard from '@/components/VoicePlaybackCard'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -148,10 +147,6 @@ export default function ClinicianProfile() {
       {/* Voice Memory — distilled edit patterns. Only shown to the owner so
           analyzing edits of other people's work is opt-in via their own page. */}
       {isMyClinicianProfile && <VoiceNotesPanel clinician={clinician} />}
-
-      {/* Per-clinician voice playback (pace, voice id). Owner-only — these
-          are personal preferences, not shared workspace config. */}
-      {isMyClinicianProfile && <VoicePlaybackCard clinician={clinician} />}
 
       {/* Interview recipe — admin-only saved defaults that auto-fill the New
           Interview form when this clinician is selected. */}
