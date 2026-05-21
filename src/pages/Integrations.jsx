@@ -12,6 +12,7 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  Lightbulb,
 } from 'lucide-react'
 import { Separator } from '@/components/ui/separator'
 import { Button } from '@/components/ui/button'
@@ -416,7 +417,19 @@ function GoogleDriveCard({ row, loading, disabled, onChange }) {
           <Separator />
 
           {!configured ? (
-            <div>
+            <div className="space-y-3">
+              {/* Best-practice nudge: every workspace member who imports sees
+                  the same Drive as whoever connects, so connecting with a
+                  personal account exposes that account's whole media library
+                  to the team. Dedicated/limited account is the safer default
+                  and matches how most clinics actually organize source files. */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50/60 px-3.5 py-2.5 flex items-start gap-2.5">
+                <Lightbulb className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-900 leading-relaxed">
+                  <span className="font-semibold">Tip — connect with a dedicated account.</span>{' '}
+                  Pick a Google account whose Drive contains only the photos and videos you want NarrateRx to see — ideally a shared clinic account, or one whose Drive holds your media Shared Drive. Every workspace member who imports will see the same Drive view, so avoid using a personal account with private photos.
+                </div>
+              </div>
               <Button onClick={handleConnect} disabled={disabled || connecting}>
                 {connecting ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Redirecting to Google…</>
