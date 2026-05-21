@@ -92,14 +92,14 @@ const INTEGRATIONS = [
     description: 'Push approved blog posts to Beehiiv as drafts — thumbnail, audience, and schedule stay in Beehiiv’s UI for a final review before send.',
     platforms: ['Newsletter'],
     secretLabel: 'Beehiiv API key',
-    secretPlaceholder: 'bee-…',
+    secretPlaceholder: 'long-random-string',
     fields: [
-      { key: 'publication_id', label: 'Publication ID', placeholder: 'pub_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx' },
+      { key: 'publication_id', label: 'Publication ID', placeholder: 'pub_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (or paste the bare UUID — pub_ added automatically)' },
     ],
     setupSteps: [
       'Sign in at app.beehiiv.com.',
       'Open Settings → Integrations → API and create a new key (give it a name like "NarrateRx"). Copy the key.',
-      'Find your Publication ID — it’s in your Beehiiv URL: app.beehiiv.com/publications/<publication_id>/…',
+      'Find your Publication ID — it’s the UUID in your Beehiiv URL: app.beehiiv.com/publications/<publication_id>/… Paste it as-is; we add the pub_ prefix automatically.',
       'Paste the key + publication ID below and Save. Click Test connection to verify.',
     ],
     docsUrl: 'https://developers.beehiiv.com/',

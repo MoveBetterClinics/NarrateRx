@@ -110,10 +110,11 @@ async function testBearerEndpoint({ config, secret }) {
 }
 
 async function testBeehiiv({ config, secret }) {
-  const publicationId = config?.publication_id
-  if (!publicationId) return { ok: false, error: 'Missing Publication ID. Get it from your Beehiiv URL: app.beehiiv.com/publications/<publication_id>/...' }
-  // GET the publication — cheapest read that exercises both the API key and
-  // the publication_id being a valid pair under that key's scope.
+  const raw = config?.publication_id
+  if (!raw) return { ok: false, error: 'Missing Publication ID. Get it from your Beehiiv URL: app.beehiiv.com/publications/<publication_id>/...' }
+  // Auto-normalize: Beehiiv's API requires the "pub_" prefix, but the value
+  // most users grab from the Beehiiv URL is a bare UUID. Accept either form.
+  const publicationId = String(raw).startsWith('pub_') ? String(raw) : `pub_${raw}`
   const r = await fetchWithTimeout(`https://api.beehiiv.com/v2/publications/${encodeURIComponent(publicationId)}`, {
     headers: { Authorization: `Bearer ${secret}` },
   })
@@ -121,10 +122,17 @@ async function testBeehiiv({ config, secret }) {
     return { ok: false, error: 'Beehiiv rejected the API key (401/403). Regenerate at Beehiiv → Settings → Integrations → API and paste again.' }
   }
   if (r.status === 404) {
-    return { ok: false, error: `Beehiiv could not find publication "${publicationId}". Check the Publication ID — it should look like "pub_xxxxxxxx".` }
+    return { ok: false, error: `Beehiiv could not find publication "${publicationId}". Check the Publication ID — it should look like "pub_xxxxxxxx" (UUID with the pub_ prefix).` }
   }
   if (!r.ok) {
-    return { ok: false, error: `Beehiiv responded ${r.status}` }
+    // Bubble Beehiiv's own error message — for 400 in particular, the body
+    // tells you whether it's a malformed publication_id, a bad header, or
+    // something else. Without this the user just sees "responded 400".
+    const body = await r.text().catch(() => '')
+    let parsed = null
+    try { parsed = JSON.parse(body) } catch { /* keep as text */ }
+    const detail = parsed?.errors?.[0]?.message || parsed?.message || body.slice(0, 200) || ''
+    return { ok: false, error: `Beehiiv responded ${r.status}${detail ? `: ${detail}` : ''}` }
   }
   const body = await r.json().catch(() => ({}))
   const name = body?.data?.name || body?.name || publicationId
