@@ -70,13 +70,19 @@ async function handler(req, res) {
       message: `Beehiiv is not connected for this workspace${scope?.workspace?.slug ? ` (${scope.workspace.slug})` : ''}. Add a Beehiiv API key in Settings → Integrations → Beehiiv.`,
     })
   }
-  const publicationId = cred.config?.publication_id
-  if (!publicationId) {
+  const rawPublicationId = cred.config?.publication_id
+  if (!rawPublicationId) {
     return res.status(503).json({
       error:   'not_configured',
       message: 'Beehiiv credential is missing the publication_id. Reconnect in Settings → Integrations → Beehiiv.',
     })
   }
+  // Auto-normalize: Beehiiv's API requires the "pub_" prefix, but most users
+  // paste the bare UUID from app.beehiiv.com/publications/<uuid>/... Accept
+  // either form so we don't reject valid intent on a 7-char detail.
+  const publicationId = String(rawPublicationId).startsWith('pub_')
+    ? String(rawPublicationId)
+    : `pub_${rawPublicationId}`
 
   // Beehiiv stores body_content as HTML. Inline images from the NarrateRx
   // blob store stay hot-linked — Beehiiv's renderer fetches and caches them
