@@ -223,6 +223,11 @@ export default function InterviewSession() {
   const messagesRef = useRef([])
   const transcriptRef = useRef('')
   const autoListenRef = useRef(false)
+  // Track consecutive auto-listen 'aborted' errors so we can retry once with a
+  // longer delay (iOS audio session sometimes hasn't released the mic by the
+  // 700ms mark after TTS ends) and then bail to "tap to talk" rather than
+  // looping forever.
+  const autoListenAbortRetryRef = useRef(0)
   const finalTranscriptRef = useRef('')
   const interviewRef = useRef(null)
   const pastInterviewsRef = useRef([])
@@ -535,7 +540,10 @@ export default function InterviewSession() {
     if (!hasSpeechRecognition) return
     if (!isSpeaking && autoListenRef.current && !isStreaming && !interviewComplete) {
       autoListenRef.current = false
-      const timer = setTimeout(() => startListening(), 400)
+      // 700ms gives iOS more time to release the audio session from TTS
+      // playback before the mic engine tries to claim it — at 400ms iOS
+      // Chrome was throwing 'aborted' regularly.
+      const timer = setTimeout(() => startListening(), 700)
       return () => clearTimeout(timer)
     }
     // `startListening` is a stable function defined in this component scope.
@@ -729,12 +737,51 @@ export default function InterviewSession() {
 
     recognition.onerror = (e) => {
       setIsListening(false)
-      if (e.error !== 'no-speech') setError(`Microphone error: ${e.error}`)
+
+      // 'no-speech' fires when the engine times out without hearing anything
+      // — benign, the user just hasn't spoken yet. They'll tap mic again.
+      if (e.error === 'no-speech') return
+
+      // 'aborted' on iOS Chrome usually means the audio session is still
+      // tied up with TTS playback that just ended. Retry once with a longer
+      // delay; if it fails twice in a row, bail to "tap to talk" without
+      // surfacing a scary error.
+      if (e.error === 'aborted') {
+        if (autoListenAbortRetryRef.current < 1 &&
+            !interviewComplete && !isStreaming && !isSpeaking) {
+          autoListenAbortRetryRef.current += 1
+          setTimeout(() => {
+            if (!interviewComplete && !isListening) startListening()
+          }, 1500)
+        }
+        // Either way, don't surface the error — the user can still tap mic.
+        return
+      }
+
+      // 'not-allowed' / 'service-not-allowed' = permission denied. That's
+      // worth telling the user, but framed as a recoverable issue.
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        setError('Microphone permission was denied. You can type your answer instead.')
+        return
+      }
+
+      // Other errors ('network', 'audio-capture', 'bad-grammar', etc.) get a
+      // generic message but stay non-blocking — they can still type.
+      setError(`Microphone trouble (${e.error}). Tap mic to retry or type your answer instead.`)
     }
 
     recognitionRef.current = recognition
-    recognition.start()
-    setIsListening(true)
+    try {
+      recognition.start()
+      setIsListening(true)
+      // Clear retry counter on a clean start — only consecutive aborts count.
+      autoListenAbortRetryRef.current = 0
+    } catch {
+      // start() throws synchronously if the engine is in a bad state (e.g.
+      // already started, or audio session locked). Treat as a soft failure
+      // and let the user tap mic to try again.
+      setIsListening(false)
+    }
   }
 
   function stopListening() {
