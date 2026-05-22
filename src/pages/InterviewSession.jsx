@@ -1,12 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Copy, Check, FileText, ExternalLink, RefreshCw, Send, Keyboard } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Check, RefreshCw, Send, Keyboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { apiFetch, fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscript, populateContentItemProvenance } from '@/lib/api'
 import { extractProvenanceBlock } from '@/lib/provenance'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
@@ -138,11 +137,6 @@ export default function InterviewSession() {
   const { clinicianId, interviewId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
-  // Detect if the user landed directly on the /output sub-path (e.g. via
-  // bookmark or page refresh). If so, auto-open the inline panel once data loads.
-  const mountedOnOutputPath = useRef(
-    typeof window !== 'undefined' && window.location.pathname.endsWith('/output')
-  )
   // Track the visual viewport height so the interview wrapper shrinks when
   // the iOS keyboard opens. `100dvh` accounts for the address bar but NOT
   // the soft keyboard — without this, the typed-answer dock (and its
@@ -451,12 +445,6 @@ export default function InterviewSession() {
       }
     }
 
-    // Auto-open output panel when landing directly on /…/output (e.g. bookmark)
-    if (mountedOnOutputPath.current && interviewData.outputs?.blogPost) {
-      setOutputData(interviewData.outputs)
-      setShowOutput(true)
-    }
-
     // These three are AI prompt-context enrichments. Each one failing
     // degrades the AI's history awareness but does not block the interview,
     // so they stay non-fatal. We DO log so prod issues are visible in
@@ -517,6 +505,16 @@ export default function InterviewSession() {
       recognitionRef.current?.abort()
     }
   }, [])
+
+  // Release the mic the moment the interview ends. Without this, the
+  // SpeechRecognition session can linger and the browser tab keeps the
+  // recording indicator (red dot) lit even though there's nothing to capture.
+  useEffect(() => {
+    if (!interviewComplete) return
+    userAnswerActiveRef.current = false
+    clearTimeout(restartTimerRef.current)
+    recognitionRef.current?.abort()
+  }, [interviewComplete])
 
   // Subscribe to global audio-playback failures (iOS route change, BT
   // disconnect, audio session interruption). When one fires we surface a
@@ -903,12 +901,6 @@ export default function InterviewSession() {
   // (paused for a moment, then leaving) stays one click.
   const [pauseConfirmOpen, setPauseConfirmOpen] = useState(false)
 
-  // Inline output panel: slides in from the right when content generation
-  // completes so the user sees transcript + output side-by-side without a
-  // full page navigation.
-  const [showOutput, setShowOutput] = useState(false)
-  const [outputData, setOutputData] = useState(null)
-
   function leaveInterview() {
     ttsRef.current?.cancel()
     window.speechSynthesis?.cancel()
@@ -1128,12 +1120,11 @@ export default function InterviewSession() {
       populateContentItemProvenance(interviewId, provenanceJson || '', 'blog').catch((err) => {
         console.warn('[interview] provenance population failed:', err?.message)
       })
-      // Slide the output panel in-place — no full page transition.
-      // Update the URL so the user can bookmark/share the output link,
-      // but stay on this page with the transcript still visible on the left.
-      setOutputData(outputs)
-      setShowOutput(true)
-      navigate(`/interview/${clinicianId}/${interviewId}/output`, { replace: true })
+      // Generation done — hand the user off to the Story Detail page. The
+      // server-side cascade triggered by the PATCH above has created the
+      // content_items rows; the invalidated queries make Stories Detail show
+      // the new draft on first render.
+      navigate(`/stories/${interviewId}`, { replace: true })
     } catch (err) {
       setError(`Failed to generate content: ${err.message}`)
       setIsGenerating(false)
@@ -1217,11 +1208,10 @@ export default function InterviewSession() {
 
   return (
     <div
-      className={`flex flex-col md:flex-row h-[calc(100dvh-7.5rem)] ${showOutput ? 'gap-0 overflow-hidden' : 'max-w-2xl mx-auto'}`}
+      className="flex flex-col h-[calc(100dvh-7.5rem)] max-w-2xl mx-auto"
       style={vvHeight ? { height: `calc(${vvHeight}px - 7.5rem)` } : undefined}
     >
-      {/* ── Left: interview transcript pane ── */}
-      <div className={`flex flex-col min-w-0 transition-all duration-300 ease-out ${showOutput ? 'hidden md:flex md:w-1/2 md:pr-4' : 'flex-1'}`}>
+      <div className="flex flex-col min-w-0 flex-1">
       <div className="flex items-center gap-3 pb-4 shrink-0">
         <Button variant="ghost" size="icon" asChild>
           <Link to={`/clinician/${clinicianId}`}>
@@ -1338,7 +1328,7 @@ export default function InterviewSession() {
         ref={conversationRef}
         onMouseUp={handleSelectionUp}
         onTouchEnd={handleSelectionUp}
-        className="flex-1 relative pr-4 -mr-4 overflow-hidden"
+        className={`flex-1 relative pr-4 -mr-4 overflow-hidden ${isGenerating ? 'hidden' : ''}`}
       >
         {selectionTip && (
           <button
@@ -1396,7 +1386,7 @@ export default function InterviewSession() {
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" aria-hidden="true" />
                 <p className="font-semibold text-sm text-emerald-900">
-                  {firstNameOnly ? `Great conversation, ${firstNameOnly}.` : 'Great conversation.'}
+                  {clinician.name ? `Great conversation, ${clinician.name}.` : 'Great conversation.'}
                 </p>
               </div>
               <p className="text-sm text-emerald-800/80 leading-relaxed">
@@ -1406,11 +1396,7 @@ export default function InterviewSession() {
                 <Button
                   size="sm"
                   className="self-start bg-emerald-700 hover:bg-emerald-800 text-white gap-1.5"
-                  onClick={() => {
-                    setOutputData(interview.outputs)
-                    setShowOutput(true)
-                    navigate(`/interview/${clinicianId}/${interviewId}/output`, { replace: true })
-                  }}
+                  onClick={() => navigate(`/stories/${interviewId}`)}
                 >
                   See your content →
                 </Button>
@@ -1497,22 +1483,26 @@ export default function InterviewSession() {
       )}
 
       {isGenerating && (
-        <div className="py-3 shrink-0">
-          <div className="rounded-xl border bg-muted p-4 flex items-center gap-3" role="status" aria-live="polite">
-            <Loader2 className="h-4 w-4 text-primary animate-spin shrink-0" aria-hidden="true" />
+        <div className="flex-1 flex items-center justify-center py-6">
+          <div
+            className="rounded-xl border bg-muted p-6 max-w-md w-full flex items-start gap-4"
+            role="status"
+            aria-live="polite"
+          >
+            <Loader2 className="h-5 w-5 text-primary animate-spin shrink-0 mt-0.5" aria-hidden="true" />
             <div className="flex-1">
-              <p className="text-sm font-medium">
-                {generationStyle === 'minimal_edits' ? 'Cleaning transcript…' : 'Writing blog post…'}
+              <p className="text-base font-semibold">
+                {generationStyle === 'minimal_edits' ? 'Cleaning transcript…' : 'Writing your blog post…'}
                 {blogStreamingTokens > 0 && (
-                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                  <span className="ml-1.5 text-sm font-normal text-muted-foreground">
                     ({blogStreamingTokens} words)
                   </span>
                 )}
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
                 {generationStyle === 'minimal_edits'
-                  ? 'Removing filler words and cleaning up the transcript while preserving your exact words.'
-                  : 'Turning your interview into a full blog post. Social, video, and marketing content will generate on demand.'}
+                  ? 'Removing filler words while preserving your exact phrasing. We\'ll open the story view when it\'s ready.'
+                  : 'Turning your interview into a full blog post. We\'ll open the story view when it\'s ready — social, video, and marketing content will generate on demand from there.'}
               </p>
             </div>
           </div>
@@ -1721,108 +1711,6 @@ export default function InterviewSession() {
         destructive={false}
         onConfirm={leaveInterview}
       />
-      </div>{/* end left pane */}
-
-      {/* ── Right: inline output panel (slides in on generation complete) ── */}
-      <div
-        className={`flex-shrink-0 w-full md:w-1/2 md:border-l bg-background overflow-hidden transition-transform duration-300 ease-out ${
-          showOutput ? 'translate-x-0' : 'translate-x-full hidden'
-        }`}
-      >
-        <InlineOutputPanel
-          clinicianId={clinicianId}
-          interviewId={interviewId}
-          clinician={clinician}
-          interview={interview}
-          outputs={outputData}
-          onViewFull={() => navigate(`/output/${clinicianId}/${interviewId}`)}
-        />
-      </div>
-    </div>
-  )
-}
-
-// Inline output panel rendered as the right half of the split view after
-// content generation completes. Receives already-fetched data as props so
-// there's no duplicate network fetch. The full standalone output page at
-// /output/:clinicianId/:interviewId is unchanged.
-function InlineOutputPanel({ clinicianId: _clinicianId, interviewId: _interviewId, clinician: _clinician, interview: _interview, outputs, onViewFull }) {
-  const [copied, setCopied] = useState(false)
-
-  function handleCopy() {
-    if (!outputs?.blogPost) return
-    navigator.clipboard.writeText(outputs.blogPost)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 3000)
-  }
-
-  if (!outputs) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Panel header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b bg-muted/30 shrink-0">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-          <p className="font-semibold text-sm">Content ready</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={onViewFull} className="gap-1.5 text-xs">
-          <ExternalLink className="h-3.5 w-3.5" />
-          Full output page
-        </Button>
-      </div>
-
-      {/* Content area */}
-      <div className="flex-1 overflow-hidden p-4">
-        <Tabs defaultValue="blog" className="h-full flex flex-col">
-          <TabsList className="grid grid-cols-1 w-full mb-3 shrink-0">
-            <TabsTrigger value="blog" className="gap-1.5 text-xs">
-              <FileText className="h-3.5 w-3.5" />
-              Blog Post
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="blog" className="flex-1 overflow-hidden mt-0">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-muted-foreground">Markdown — copy or open in full editor</p>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={handleCopy} className="text-xs h-7 px-2.5">
-                  {copied ? (
-                    <><Check className="h-3 w-3 mr-1 text-green-600" />Copied</>
-                  ) : (
-                    <><Copy className="h-3 w-3 mr-1" />Copy</>
-                  )}
-                </Button>
-              </div>
-            </div>
-            <ScrollArea className="h-[calc(100%-2rem)]">
-              <pre className="text-xs leading-relaxed font-mono whitespace-pre-wrap text-foreground p-1">
-                {outputs.blogPost}
-              </pre>
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
-      </div>
-
-      {/* Footer: link to full output page for social, video, marketing tabs */}
-      <div className="px-5 py-3 border-t bg-muted/20 shrink-0">
-        <p className="text-xs text-muted-foreground">
-          Social, video, and marketing content available on the{' '}
-          <button
-            type="button"
-            onClick={onViewFull}
-            className="text-primary underline-offset-2 hover:underline"
-          >
-            full output page
-          </button>
-          .
-        </p>
       </div>
     </div>
   )

@@ -225,8 +225,8 @@ function AppRoutes() {
             <Route path="/" element={guarded(<Home />)} />
             <Route path="/new" element={guarded(<NewInterview />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
-            <Route path="/interview/:clinicianId/:interviewId/output" element={guarded(<InterviewSession />)} />
-            {/* /output legacy path → StoryDetail (interviewId is the anchor) */}
+            {/* Legacy paths — both now redirect to /stories/:interviewId */}
+            <Route path="/interview/:clinicianId/:interviewId/output" element={<LegacyOutputRedirect />} />
             <Route path="/output/:clinicianId/:interviewId" element={<LegacyOutputRedirect />} />
             <Route path="/clinician/:clinicianId" element={guarded(<ClinicianProfile />)} />
             <Route path="/stories" element={guarded(<Stories />)} />
