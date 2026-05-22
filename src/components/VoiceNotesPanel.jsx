@@ -6,6 +6,7 @@ import Icon from '@/components/ui/Icon'
 import { useQueryClient } from '@tanstack/react-query'
 import { queryKeys } from '@/lib/queries'
 import { formatRelativeDate } from '@/lib/utils'
+import { apiFetch } from '@/lib/api'
 
 // Voice notes display for a clinician profile. Shows what the AI has learned
 // about how this clinician edits AI drafts, and lets them refresh manually.
@@ -23,13 +24,11 @@ export default function VoiceNotesPanel({ clinician }) {
     setError('')
     setResult(null)
     try {
-      const res = await fetch('/api/clinicians/refresh-voice-notes', {
+      const data = await apiFetch('/api/clinicians/refresh-voice-notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ clinician_id: clinician.id }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Refresh failed')
       setResult(data)
       // Refetch the clinician so the new voice_notes show in the UI
       qc.invalidateQueries({ queryKey: queryKeys.clinicians.detail(clinician.id) })
