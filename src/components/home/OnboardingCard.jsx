@@ -16,7 +16,7 @@
 // onboarding_interview_completed_at = now), this card disappears for good.
 
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Sparkles, ArrowRight, Loader2, BellOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -59,6 +59,16 @@ export default function OnboardingCard() {
   const [interview, setInterview] = useState(null)
   const [loaded, setLoaded] = useState(false)
   const [snoozed, setSnoozed] = useState(false)
+
+  // Preserve testing flags like ?dryRun=1 across the Start/Continue link so
+  // the user doesn't lose the flag they typed into the URL bar on Home. v1
+  // forwards the whole querystring; cheaper than a per-key allowlist and the
+  // interview page only honors known params.
+  const [searchParams] = useSearchParams()
+  const interviewHref = (() => {
+    const qs = searchParams.toString()
+    return qs ? `/onboard/interview?${qs}` : '/onboard/interview'
+  })()
 
   // Visibility precheck — bail before any fetch if the card couldn't render
   // anyway. Saves a network round trip on the 99% case (workspace fully
@@ -147,7 +157,7 @@ export default function OnboardingCard() {
         <div className="flex items-center gap-2 shrink-0 sm:self-center">
           {isSynthesizing ? (
             <Button asChild variant="outline" size="sm">
-              <Link to="/onboard/interview">
+              <Link to={interviewHref}>
                 <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
                 Watch progress
               </Link>
@@ -167,7 +177,7 @@ export default function OnboardingCard() {
                 Remind me later
               </Button>
               <Button asChild size="sm">
-                <Link to="/onboard/interview">
+                <Link to={interviewHref}>
                   {isContinuing ? 'Continue' : 'Start'}
                   <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
                 </Link>
