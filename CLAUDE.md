@@ -186,6 +186,8 @@ cd "/Users/qbook/Claude Projects/NarrateRx" && npm run deploy:prod
 
 `npm run deploy:prod` wraps `vercel deploy --prod` and injects `VERCEL_GIT_COMMIT_SHA=$(git rev-parse HEAD)` as a build-env. CLI uploads have no `.git` in the build container, so without this the prebuild's `write-version.mjs` falls back to `sha: "dev"` and the auto-update notifier silently no-ops for that deploy.
 
+**Preflight check** (`scripts/deploy-prod-preflight.sh`, runs automatically before every `deploy:prod`): refuses to deploy unless (a) cwd is the project root, (b) current branch is `main`, (c) HEAD equals `origin/main`, (d) no uncommitted modifications to tracked files. If a parallel session leaves the project root on a feature branch or with WIP, the deploy aborts before Vercel sees a single byte of code. The 2026-05-22 close-call (deployed `feat/onboarding-interview-p4` instead of `main`, only saved by coincident merge of #720) is the direct prompt for this guard. To bypass in a true emergency: `DEPLOY_PROD_BYPASS_PREFLIGHT=1 npm run deploy:prod`.
+
 If the project root is on another branch (with WIP), do not switch under the user. Either run the deploy from a separate `main`-tracking worktree that's `vercel link`ed to the `narraterx` project (copy `.vercel/project.json` in if needed) or ask the user to free up the project root. Always confirm the resulting deploy is aliased to `narraterx.ai` + `*.narraterx.ai` with `vercel inspect <dpl-id>` before declaring it done — deploys from an unlinked worktree silently create a separate Vercel project and never touch the real prod aliases.
 
 ## Definition of Done
