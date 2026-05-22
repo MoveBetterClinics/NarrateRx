@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useParams } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import PrivacyPolicy from '@/pages/PrivacyPolicy'
 import TermsOfService from '@/pages/TermsOfService'
 import {
@@ -432,6 +433,7 @@ export default function App() {
               <Route path="*" element={<ProtectedAppWithProvider />} />
             </Routes>
           </BrowserRouter>
+          <Analytics />
           <Toaster richColors position="top-right" closeButton />
         </ClerkProvider>
       </QueryClientProvider>
