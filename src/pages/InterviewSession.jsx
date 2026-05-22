@@ -1131,6 +1131,34 @@ export default function InterviewSession() {
     }
   }
 
+  // Auto-fire generation the moment the interview wraps. The post-interview
+  // radio ("Full blog post" vs "Minimal edits") was confusing — both labels
+  // weren't parallel and forcing a decision at this moment broke the flow.
+  // The user clicks Finish → "Writing your blog post…" card shows → on
+  // completion we navigate to /stories/:id. Default style is 'blog_post'; the
+  // draft view will host the optional Cleaned-transcript switcher.
+  //
+  // Guards: only fire when (a) the interview just completed in this session,
+  // (b) no outputs exist yet (don't re-generate on revisits), (c) we're not
+  // already generating, (d) the viewer owns the interview. autoGenFiredRef
+  // pins it to one fire per mount so React's strict-mode double-effect doesn't
+  // double-bill us.
+  const autoGenFiredRef = useRef(false)
+  useEffect(() => {
+    if (!interviewComplete) return
+    if (autoGenFiredRef.current) return
+    if (isGenerating) return
+    if (!interview || !clinician || !user?.id) return
+    if (interview.outputs?.blogPost) return
+    if (user.id !== interview.owner_id) return
+    autoGenFiredRef.current = true
+    handleGenerateContent()
+    // handleGenerateContent is a stable scope-level helper; including it would
+    // re-fire the effect every render and double-bill the generation. The
+    // guard ref above already pins this to a single invocation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interviewComplete, isGenerating, interview, clinician, user?.id])
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -1429,55 +1457,6 @@ export default function InterviewSession() {
                 </button>
               </span>
             ))}
-          </div>
-        </div>
-      )}
-
-      {interviewComplete && !isGenerating && isOwner && (
-        <p className="text-2xs text-muted-foreground py-1 shrink-0">
-          Tip: highlight a sentence above to flag it as verbatim — it will be preserved word-for-word in every draft.
-        </p>
-      )}
-
-      {interviewComplete && !isGenerating && isOwner && (
-        <div className="py-3 shrink-0">
-          <div className="rounded-xl border bg-primary/5 border-primary/20 p-4 flex flex-col gap-3">
-            <div>
-              <p className="text-sm font-medium">Ready to generate content</p>
-              <p className="text-xs text-muted-foreground">Choose how the AI should handle your transcript.</p>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="radio" name="generationStyle" value="blog_post"
-                  checked={generationStyle === 'blog_post'}
-                  onChange={() => setGenerationStyle('blog_post')}
-                  className="mt-0.5 accent-primary"
-                />
-                <span className="text-xs leading-snug">
-                  <span className="font-medium">Full blog post</span>
-                  <span className="text-muted-foreground"> — 7-section structure, links, social content</span>
-                </span>
-              </label>
-              <label className="flex items-start gap-2 cursor-pointer">
-                <input
-                  type="radio" name="generationStyle" value="minimal_edits"
-                  checked={generationStyle === 'minimal_edits'}
-                  onChange={() => setGenerationStyle('minimal_edits')}
-                  className="mt-0.5 accent-primary"
-                />
-                <span className="text-xs leading-snug">
-                  <span className="font-medium">Minimal edits</span>
-                  <span className="text-muted-foreground"> — clean prose only, preserves your exact words</span>
-                </span>
-              </label>
-            </div>
-            <div className="flex justify-end">
-              <Button onClick={handleGenerateContent} size="sm">
-                <Sparkles className="h-4 w-4 mr-1.5" />
-                Generate
-              </Button>
-            </div>
           </div>
         </div>
       )}
