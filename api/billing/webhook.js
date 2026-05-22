@@ -70,6 +70,12 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
   const sig = parts.v1
   if (!timestamp || !sig) return false
 
+  // Reject events outside Stripe's 5-minute tolerance window to prevent
+  // replay attacks (captured webhooks could otherwise be replayed indefinitely
+  // to e.g. re-activate a cancelled subscription).
+  const ts = parseInt(timestamp, 10)
+  if (!Number.isFinite(ts) || Math.abs(Date.now() / 1000 - ts) > 300) return false
+
   const payload = `${timestamp}.${rawBody}`
   const expected = createHmac('sha256', secret).update(payload, 'utf8').digest('hex')
 
@@ -112,6 +118,10 @@ async function handler(req, res) {
       console.error('[billing/webhook] signature verification failed')
       return res.status(400).json({ error: 'invalid-signature' })
     }
+  } else if (process.env.VERCEL_ENV === 'production') {
+    // Fail closed in production — never accept unsigned webhooks here.
+    console.error('[billing/webhook] STRIPE_WEBHOOK_SECRET not configured in production — refusing request')
+    return res.status(503).json({ error: 'webhook-secret-not-configured' })
   } else {
     console.warn('[billing/webhook] STRIPE_WEBHOOK_SECRET not set — skipping signature verification (dev only)')
   }
