@@ -136,7 +136,7 @@ export function GoogleFontPicker({ value, onChange, sampleText, className }) {
       </button>
 
       {open && (
-        <div className="absolute z-50 mt-1 w-full min-w-[260px] rounded-md border bg-popover shadow-lg">
+        <div className="absolute z-50 mt-1 w-full min-w-[260px] rounded-md border bg-background shadow-lg">
           <div className="flex items-center gap-2 border-b px-2 py-1.5">
             <Search className="h-3.5 w-3.5 opacity-60" />
             <input
