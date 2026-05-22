@@ -718,6 +718,38 @@ em { font-family: var(--serif); font-style: italic; font-weight: 500; }
 .ucta p { color: var(--ink-soft); font-size: 18px; margin: 0 0 32px; line-height: 1.6; }
 
 /* ============================================================
+   SUBSCRIBE (Beehiiv embed wrapper)
+   ============================================================ */
+.usubscribe {
+  background: var(--bg-2);
+  border-top: 1px solid var(--line);
+  padding: clamp(40px, 5vw, 64px) 0;
+}
+.usubscribe-inner {
+  max-width: 640px;
+  margin: 0 auto;
+  text-align: center;
+}
+.usubscribe-eyebrow {
+  display: inline-flex; align-items: center; gap: 10px;
+  color: var(--ink-soft); font-size: 12px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  margin: 0 0 12px;
+}
+.usubscribe-eyebrow::before { content: ''; width: 22px; height: 1px; background: var(--coral); }
+.usubscribe h2 {
+  font-family: var(--serif);
+  font-size: clamp(22px, 2.4vw, 28px);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0 0 10px;
+}
+.usubscribe p { color: var(--ink-soft); font-size: 15px; line-height: 1.6; margin: 0 0 20px; }
+.usubscribe-form { margin-top: 8px; min-height: 80px; }
+.usubscribe-form iframe { max-width: 100%; }
+
+/* ============================================================
    FOOTER
    ============================================================ */
 .ufoot {

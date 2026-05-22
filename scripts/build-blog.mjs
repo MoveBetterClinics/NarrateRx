@@ -96,6 +96,22 @@ const HEADER = `<header class="uhdr">
   </div>
 </header>`
 
+// Beehiiv inline subscribe form. The loader script reads its own
+// data-beehiiv-form attribute and renders the form next to itself.
+// Same snippet works inline on multiple pages (index + each post).
+// Keep wrapper styling in .usubscribe (public/site.css); the embed
+// itself is rendered by Beehiiv inside its own iframe.
+const SUBSCRIBE = `<section class="usubscribe" aria-labelledby="usubscribe-heading">
+  <div class="container usubscribe-inner">
+    <p class="usubscribe-eyebrow">Newsletter</p>
+    <h2 id="usubscribe-heading">Get the next field note in your inbox.</h2>
+    <p>Occasional posts on voice-faithful content for hands-on and integrative care. No spam — unsubscribe anytime.</p>
+    <div class="usubscribe-form">
+      <script async src="https://subscribe-forms.beehiiv.com/v3/loader.js" data-beehiiv-form="6838a9dc-a165-4d61-992f-41b731248964"></script>
+    </div>
+  </div>
+</section>`
+
 const FOOTER = `<footer class="ufoot">
   <div class="container ufoot-inner">
     <span class="footer-brand">narrate<span class="rx">Rx</span> — You talk. It does the rest.</span>
@@ -224,6 +240,8 @@ ${heroBlock}
   </div>
 </section>
 
+${SUBSCRIBE}
+
 ${FOOTER}
 
 <script src="/site.js"></script>
@@ -297,6 +315,8 @@ ${posts.length === 0 ? emptyState : cards}
     </ul>
   </div>
 </section>
+
+${SUBSCRIBE}
 
 ${FOOTER}
 
