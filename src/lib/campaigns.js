@@ -25,8 +25,11 @@ export const CAMPAIGN_MODES = {
     showCta: true,
     ctaUrlLabel: 'RSVP / registration URL',
     ctaUrlPlaceholder: 'https://your-landing-page/seminar',
-    ctaLabelLabel: 'Button text',
+    ctaLabelLabel: 'Button text (short, used on platforms with a literal button)',
     ctaLabelPlaceholder: 'Reserve your free seat',
+    showCtaPitch: true,
+    ctaPitchLabel: 'Invitation sentence (used in social caption / email body)',
+    ctaPitchPlaceholder: 'Come to our free back pain seminar on June 14 — open to anyone tired of guessing what\'s wrong.',
     showEventDate: true,
     eventDateLabel: 'Event date & time',
   },
@@ -38,8 +41,11 @@ export const CAMPAIGN_MODES = {
     showCta: true,
     ctaUrlLabel: 'Referral / contact URL',
     ctaUrlPlaceholder: 'https://your-landing-page/refer',
-    ctaLabelLabel: 'Button text',
+    ctaLabelLabel: 'Button text (short, used on platforms with a literal button)',
     ctaLabelPlaceholder: 'Connect with our team',
+    showCtaPitch: true,
+    ctaPitchLabel: 'Invitation sentence (used in social caption / email body)',
+    ctaPitchPlaceholder: 'Working with a patient who needs more than what you offer? We\'d love to be a resource.',
     showEventDate: false,
   },
 }
@@ -91,9 +97,14 @@ export function getCampaignPromptContext(campaign, ws = {}) {
       lines.push(`Registration URL: ${campaign.cta_url}`)
       lines.push('Use exactly this URL as the link target in any CTA — do not invent or alter it.')
     }
-    if (campaign.cta_label) lines.push(`Preferred CTA button text: "${campaign.cta_label}".`)
+    if (campaign.cta_pitch) {
+      lines.push(`Workspace-supplied invitation sentence (use this verbatim — or lightly adapted for platform tone — as the body-copy CTA that wraps the link): "${campaign.cta_pitch}"`)
+    }
+    if (campaign.cta_label) lines.push(`Preferred CTA button text (for platforms with a literal button — Instagram overlay, GBP): "${campaign.cta_label}".`)
     if (campaign.notes)     lines.push(`Additional context from the workspace: ${campaign.notes}`)
-    lines.push('Preferred CTA phrasing variants: "Reserve your free seat", "Join us for a free community talk", "Save your spot — it\'s free and open to everyone".')
+    if (!campaign.cta_pitch) {
+      lines.push('Preferred CTA phrasing variants: "Reserve your free seat", "Join us for a free community talk", "Save your spot — it\'s free and open to everyone".')
+    }
     lines.push(`Tone: lean into education and community generosity. ${wsName} is giving something valuable away.`)
     return lines.join('\n')
   }
@@ -108,9 +119,14 @@ export function getCampaignPromptContext(campaign, ws = {}) {
       lines.push(`Referral / contact URL: ${campaign.cta_url}`)
       lines.push('Use exactly this URL as the link target in any CTA — do not invent or alter it.')
     }
-    if (campaign.cta_label) lines.push(`Preferred CTA button text: "${campaign.cta_label}".`)
+    if (campaign.cta_pitch) {
+      lines.push(`Workspace-supplied invitation sentence (use this verbatim — or lightly adapted for platform tone — as the body-copy CTA that wraps the link): "${campaign.cta_pitch}"`)
+    }
+    if (campaign.cta_label) lines.push(`Preferred CTA button text (for platforms with a literal button — Instagram overlay, GBP): "${campaign.cta_label}".`)
     if (campaign.notes)     lines.push(`Additional context: ${campaign.notes}`)
-    lines.push(`Preferred CTA phrasing variants: "Refer a patient to ${wsName}", "Connect with our team", "We'd love to collaborate", "Happy to be a resource for your patients or clients".`)
+    if (!campaign.cta_pitch) {
+      lines.push(`Preferred CTA phrasing variants: "Refer a patient to ${wsName}", "Connect with our team", "We'd love to collaborate", "Happy to be a resource for your patients or clients".`)
+    }
     lines.push('Tone: authoritative and collegial — professionals talking to professionals.')
     return lines.join('\n')
   }

@@ -37,7 +37,7 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-const DEFAULT = { mode: 'bookings', notes: '', cta_url: '', cta_label: '', event_at: null }
+const DEFAULT = { mode: 'bookings', notes: '', cta_url: '', cta_label: '', cta_pitch: '', event_at: null }
 
 export default async function handler(req, res) {
   const ws = await workspaceContext(req)
@@ -45,7 +45,7 @@ export default async function handler(req, res) {
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   if (req.method === 'GET') {
-    const r = await sb(`clinic_settings?${wsFilter}&select=campaign_mode,campaign_notes,campaign_cta_url,campaign_cta_label,campaign_event_at`)
+    const r = await sb(`clinic_settings?${wsFilter}&select=campaign_mode,campaign_notes,campaign_cta_url,campaign_cta_label,campaign_cta_pitch,campaign_event_at`)
     if (!r.ok) {
       console.error(`[db/settings] select failed — supabase ${r.status}: ${(await r.text().catch(() => '')).slice(0, 500)}`)
       return ok(res, DEFAULT)
@@ -57,6 +57,7 @@ export default async function handler(req, res) {
       notes:     data[0].campaign_notes     || '',
       cta_url:   data[0].campaign_cta_url   || '',
       cta_label: data[0].campaign_cta_label || '',
+      cta_pitch: data[0].campaign_cta_pitch || '',
       event_at:  data[0].campaign_event_at  || null,
     })
   }
@@ -70,6 +71,7 @@ export default async function handler(req, res) {
     if (body.notes     !== undefined) update.campaign_notes     = body.notes
     if (body.cta_url   !== undefined) update.campaign_cta_url   = body.cta_url || null
     if (body.cta_label !== undefined) update.campaign_cta_label = body.cta_label || null
+    if (body.cta_pitch !== undefined) update.campaign_cta_pitch = body.cta_pitch || null
     if (body.event_at  !== undefined) update.campaign_event_at  = body.event_at || null
     const userId = req.headers['x-user-id'] ?? null
     if (userId) update.updated_by = userId

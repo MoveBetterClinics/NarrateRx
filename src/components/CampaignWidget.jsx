@@ -39,7 +39,7 @@ function inputValueToIso(v) {
 
 export function useCampaign() {
   const { user } = useUser()
-  const [campaign, setCampaign] = useState({ mode: 'bookings', notes: '', cta_url: '', cta_label: '', event_at: null })
+  const [campaign, setCampaign] = useState({ mode: 'bookings', notes: '', cta_url: '', cta_label: '', cta_pitch: '', event_at: null })
   const [saving, setSaving] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
   const debounceTimerRef = useRef(null)
@@ -83,6 +83,9 @@ export function useCampaign() {
   function handleCtaLabelChange(cta_label) {
     scheduleFieldSave({ cta_label })
   }
+  function handleCtaPitchChange(cta_pitch) {
+    scheduleFieldSave({ cta_pitch })
+  }
   function handleEventAtChange(inputValue) {
     scheduleFieldSave({ event_at: inputValueToIso(inputValue) })
   }
@@ -95,6 +98,7 @@ export function useCampaign() {
     handleNotesChange,
     handleCtaUrlChange,
     handleCtaLabelChange,
+    handleCtaPitchChange,
     handleEventAtChange,
   }
 }
@@ -107,10 +111,11 @@ export function CampaignWidget({
   onNotesChange,
   onCtaUrlChange,
   onCtaLabelChange,
+  onCtaPitchChange,
   onEventAtChange,
 }) {
   const currentMode = CAMPAIGN_MODES[campaign.mode] || CAMPAIGN_MODES.bookings
-  const { showNotes, showCta, showEventDate } = currentMode
+  const { showNotes, showCta, showCtaPitch, showEventDate } = currentMode
 
   return (
     <div className="rounded-xl border bg-card p-5 space-y-4">
@@ -167,6 +172,18 @@ export function CampaignWidget({
               maxLength={60}
             />
           </div>
+          {showCtaPitch && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{currentMode.ctaPitchLabel}</label>
+              <Textarea
+                value={campaign.cta_pitch || ''}
+                onChange={(e) => onCtaPitchChange?.(e.target.value)}
+                placeholder={currentMode.ctaPitchPlaceholder}
+                className="text-sm min-h-[60px] resize-none"
+                maxLength={240}
+              />
+            </div>
+          )}
           {showEventDate && (
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">{currentMode.eventDateLabel}</label>
@@ -208,6 +225,7 @@ export function CampaignModeChip() {
     handleNotesChange,
     handleCtaUrlChange,
     handleCtaLabelChange,
+    handleCtaPitchChange,
     handleEventAtChange,
   } = useCampaign()
   const [open, setOpen] = useState(false)
@@ -291,6 +309,15 @@ export function CampaignModeChip() {
                 className="text-xs"
                 maxLength={60}
               />
+              {currentMode.showCtaPitch && (
+                <Textarea
+                  value={campaign.cta_pitch || ''}
+                  onChange={(e) => handleCtaPitchChange(e.target.value)}
+                  placeholder={currentMode.ctaPitchPlaceholder}
+                  className="text-xs min-h-[52px] resize-none"
+                  maxLength={240}
+                />
+              )}
               {currentMode.showEventDate && (
                 <Input
                   type="datetime-local"
