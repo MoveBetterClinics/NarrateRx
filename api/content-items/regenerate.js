@@ -173,9 +173,10 @@ export default async function handler(req, res) {
         ? (Array.isArray(ws.story_type_options) ? ws.story_type_options.find(s => s.key === interview.story_type) : null)?.label ?? interview.story_type
         : null
       // Active campaign (mode + structured CTA) flows into derivative content
-      // only. Bookings mode or missing campaign returns '' so the prompt
-      // falls back to its built-in "book a visit" / "link in bio" CTAs.
-      const activeCampaign = await loadActiveCampaign(ws.id)
+      // only. Per-clinician override wins over workspace default; both fall
+      // back cleanly when missing. Blog generation below does NOT call this
+      // — blogs are intentionally evergreen.
+      const activeCampaign = await loadActiveCampaign(ws.id, interview.clinician_id)
       const campaignContext = getCampaignPromptContext(activeCampaign, ws)
       const systemPrompt = getAtomSystemPrompt(
         ws,

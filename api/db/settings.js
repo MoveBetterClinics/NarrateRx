@@ -7,6 +7,8 @@ export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
+import { requireRole } from '../_lib/auth.js'
+import { ROLE_ADMIN } from '../_lib/roles.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -63,6 +65,14 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
+    // Workspace-wide campaign default is a marketing operating decision —
+    // admins only. Per-clinician override lives on a separate handler
+    // (api/clinicians/campaign-settings.js) and is editable by the
+    // clinician themselves or any admin.
+    const auth = await requireRole(req, [ROLE_ADMIN], { orgId: ws.clerk_org_id })
+    if (!auth.ok) {
+      return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+    }
     if (!(await enforceLimit(req, res, 'media'))) return
 
     const body = req.body || {}

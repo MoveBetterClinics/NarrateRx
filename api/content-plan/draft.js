@@ -110,10 +110,10 @@ export default async function handler(req, res) {
       : null
 
     // Active campaign (mode + structured CTA) flows into derivative content
-    // only. Bookings mode or missing campaign returns '' so the prompt falls
-    // back to its built-in CTAs. Blog generation does NOT call this — blogs
+    // only. Per-clinician override wins over workspace default; both fall
+    // back cleanly when missing. Blog generation does NOT call this — blogs
     // are intentionally evergreen.
-    const activeCampaign = await loadActiveCampaign(ws.id)
+    const activeCampaign = await loadActiveCampaign(ws.id, interview.clinician_id)
     const campaignContext = getCampaignPromptContext(activeCampaign, ws)
 
     // Build the focused atom prompt
