@@ -11,6 +11,15 @@ At the start of EVERY new conversation, before doing anything else, ask:
 
 If the work drifts into a second unrelated area mid-session, name it and suggest: "That's a good next session — want to note it and come back to it?"
 
+## Verify feature wiring before scoping changes
+
+Before scoping a change to an "existing" feature, confirm it's actually wired. Pre-launch sprints in this codebase left a number of half-built scaffolds where a function exists, has a sensible signature, even has parameters for the thing you're about to add — but nobody calls it. Examples discovered during the seminar-CTA work (May 2026):
+
+- `getCampaignPromptContext()` in `src/lib/campaigns.js` had been defined for weeks and was imported by zero files.
+- `getSocialBatchSystemPrompt` / `getVideoScriptBatchSystemPrompt` / `getMarketingBatchSystemPrompt` in `src/lib/prompts.js` accepted a `campaignContext` parameter that no caller ever passed (and none of the three was actually used in production — atoms came through `getAtomSystemPrompt` instead).
+
+Rule: before estimating a change, grep for callers of the core function(s) and confirm the path is live end-to-end (UI → API → prompt → model). "Function exists" ≠ "Function runs." A 5-minute `grep -rn '<funcName>' src/ api/` saves hours of building against a dead path. If you find the wiring is broken, surface that as part of the scope before coding.
+
 ## Multi-tenant SaaS
 NarrateRx runs as a single shared deployment that serves multiple workspaces by subdomain (`<slug>.narraterx.ai`). Move Better People, Equine, and Animals are the three seed workspaces; external tenants self-onboard at `narraterx.ai/onboard`. All tenant-editable config — display name, voice/tone modifiers, interview/patient context, topic suggestions, output channels, publish credentials — lives in the `workspaces` row in the shared narraterx Supabase, edited via `/settings/workspace`.
 
