@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react'
-import { useUser } from '@clerk/clerk-react'
 import { Target, Check, ChevronDown } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
@@ -38,7 +37,6 @@ function inputValueToIso(v) {
 }
 
 export function useCampaign() {
-  const { user } = useUser()
   const [campaign, setCampaign] = useState({ mode: 'bookings', notes: '', cta_url: '', cta_label: '', cta_pitch: '', event_at: null })
   const [saving, setSaving] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
@@ -52,7 +50,7 @@ export function useCampaign() {
     setCampaign((c) => ({ ...c, mode }))
     setSaving(true)
     try {
-      await updateCampaign({ mode }, user?.id)
+      await updateCampaign({ mode })
     } catch { /* empty */ }
     setSaving(false)
   }
@@ -67,7 +65,7 @@ export function useCampaign() {
     clearTimeout(debounceTimerRef.current)
     debounceTimerRef.current = setTimeout(async () => {
       try {
-        await updateCampaign(patch, user?.id)
+        await updateCampaign(patch)
         setNotesSaved(true)
         setTimeout(() => setNotesSaved(false), 2000)
       } catch { /* empty */ }

@@ -439,11 +439,11 @@ export function fetchCampaign() {
   return apiFetch('/api/db/settings')
 }
 
-/** @param {Record<string, unknown>} patch @param {string} userId @returns {Promise<unknown>} */
-export function updateCampaign(patch, userId) {
+/** @param {Record<string, unknown>} patch @returns {Promise<unknown>} */
+export function updateCampaign(patch) {
   return apiFetch('/api/db/settings', {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   })
 }
