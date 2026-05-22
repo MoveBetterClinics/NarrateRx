@@ -9,6 +9,8 @@ import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
 import { getContextBlock } from '../_lib/conceptRetrieval.js'
+import { loadActiveCampaign } from '../_lib/campaignSettings.js'
+import { getCampaignPromptContext } from '../../src/lib/campaigns.js'
 import { extractProvenanceBlock } from '../../src/lib/provenance.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -107,6 +109,13 @@ export default async function handler(req, res) {
       ? (Array.isArray(ws.story_type_options) ? ws.story_type_options.find(s => s.key === interview.story_type) : null)?.label ?? interview.story_type
       : null
 
+    // Active campaign (mode + structured CTA) flows into derivative content
+    // only. Bookings mode or missing campaign returns '' so the prompt falls
+    // back to its built-in CTAs. Blog generation does NOT call this — blogs
+    // are intentionally evergreen.
+    const activeCampaign = await loadActiveCampaign(ws.id)
+    const campaignContext = getCampaignPromptContext(activeCampaign, ws)
+
     // Build the focused atom prompt
     const systemPrompt = getAtomSystemPrompt(
       ws,
@@ -121,6 +130,7 @@ export default async function handler(req, res) {
       voicePhrases,
       audienceLabel,
       storyTypeLabel,
+      campaignContext,
     )
     if (!systemPrompt) throw new Error(`No prompt defined for ${atom.platform}/${atom.angle}`)
 
@@ -232,6 +242,7 @@ export default async function handler(req, res) {
                 voicePhrases,
                 audienceLabel,
                 storyTypeLabel,
+                campaignContext,
               )
               if (!locPrompt) return null
               const { text: locText } = await generateText({

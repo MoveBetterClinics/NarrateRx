@@ -19,7 +19,12 @@ function buildVoicePhrasesBlock(phrases) {
   return `\n\nVOICE PHRASE ANCHORS — sentences this clinician has shipped in approved content. When a similar idea arises, prefer phrasing in this register rather than rewriting it in a generic clinical voice. These are examples, NOT required quotations — only echo when the meaning genuinely aligns:\n${examples}\n`
 }
 
-export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = [], audienceLabel = null, storyTypeLabel = null) {
+// `campaignContext` — output of getCampaignPromptContext(campaign, ws) from
+// src/lib/campaigns.js. Empty string for bookings mode (default) or when no
+// active campaign is set. When present, it overrides the default CTA framing
+// in each per-platform instruction. Blog posts intentionally do NOT consume
+// this; see src/lib/campaigns.js header for the why.
+export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = [], audienceLabel = null, storyTypeLabel = null, campaignContext = '') {
   const firstName = clinicianName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
   const toneNote = tone === 'smart'
@@ -236,5 +241,5 @@ PLAIN TEXT ONLY: Do not use markdown formatting — no *asterisks* for emphasis,
 
 ${instruction}
 
-${toneNote}${brandBlock}${voiceBlock}${voicePhrasesBlockStr}`
+${toneNote}${brandBlock}${voiceBlock}${voicePhrasesBlockStr}${campaignContext ? `\n${campaignContext}\n\nThe CAMPAIGN FOCUS directive above OVERRIDES any default "book a visit" / "link in bio" CTAs in the per-platform instructions. Rewrite the CTA portion of this piece to match the campaign — including the exact URL and button phrasing when provided. Keep platform-specific structural rules (character limits, hashtag counts, overlay format) intact.\n` : ''}`
 }

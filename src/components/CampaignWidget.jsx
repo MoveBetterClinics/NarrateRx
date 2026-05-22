@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useUser } from '@clerk/clerk-react'
 import { Target, Check, ChevronDown } from 'lucide-react'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import { fetchCampaign, updateCampaign } from '@/lib/api'
 import { CAMPAIGN_MODES } from '@/lib/campaigns'
 
@@ -11,12 +12,37 @@ const CHIP_LABELS = {
   referrals: 'Referrals',
 }
 
+// Convert ISO ↔ datetime-local input value (which has no timezone).
+// Browser inputs use "YYYY-MM-DDTHH:mm" in local time. We round-trip through
+// the JS Date constructor so the stored value is always ISO/UTC.
+function isoToInputValue(iso) {
+  if (!iso) return ''
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    const pad = (n) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  } catch {
+    return ''
+  }
+}
+function inputValueToIso(v) {
+  if (!v) return null
+  try {
+    const d = new Date(v)
+    if (Number.isNaN(d.getTime())) return null
+    return d.toISOString()
+  } catch {
+    return null
+  }
+}
+
 export function useCampaign() {
   const { user } = useUser()
-  const [campaign, setCampaign] = useState({ mode: 'bookings', notes: '' })
+  const [campaign, setCampaign] = useState({ mode: 'bookings', notes: '', cta_url: '', cta_label: '', event_at: null })
   const [saving, setSaving] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
-  const notesTimerRef = useRef(null)
+  const debounceTimerRef = useRef(null)
 
   useEffect(() => {
     fetchCampaign().then(setCampaign).catch(() => {})
@@ -31,25 +57,60 @@ export function useCampaign() {
     setSaving(false)
   }
 
-  function handleNotesChange(notes) {
-    setCampaign((c) => ({ ...c, notes }))
+  // Generic debounced field saver — used by notes + CTA fields. Saves the
+  // whole change set on the trailing edge so a fast typist doesn't generate
+  // a flurry of PATCH calls (the existing notes pattern). Brief "Saved" pill
+  // appears on success.
+  function scheduleFieldSave(patch) {
+    setCampaign((c) => ({ ...c, ...patch }))
     setNotesSaved(false)
-    clearTimeout(notesTimerRef.current)
-    notesTimerRef.current = setTimeout(async () => {
+    clearTimeout(debounceTimerRef.current)
+    debounceTimerRef.current = setTimeout(async () => {
       try {
-        await updateCampaign({ notes }, user?.id)
+        await updateCampaign(patch, user?.id)
         setNotesSaved(true)
         setTimeout(() => setNotesSaved(false), 2000)
       } catch { /* empty */ }
     }, 800)
   }
 
-  return { campaign, saving, notesSaved, handleModeChange, handleNotesChange }
+  function handleNotesChange(notes) {
+    scheduleFieldSave({ notes })
+  }
+  function handleCtaUrlChange(cta_url) {
+    scheduleFieldSave({ cta_url })
+  }
+  function handleCtaLabelChange(cta_label) {
+    scheduleFieldSave({ cta_label })
+  }
+  function handleEventAtChange(inputValue) {
+    scheduleFieldSave({ event_at: inputValueToIso(inputValue) })
+  }
+
+  return {
+    campaign,
+    saving,
+    notesSaved,
+    handleModeChange,
+    handleNotesChange,
+    handleCtaUrlChange,
+    handleCtaLabelChange,
+    handleEventAtChange,
+  }
 }
 
-export function CampaignWidget({ campaign, saving, notesSaved, onModeChange, onNotesChange }) {
+export function CampaignWidget({
+  campaign,
+  saving,
+  notesSaved,
+  onModeChange,
+  onNotesChange,
+  onCtaUrlChange,
+  onCtaLabelChange,
+  onEventAtChange,
+}) {
   const currentMode = CAMPAIGN_MODES[campaign.mode] || CAMPAIGN_MODES.bookings
-  const showNotes = currentMode.showNotes
+  const { showNotes, showCta, showEventDate } = currentMode
 
   return (
     <div className="rounded-xl border bg-card p-5 space-y-4">
@@ -83,9 +144,46 @@ export function CampaignWidget({ campaign, saving, notesSaved, onModeChange, onN
         ))}
       </div>
 
+      {showCta && (
+        <div className="space-y-3 pt-1">
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">{currentMode.ctaUrlLabel}</label>
+            <Input
+              type="url"
+              value={campaign.cta_url || ''}
+              onChange={(e) => onCtaUrlChange?.(e.target.value)}
+              placeholder={currentMode.ctaUrlPlaceholder}
+              className="text-sm"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-muted-foreground">{currentMode.ctaLabelLabel}</label>
+            <Input
+              type="text"
+              value={campaign.cta_label || ''}
+              onChange={(e) => onCtaLabelChange?.(e.target.value)}
+              placeholder={currentMode.ctaLabelPlaceholder}
+              className="text-sm"
+              maxLength={60}
+            />
+          </div>
+          {showEventDate && (
+            <div className="space-y-1">
+              <label className="text-xs font-medium text-muted-foreground">{currentMode.eventDateLabel}</label>
+              <Input
+                type="datetime-local"
+                value={isoToInputValue(campaign.event_at)}
+                onChange={(e) => onEventAtChange?.(e.target.value)}
+                className="text-sm"
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {showNotes && (
         <div className="space-y-1.5">
-          <p className="text-xs text-muted-foreground">{currentMode.notesPlaceholder}</p>
+          <label className="text-xs font-medium text-muted-foreground">Additional context</label>
           <Textarea
             value={campaign.notes || ''}
             onChange={(e) => onNotesChange(e.target.value)}
@@ -93,7 +191,7 @@ export function CampaignWidget({ campaign, saving, notesSaved, onModeChange, onN
             className="text-sm min-h-[72px] resize-none"
           />
           <p className="text-2xs text-muted-foreground">
-            These details are injected into every content generation for this condition. Update them whenever event or campaign details change.
+            These details flow into every new social post, email excerpt, and video script generated from your interviews. The blog post stays evergreen.
           </p>
         </div>
       )}
@@ -102,7 +200,16 @@ export function CampaignWidget({ campaign, saving, notesSaved, onModeChange, onN
 }
 
 export function CampaignModeChip() {
-  const { campaign, saving, notesSaved, handleModeChange, handleNotesChange } = useCampaign()
+  const {
+    campaign,
+    saving,
+    notesSaved,
+    handleModeChange,
+    handleNotesChange,
+    handleCtaUrlChange,
+    handleCtaLabelChange,
+    handleEventAtChange,
+  } = useCampaign()
   const [open, setOpen] = useState(false)
   const containerRef = useRef(null)
 
@@ -123,6 +230,7 @@ export function CampaignModeChip() {
   }, [open])
 
   const chipLabel = CHIP_LABELS[campaign.mode] || 'Bookings'
+  const currentMode = CAMPAIGN_MODES[campaign.mode] || {}
 
   return (
     <div ref={containerRef} className="relative">
@@ -166,19 +274,48 @@ export function CampaignModeChip() {
             ))}
           </div>
 
-          {(CAMPAIGN_MODES[campaign.mode] || {}).showNotes && (
+          {currentMode.showCta && (
+            <div className="space-y-2 pt-1">
+              <Input
+                type="url"
+                value={campaign.cta_url || ''}
+                onChange={(e) => handleCtaUrlChange(e.target.value)}
+                placeholder={currentMode.ctaUrlPlaceholder}
+                className="text-xs"
+              />
+              <Input
+                type="text"
+                value={campaign.cta_label || ''}
+                onChange={(e) => handleCtaLabelChange(e.target.value)}
+                placeholder={currentMode.ctaLabelPlaceholder}
+                className="text-xs"
+                maxLength={60}
+              />
+              {currentMode.showEventDate && (
+                <Input
+                  type="datetime-local"
+                  value={isoToInputValue(campaign.event_at)}
+                  onChange={(e) => handleEventAtChange(e.target.value)}
+                  className="text-xs"
+                />
+              )}
+            </div>
+          )}
+
+          {currentMode.showNotes && (
             <div className="space-y-1.5 pt-1">
               <Textarea
                 value={campaign.notes || ''}
                 onChange={(e) => handleNotesChange(e.target.value)}
-                placeholder={CAMPAIGN_MODES[campaign.mode].notesPlaceholder}
+                placeholder={currentMode.notesPlaceholder}
                 className="text-xs min-h-[64px] resize-none"
               />
             </div>
           )}
 
           <p className="text-2xs text-muted-foreground pt-1 border-t">
-            Affects every content generation. Full settings in <a href="/settings/workspace" className="text-primary underline">Workspace Settings</a>.
+            Flows into new social / email / video drafts (blog stays evergreen). Full settings in{' '}
+            <a href="/settings/workspace" className="text-primary underline">Workspace Settings</a>.
           </p>
         </div>
       )}
