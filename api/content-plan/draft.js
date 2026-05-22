@@ -162,25 +162,41 @@ export default async function handler(req, res) {
 
     if (!text?.trim()) throw new Error('AI returned empty content')
 
-    // Split overlay block from caption. Instagram prompts append a
-    // ---OVERLAY--- section; other platforms don't, so this is a no-op for them.
-    // Also strip the <PROVENANCE> trailer — long-form prompts append it as
-    // per-paragraph source attribution, but the trailer is metadata, not body
-    // copy, and must never reach the editor surface.
-    const [captionRaw, overlayRaw] = extractProvenanceBlock(text.trim()).content.split('---OVERLAY---')
+    // Split slides block from caption. Instagram prompts append a
+    // ---SLIDES--- JSON section; other platforms don't, so this is a no-op
+    // for them. Also strip the <PROVENANCE> trailer — long-form prompts append
+    // it as per-paragraph source attribution, but the trailer is metadata,
+    // not body copy, and must never reach the editor surface.
+    const [captionRaw, slidesRaw] = extractProvenanceBlock(text.trim()).content.split('---SLIDES---')
     const caption = captionRaw.trim()
 
-    let overlay_text = null
-    if (overlayRaw) {
-      const hookMatch    = overlayRaw.match(/^HOOK:\s*(.+)$/m)
-      const subheadMatch = overlayRaw.match(/^SUBHEAD:\s*(.+)$/m)
-      const ctaMatch     = overlayRaw.match(/^CTA:\s*(.+)$/m)
-      if (hookMatch || subheadMatch || ctaMatch) {
-        overlay_text = {
-          hook:    hookMatch?.[1]?.trim()    ?? '',
-          subhead: subheadMatch?.[1]?.trim() ?? '',
-          cta:     ctaMatch?.[1]?.trim()     ?? '',
+    let slides = null
+    if (slidesRaw) {
+      try {
+        const jsonStr = slidesRaw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim()
+        const parsed = JSON.parse(jsonStr)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          slides = parsed
+            .filter((s) => s && typeof s === 'object')
+            .map((s) => ({
+              photo_idx: null,
+              template: typeof s.template === 'string' ? s.template : 'custom',
+              blocks: Array.isArray(s.blocks)
+                ? s.blocks
+                    .filter((b) => b && typeof b === 'object' && typeof b.text === 'string' && b.text.trim() !== '')
+                    .map((b) => ({
+                      role: typeof b.role === 'string' ? b.role : 'body',
+                      text: b.text.trim(),
+                      position: b.position ?? 'center',
+                    }))
+                : [],
+            }))
+            .filter((s, idx) => idx === 0 || s.blocks.length > 0 || s.template === 'demonstration')
+          if (slides.length === 0) slides = null
         }
+      } catch (e) {
+        console.warn('[draft] Failed to parse ---SLIDES--- JSON:', e.message)
+        slides = null
       }
     }
 
@@ -197,7 +213,8 @@ export default async function handler(req, res) {
       platform:       atom.platform,
       content:        caption,
       ai_original_content: caption,
-      overlay_text,
+      slides,
+      overlay_text:   null,
       status:         'draft',
       media_urls:     [],
       location_id:    interview.location_id ?? null,

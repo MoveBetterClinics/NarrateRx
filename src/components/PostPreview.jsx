@@ -4,6 +4,7 @@ import { Heart, MessageCircle, Send, Bookmark, ThumbsUp, Repeat2, Globe, MapPin,
 import emailTemplateHtml from '../email-template.html?raw'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { renderFreeformSlide } from '@/lib/overlayTemplates'
 
 // Pull the best logo URL for previews, preferring Brand Kit (primary_logo_url
 // is resolved by api/workspace/me from brand_kit_roles), then any legacy
@@ -50,6 +51,89 @@ function mediaSrc(m) {
 }
 
 // ── Carousel — shared by Instagram and Facebook ───────────────────────────────
+// Per-slide canvas — draws photo + freeform text blocks via the renderer.
+function SlideCanvas({ slide, photo, brandStyle }) {
+  const canvasRef = React.useRef(null)
+  React.useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    let cancelled = false
+    async function draw() {
+      try {
+        await renderFreeformSlide({
+          sourceUrl: photo?.url || null,
+          slide,
+          brandStyle: brandStyle || {},
+          canvas,
+        })
+      } catch (e) {
+        if (!cancelled) console.warn('[SlideCanvas] render failed', e?.message)
+      }
+    }
+    draw()
+    return () => { cancelled = true }
+  }, [slide, photo?.url, brandStyle])
+  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" aria-hidden="true" />
+}
+
+function SlidesCarousel({ slides, mediaUrls }) {
+  const [idx, setIdx] = React.useState(0)
+  const ws = useWorkspace()
+  const brandStyle = ws?.brand_style || {}
+  const total = slides.length
+
+  if (total === 0) {
+    return <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />
+  }
+
+  const slide = slides[idx]
+  const photo = typeof slide.photo_idx === 'number' ? mediaUrls[slide.photo_idx] : null
+
+  return (
+    <div className="relative aspect-square overflow-hidden bg-black select-none">
+      <SlideCanvas slide={slide} photo={photo} brandStyle={brandStyle} />
+
+      {total > 1 && (
+        <>
+          {idx > 0 && (
+            <button
+              onClick={() => setIdx(idx - 1)}
+              aria-label="Previous slide"
+              className="absolute left-1.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+          {idx < total - 1 && (
+            <button
+              onClick={() => setIdx(idx + 1)}
+              aria-label="Next slide"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-colors z-10"
+            >
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </button>
+          )}
+          <div className="absolute top-2 right-2 bg-black/50 text-white text-3xs font-medium px-1.5 py-0.5 rounded-full z-10" aria-hidden="true">
+            {idx + 1} / {total}
+          </div>
+          <div className="absolute bottom-2 left-0 right-0 flex justify-center gap-1 z-10" role="tablist" aria-label="Slides">
+            {slides.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setIdx(i)}
+                role="tab"
+                aria-label={`Slide ${i + 1}`}
+                aria-selected={i === idx}
+                className={`rounded-full transition-all ${i === idx ? 'w-2 h-2 bg-white' : 'w-1.5 h-1.5 bg-white/50'}`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
   const [idx, setIdx] = React.useState(0)
   const total = mediaUrls.length
@@ -137,15 +221,17 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
 }
 
 // ── Instagram ────────────────────────────────────────────────────────────────
-function InstagramPreview({ content, mediaUrls = [], overlayText = null }) {
+function InstagramPreview({ content, mediaUrls = [], slides = null }) {
   const [showFull, setShowFull] = React.useState(false)
   const lines = (content || '').split('\n')
   const preview = lines.slice(0, 4).join('\n')
   const hasMore = lines.length > 4
 
-  // Show overlay only when there's at least one image (not a video-only post)
-  const hasImage = mediaUrls.some((m) => m.type !== 'video')
-  const showOverlay = overlayText && hasImage && (overlayText.hook || overlayText.subhead || overlayText.cta)
+  // When slides exist, render the carousel as one canvas per slide (photo +
+  // baked text blocks). When slides are absent (legacy/fresh draft), fall back
+  // to plain media carousel with no on-photo text — backfill covers all
+  // pre-existing rows so this branch only hits brand-new in-progress drafts.
+  const hasSlides = Array.isArray(slides) && slides.length > 0
 
   return (
     <div className="max-w-sm mx-auto border rounded-xl overflow-hidden bg-white shadow-sm font-sans">
@@ -161,31 +247,11 @@ function InstagramPreview({ content, mediaUrls = [], overlayText = null }) {
         <button className="ml-auto text-xs font-semibold text-blue-500">Follow</button>
       </div>
 
-      {/* Carousel + overlay */}
+      {/* Carousel */}
       <div className="relative">
-        <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />
-        {showOverlay && (
-          <div className="absolute inset-0 pointer-events-none flex flex-col justify-end">
-            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent" />
-            <div className="relative z-10 px-4 pb-4 flex flex-col gap-1.5">
-              {overlayText.hook && (
-                <p className="text-white font-extrabold text-base leading-tight tracking-tight drop-shadow-md uppercase">
-                  {overlayText.hook}
-                </p>
-              )}
-              {overlayText.subhead && (
-                <p className="text-white/90 text-2xs font-medium leading-snug drop-shadow">
-                  {overlayText.subhead}
-                </p>
-              )}
-              {overlayText.cta && (
-                <span className="self-start mt-1 text-3xs font-bold text-white bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-3 py-1 drop-shadow">
-                  {overlayText.cta}
-                </span>
-              )}
-            </div>
-          </div>
-        )}
+        {hasSlides
+          ? <SlidesCarousel slides={slides} mediaUrls={mediaUrls} />
+          : <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />}
       </div>
 
       {/* Actions */}
@@ -696,7 +762,7 @@ function EmailPreview({ content, mediaUrls = [] }) {
 }
 
 // ── Main export ───────────────────────────────────────────────────────────────
-export default function PostPreview({ platform, content, mediaUrls = [], overlayText = null, locationOverrides = null }) {
+export default function PostPreview({ platform, content, mediaUrls = [], slides = null, overlayText: _overlayText = null, locationOverrides = null }) {
   if (!content?.trim()) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
@@ -706,7 +772,7 @@ export default function PostPreview({ platform, content, mediaUrls = [], overlay
   }
 
   switch (platform) {
-    case 'instagram':   return <InstagramPreview content={content} mediaUrls={mediaUrls} overlayText={overlayText} />
+    case 'instagram':   return <InstagramPreview content={content} mediaUrls={mediaUrls} slides={slides} />
     case 'facebook':    return <FacebookPreview  content={content} mediaUrls={mediaUrls} />
     case 'linkedin':    return <LinkedInPreview  content={content} />
     case 'gbp':         return <GBPPreview       content={content} locationOverrides={locationOverrides} />

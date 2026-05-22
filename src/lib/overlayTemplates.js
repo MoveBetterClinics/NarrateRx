@@ -374,6 +374,194 @@ export function getCompatibleTemplates(emphasis) {
     .map(([id]) => id)
 }
 
+// ── Freeform per-slide text blocks ──────────────────────────────────────────
+// Drives the per-slide editor + preview. Each slide is a photo + N text
+// blocks; each block has a role (drives typography) and a position (preset
+// key or { x, y } fraction). Position presets always map to the rendered
+// edges with a consistent safe-area PAD so text never collides with chrome.
+
+const FREEFORM_PAD = 64
+
+export const POSITION_PRESETS = [
+  'top-left', 'top', 'top-right',
+  'center-left', 'center', 'center-right',
+  'bottom-left', 'bottom', 'bottom-right',
+]
+
+export const BLOCK_ROLES = ['hook', 'body', 'caption', 'cta', 'attribution', 'page']
+
+// Per-role typography. Sizes are tuned for the 1080×1080 SIZE; the renderer
+// scales the canvas back down for the in-editor preview.
+function roleTypography(role, brandStyle) {
+  const { heading, body } = brandFonts(brandStyle)
+  switch (role) {
+    case 'hook':
+      return { font: `bold 84px ${heading}`, lineH: 96, color: 'white', uppercase: true,
+               maxLines: 4, shadow: true, maxWidthFrac: 0.86 }
+    case 'body':
+      return { font: `600 44px ${body}`, lineH: 56, color: 'white', uppercase: false,
+               maxLines: 5, shadow: true, maxWidthFrac: 0.86 }
+    case 'caption':
+      return { font: `italic 500 36px ${body}`, lineH: 46, color: 'rgba(255,255,255,0.92)', uppercase: false,
+               maxLines: 3, shadow: true, maxWidthFrac: 0.86 }
+    case 'cta':
+      return { font: `bold 42px ${heading}`, lineH: 0, color: 'white', uppercase: false,
+               maxLines: 1, pill: true, maxWidthFrac: 0.82 }
+    case 'attribution':
+      return { font: `500 30px ${body}`, lineH: 38, color: 'rgba(255,255,255,0.9)', uppercase: false,
+               maxLines: 2, shadow: true, maxWidthFrac: 0.7 }
+    case 'page':
+      return { font: `600 28px ${body}`, lineH: 34, color: 'rgba(255,255,255,0.85)', uppercase: false,
+               maxLines: 1, shadow: true, maxWidthFrac: 0.3 }
+    default:
+      return { font: `500 36px ${body}`, lineH: 46, color: 'white', uppercase: false,
+               maxLines: 3, shadow: true, maxWidthFrac: 0.86 }
+  }
+}
+
+// Resolve a position spec to { anchorX, anchorY, align } in canvas pixels.
+// Preset keys snap to a 3×3 grid inset by FREEFORM_PAD. Custom {x,y} is the
+// fraction of the canvas (0..1) for the block's anchor point, where the
+// anchor sits at the block's text-bottom-left for left/start aligns and
+// text-bottom-center for centered aligns.
+function resolvePosition(position) {
+  if (position && typeof position === 'object' && Number.isFinite(position.x) && Number.isFinite(position.y)) {
+    const x = Math.max(0, Math.min(1, position.x))
+    const y = Math.max(0, Math.min(1, position.y))
+    // Custom: align by which third of the canvas the anchor sits in
+    const align = x < 0.34 ? 'left' : x > 0.66 ? 'right' : 'center'
+    return { anchorX: Math.round(x * SIZE), anchorY: Math.round(y * SIZE), align }
+  }
+  const preset = typeof position === 'string' ? position : 'center'
+  const [vert, horiz] = preset.includes('-') ? preset.split('-') : [preset, null]
+  const colName = horiz || (vert === 'center' ? 'center' : 'center')
+  const rowName = (vert === 'top' || vert === 'bottom' || vert === 'center') ? vert : 'center'
+  const x = colName === 'left'  ? FREEFORM_PAD
+          : colName === 'right' ? SIZE - FREEFORM_PAD
+          :                       SIZE / 2
+  const y = rowName === 'top'    ? FREEFORM_PAD * 1.5
+          : rowName === 'bottom' ? SIZE - FREEFORM_PAD
+          :                        SIZE / 2
+  const align = colName === 'left' ? 'left' : colName === 'right' ? 'right' : 'center'
+  return { anchorX: Math.round(x), anchorY: Math.round(y), align }
+}
+
+function drawTextWithShadow(ctx, text, x, y) {
+  ctx.save()
+  ctx.shadowColor = 'rgba(0,0,0,0.65)'
+  ctx.shadowBlur = 6
+  ctx.shadowOffsetX = 0
+  ctx.shadowOffsetY = 2
+  ctx.fillText(text, x, y)
+  ctx.restore()
+}
+
+function drawFreeformBlock(ctx, block, brandStyle) {
+  const role = BLOCK_ROLES.includes(block.role) ? block.role : 'body'
+  const typo = roleTypography(role, brandStyle)
+  const raw = (block.text || '').trim()
+  if (!raw) return
+  const display = typo.uppercase ? raw.toUpperCase() : raw
+  const { anchorX, anchorY, align } = resolvePosition(block.position)
+
+  ctx.font = typo.font
+  ctx.fillStyle = typo.color
+  ctx.textBaseline = 'alphabetic'
+  ctx.textAlign = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center'
+
+  if (typo.pill) {
+    // CTA pill — different layout: rounded background + centered text
+    const accent = brandAccent(brandStyle)
+    const textW = ctx.measureText(display).width
+    const pillW = Math.min(textW + 80, Math.round(SIZE * typo.maxWidthFrac))
+    const pillH = 80
+    let pillX
+    if (align === 'left')       pillX = anchorX
+    else if (align === 'right') pillX = anchorX - pillW
+    else                        pillX = anchorX - pillW / 2
+    const pillY = anchorY - pillH
+    ctx.fillStyle = accent
+    drawRoundedRect(ctx, pillX, pillY, pillW, pillH, pillH / 2)
+    ctx.fill()
+    ctx.fillStyle = 'white'
+    ctx.textBaseline = 'middle'
+    ctx.textAlign = 'center'
+    ctx.fillText(display, pillX + pillW / 2, pillY + pillH / 2)
+    return
+  }
+
+  const maxW = Math.round(SIZE * typo.maxWidthFrac)
+  const lines = wrapLines(ctx, display, maxW, typo.maxLines)
+  // Block grows UP from anchorY (bottom-aligned) so positioning feels natural —
+  // "bottom" preset means the LAST line sits at the bottom safe-area.
+  let y = anchorY - (lines.length - 1) * typo.lineH
+  for (const l of lines) {
+    if (typo.shadow) drawTextWithShadow(ctx, l, anchorX, y)
+    else             ctx.fillText(l, anchorX, y)
+    y += typo.lineH
+  }
+  ctx.textAlign = 'start'
+}
+
+// Per-slide template chip → default block set for AI generation. The renderer
+// doesn't consume this; it's metadata for prompt + UI defaults. Editor users
+// can switch templates to swap the AI's default block pattern.
+export const SLIDE_TEMPLATES = {
+  cover:         { label: 'Cover',         default_blocks: ['hook', 'page'] },
+  explainer:     { label: 'Explainer',     default_blocks: ['hook', 'body', 'caption'] },
+  demonstration: { label: 'Demonstration', default_blocks: [] },
+  quote:         { label: 'Quote',         default_blocks: ['body', 'attribution'] },
+  cta:           { label: 'CTA',           default_blocks: ['hook', 'body', 'cta'] },
+  custom:        { label: 'Custom',        default_blocks: [] },
+}
+
+export const TEMPLATE_DEFAULT_POSITIONS = {
+  cover:         { hook: 'center',      page: 'bottom-right' },
+  explainer:     { hook: 'top',         body: 'center',       caption: 'bottom' },
+  demonstration: {},
+  quote:         { body: 'center',      attribution: 'bottom-right' },
+  cta:           { hook: 'top',         body: 'center',       cta: 'bottom' },
+  custom:        {},
+}
+
+// Render one slide (photo + freeform text blocks) to a canvas. Returns the
+// canvas so callers can either display it directly (DOM canvas preview) or
+// call toBlob() to produce a baked PNG.
+export async function renderFreeformSlide({ sourceUrl, slide, brandStyle, canvas }) {
+  const target = canvas || document.createElement('canvas')
+  target.width  = SIZE
+  target.height = SIZE
+  const ctx = target.getContext('2d')
+
+  if (sourceUrl) {
+    const img = await loadImage(sourceUrl)
+    drawCover(ctx, img, 0, 0, SIZE, SIZE)
+  } else {
+    // No photo bound — render a neutral placeholder so text is still legible
+    const grad = ctx.createLinearGradient(0, 0, 0, SIZE)
+    grad.addColorStop(0, '#475569')
+    grad.addColorStop(1, '#1e293b')
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, SIZE, SIZE)
+  }
+
+  // Light vignette so any-position text stays legible regardless of photo
+  const blocks = Array.isArray(slide?.blocks) ? slide.blocks : []
+  if (blocks.length > 0) {
+    const vignette = ctx.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.35, SIZE / 2, SIZE / 2, SIZE * 0.75)
+    vignette.addColorStop(0, 'rgba(0,0,0,0)')
+    vignette.addColorStop(1, 'rgba(0,0,0,0.45)')
+    ctx.fillStyle = vignette
+    ctx.fillRect(0, 0, SIZE, SIZE)
+  }
+
+  for (const block of blocks) {
+    drawFreeformBlock(ctx, block, brandStyle || {})
+  }
+
+  return target
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 export async function loadImage(url) {

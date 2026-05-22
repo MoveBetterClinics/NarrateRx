@@ -34,7 +34,8 @@ import { toast, runWithToast } from '@/lib/toast'
 import BufferMetricsRow from './BufferMetricsRow'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
 import MediaAttachmentPanel from './MediaAttachmentPanel'
-import OverlayTextEditor, { extractMarkerSuggestions, markersToOverlay } from './OverlayTextEditor'
+import SlideEditor from './SlideEditor'
+import { extractMarkerSuggestions, markersToOverlay } from './OverlayTextEditor'
 import PostPreview from '@/components/PostPreview'
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime()
@@ -298,7 +299,7 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
       ) : viewMode === 'assets' ? (
         <div className="space-y-3">
           <MediaAttachmentPanel piece={piece} />
-          {piece.platform === 'instagram' && <OverlayTextEditor piece={piece} />}
+          {piece.platform === 'instagram' && <SlideEditor piece={piece} />}
         </div>
       ) : (
         <textarea
@@ -784,6 +785,7 @@ function InspectDrawer({ piece, story }) {
               platform={piece.platform}
               content={typeof piece.content === 'string' ? piece.content : JSON.stringify(piece.content)}
               mediaUrls={Array.isArray(piece.media_urls) ? piece.media_urls : []}
+              slides={Array.isArray(piece.slides) ? piece.slides : null}
               overlayText={piece.overlay_text || null}
               locationOverrides={piece.location_overrides || null}
             />

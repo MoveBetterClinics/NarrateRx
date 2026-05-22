@@ -33,17 +33,30 @@ export function getAtomSystemPrompt(workspace, clinicianName, condition, platfor
     ? 'Write in a precise, evidence-informed clinical voice. Accessible but authoritative.'
     : 'Write in a warm, encouraging, community-first voice. Plain language. No clinical distance.'
 
-  // Appended to every Instagram prompt. Instructs the AI to output a
-  // machine-parseable overlay block after the caption so draft.js can split
-  // the two pieces without regex-ing through the caption body.
+  // Appended to every Instagram prompt. Instructs the AI to plan a multi-slide
+  // carousel with per-slide text blocks. draft.js parses this JSON block as
+  // the canonical source for content_items.slides.
   const instagramOverlayInstructions = `
 
 After the caption and hashtags, add this separator on its own line:
----OVERLAY---
-Then provide exactly three lines (no other text):
-HOOK: [Bold scroll-stopping statement, 5–7 words, ALL CAPS, derived from the caption's opening hook]
-SUBHEAD: [Supporting benefit or context, 8–12 words, Title Case]
-CTA: [Button action phrase, 3–5 words, Title Case, e.g. "Book Your Free Assessment"]`
+---SLIDES---
+Then output a valid JSON array (no prose, no markdown fences) with 3–5 slide objects describing the carousel plan. Each slide has a "template" (cover, explainer, demonstration, quote, or cta) and a "blocks" array of on-photo text blocks. Each block has a "role" (hook, body, caption, cta, attribution, or page), a "text" string, and optionally a "position" (top, top-left, top-right, center, center-left, center-right, bottom, bottom-left, bottom-right).
+
+Template guidance:
+- cover (slide 1): one hook block, optional page-number. Hook = scroll-stopping statement, 5–7 words, ALL CAPS.
+- explainer (slides 2–N): hook + body (+ optional caption). Body = 1–2 sentences explaining the idea.
+- demonstration: no text — the photo carries the slide.
+- quote: a body block (the actual quote, italic) + an attribution block.
+- cta (final slide): hook + body + cta. CTA = 3–5 word action phrase like "Book Your Free Assessment".
+
+Aim for 3–5 slides total. The last slide should usually be a "cta" template. Don't repeat the same text across slides. Each slide's blocks should cohere with the slide's template defaults but you can omit/add blocks if it serves the story.
+
+Example shape (do NOT copy verbatim — write fresh text per the caption):
+[
+  { "template": "cover",     "blocks": [{ "role": "hook", "text": "YOUR PIRIFORMIS MIGHT NOT BE TIGHT", "position": "center" }] },
+  { "template": "explainer", "blocks": [{ "role": "hook", "text": "MRI SAYS HERNIATED", "position": "top" }, { "role": "body", "text": "But the structure isn't the problem — the pattern that stressed it is.", "position": "center" }] },
+  { "template": "cta",       "blocks": [{ "role": "hook", "text": "READY TO MOVE PAST THE MRI?", "position": "top" }, { "role": "body", "text": "Book a free movement assessment.", "position": "center" }, { "role": "cta", "text": "Reserve Your Free Seat", "position": "bottom" }] }
+]`
 
   const instructions = {
     instagram: {
