@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { UserButton } from '@clerk/clerk-react'
+import { UserButtonWithProfile } from '@/components/UserButtonWithProfile'
+import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
 import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, UserCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,6 +29,7 @@ export default function Layout({ children }) {
   const { role, isStaff } = useUserRole()
   const [mobileOpen, setMobileOpen] = useState(false)
   const ws = useWorkspace()
+  const selfClinicianId = useSelfClinicianId()
   const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
   const logoAlt = ws?.display_name || ws?.name || STATIC_WORKSPACE.name
 
@@ -69,7 +71,7 @@ export default function Layout({ children }) {
             </Link>
           </Button>
 
-          <UserButton afterSignOutUrl="/" userProfileUrl="/account" />
+          <UserButtonWithProfile />
 
           {/* Hamburger — mobile only. Opens a dialog with the nav links,
               admin chrome, and campaign chip in a vertical stack. */}
@@ -121,6 +123,13 @@ export default function Layout({ children }) {
               <DrawerClose asChild>
                 <Link to="/settings/brand-kit" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Palette className="h-4 w-4" /> Brand Kit
+                </Link>
+              </DrawerClose>
+            )}
+            {selfClinicianId && (
+              <DrawerClose asChild>
+                <Link to={`/clinician/${selfClinicianId}`} className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
+                  <UserCircle className="h-4 w-4" /> My clinician profile
                 </Link>
               </DrawerClose>
             )}
