@@ -16,6 +16,7 @@ const DEFAULT_CAMPAIGN = Object.freeze({
   notes:     '',
   cta_url:   '',
   cta_label: '',
+  cta_pitch: '',
   event_at:  null,
 })
 
@@ -24,7 +25,7 @@ export async function loadActiveCampaign(workspaceId) {
   try {
     const r = await fetch(
       `${SUPABASE_URL}/rest/v1/clinic_settings?workspace_id=eq.${encodeURIComponent(workspaceId)}` +
-        `&select=campaign_mode,campaign_notes,campaign_cta_url,campaign_cta_label,campaign_event_at`,
+        `&select=campaign_mode,campaign_notes,campaign_cta_url,campaign_cta_label,campaign_cta_pitch,campaign_event_at`,
       {
         headers: {
           apikey:        SUPABASE_KEY,
@@ -44,6 +45,7 @@ export async function loadActiveCampaign(workspaceId) {
       notes:     rows[0].campaign_notes     || '',
       cta_url:   rows[0].campaign_cta_url   || '',
       cta_label: rows[0].campaign_cta_label || '',
+      cta_pitch: rows[0].campaign_cta_pitch || '',
       event_at:  rows[0].campaign_event_at  || null,
     }
   } catch (e) {
