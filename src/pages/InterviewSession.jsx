@@ -457,9 +457,9 @@ export default function InterviewSession() {
     // Fetch learned practice knowledge for this topic — injected into every
     // system prompt for this session. Fails silently (empty block = graceful noop).
     const clinicianParam = clinicianId ? `&clinician_id=${encodeURIComponent(clinicianId)}` : ''
-    fetch(`/api/concepts/context?topic=${encodeURIComponent(interviewData.topic || '')}${clinicianParam}`)
-      .then((r) => r.ok ? r.json() : { block: '', agreementBlock: '', gapBlock: '' })
-      .then(({ block, agreementBlock, gapBlock }) => {
+    apiFetch(`/api/concepts/context?topic=${encodeURIComponent(interviewData.topic || '')}${clinicianParam}`)
+      .then((data) => {
+        const { block, agreementBlock, gapBlock } = /** @type {{ block?: string, agreementBlock?: string, gapBlock?: string }} */ (data || {})
         conceptBlockRef.current   = block          || ''
         agreementBlockRef.current = agreementBlock || ''
         gapBlockRef.current       = gapBlock       || ''
