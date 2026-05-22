@@ -83,8 +83,7 @@ export default async function handler(req, res) {
     if (body.cta_label !== undefined) update.campaign_cta_label = body.cta_label || null
     if (body.cta_pitch !== undefined) update.campaign_cta_pitch = body.cta_pitch || null
     if (body.event_at  !== undefined) update.campaign_event_at  = body.event_at || null
-    const userId = req.headers['x-user-id'] ?? null
-    if (userId) update.updated_by = userId
+    if (auth.userId) update.updated_by = auth.userId
 
     const r = await sb(`clinic_settings`, {
       method: 'POST',
