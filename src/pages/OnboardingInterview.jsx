@@ -157,10 +157,19 @@ export default function OnboardingInterview() {
 
     const systemPrompt = getOnboardingInterviewSystemPrompt(workspace, founderName, { isFirstMessage })
 
+    // Claude API (and Vercel AI Gateway) require at least one message — a
+    // system-only request returns AI_InvalidPromptError. On the first turn,
+    // inject a silent user "please begin" so Bernard's opener has a turn to
+    // respond to. Matches the canonical pattern in InterviewSession.jsx.
+    // We do NOT add this to the visible transcript — it's a trigger only.
+    const streamInput = currentMessages.length === 0
+      ? [{ role: 'user', content: 'Please begin the onboarding interview.' }]
+      : currentMessages
+
     let buffer = ''
     let complete = false
     try {
-      for await (const delta of streamMessage(currentMessages, systemPrompt, { model: 'claude-sonnet-4-6', maxOutputTokens: 1024 })) {
+      for await (const delta of streamMessage(streamInput, systemPrompt, { model: 'claude-sonnet-4-6', maxOutputTokens: 1024 })) {
         buffer += delta
         // Cheap mid-stream check — the model usually emits the token at the
         // end, but stripping early keeps the partial UI clean.
@@ -196,9 +205,17 @@ export default function OnboardingInterview() {
   }, [workspace, founderName, persist])
 
   // Kick off the opener once the interview is loaded with no messages yet.
+  // kickedOffRef ensures we only attempt once per page-load — if the stream
+  // call fails (e.g. AI_InvalidPromptError, rate limit, network), the error
+  // is shown but we don't auto-retry. Without this guard the effect re-fires
+  // each render because `streaming` flips back to false on error and
+  // `messages.length` stays 0, producing a 10-rps retry storm.
+  const kickedOffRef = useRef(false)
   useEffect(() => {
     if (loading || completed || streaming || !interview) return
     if (messages.length > 0) return
+    if (kickedOffRef.current) return
+    kickedOffRef.current = true
     runAssistantTurn([], { isFirstMessage: true })
   }, [loading, completed, streaming, interview, messages.length, runAssistantTurn])
 
