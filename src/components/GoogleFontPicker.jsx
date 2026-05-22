@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Check, ChevronDown, Search, X } from 'lucide-react'
+import { Check, ChevronDown, Plus, Search, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // Curated popular Google Fonts. Grouped roughly by category so the search
@@ -90,11 +90,25 @@ function ensureExtraFontLoaded(family) {
 export function GoogleFontPicker({ value, onChange, sampleText, className }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [customMode, setCustomMode] = useState(false)
+  const [customDraft, setCustomDraft] = useState('')
   const wrapRef = useRef(null)
   const inputRef = useRef(null)
+  const customInputRef = useRef(null)
 
   useEffect(() => { ensureFontsLoaded() }, [])
   useEffect(() => { ensureExtraFontLoaded(value) }, [value])
+  useEffect(() => { if (customMode) setTimeout(() => customInputRef.current?.focus(), 0) }, [customMode])
+
+  function commitCustom() {
+    const v = customDraft.trim()
+    if (!v) return
+    ensureExtraFontLoaded(v)
+    onChange(v)
+    setCustomMode(false)
+    setCustomDraft('')
+    setOpen(false)
+  }
 
   useEffect(() => {
     if (!open) return
@@ -107,7 +121,7 @@ export function GoogleFontPicker({ value, onChange, sampleText, className }) {
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 0)
-    else setQuery('')
+    else { setQuery(''); setCustomMode(false); setCustomDraft('') }
   }, [open])
 
   const filtered = useMemo(() => {
@@ -190,9 +204,58 @@ export function GoogleFontPicker({ value, onChange, sampleText, className }) {
               })
             )}
           </div>
-          <div className="border-t px-3 py-1.5 text-2xs text-muted-foreground">
-            Fonts via <a href="https://fonts.google.com" target="_blank" rel="noreferrer" className="underline">Google Fonts</a>
-          </div>
+          {customMode ? (
+            <div className="border-t bg-muted/30 px-2 py-1.5">
+              <div className="mb-1 text-2xs text-muted-foreground">
+                Type any Google Fonts family name. <a href="https://fonts.google.com" target="_blank" rel="noreferrer" className="underline">Browse fonts.google.com</a>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <input
+                  ref={customInputRef}
+                  value={customDraft}
+                  onChange={(e) => setCustomDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitCustom() }
+                    if (e.key === 'Escape') { e.preventDefault(); setCustomMode(false); setCustomDraft('') }
+                  }}
+                  placeholder="e.g. Inter Tight"
+                  className="h-7 w-full rounded border border-input bg-background px-2 text-xs outline-none focus:border-primary/60"
+                />
+                <button
+                  type="button"
+                  onClick={commitCustom}
+                  disabled={!customDraft.trim()}
+                  className="h-7 rounded bg-primary px-2 text-2xs font-medium text-primary-foreground disabled:opacity-50"
+                >
+                  Use
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCustomMode(false); setCustomDraft('') }}
+                  className="h-7 rounded px-2 text-2xs text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+              </div>
+              {customDraft.trim() && (
+                <div
+                  className="mt-1.5 truncate text-sm"
+                  style={{ fontFamily: `"${customDraft.trim()}", sans-serif` }}
+                >
+                  {sample}
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setCustomMode(true)}
+              className="flex w-full items-center gap-2 border-t px-3 py-1.5 text-left text-2xs text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+            >
+              <Plus className="h-3 w-3" />
+              Use a custom Google Fonts family…
+            </button>
+          )}
         </div>
       )}
     </div>
