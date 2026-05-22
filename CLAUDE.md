@@ -191,12 +191,13 @@ cd "/Users/qbook/Claude Projects/NarrateRx" && npm run deploy:prod
 If the project root is on another branch (with WIP), do not switch under the user. Either run the deploy from a separate `main`-tracking worktree that's `vercel link`ed to the `narraterx` project (copy `.vercel/project.json` in if needed) or ask the user to free up the project root. Always confirm the resulting deploy is aliased to `narraterx.ai` + `*.narraterx.ai` with `vercel inspect <dpl-id>` before declaring it done — deploys from an unlinked worktree silently create a separate Vercel project and never touch the real prod aliases.
 
 ## Audit and checkup
-Two complementary commands cover code/UI/prod health:
+Three complementary commands cover code/UI/prod health:
 
 - **`/checkup`** (and `/checkup quick`, `/checkup ui`, `/checkup full`) — procedural health pass: lint + build + tests + recent-change code review + optional UI smoke + prod logs. Fast, deterministic, ~3–25 min. Use before opening a PR or after a hot deploy.
-- **`/audit`** (and `/audit full`) — multi-agent deep review composing `bug-hunter` + `tenant-isolation-auditor` + `ui-reviewer` in parallel. Default mode scopes the first two to commits since the last audit (tracked in `.claude/audit-history/.last-audit`); `ui-reviewer` always sweeps the full app since visual drift is cumulative. Writes a prioritized P0/P1/P2 punch list to `.claude/audit-history/<date>.md` and spawns one-click chips for P0 fixes (via the worktree helper). Higher token cost (~$3–6 since-last, $8–15 full); run weekly or before a release, not every commit.
+- **`/audit`** — multi-agent deep review composing `bug-hunter` + `tenant-isolation-auditor` + `ui-reviewer` in parallel, scoped to commits since the last audit (tracked in `.claude/audit-history/.last-audit`). `ui-reviewer` always sweeps the full app since visual drift is cumulative. Writes a prioritized P0/P1/P2 punch list to `.claude/audit-history/<date>.md` and spawns one-click chips for P0 fixes. ~10 min, ~$3–6. Routine cadence.
+- **`/auditfull`** — same three agents, but `bug-hunter` and `tenant-isolation-auditor` sweep the entire codebase with no diff scoping. Higher coverage at higher cost. ~20 min, ~$8–15. Before-release baseline, not weekly cadence.
 
-Pair `/audit` with `/schedule` for an automated weekly run.
+Pair `/audit` with `/schedule` for an automated weekly run; reserve `/auditfull` for monthly or pre-release passes.
 
 ## Definition of Done
 Every PR must satisfy this checklist before merging. The triage on 2026-05-14 traced 12+ bugs to exactly these gaps being skipped.

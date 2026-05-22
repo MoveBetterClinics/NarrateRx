@@ -1,19 +1,22 @@
 ---
-description: Run a multi-agent deep audit of the NarrateRx codebase — static gates + parallel runs of bug-hunter, tenant-isolation-auditor, and ui-reviewer — then synthesize a prioritized punch list and offer to spawn fix tasks. Sister command to /checkup. Args: `/audit` (since-last-audit, default) or `/audit full`.
+description: Multi-agent deep audit of the NarrateRx codebase scoped to commits since the last audit — static gates + parallel runs of bug-hunter, tenant-isolation-auditor, and ui-reviewer. Synthesizes a prioritized punch list and spawns fix-task chips for P0s. For a full-codebase sweep (no scoping), use /auditfull instead.
 ---
 
-Run a structured multi-agent audit and produce a prioritized punch list. Composes three specialized agents in parallel with the static-check stack. Sister command to `/checkup` — `/checkup` is a procedural health pass (lint, tests, UI smoke, prod health); `/audit` is a deep agent-driven review focused on logic correctness, tenant isolation, and UI quality.
+Run a structured multi-agent audit scoped to commits **since the last audit**, and produce a prioritized punch list. Composes three specialized agents in parallel with the static-check stack. Sister command to `/checkup` (procedural health pass) and `/auditfull` (full-codebase deep audit, no scoping).
 
-## Mode selection (from arguments)
+## Scope
 
-| Argument | Scope | Approx time | Approx cost |
-|---|---|---|---|
-| `/audit` (default) | bug-hunter + tenant-isolation-auditor scoped to commits since last audit; ui-reviewer does full sweep (visual drift is cumulative) | ~10 min | $3–6 |
-| `/audit full` | All three agents do a full-codebase sweep | ~20 min | $8–15 |
+| Agent | Scope |
+|---|---|
+| `bug-hunter` | Files changed in the diff range below |
+| `tenant-isolation-auditor` | API handlers (`api/**/*.js`) in the diff range |
+| `ui-reviewer` | Full sweep — visual drift is cumulative, an old PR's color choice can read as inconsistent only when a new page lands |
 
-Read `.claude/audit-history/.last-audit` (a single-line file containing the SHA of the last audit's HEAD) to determine the diff range for since-last-audit mode. If the file is missing or unreadable, fall back to `origin/main~20..HEAD` (last 20 commits on main).
+Approx time: ~10 min. Approx cost: $3–6.
 
-If the user passes any other text, treat it as default mode and continue.
+**Diff range**: read `.claude/audit-history/.last-audit` (a single-line file containing the SHA of the last audit's HEAD). The audit reviews commits in `<.last-audit>..HEAD`. If the file is missing or unreadable, fall back to `origin/main~20..HEAD` (last 20 commits on main).
+
+For a **full-codebase sweep** instead, run `/auditfull` (no diff scoping; reviews everything).
 
 ---
 
@@ -38,27 +41,20 @@ This is the heart of `/audit`. Send a single message with **three concurrent Age
 **Scoping prep** (run first):
 
 ```bash
-# Diff range — empty in --full mode, since-last in default mode
-if [ "$MODE" = "full" ]; then
-  CHANGED_FILES=""
-  COMMIT_RANGE=""
-else
-  LAST_AUDIT_SHA="$(cat .claude/audit-history/.last-audit 2>/dev/null || git rev-parse origin/main~20)"
-  COMMIT_RANGE="${LAST_AUDIT_SHA}..HEAD"
-  CHANGED_FILES="$(git diff --name-only $COMMIT_RANGE)"
-fi
+LAST_AUDIT_SHA="$(cat .claude/audit-history/.last-audit 2>/dev/null || git rev-parse origin/main~20)"
+COMMIT_RANGE="${LAST_AUDIT_SHA}..HEAD"
+CHANGED_FILES="$(git diff --name-only $COMMIT_RANGE)"
 git log --oneline $COMMIT_RANGE 2>/dev/null | head -50
 ```
 
 Then dispatch the three agents in one message:
 
 ### Agent 1 — bug-hunter
-- **Scope (default)**: only the files in `$CHANGED_FILES`
-- **Scope (full)**: top-level src/ + api/, skipping `node_modules`, `dist`, `.claude/worktrees`
+- **Scope**: only the files in `$CHANGED_FILES`
 - **Prompt template**:
   > Hunt for bugs in the NarrateRx codebase. Look for logic errors, edge cases, race conditions, state bugs, and unsafe assumptions. Do NOT report style or formatting issues.
   >
-  > Scope: `<CHANGED_FILES or "full src/ and api/">`
+  > Scope: `<CHANGED_FILES>`
   >
   > Context: this is a multi-tenant SaaS (see CLAUDE.md "Multi-tenant SaaS"). Common bug shapes in this codebase:
   > - useEffect deps that cause double-billing of expensive ops
@@ -70,12 +66,11 @@ Then dispatch the three agents in one message:
   > Output as Markdown with sections P0 (data loss / crashes / security), P1 (broken UX / wrong behavior), P2 (resilience / future-bug). Each finding: `file:line — problem — suggested fix`. Cap at top 15 findings.
 
 ### Agent 2 — tenant-isolation-auditor
-- **Scope (default)**: only the files in `$CHANGED_FILES` that match `api/**/*.js`
-- **Scope (full)**: every file under `api/` recursively
+- **Scope**: only the files in `$CHANGED_FILES` that match `api/**/*.js`
 - **Prompt template**:
   > Audit NarrateRx API handlers for tenant-isolation gaps. Cross-workspace data leaks are 🔴 critical — this is enforced at the API layer (no RLS), so every handler that reads or writes a tenant-scoped table MUST call `workspaceContext(req)` (or `workspaceById(id)` for background paths) and filter by `workspace_id`.
   >
-  > Scope: `<changed api/* files or "all api/">`
+  > Scope: `<changed api/* files>`
   >
   > Reference patterns: see `api/_lib/segmentInterview.js` (single-table CRUD) and `api/collections/items.js` (junction with verifyScope on both sides). See `reference_tenant_isolation_canonical_pattern.md` in memory for the audit baseline.
   >
@@ -101,8 +96,8 @@ After all three agents return:
 2. **Write the report** to `.claude/audit-history/<YYYY-MM-DD-HHMM>.md` with this structure:
    ```
    # Audit Report — <date>
-   Mode: <since-last | full>
-   Range: <commit range or "full sweep">
+   Mode: since-last
+   Range: <commit range>
    Branch: <git branch> @ <short sha>
    Static gates: ✓ all green
 
@@ -125,7 +120,6 @@ After all three agents return:
    ```bash
    git rev-parse HEAD > .claude/audit-history/.last-audit
    ```
-   In `--full` mode, still update the pointer — it just sets the baseline for the next since-last run.
 
 4. **Console summary** — print to chat:
    - One-line per priority tier (e.g. "P0: 2 findings (both tenant). P1: 5 findings. P2: 8 findings.")
