@@ -13,7 +13,7 @@ export const config = { runtime: 'nodejs' }
 // prompts keep rendering identically. Without that backfill, single-location
 // workspaces would lose their interpolated values.
 
-import { workspaceContext } from '../_lib/workspaceContext.js'
+import { workspaceContext, invalidateWorkspaceCacheById } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -74,6 +74,10 @@ async function syncWorkspaceFromPrimary(workspaceId) {
     method: 'PATCH',
     body: JSON.stringify(patch),
   })
+  // Drop the in-process workspace cache so the next GET reflects the new
+  // umbrella location/keyword/hashtag immediately (sibling instances still
+  // TTL out at 60s).
+  invalidateWorkspaceCacheById(workspaceId)
 }
 
 async function unsetOtherPrimaries(workspaceId, exceptId) {

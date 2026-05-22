@@ -12,7 +12,7 @@
 
 export const config = { runtime: 'nodejs' }
 
-import { workspaceContext } from '../_lib/workspaceContext.js'
+import { workspaceContext, invalidateWorkspaceCacheById, invalidateWorkspaceCacheBySlug } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 import { withSentry } from '../_lib/sentry.js'
 
@@ -166,6 +166,11 @@ async function handler(req, res) {
     }
     const rows = await r.json()
     const updatedWs = rows?.[0] ?? { ...ws, ...patch }
+    // Drop the in-process workspace cache so subsequent step-tick reads (on
+    // this instance) see the updated onboarding_steps_done / completed_at
+    // immediately. Sibling instances still TTL out at 60s.
+    invalidateWorkspaceCacheById(ws.id)
+    invalidateWorkspaceCacheBySlug(ws.slug)
 
     const doneMap = await detectDoneSteps(updatedWs)
     const steps = STEP_KEYS.map((key) => ({

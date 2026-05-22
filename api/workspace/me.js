@@ -7,7 +7,7 @@ export const config = { runtime: 'nodejs' }
 //
 // 404 when no resolvable workspace (apex, www, preview URL, unknown subdomain).
 
-import { workspaceContext } from '../_lib/workspaceContext.js'
+import { workspaceContext, invalidateWorkspaceCacheById, invalidateWorkspaceCacheBySlug } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 
 // Hard allowlist — only these columns may be patched via this endpoint.
@@ -341,6 +341,12 @@ async function handler(req, res) {
     const rows = await r.json().catch(() => null)
     const updated = Array.isArray(rows) ? rows[0] : null
     if (!updated) return res.status(500).json({ error: 'db-error' })
+    // Drop the in-process workspace cache so the next read on this instance
+    // sees the write. Sibling instances still TTL out at 60s; the front-end
+    // sees its own write back in the response body so the immediate UI is
+    // correct, but freshness on the next GET matters for any other tab.
+    invalidateWorkspaceCacheById(workspace.id)
+    invalidateWorkspaceCacheBySlug(workspace.slug)
     return res.status(200).json(updated)
   }
 
