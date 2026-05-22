@@ -87,7 +87,7 @@ export default function LibraryReadyStrip() {
           return (
             <Link
               key={p.id}
-              to={`/stories/${p.storyId}`}
+              to={`/stories/${p.storyId}?piece=${p.id}`}
               className="group flex flex-col gap-2 rounded-xl border border-border bg-white p-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#fde0d2] hover:shadow-[0_8px_20px_-16px_rgba(15,23,42,0.18)]"
             >
               <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-medium w-fit ${pm.bg} ${pm.color}`}>
