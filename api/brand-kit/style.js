@@ -3,6 +3,7 @@ export const config = { runtime: 'nodejs' }
 import { requireRole } from '../_lib/auth.js'
 import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
+import { invalidateWorkspaceCacheById } from '../_lib/workspaceContext.js'
 
 // Patch the workspace's brand_style jsonb. Accent color, secondary palette,
 // and heading/body font names — see migration 023 for the canonical shape.
@@ -78,6 +79,9 @@ async function handler(req, res) {
     const text = await upRes.text()
     return res.status(500).json({ error: 'Database error', detail: text })
   }
+  // Drop the workspace cache so the next GET in this instance reflects the
+  // write. Without this the 60s in-process cache serves stale brand_style.
+  invalidateWorkspaceCacheById(scope.id)
   return res.status(200).json({ ok: true, style: next })
 }
 
