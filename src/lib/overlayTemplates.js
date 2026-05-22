@@ -390,32 +390,70 @@ export const POSITION_PRESETS = [
 
 export const BLOCK_ROLES = ['hook', 'body', 'caption', 'cta', 'attribution', 'page']
 
-// Per-role typography. Sizes are tuned for the 1080×1080 SIZE; the renderer
-// scales the canvas back down for the in-editor preview.
-function roleTypography(role, brandStyle) {
+import { FONT_SIZE_PX, FONT_WEIGHT_CSS } from './carouselThemes.js'
+
+const SHADOW_LEVELS = {
+  soft:   { color: 'rgba(0,0,0,0.40)', blur: 4,  offsetY: 1 },
+  medium: { color: 'rgba(0,0,0,0.65)', blur: 6,  offsetY: 2 },
+  strong: { color: 'rgba(0,0,0,0.80)', blur: 14, offsetY: 3 },
+}
+
+// Per-role typography defaults (no theme). Sizes tuned for 1080×1080 canvas.
+function roleTypography(role, brandStyle, themeBlock) {
   const { heading, body } = brandFonts(brandStyle)
+
+  // Base defaults by role
+  let baseFont, lineH, color, uppercase, maxLines, shadowLevel, maxWidthFrac, pill
   switch (role) {
     case 'hook':
-      return { font: `bold 84px ${heading}`, lineH: 96, color: 'white', uppercase: true,
-               maxLines: 4, shadow: true, maxWidthFrac: 0.86 }
+      baseFont = `800 84px ${heading}`; lineH = 96; color = 'white'; uppercase = true;
+      maxLines = 4; shadowLevel = 'medium'; maxWidthFrac = 0.86; break
     case 'body':
-      return { font: `600 44px ${body}`, lineH: 56, color: 'white', uppercase: false,
-               maxLines: 5, shadow: true, maxWidthFrac: 0.86 }
+      baseFont = `600 44px ${body}`; lineH = 56; color = 'white'; uppercase = false;
+      maxLines = 5; shadowLevel = 'medium'; maxWidthFrac = 0.86; break
     case 'caption':
-      return { font: `italic 500 36px ${body}`, lineH: 46, color: 'rgba(255,255,255,0.92)', uppercase: false,
-               maxLines: 3, shadow: true, maxWidthFrac: 0.86 }
+      baseFont = `italic 500 36px ${body}`; lineH = 46; color = 'rgba(255,255,255,0.92)'; uppercase = false;
+      maxLines = 3; shadowLevel = 'medium'; maxWidthFrac = 0.86; break
     case 'cta':
-      return { font: `bold 42px ${heading}`, lineH: 0, color: 'white', uppercase: false,
-               maxLines: 1, pill: true, maxWidthFrac: 0.82 }
+      baseFont = `700 42px ${heading}`; lineH = 0; color = 'white'; uppercase = false;
+      maxLines = 1; shadowLevel = 'none'; maxWidthFrac = 0.82; pill = true; break
     case 'attribution':
-      return { font: `500 30px ${body}`, lineH: 38, color: 'rgba(255,255,255,0.9)', uppercase: false,
-               maxLines: 2, shadow: true, maxWidthFrac: 0.7 }
+      baseFont = `500 30px ${body}`; lineH = 38; color = 'rgba(255,255,255,0.9)'; uppercase = false;
+      maxLines = 2; shadowLevel = 'soft'; maxWidthFrac = 0.70; break
     case 'page':
-      return { font: `600 28px ${body}`, lineH: 34, color: 'rgba(255,255,255,0.85)', uppercase: false,
-               maxLines: 1, shadow: true, maxWidthFrac: 0.3 }
+      baseFont = `600 28px ${body}`; lineH = 34; color = 'rgba(255,255,255,0.85)'; uppercase = false;
+      maxLines = 1; shadowLevel = 'soft'; maxWidthFrac = 0.30; break
     default:
-      return { font: `500 36px ${body}`, lineH: 46, color: 'white', uppercase: false,
-               maxLines: 3, shadow: true, maxWidthFrac: 0.86 }
+      baseFont = `500 36px ${body}`; lineH = 46; color = 'white'; uppercase = false;
+      maxLines = 3; shadowLevel = 'medium'; maxWidthFrac = 0.86
+  }
+
+  if (!themeBlock) {
+    return { font: baseFont, lineH, color, uppercase, maxLines,
+             shadow: shadowLevel !== 'none', shadowLevel, maxWidthFrac,
+             pill: !!pill, background: pill ? 'pill' : 'none', bgColor: null }
+  }
+
+  // Apply theme overrides
+  const family = ['hook', 'cta'].includes(role) ? heading : body
+  const sz  = FONT_SIZE_PX[themeBlock.fontSize] ?? (pill ? 42 : 44)
+  const wt  = FONT_WEIGHT_CSS[themeBlock.fontWeight] ?? '600'
+  const font = `${wt} ${sz}px ${family}`
+  const tShadow = themeBlock.shadow ?? 'medium'
+  const bg      = themeBlock.background ?? (pill ? 'pill' : 'none')
+
+  return {
+    font,
+    lineH: Math.round(sz * 1.18),
+    color:        themeBlock.color ?? color,
+    uppercase:    themeBlock.uppercase ?? uppercase,
+    maxLines,
+    shadow:       tShadow !== 'none',
+    shadowLevel:  tShadow,
+    maxWidthFrac,
+    pill:         bg === 'pill',
+    background:   bg,
+    bgColor:      themeBlock.bgColor ?? null,
   }
 }
 
@@ -446,19 +484,20 @@ function resolvePosition(position) {
   return { anchorX: Math.round(x), anchorY: Math.round(y), align }
 }
 
-function drawTextWithShadow(ctx, text, x, y) {
+function drawTextWithShadow(ctx, text, x, y, level = 'medium') {
+  const s = SHADOW_LEVELS[level] || SHADOW_LEVELS.medium
   ctx.save()
-  ctx.shadowColor = 'rgba(0,0,0,0.65)'
-  ctx.shadowBlur = 6
+  ctx.shadowColor   = s.color
+  ctx.shadowBlur    = s.blur
   ctx.shadowOffsetX = 0
-  ctx.shadowOffsetY = 2
+  ctx.shadowOffsetY = s.offsetY
   ctx.fillText(text, x, y)
   ctx.restore()
 }
 
-function drawFreeformBlock(ctx, block, brandStyle) {
+function drawFreeformBlock(ctx, block, brandStyle, themeBlock) {
   const role = BLOCK_ROLES.includes(block.role) ? block.role : 'body'
-  const typo = roleTypography(role, brandStyle)
+  const typo = roleTypography(role, brandStyle, themeBlock)
   const raw = (block.text || '').trim()
   if (!raw) return
   const display = typo.uppercase ? raw.toUpperCase() : raw
@@ -469,9 +508,9 @@ function drawFreeformBlock(ctx, block, brandStyle) {
   ctx.textBaseline = 'alphabetic'
   ctx.textAlign = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center'
 
-  if (typo.pill) {
-    // CTA pill — different layout: rounded background + centered text
-    const accent = brandAccent(brandStyle)
+  if (typo.pill || typo.background === 'pill') {
+    // Pill background — single line, rounded rect behind text
+    const bgColor = typo.bgColor || brandAccent(brandStyle)
     const textW = ctx.measureText(display).width
     const pillW = Math.min(textW + 80, Math.round(SIZE * typo.maxWidthFrac))
     const pillH = 80
@@ -480,10 +519,10 @@ function drawFreeformBlock(ctx, block, brandStyle) {
     else if (align === 'right') pillX = anchorX - pillW
     else                        pillX = anchorX - pillW / 2
     const pillY = anchorY - pillH
-    ctx.fillStyle = accent
+    ctx.fillStyle = bgColor
     drawRoundedRect(ctx, pillX, pillY, pillW, pillH, pillH / 2)
     ctx.fill()
-    ctx.fillStyle = 'white'
+    ctx.fillStyle = typo.color
     ctx.textBaseline = 'middle'
     ctx.textAlign = 'center'
     ctx.fillText(display, pillX + pillW / 2, pillY + pillH / 2)
@@ -492,11 +531,29 @@ function drawFreeformBlock(ctx, block, brandStyle) {
 
   const maxW = Math.round(SIZE * typo.maxWidthFrac)
   const lines = wrapLines(ctx, display, maxW, typo.maxLines)
-  // Block grows UP from anchorY (bottom-aligned) so positioning feels natural —
-  // "bottom" preset means the LAST line sits at the bottom safe-area.
+  // Block grows UP from anchorY so "bottom" preset means the last line sits at
+  // the bottom safe-area.
+  const PAD_H = 20  // vertical padding inside rect backgrounds
+  const PAD_W = 36  // horizontal padding inside rect backgrounds
+  const blockH = lines.length * typo.lineH + PAD_H * 2
   let y = anchorY - (lines.length - 1) * typo.lineH
+
+  if (typo.background === 'rect' && typo.bgColor) {
+    // Measure widest line for the background rect
+    const maxLineW = lines.reduce((m, l) => Math.max(m, ctx.measureText(l).width), 0)
+    const rectW = maxLineW + PAD_W * 2
+    let rectX
+    if (align === 'left')       rectX = anchorX - PAD_W
+    else if (align === 'right') rectX = anchorX - maxLineW - PAD_W
+    else                        rectX = anchorX - maxLineW / 2 - PAD_W
+    const rectY = y - typo.lineH - PAD_H
+    ctx.fillStyle = typo.bgColor
+    ctx.fillRect(rectX, rectY, rectW, blockH)
+  }
+
+  ctx.fillStyle = typo.color
   for (const l of lines) {
-    if (typo.shadow) drawTextWithShadow(ctx, l, anchorX, y)
+    if (typo.shadow) drawTextWithShadow(ctx, l, anchorX, y, typo.shadowLevel)
     else             ctx.fillText(l, anchorX, y)
     y += typo.lineH
   }
@@ -527,7 +584,7 @@ export const TEMPLATE_DEFAULT_POSITIONS = {
 // Render one slide (photo + freeform text blocks) to a canvas. Returns the
 // canvas so callers can either display it directly (DOM canvas preview) or
 // call toBlob() to produce a baked PNG.
-export async function renderFreeformSlide({ sourceUrl, slide, brandStyle, canvas }) {
+export async function renderFreeformSlide({ sourceUrl, slide, brandStyle, canvas, theme }) {
   const target = canvas || document.createElement('canvas')
   target.width  = SIZE
   target.height = SIZE
@@ -556,7 +613,8 @@ export async function renderFreeformSlide({ sourceUrl, slide, brandStyle, canvas
   }
 
   for (const block of blocks) {
-    drawFreeformBlock(ctx, block, brandStyle || {})
+    const themeBlock = theme?.blocks?.[block.role] ?? null
+    drawFreeformBlock(ctx, block, brandStyle || {}, themeBlock)
   }
 
   return target

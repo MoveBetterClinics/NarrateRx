@@ -20,6 +20,7 @@ const MOBILE_NAV = [
   { to: '/settings/workspace/channels',           label: 'Output channels',    icon: Radio },
   { to: '/settings/integrations',                 label: 'Integrations',       icon: Puzzle },
   { to: '/settings/brand-kit',                    label: 'Brand kit',          icon: Palette },
+  { to: '/settings/carousel-themes',              label: 'Carousel themes',    icon: Palette },
   { to: '/settings/members',                      label: 'Members & roles',    icon: Users },
   { to: '/settings/workspace/billing',            label: 'Plan & billing',     icon: CreditCard },
 ]
@@ -42,6 +43,7 @@ const GROUPS = [
       { to: '/settings/workspace/channels',  label: 'Output channels',    icon: Radio },
       { to: '/settings/integrations',        label: 'Integrations',       icon: Puzzle },
       { to: '/settings/brand-kit',           label: 'Brand kit',          icon: Palette },
+      { to: '/settings/carousel-themes',     label: 'Carousel themes',    icon: Palette },
     ],
   },
   {

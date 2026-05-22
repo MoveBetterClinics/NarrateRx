@@ -30,6 +30,7 @@ const LocationsSettings = lazy(() => import('@/pages/settings/LocationsSettings'
 const BillingSettings = lazy(() => import('@/pages/settings/BillingSettings'))
 const BrandKitPreview = lazy(() => import('@/pages/BrandKitPreview'))
 const BrandKitSettings = lazy(() => import('@/pages/BrandKitSettings'))
+const CarouselThemesSettings = lazy(() => import('@/pages/settings/CarouselThemesSettings'))
 import SettingsLayout from '@/components/SettingsLayout'
 const OnboardingBrandKit = lazy(() => import('@/pages/OnboardingBrandKit'))
 const Members = lazy(() => import('@/pages/Members'))
@@ -256,6 +257,7 @@ function AppRoutes() {
               <Route path="/settings/integrations" element={guarded(<Integrations />)} />
               <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
               <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />
+              <Route path="/settings/carousel-themes" element={guarded(<CarouselThemesSettings />)} />
               {/* Clerk-mounted pages use routing="path" so their deep links resolve. */}
               <Route path="/settings/members/*" element={guarded(<Members />)} />
             </Route>

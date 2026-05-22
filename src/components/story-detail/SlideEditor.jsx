@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, X, Plus, Image as ImageIcon, Move } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { useUpdateContentItem } from '@/lib/queries'
+import { useUpdateContentItem, useCarouselThemes } from '@/lib/queries'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import {
   BLOCK_ROLES,
@@ -11,6 +11,7 @@ import {
   TEMPLATE_DEFAULT_POSITIONS,
   renderFreeformSlide,
 } from '@/lib/overlayTemplates'
+import { resolveTheme } from '@/lib/carouselThemes'
 
 // Role label + chip colors. Mirrors the mockup palette.
 const ROLE_META = {
@@ -258,7 +259,7 @@ function BlockRow({ block, photoUrl, canMoveUp, canMoveDown, onChange, onMoveUp,
 
 // ── Slide card ────────────────────────────────────────────────────────────────
 
-function SlidePreview({ slide, photoUrl, brandStyle }) {
+function SlidePreview({ slide, photoUrl, brandStyle, theme }) {
   const canvasRef = useRef(null)
   useEffect(() => {
     let cancelled = false
@@ -271,6 +272,7 @@ function SlidePreview({ slide, photoUrl, brandStyle }) {
           slide,
           brandStyle: brandStyle || {},
           canvas,
+          theme,
         })
       } catch (e) {
         if (!cancelled) console.warn('[SlidePreview] render failed', e.message)
@@ -278,7 +280,7 @@ function SlidePreview({ slide, photoUrl, brandStyle }) {
     }
     draw()
     return () => { cancelled = true }
-  }, [slide, photoUrl, brandStyle])
+  }, [slide, photoUrl, brandStyle, theme])
 
   return (
     <canvas
@@ -289,7 +291,7 @@ function SlidePreview({ slide, photoUrl, brandStyle }) {
 }
 
 function SlideCard({
-  slide, slideIdx, totalSlides, photoUrl, mediaUrls, brandStyle,
+  slide, slideIdx, totalSlides, photoUrl, mediaUrls, brandStyle, theme,
   onChange, onMoveLeft, onMoveRight, onRemove, onBindPhoto,
 }) {
   function updateBlock(blockIdx, next) {
@@ -377,7 +379,7 @@ function SlideCard({
         </button>
       </div>
 
-      <SlidePreview slide={slide} photoUrl={photoUrl} brandStyle={brandStyle} />
+      <SlidePreview slide={slide} photoUrl={photoUrl} brandStyle={brandStyle} theme={theme} />
 
       <div className="relative">
         <button
@@ -479,8 +481,6 @@ export default function SlideEditor({ piece }) {
   const hasMedia = mediaUrls.length > 0
 
   // Seed: stored slides if any, else one empty cover slide bound to photo 0.
-  // useEffect below re-seeds whenever the piece changes; keep the calculation
-  // inline so React Compiler can manage memoization itself.
   function seedSlides() {
     const stored = Array.isArray(piece?.slides) ? piece.slides : null
     if (stored && stored.length > 0) return stored.map((s, i) => normalizeSlide(s, i))
@@ -489,18 +489,22 @@ export default function SlideEditor({ piece }) {
 
   const [slides, setSlides] = useState(seedSlides)
   const [savedSlidesJson, setSavedSlidesJson] = useState(() => JSON.stringify(seedSlides()))
+  const [themeId, setThemeId] = useState(() => piece?.carousel_theme_id || null)
 
   useEffect(() => {
     const next = seedSlides()
     setSlides(next)
     setSavedSlidesJson(JSON.stringify(next))
-    // Re-seed when the underlying piece changes (e.g., regenerate landed,
-    // user switched pieces). Intentionally limited to piece.id + slides JSON
-    // so editor-local edits don't trigger a re-seed.
+    setThemeId(piece?.carousel_theme_id || null)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [piece?.id, JSON.stringify(piece?.slides)])
 
-  const dirty = JSON.stringify(slides) !== savedSlidesJson
+  // Fetch workspace custom themes for the picker
+  const { data: allThemes = [] } = useCarouselThemes()
+  const customThemes = allThemes.filter((t) => t.custom)
+  const theme = resolveTheme(themeId, customThemes)
+
+  const dirty = JSON.stringify(slides) !== savedSlidesJson || themeId !== (piece?.carousel_theme_id || null)
   const updateItem = useUpdateContentItem()
   const saving = updateItem.isPending
 
@@ -540,7 +544,10 @@ export default function SlideEditor({ piece }) {
         template:  s.template,
         blocks:    s.blocks.filter((b) => (b.text || '').trim() !== ''),
       }))
-      await updateItem.mutateAsync({ id: piece.id, patch: { slides: cleaned } })
+      await updateItem.mutateAsync({
+        id: piece.id,
+        patch: { slides: cleaned, carousel_theme_id: themeId || null },
+      })
       setSavedSlidesJson(JSON.stringify(cleaned))
       toast.success('Slides saved')
     } catch (e) {
@@ -573,6 +580,28 @@ export default function SlideEditor({ piece }) {
         )}
       </div>
 
+      {/* Theme picker */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground shrink-0">Theme</span>
+        {allThemes.map((t) => {
+          const active = (themeId || 'bold-dark') === t.id
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setThemeId(t.id === 'bold-dark' ? null : t.id)}
+              className={`rounded-full px-2.5 py-0.5 text-2xs font-semibold transition-colors ${
+                active
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+              }`}
+            >
+              {t.name}
+            </button>
+          )
+        })}
+      </div>
+
       <div className="overflow-x-auto pb-2">
         <div className="flex gap-3 min-w-max pr-2">
           {slides.map((slide, idx) => {
@@ -588,6 +617,7 @@ export default function SlideEditor({ piece }) {
                 photoUrl={photoUrl}
                 mediaUrls={mediaUrls}
                 brandStyle={brandStyle}
+                theme={theme}
                 onChange={(next) => updateSlide(idx, next)}
                 onMoveLeft={() => moveSlide(idx, -1)}
                 onMoveRight={() => moveSlide(idx, 1)}

@@ -120,6 +120,10 @@ export const queryKeys = {
     forInterview:  (id) => ['references', 'interview', id],
   },
   onboardingProgress: ['onboarding-progress'],
+  carouselThemes: {
+    all:  ['carouselThemes'],
+    list: () => ['carouselThemes', 'list'],
+  },
 }
 
 // ── Locations ──────────────────────────────────────────────────────────────
@@ -833,5 +837,42 @@ export function useDeleteClinicianRecipe() {
     errorMessage: "Couldn't delete recipe",
     mutationFn: ({ id }) => deleteClinicianRecipe(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.all }),
+  })
+}
+
+// ── Carousel themes ────────────────────────────────────────────────────────
+
+export function useCarouselThemes() {
+  return useQuery({
+    queryKey: queryKeys.carouselThemes.list(),
+    queryFn:  () => apiFetch('/api/carousel-themes').then((d) => d.themes ?? []),
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
+export function useCreateCarouselTheme() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't create theme",
+    mutationFn: (body) => apiFetch('/api/carousel-themes', { method: 'POST', body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.carouselThemes.all }),
+  })
+}
+
+export function useUpdateCarouselTheme() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't update theme",
+    mutationFn: ({ id, patch }) => apiFetch(`/api/carousel-themes/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.carouselThemes.all }),
+  })
+}
+
+export function useDeleteCarouselTheme() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't delete theme",
+    mutationFn: (id) => apiFetch(`/api/carousel-themes/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.carouselThemes.all }),
   })
 }
