@@ -25,6 +25,8 @@ import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
 import { getContextBlock } from '../_lib/conceptRetrieval.js'
+import { loadActiveCampaign } from '../_lib/campaignSettings.js'
+import { getCampaignPromptContext } from '../../src/lib/campaigns.js'
 import {
   getBlogPostSystemPrompt,
   getMinimalEditSystemPrompt,
@@ -170,6 +172,11 @@ export default async function handler(req, res) {
       const storyTypeLabel = interview.story_type
         ? (Array.isArray(ws.story_type_options) ? ws.story_type_options.find(s => s.key === interview.story_type) : null)?.label ?? interview.story_type
         : null
+      // Active campaign (mode + structured CTA) flows into derivative content
+      // only. Bookings mode or missing campaign returns '' so the prompt
+      // falls back to its built-in "book a visit" / "link in bio" CTAs.
+      const activeCampaign = await loadActiveCampaign(ws.id)
+      const campaignContext = getCampaignPromptContext(activeCampaign, ws)
       const systemPrompt = getAtomSystemPrompt(
         ws,
         clinicianName,
@@ -183,6 +190,7 @@ export default async function handler(req, res) {
         voicePhrases,
         audienceLabel,
         storyTypeLabel,
+        campaignContext,
       )
       if (!systemPrompt) {
         return err(res, `No prompt defined for ${atom.platform}/${atom.angle}`, 422)
