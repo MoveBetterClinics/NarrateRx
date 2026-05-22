@@ -417,6 +417,13 @@ export default function App() {
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
               <Route path="/onboard/brand-kit" element={<ProtectedAppWithProvider />} />
+              {/* /onboard/interview is the founder's one-time onboarding
+                  interview — runs on an established subdomain (post-wizard),
+                  needs WorkspaceProvider + Clerk org, so it routes through
+                  ProtectedAppWithProvider just like /onboard/brand-kit.
+                  Without this explicit exemption, the /onboard/* catch-all
+                  below dispatches it to the apex wizard. */}
+              <Route path="/onboard/interview" element={<ProtectedAppWithProvider />} />
               <Route path="/onboard/*" element={<OnboardingShell />} />
               <Route path="*" element={<ProtectedAppWithProvider />} />
             </Routes>
