@@ -662,13 +662,14 @@ export function useRegenerateContentItem() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: 'Regeneration failed',
-    mutationFn: ({ id, lengthPreset }) =>
+    mutationFn: ({ id, lengthPreset, generationStyle }) =>
       apiFetch('/api/content-items/regenerate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id,
           ...(lengthPreset != null ? { length_preset: lengthPreset } : {}),
+          ...(generationStyle != null ? { generation_style: generationStyle } : {}),
         }),
       }),
     onSuccess: () => {

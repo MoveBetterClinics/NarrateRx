@@ -336,6 +336,122 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
   )
 }
 
+// Pill-pair switcher for the blog-piece generation style. Lives above the
+// ContentEditor so it reads as a primary affordance, not a hidden setting.
+// Active pill = the style the draft is currently in (read from
+// story.generation_style, default 'blog_post'). Clicking the inactive pill
+// pops a confirm dialog and, on confirm, fires the regenerate mutation with
+// the new style. Approval audit is wiped server-side (same path as length
+// preset regen) so the freshly-styled draft requires fresh review.
+//
+// Rendered only for blog pieces (the only platform with two prompt
+// styles); atoms (social, video, marketing) always derive from the blog
+// editorial summary, so a style choice doesn't make sense there.
+const GENERATION_STYLE_LABELS = {
+  blog_post: 'Full blog post',
+  minimal_edits: 'Cleaned transcript',
+}
+const GENERATION_STYLE_DESCRIPTIONS = {
+  blog_post: 'A structured blog post rewritten from your interview — headlines, sections, links.',
+  minimal_edits: 'Your exact words, cleaned of filler and broken into paragraphs. No restructuring.',
+}
+
+function GenerationStyleSwitcher({ piece, story }) {
+  const regenerate = useRegenerateContentItem()
+  const currentStyle = story?.generation_style || 'blog_post'
+  const [pending, setPending] = useState(null) // 'blog_post' | 'minimal_edits' | null
+
+  if (piece.platform !== 'blog') return null
+  if (piece.series_id && piece.series_part !== 1) return null
+
+  const handleSwitch = async (nextStyle) => {
+    setPending(null)
+    try {
+      await regenerate.mutateAsync({ id: piece.id, generationStyle: nextStyle })
+      toast.success(
+        `Switched to ${GENERATION_STYLE_LABELS[nextStyle]}`,
+        { description: 'Draft regenerated and reset for review.' },
+      )
+    } catch (e) {
+      toast.error('Switch failed', { description: e.message })
+    }
+  }
+
+  if (regenerate.isPending) {
+    return (
+      <div className="flex items-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+        Regenerating in the new style — this can take 30–60 seconds…
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div
+        role="radiogroup"
+        aria-label="Draft style"
+        className="inline-flex rounded-lg border bg-muted/20 p-0.5"
+      >
+        {(['blog_post', 'minimal_edits']).map((style) => {
+          const active = style === currentStyle
+          return (
+            <button
+              key={style}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              onClick={() => { if (!active) setPending(style) }}
+              disabled={active}
+              className={`rounded-md px-3 py-1 text-xs transition ${
+                active
+                  ? 'bg-background text-foreground shadow-sm font-medium cursor-default'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
+              }`}
+              title={GENERATION_STYLE_DESCRIPTIONS[style]}
+            >
+              {GENERATION_STYLE_LABELS[style]}
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-2xs text-muted-foreground italic">
+        {GENERATION_STYLE_DESCRIPTIONS[currentStyle]}
+      </p>
+
+      {pending && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs space-y-2">
+          <p className="text-amber-900">
+            Switch to <span className="font-medium">{GENERATION_STYLE_LABELS[pending]}</span>?
+            The current draft and approval state will be replaced with a fresh AI generation.
+          </p>
+          <p className="text-amber-800/80">
+            {GENERATION_STYLE_DESCRIPTIONS[pending]}
+          </p>
+          <div className="flex gap-1.5 justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs border-amber-400 text-amber-700 hover:bg-amber-100"
+              onClick={() => handleSwitch(pending)}
+            >
+              Switch &amp; regenerate
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={() => setPending(null)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function RegenerateButton({ piece, story }) {
   const regenerate = useRegenerateContentItem()
   const workspace = useWorkspace()
@@ -1692,6 +1808,12 @@ export default function AssetsPane({ story, onProvenanceHighlight, className = '
             previous one. */}
         {active && (
           <div key={active.id} className="space-y-3">
+            {/* Generation-style switcher for blog pieces. The choice lives on
+                interview.generation_style and applies to the blog editorial
+                summary. Atoms (social, video, marketing) always derive from
+                that summary so they pick up the new style on next regen. */}
+            <GenerationStyleSwitcher piece={active} story={story} />
+
             {/* Body / Assets / Attributed tabs live inside ContentEditor.
                 Media + overlay panels are rendered under the Assets tab. */}
             <ContentEditor piece={active} onProvenanceHighlight={onProvenanceHighlight} />

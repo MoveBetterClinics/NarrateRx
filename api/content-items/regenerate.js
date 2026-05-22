@@ -27,6 +27,7 @@ import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
 import { getContextBlock } from '../_lib/conceptRetrieval.js'
 import {
   getBlogPostSystemPrompt,
+  getMinimalEditSystemPrompt,
   buildVerbatimBlock,
 } from '../../src/lib/prompts.js'
 import { applyLocationOverlay } from '../../src/lib/locationOverlay.js'
@@ -34,6 +35,7 @@ import { extractProvenanceBlock } from '../../src/lib/provenance.js'
 import { resolveLengthPreset, LENGTH_PRESETS } from '../../src/lib/lengthPresets.js'
 
 const VALID_LENGTH_PRESETS = new Set(LENGTH_PRESETS.map((p) => p.id))
+const VALID_GENERATION_STYLES = new Set(['blog_post', 'minimal_edits'])
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -70,10 +72,17 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   const wsFilter = `workspace_id=eq.${ws.id}`
 
-  const { id, length_preset: bodyLengthPreset } = req.body || {}
+  const {
+    id,
+    length_preset: bodyLengthPreset,
+    generation_style: bodyGenerationStyle,
+  } = req.body || {}
   if (!id) return err(res, 'Missing id')
   if (bodyLengthPreset != null && !VALID_LENGTH_PRESETS.has(bodyLengthPreset)) {
     return err(res, `Invalid length_preset: ${bodyLengthPreset}`)
+  }
+  if (bodyGenerationStyle != null && !VALID_GENERATION_STYLES.has(bodyGenerationStyle)) {
+    return err(res, `Invalid generation_style: ${bodyGenerationStyle}`)
   }
 
   // Load the content_item under workspace scope.
@@ -90,7 +99,7 @@ export default async function handler(req, res) {
   // Load the interview (everything we might need across both paths).
   const ivRes = await sb(
     `interviews?id=eq.${item.interview_id}&${wsFilter}` +
-    `&select=id,clinician_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,cleaned_messages,outputs,created_at,audience,story_type`,
+    `&select=id,clinician_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,cleaned_messages,outputs,created_at,audience,story_type,generation_style`,
   )
   if (!ivRes.ok) return dbErr(res, ivRes)
   const ivRows = await ivRes.json()
@@ -254,23 +263,42 @@ export default async function handler(req, res) {
       }
       const overlaidWorkspace = applyLocationOverlay(ws, interviewLocation)
 
-      const systemPrompt = getBlogPostSystemPrompt(
-        overlaidWorkspace,
-        clinicianName,
-        interview.topic,
-        interview.tone || 'smart',
-        interview.voice_mode || 'practice',
-        interview.prototype_id,
-        voiceNotes,
-        voicePhrases,
-        null, // audienceSlot — not currently threaded through regenerate
-        null, // storyTypeSlot — not currently threaded through regenerate
-        effectiveLengthPreset,
-      ) + buildVerbatimBlock(interview.verbatim_flags)
+      // Resolve effective generation style: body wins, else persisted on the
+      // interview, else default to 'blog_post'. Minimal-edits ('Cleaned
+      // transcript') swaps the system prompt for a verbatim cleanup pass —
+      // no narrative restructuring, no length target, no verbatim block.
+      const effectiveStyle = bodyGenerationStyle || interview.generation_style || 'blog_post'
+      const isMinimal = effectiveStyle === 'minimal_edits'
+
+      const systemPrompt = isMinimal
+        ? getMinimalEditSystemPrompt(
+            clinicianName,
+            interview.voice_mode || 'practice',
+            voiceNotes,
+            voicePhrases,
+          )
+        : getBlogPostSystemPrompt(
+            overlaidWorkspace,
+            clinicianName,
+            interview.topic,
+            interview.tone || 'smart',
+            interview.voice_mode || 'practice',
+            interview.prototype_id,
+            voiceNotes,
+            voicePhrases,
+            null, // audienceSlot — not currently threaded through regenerate
+            null, // storyTypeSlot — not currently threaded through regenerate
+            effectiveLengthPreset,
+          ) + buildVerbatimBlock(interview.verbatim_flags)
 
       const messages = [
         ...turns.map((m) => ({ role: m.role, content: m.content })),
-        { role: 'user', content: 'Please write the blog post now based on our interview.' },
+        {
+          role: 'user',
+          content: isMinimal
+            ? 'Please clean up the transcript now using minimal edits only.'
+            : 'Please write the blog post now based on our interview.',
+        },
       ]
 
       const { text } = await generateText({
@@ -281,8 +309,9 @@ export default async function handler(req, res) {
       })
       if (!text?.trim()) throw new Error('AI returned empty content')
 
-      // Strip the <PROVENANCE> trailer — long-form prompts append per-paragraph
-      // source attribution, but only the body copy belongs in content_items.content.
+      // Strip the <PROVENANCE> trailer — both blog and minimal-edits prompts
+      // append per-paragraph source attribution, but only the body copy
+      // belongs in content_items.content.
       newContent = extractProvenanceBlock(text.trim()).content
       updatedBlogPost = newContent
     }
@@ -321,11 +350,26 @@ export default async function handler(req, res) {
     const shouldSyncOutputs = updatedBlogPost && (
       !item.series_id || item.series_part === 1
     )
-    if (shouldSyncOutputs) {
-      const nextOutputs = { ...(interview.outputs || {}), blogPost: updatedBlogPost }
+    // Persist the chosen generation_style on the interview when the request
+    // explicitly supplied one and it differs from the current setting. This
+    // is what makes the StoryDetail switcher sticky — next time the user
+    // visits, the pills reflect the style currently in use.
+    const stylePatch = (
+      bodyGenerationStyle != null &&
+      bodyGenerationStyle !== interview.generation_style
+    ) ? { generation_style: bodyGenerationStyle } : null
+
+    if (shouldSyncOutputs || stylePatch) {
+      const ivPatch = {}
+      if (shouldSyncOutputs) {
+        ivPatch.outputs = { ...(interview.outputs || {}), blogPost: updatedBlogPost }
+      }
+      if (stylePatch) {
+        Object.assign(ivPatch, stylePatch)
+      }
       await sb(`interviews?id=eq.${interview.id}&${wsFilter}`, {
         method: 'PATCH',
-        body: JSON.stringify({ outputs: nextOutputs }),
+        body: JSON.stringify(ivPatch),
         headers: { Prefer: 'return=minimal' },
       })
     }
