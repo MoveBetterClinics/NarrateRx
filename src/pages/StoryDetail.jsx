@@ -108,7 +108,7 @@ export default function StoryDetail() {
     if (!story?.id || !user?.id) return
     setDeleteError('')
     try {
-      await deleteInterview.mutateAsync({ id: story.id, userId: user.id })
+      await deleteInterview.mutateAsync({ id: story.id })
       toast.success('Interview deleted')
       navigate('/stories')
     } catch (e) {
@@ -227,7 +227,6 @@ export default function StoryDetail() {
                       updateInterview.mutate({
                         id: story.id,
                         patch: { audience: next },
-                        userId: user?.id,
                       })
                     }
                   />
@@ -240,7 +239,6 @@ export default function StoryDetail() {
                       updateInterview.mutate({
                         id: story.id,
                         patch: { storyType: next },
-                        userId: user?.id,
                       })
                     }
                   />

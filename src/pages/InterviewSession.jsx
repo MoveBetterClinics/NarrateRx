@@ -279,13 +279,13 @@ export default function InterviewSession() {
     hasSeededRef.current = false
   }
 
-  function saveMessages(interviewId, patch, userId) {
+  function saveMessages(interviewId, patch) {
     // Always mirror to localStorage FIRST so the data survives even if the
     // server PATCH never lands (auth blip, network, iOS WebKit kill).
     if (Array.isArray(patch?.messages)) saveLocalMessages(interviewId, patch.messages)
 
     setSaveStatus('saving')
-    updateInterview(interviewId, patch, userId)
+    updateInterview(interviewId, patch)
       .then((updated) => {
         // Cross-component invalidation: any view watching this interview
         // (Dashboard's resume list, clinician profile's interview summary)
@@ -317,11 +317,14 @@ export default function InterviewSession() {
     }
   }
 
-  // Persist session_state immediately — used by unload/visibility handlers
-  // where we can't await a fetch. sendBeacon is fire-and-forget but reliable
-  // for short payloads. Falls back to a synchronous keepalive fetch on browsers
-  // that don't support sendBeacon with JSON.
-  function flushSessionState(msgs) {
+  // Persist session_state immediately — used by unload/visibility handlers.
+  // Uses a keepalive fetch with the Clerk bearer token so the request can
+  // continue past navigation. sendBeacon was previously used but cannot set
+  // an Authorization header, so it would fail server-side auth (server only
+  // accepts verified Clerk tokens since the 2026-05-21 audit P0 #4 fix).
+  // Localstorage mirroring (saveLocalMessages) is the real safety net if
+  // this best-effort flush is dropped.
+  async function flushSessionState(msgs) {
     const uid = userIdRef.current
     if (!uid || interviewCompleteRef.current || !msgs.length) return
     const url = `/api/db/interviews?id=${encodeURIComponent(interviewId)}`
@@ -329,16 +332,21 @@ export default function InterviewSession() {
       session_state: buildSessionState(msgs),
       paused_at: new Date().toISOString(),
     })
-    if (typeof navigator.sendBeacon === 'function') {
-      const blob = new Blob([payload], { type: 'application/json' })
-      navigator.sendBeacon(url + `&_uid=${encodeURIComponent(uid)}`, blob)
-    } else {
-      fetch(url, {
+    try {
+      const token = await window.Clerk?.session?.getToken?.()
+      if (!token) return
+      await fetch(url, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'x-user-id': uid },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
         body: payload,
         keepalive: true,
-      }).catch(() => {})
+      })
+    } catch {
+      // Best-effort; localStorage mirror already happened upstream.
     }
   }
 
@@ -356,7 +364,6 @@ export default function InterviewSession() {
       updateInterview(
         interviewId,
         { session_state: buildSessionState(messages), paused_at: new Date().toISOString() },
-        user.id,
       ).catch((err) => {
         console.error('[InterviewSession] session_state autosave failed', err?.status, err?.message)
         setSaveStatus('error')
@@ -425,7 +432,6 @@ export default function InterviewSession() {
             messages: restoredMessages,
             session_state: { messages: restoredMessages, paused_at: new Date().toISOString() },
           },
-          user.id,
         )
       }
     }
@@ -670,7 +676,7 @@ export default function InterviewSession() {
       // Clear session_state when the AI signals completion — the interview
       // is done and the resume banner should not appear on next visit.
       if (isComplete) { patch.session_state = null; patch.paused_at = null }
-      saveMessages(interviewId, patch, user.id)
+      saveMessages(interviewId, patch)
       // Once the AI declares the interview complete, the local backup has
       // served its purpose. Drop it so a future load doesn't accidentally
       // re-hydrate stale messages.
@@ -878,7 +884,7 @@ export default function InterviewSession() {
     emotionStateRef.current = detectEmotionalState(recentUserMessages)
 
     if (user?.id) {
-      saveMessages(interviewId, { messages: updated }, user.id)
+      saveMessages(interviewId, { messages: updated })
     }
 
     sendToAI(updated)
@@ -917,7 +923,6 @@ export default function InterviewSession() {
       updateInterview(
         interviewId,
         { session_state: buildSessionState(messagesRef.current), paused_at: new Date().toISOString() },
-        user.id,
       ).catch((err) => {
         console.error('[InterviewSession] pause save failed', err?.status, err?.message)
       })
@@ -980,7 +985,7 @@ export default function InterviewSession() {
     setSelectionTip(null)
     window.getSelection?.()?.removeAllRanges()
     try {
-      await updateInterview(interviewId, { verbatimFlags: next }, user.id)
+      await updateInterview(interviewId, { verbatimFlags: next })
     } catch {
       setError('Could not save verbatim flag — try again.')
     }
@@ -992,7 +997,7 @@ export default function InterviewSession() {
     const next = existing.filter((f) => f.id !== id)
     setInterview((prev) => prev ? { ...prev, verbatim_flags: next } : prev)
     try {
-      await updateInterview(interviewId, { verbatimFlags: next }, user.id)
+      await updateInterview(interviewId, { verbatimFlags: next })
     } catch {
       setError('Could not remove verbatim flag — try again.')
     }
@@ -1047,7 +1052,7 @@ export default function InterviewSession() {
       // just won't survive a reload, so a recoverable warning is the right
       // posture rather than blocking generation.
       if (generationStyle !== (interview.generation_style || 'blog_post')) {
-        updateInterview(interviewId, { generationStyle }, user.id).catch((err) => {
+        updateInterview(interviewId, { generationStyle }).catch((err) => {
           console.error('[InterviewSession] generationStyle save failed', err?.status, err?.message)
           setSaveStatus('error')
         })
@@ -1104,7 +1109,7 @@ export default function InterviewSession() {
 
       const outputs = { blogPost, generatedAt: new Date().toISOString() }
       // Clear session_state: completed interviews don't need resume capability.
-      await updateInterview(interviewId, { outputs, status: 'completed', session_state: null, paused_at: null }, user.id)
+      await updateInterview(interviewId, { outputs, status: 'completed', session_state: null, paused_at: null })
       // The PATCH above triggers a server-side cascade in api/db/interviews.js
       // that creates the content_items rows. Flush caches so ContentHub /
       // Calendar pick those up on next read.
@@ -1280,7 +1285,6 @@ export default function InterviewSession() {
                     if (user?.id) saveMessages(
                       interviewId,
                       { messages: messagesRef.current, session_state: buildSessionState(messagesRef.current) },
-                      user.id,
                     )
                   }}
                 >

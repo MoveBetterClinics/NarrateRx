@@ -6,6 +6,7 @@
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { buildPlanRows } from '../_lib/atomPlan.js'
 import { extractConcepts, buildInterviewText } from '../_lib/conceptExtractor.js'
@@ -42,11 +43,24 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
 export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
-  const userId = req.headers['x-user-id'] ?? null
 
   const ws = await workspaceContext(req)
   if (!ws) return err(res, 'Workspace not resolved', 400)
   const wsFilter = `workspace_id=eq.${ws.id}`
+
+  // All interview CRUD requires a verified Clerk session bound to this
+  // workspace's org. Previously trusted the x-user-id header for ownership
+  // checks on PATCH/DELETE — spoofable by any workspace member, who could
+  // PATCH or DELETE another user's interview by setting the header. Fixed
+  // 2026-05-21 (audit P0 #4). GET stays open to any workspace member.
+  let userId = null
+  if (req.method !== 'GET') {
+    const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
+    if (!auth.ok) {
+      return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+    }
+    userId = auth.userId
+  }
 
   if (req.method === 'GET') {
     if (id) {
@@ -76,10 +90,14 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     if (!(await enforceLimit(req, res, 'media'))) return
 
-    const { clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, generationStyle, topicBacklogId } = req.body || {}
+    const { clinicianId, topic, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, generationStyle, topicBacklogId } = req.body || {}
     if (!clinicianId) return err(res, 'Missing clinicianId')
     if (!topic?.trim()) return err(res, 'Topic required')
-    if (!ownerId) return err(res, 'Unauthorized', 401)
+
+    // owner_id comes from the verified Clerk token, never the request body.
+    // Previously trusted req.body.ownerId — a workspace member could create
+    // an interview "owned" by anyone. Fixed 2026-05-21 (audit P0 #4).
+    const ownerId = userId
 
     const r = await sb('interviews', {
       method: 'POST',
@@ -149,7 +167,6 @@ export default async function handler(req, res) {
     if (!(await enforceLimit(req, res, 'media'))) return
 
     if (!id) return err(res, 'Missing id')
-    if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,clinician_id,topic,location_id`)
     if (!chk.ok) return dbErr(res, chk)
@@ -330,7 +347,6 @@ export default async function handler(req, res) {
     if (!(await enforceLimit(req, res, 'media'))) return
 
     if (!id) return err(res, 'Missing id')
-    if (!userId) return err(res, 'Unauthorized', 401)
 
     const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id`)
     if (!chk.ok) return dbErr(res, chk)

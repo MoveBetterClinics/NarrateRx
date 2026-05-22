@@ -179,7 +179,6 @@ export default function NewInterview() {
       const interview = await createInterview({
         clinicianId: clinician.id,
         topic,
-        ownerId: user.id,
         ownerEmail: user.primaryEmailAddress?.emailAddress,
         tone,
         voiceMode,

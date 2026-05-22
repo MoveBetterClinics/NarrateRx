@@ -75,7 +75,7 @@ export default function ClinicianProfile() {
   async function handleDeleteInterview(interviewId) {
     setDeleteError('')
     try {
-      await deleteInterviewMut.mutateAsync({ id: interviewId, userId: user.id })
+      await deleteInterviewMut.mutateAsync({ id: interviewId })
       setDeleteTarget(null)
       // Cache invalidation in useDeleteInterview's onSuccess will refetch
       // the clinician detail automatically — no manual refresh() needed.

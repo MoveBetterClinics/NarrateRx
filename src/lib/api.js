@@ -151,14 +151,16 @@ export function fetchSimilarInterviews(topic, excludeId) {
 }
 
 /**
- * @param {{ clinicianId: string, topic: string, ownerId: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string, audience?: string, storyType?: string, cleanupLevel?: string, topicBacklogId?: string }} opts
+ * @param {{ clinicianId: string, topic: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string, audience?: string, storyType?: string, cleanupLevel?: string, topicBacklogId?: string }} opts
  * @returns {Promise<unknown>}
  */
-export function createInterview({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, topicBacklogId }) {
+export function createInterview({ clinicianId, topic, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, topicBacklogId }) {
+  // owner_id is derived from the verified Clerk token server-side, never sent
+  // from the client. (Fixed 2026-05-21 audit P0 #4.)
   return apiFetch('/api/db/interviews', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ clinicianId, topic, ownerId, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, topicBacklogId }),
+    body: JSON.stringify({ clinicianId, topic, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, topicBacklogId }),
   })
 }
 
@@ -197,11 +199,13 @@ export function deleteClinicianRecipe(id) {
   return apiFetch(`/api/db/clinician-recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
-/** @param {string} id @param {Record<string, unknown>} patch @param {string} userId @returns {Promise<unknown>} */
-export function updateInterview(id, patch, userId) {
+/** @param {string} id @param {Record<string, unknown>} patch @returns {Promise<unknown>} */
+export function updateInterview(id, patch) {
+  // Ownership check uses the verified Clerk token server-side; no x-user-id
+  // header. (Fixed 2026-05-21 audit P0 #4.)
   return apiFetch(`/api/db/interviews?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',
-    headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(patch),
   })
 }
@@ -282,11 +286,12 @@ export function createContentItemDraft(itemId, body, aiGenerated = false) {
   })
 }
 
-/** @param {string} id @param {string} userId @returns {Promise<unknown>} */
-export function deleteInterview(id, userId) {
+/** @param {string} id @returns {Promise<unknown>} */
+export function deleteInterview(id) {
+  // Ownership check uses the verified Clerk token server-side; no x-user-id
+  // header. (Fixed 2026-05-21 audit P0 #4.)
   return apiFetch(`/api/db/interviews?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
-    headers: { 'x-user-id': userId },
   })
 }
 

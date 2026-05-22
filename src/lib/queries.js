@@ -266,7 +266,7 @@ export function useUpdateInterview() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't update interview",
-    mutationFn: ({ id, patch, userId }) => updateInterview(id, patch, userId),
+    mutationFn: ({ id, patch }) => updateInterview(id, patch),
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: queryKeys.interviews.detail(id) })
       // Interview status/outputs changes can flip the clinician-list summary
@@ -284,7 +284,7 @@ export function useDeleteInterview() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't delete interview",
-    mutationFn: ({ id, userId }) => deleteInterview(id, userId),
+    mutationFn: ({ id }) => deleteInterview(id),
     onSuccess: (_data, { id }) => {
       qc.removeQueries({ queryKey: queryKeys.interviews.detail(id) })
       qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
