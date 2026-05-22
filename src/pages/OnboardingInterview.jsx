@@ -1,8 +1,8 @@
 // One-time onboarding interview the founder runs after the signup wizard
 // creates the workspace. P2 deliverable: text-only chat using the
-// getOnboardingInterviewSystemPrompt prompt. Voice + mic come in P2b; the
-// synthesis call that turns the transcript into workspace/clinician config
-// is P3. The Home card that surfaces this page is P4.
+// getOnboardingInterviewSystemPrompt prompt. P2b adds the full voice loop
+// (mic + TTS + iOS gesture priming) so the page is the proof-of-concept
+// for how NarrateRx actually works.
 //
 // Founder-only — gated by the API route's requireRole(['admin']) check.
 // Workspace-scoped via workspaceContext on the server.
@@ -10,7 +10,10 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { Loader2, Send, CheckCircle2, AlertCircle, Sparkles, FlaskConical } from 'lucide-react'
+import {
+  Loader2, Send, CheckCircle2, AlertCircle, Sparkles, FlaskConical,
+  Mic, MicOff, Volume2, RefreshCw, Keyboard,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -20,13 +23,43 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { apiFetch } from '@/lib/api'
 import { streamMessage } from '@/lib/claude'
 import { getOnboardingInterviewSystemPrompt } from '@/lib/prompts'
+import MicCheck from '@/components/MicCheck'
+import { createTtsPlayer, primeAudioPlayback, onAudioPlaybackFailure } from '@/lib/tts'
 
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
+// Cap consecutive silent SpeechRecognition auto-resumes within a single user
+// turn. Without a cap, a stuck mic can spin forever (especially on iOS).
+// Matches the value used in InterviewSession.
+const RESTART_CAP = 30
+
+// End-of-turn phrases — matched at the end of a final transcript so the user
+// can say "done" / "that's all" instead of tapping the mic. Lifted from
+// InterviewSession; the same vocabulary works for any voice interview.
+const STOP_PHRASES = [
+  "that's all",
+  "that's it",
+  "i'm done",
+  "i am done",
+  "send it",
+  "send that",
+  "submit",
+  "done",
+]
+
+function detectAndStripStopPhrase(transcript) {
+  const normalized = transcript.trimEnd().toLowerCase()
+  for (const phrase of STOP_PHRASES) {
+    if (normalized.endsWith(phrase)) {
+      const stripped = transcript.trimEnd()
+      const cleaned = stripped.slice(0, stripped.length - phrase.length).trimEnd()
+      return cleaned.length > 0 ? cleaned : ''
+    }
+  }
+  return null
+}
+
 // Detect and strip the completion marker from a streaming assistant message.
-// Returns { text, complete } — `text` is the cleaned content (the marker plus
-// any surrounding whitespace removed), `complete` is true when the marker was
-// present.
 function detectComplete(raw) {
   if (!raw.includes(COMPLETE_TOKEN)) return { text: raw, complete: false }
   const cleaned = raw.replace(new RegExp(`\\s*${COMPLETE_TOKEN}\\s*`, 'g'), '').trim()
@@ -40,44 +73,81 @@ export default function OnboardingInterview() {
   const { user } = useUser()
   const { role } = useUserRole()
 
+  // ── Existing interview state ─────────────────────────────────────────────
   const [interview, setInterview] = useState(null)
   const [messages, setMessages] = useState([])
-  const [input, setInput] = useState('')
   const [streaming, setStreaming] = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const [completed, setCompleted] = useState(false)
   const [error, setError] = useState(null)
   const [loading, setLoading] = useState(true)
-  // 'idle' before completion / when resumed in a synthesized state
-  // 'running' while the synth handler is working (~30–60s)
-  // 'success' on synthesis finish
-  // 'error' on synthesis failure (user can retry from the success card)
-  // 'already' when the interview is already synthesized on first load
   const [synthesisStatus, setSynthesisStatus] = useState('idle')
   const [synthesisError, setSynthesisError] = useState(null)
   const [synthesisCounts, setSynthesisCounts] = useState(null)
-  const [synthesisResult, setSynthesisResult] = useState(null)  // dry-run only
+  const [synthesisResult, setSynthesisResult] = useState(null)
 
-  // Dry-run mode: append ?dryRun=1 to the URL. Runs synthesis end-to-end and
-  // returns the JSON payload for inspection, but performs ZERO writes — no
-  // workspace voice update, no voice_phrases, no interview status flip. Used
-  // during P5 prompt-tuning so we can iterate without clobbering production
-  // workspace data.
+  // ── Voice state (new in P2b) ─────────────────────────────────────────────
+  // SpeechRecognition feature detection. iOS Safari → false, falls back to
+  // typed-answer textarea automatically.
+  const hasSpeechRecognition = useMemo(() => (
+    typeof window !== 'undefined' &&
+    !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  ), [])
+
+  // micCheckPassed gates the chat UI behind the pre-interview audio test
+  // (mic permission + TTS speaker check). Only required on a fresh interview;
+  // resumed interviews skip it (the user already passed it once).
+  const [micCheckPassed, setMicCheckPassed] = useState(false)
+  const [isListening, setIsListening] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [transcript, setTranscript] = useState('')
+  const [typedAnswer, setTypedAnswer] = useState('')
+  const [audioInterrupted, setAudioInterrupted] = useState(false)
+
+  // Voice refs — all the SpeechRecognition machinery for keeping the mic
+  // open through thinking pauses. See InterviewSession startListening for
+  // the canonical comments.
+  const ttsRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const userAnswerActiveRef = useRef(false)
+  const restartCountRef = useRef(0)
+  const restartTimerRef = useRef(null)
+  const finalTranscriptRef = useRef('')
+  const transcriptRef = useRef('')
+  const autoListenAbortRetryRef = useRef(0)
+  const autoListenRef = useRef(false)
+  const messagesRef = useRef([])
+
+  // Bootstrap seed-once guard. Distinct from the kickoff guard below: this
+  // is for the GET-or-POST interview row, which must only fire once even on
+  // tab refocus / refetch.
+  const seededRef = useRef(false)
+  // Kickoff guard — prevents the first-message effect from retrying on error.
+  const kickedOffRef = useRef(false)
+  const scrollRef = useRef(null)
+  const founderName = (user?.fullName || user?.firstName || '').trim() || 'there'
+
+  // Dry-run mode — append ?dryRun=1 to the URL. Synthesis runs end-to-end
+  // but no writes happen. Used during P5 prompt tuning.
   const [searchParams] = useSearchParams()
   const dryRun = useMemo(() => {
     const v = searchParams.get('dryRun')
     return v === '1' || v === 'true'
   }, [searchParams])
 
-  // Seed-once guard — without this, a refetch (e.g. tab refocus) would stomp
-  // local message state mid-conversation. Pattern lifted from the React Query
-  // seeding lesson in project memory.
-  const seededRef = useRef(false)
-  const scrollRef = useRef(null)
-  const founderName = (user?.fullName || user?.firstName || '').trim() || 'there'
+  // Keep messagesRef in sync — handleRestoreAudio reads it inside a non-
+  // React callback to find the last assistant message.
+  useEffect(() => { messagesRef.current = messages }, [messages])
 
-  // Bootstrap: fetch existing interview, or create one. Founders may resume
-  // a paused session; if no row exists yet POST to create.
+  // Lazy-create the TTS player. Reusing one instance means iOS gesture
+  // priming sticks across all utterances (per the shared-audio-element
+  // memory). Don't ever new Audio() per utterance.
+  const getTts = useCallback(() => {
+    if (!ttsRef.current) ttsRef.current = createTtsPlayer()
+    return ttsRef.current
+  }, [])
+
+  // ── Bootstrap — fetch existing or create new interview row ───────────────
   useEffect(() => {
     if (!workspace?.id || !user?.id || seededRef.current) return
 
@@ -98,12 +168,18 @@ export default function OnboardingInterview() {
         setMessages(Array.isArray(row?.messages) ? row.messages : [])
         if (row?.status === 'completed' || row?.status === 'synthesized') {
           setCompleted(true)
+          // Resumed/completed interviews skip MicCheck — they've already
+          // gone through the chat once.
+          setMicCheckPassed(true)
         }
         if (row?.status === 'synthesized' && !dryRun) {
-          // Already done — show the finished state without re-running synthesis.
-          // Dry-run mode intentionally re-fires so the tester can compare a
-          // tuned prompt against a previous run on the same transcript.
           setSynthesisStatus('already')
+        }
+        // Resumed in-progress interviews also skip MicCheck — the user
+        // passed it on their first session and we want to drop them back
+        // into the conversation without a re-test.
+        if (Array.isArray(row?.messages) && row.messages.length > 0) {
+          setMicCheckPassed(true)
         }
       } catch (e) {
         if (!cancelled) setError(e?.message || 'Failed to start interview')
@@ -113,21 +189,15 @@ export default function OnboardingInterview() {
     })()
 
     return () => { cancelled = true }
-    // dryRun is included so the synthesized-state short-circuit re-evaluates if
-    // the user appends ?dryRun=1 mid-session. The seededRef guard inside still
-    // prevents the network call from re-firing.
   }, [workspace?.id, user?.id, founderName, dryRun])
 
-  // Auto-scroll to the latest message. Smooth on append; instant on initial
-  // load so we don't get a long scroll animation showing the resumed transcript.
+  // Auto-scroll to the latest message.
   useEffect(() => {
     if (!scrollRef.current) return
     scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, streamingText])
 
-  // Persist messages + status to the server. Fire-and-forget — local state is
-  // authoritative for the UI and a failed save just means resume-after-refresh
-  // loses the latest turn (a known acceptable risk for v1).
+  // ── Persist messages + status to the server ──────────────────────────────
   const interviewId = interview?.id
   const persist = useCallback(async (next, statusUpdate) => {
     if (!interviewId) return
@@ -147,8 +217,44 @@ export default function OnboardingInterview() {
     }
   }, [interviewId])
 
-  // Stream the next assistant turn from /api/stream using the onboarding prompt.
-  // Called both for the opener (no user message yet) and after each user reply.
+  // ── Audio failure subscription ───────────────────────────────────────────
+  // Fires on iOS route change, BT disconnect, audio session interruption.
+  // We surface a "Restore audio" button instead of letting the interview
+  // silently fail to play.
+  useEffect(() => {
+    const unsubscribe = onAudioPlaybackFailure(() => setAudioInterrupted(true))
+    return unsubscribe
+  }, [])
+
+  // ── TTS: speak the assistant turn ────────────────────────────────────────
+  const speak = useCallback((text) => {
+    if (!text) return
+    setIsSpeaking(true)
+    getTts().speak(text, {
+      onStart: () => setIsSpeaking(true),
+      onEnd: () => {
+        setIsSpeaking(false)
+        // Flag to the auto-listen effect that the next render should fire
+        // startListening. Effect-based dispatch avoids racing the React
+        // state batcher between setIsSpeaking and the effect re-eval.
+        autoListenRef.current = true
+      },
+      onError: () => setIsSpeaking(false),
+    })
+  }, [getTts])
+
+  // Re-prime + replay the last assistant message after an audio interruption.
+  // Must run inside a user gesture (the click on the restore button).
+  const handleRestoreAudio = useCallback(() => {
+    primeAudioPlayback()
+    setAudioInterrupted(false)
+    const lastAssistant = [...messagesRef.current].reverse().find((m) => m.role === 'assistant')
+    if (lastAssistant && !completed) {
+      speak(lastAssistant.content)
+    }
+  }, [completed, speak])
+
+  // ── Stream the next assistant turn ───────────────────────────────────────
   const runAssistantTurn = useCallback(async (currentMessages, { isFirstMessage }) => {
     if (!workspace) return
     setStreaming(true)
@@ -157,22 +263,16 @@ export default function OnboardingInterview() {
 
     const systemPrompt = getOnboardingInterviewSystemPrompt(workspace, founderName, { isFirstMessage })
 
-    // Claude API (and Vercel AI Gateway) require at least one message — a
-    // system-only request returns AI_InvalidPromptError. On the first turn,
-    // inject a silent user "please begin" so Bernard's opener has a turn to
-    // respond to. Matches the canonical pattern in InterviewSession.jsx.
-    // We do NOT add this to the visible transcript — it's a trigger only.
+    // Claude API / Vercel AI Gateway require >=1 message — system-only
+    // requests return AI_InvalidPromptError. Silent starter pattern.
     const streamInput = currentMessages.length === 0
       ? [{ role: 'user', content: 'Please begin the onboarding interview.' }]
       : currentMessages
 
     let buffer = ''
-    let complete = false
     try {
       for await (const delta of streamMessage(streamInput, systemPrompt, { model: 'claude-sonnet-4-6', maxOutputTokens: 1024 })) {
         buffer += delta
-        // Cheap mid-stream check — the model usually emits the token at the
-        // end, but stripping early keeps the partial UI clean.
         const { text } = detectComplete(buffer)
         setStreamingText(text)
       }
@@ -183,7 +283,6 @@ export default function OnboardingInterview() {
     }
 
     const { text, complete: hasCompleteMarker } = detectComplete(buffer)
-    complete = hasCompleteMarker
     const finalText = text.trim()
     if (!finalText) {
       setStreaming(false)
@@ -196,33 +295,190 @@ export default function OnboardingInterview() {
     setMessages(nextMessages)
     setStreamingText('')
     setStreaming(false)
-    if (complete) {
+
+    if (hasCompleteMarker) {
       setCompleted(true)
       await persist(nextMessages, 'completed')
     } else {
       await persist(nextMessages)
+      // Speak the assistant's message after persistence so the audio doesn't
+      // start before the message is durable.
+      speak(finalText)
     }
-  }, [workspace, founderName, persist])
+  }, [workspace, founderName, persist, speak])
 
-  // Kick off the opener once the interview is loaded with no messages yet.
-  // kickedOffRef ensures we only attempt once per page-load — if the stream
-  // call fails (e.g. AI_InvalidPromptError, rate limit, network), the error
-  // is shown but we don't auto-retry. Without this guard the effect re-fires
-  // each render because `streaming` flips back to false on error and
-  // `messages.length` stays 0, producing a 10-rps retry storm.
-  const kickedOffRef = useRef(false)
+  // ── Kickoff once mic check has passed + interview row loaded ─────────────
   useEffect(() => {
-    if (loading || completed || streaming || !interview) return
+    if (loading || completed || streaming || !interview || !micCheckPassed) return
     if (messages.length > 0) return
     if (kickedOffRef.current) return
     kickedOffRef.current = true
     runAssistantTurn([], { isFirstMessage: true })
-  }, [loading, completed, streaming, interview, messages.length, runAssistantTurn])
+  }, [loading, completed, streaming, interview, micCheckPassed, messages.length, runAssistantTurn])
 
-  // Run synthesis. Extracted as its own callback so the auto-trigger effect
-  // and the retry button can both invoke it. `dryRun` is threaded from the
-  // URL query — when true, the handler returns the synthesis JSON without
-  // writing anything.
+  // ── SpeechRecognition: start / stop ──────────────────────────────────────
+  // Plain function (not useCallback) — startListening is recursive via
+  // maybeAutoResume, and React Compiler's manual-memoization lint can't
+  // verify that. Same pattern as InterviewSession.jsx.
+  function startListening({ preserveTranscript = false } = {}) {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return  // iOS Safari → typed-answer fallback handles input
+    if (isListening) return
+
+    ttsRef.current?.cancel()
+    window.speechSynthesis?.cancel()
+    setIsSpeaking(false)
+
+    if (!preserveTranscript) {
+      setTranscript('')
+      transcriptRef.current = ''
+      finalTranscriptRef.current = ''
+      restartCountRef.current = 0
+      userAnswerActiveRef.current = true
+    }
+
+    const recognition = new SR()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+
+    recognition.onresult = (event) => {
+      let gotFinal = false
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        if (event.results[i].isFinal) {
+          finalTranscriptRef.current += event.results[i][0].transcript + ' '
+          gotFinal = true
+        }
+      }
+      const interim = event.results[event.results.length - 1].isFinal
+        ? ''
+        : event.results[event.results.length - 1][0].transcript
+      const display = (finalTranscriptRef.current + interim).trim()
+      setTranscript(display)
+      transcriptRef.current = finalTranscriptRef.current.trim()
+
+      if (gotFinal) {
+        const cleaned = detectAndStripStopPhrase(finalTranscriptRef.current)
+        if (cleaned !== null) {
+          userAnswerActiveRef.current = false
+          clearTimeout(restartTimerRef.current)
+          finalTranscriptRef.current = cleaned
+          transcriptRef.current = cleaned.trim()
+          setTranscript(cleaned.trim())
+          recognitionRef.current?.stop()
+        }
+      }
+    }
+
+    // Schedule a silent restart so the user can keep their turn through a
+    // thinking pause. Returns true if scheduled, false if we've hit the
+    // cap or the user is no longer mid-answer.
+    function maybeAutoResume(delayMs) {
+      if (!userAnswerActiveRef.current) return false
+      if (completed || streaming) return false
+      if (restartCountRef.current >= RESTART_CAP) {
+        userAnswerActiveRef.current = false
+        return false
+      }
+      restartCountRef.current += 1
+      clearTimeout(restartTimerRef.current)
+      restartTimerRef.current = setTimeout(() => {
+        if (userAnswerActiveRef.current && !completed) {
+          startListening({ preserveTranscript: true })
+        }
+      }, delayMs)
+      return true
+    }
+
+    recognition.onend = () => {
+      if (maybeAutoResume(200)) return
+      setIsListening(false)
+    }
+
+    recognition.onerror = (e) => {
+      if (e.error === 'no-speech') {
+        if (maybeAutoResume(200)) return
+        setIsListening(false)
+        return
+      }
+      // iOS Chrome 'aborted' usually means TTS still holds the audio session.
+      // Retry once with a longer delay.
+      if (e.error === 'aborted') {
+        setIsListening(false)
+        if (autoListenAbortRetryRef.current < 1 && !completed && !streaming && !isSpeaking) {
+          autoListenAbortRetryRef.current += 1
+          setTimeout(() => {
+            if (!completed && !isListening) startListening()
+          }, 1500)
+        }
+        return
+      }
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        userAnswerActiveRef.current = false
+        setIsListening(false)
+        setError('Microphone permission was denied. You can type your answer instead.')
+        return
+      }
+      userAnswerActiveRef.current = false
+      setIsListening(false)
+      setError(`Microphone trouble (${e.error}). Tap mic to retry or type your answer instead.`)
+    }
+
+    recognitionRef.current = recognition
+    try {
+      recognition.start()
+      setIsListening(true)
+      autoListenAbortRetryRef.current = 0
+    } catch {
+      setIsListening(false)
+    }
+  }
+
+  function stopListening() {
+    userAnswerActiveRef.current = false
+    clearTimeout(restartTimerRef.current)
+    recognitionRef.current?.stop()
+  }
+
+  // ── submitUserText — shared path for voice (auto on listen-end) + typed ──
+  const submitUserText = useCallback(async (rawText) => {
+    const text = (rawText || '').trim()
+    if (!text || streaming || completed) return
+
+    setTranscript('')
+    transcriptRef.current = ''
+    setTypedAnswer('')
+
+    const next = [...messages, { role: 'user', content: text }]
+    setMessages(next)
+    await runAssistantTurn(next, { isFirstMessage: false })
+  }, [streaming, completed, messages, runAssistantTurn])
+
+  // Auto-listen after TTS playback ends — 700ms gives iOS time to release
+  // the audio session before the mic engine tries to claim it.
+  useEffect(() => {
+    if (!hasSpeechRecognition) return
+    if (!isSpeaking && autoListenRef.current && !streaming && !completed) {
+      autoListenRef.current = false
+      const timer = setTimeout(() => startListening(), 700)
+      return () => clearTimeout(timer)
+    }
+    // startListening is a stable scope-level function; listing it would
+    // re-fire the effect needlessly on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasSpeechRecognition, isSpeaking, streaming, completed])
+
+  // Auto-submit when isListening flips false with captured text.
+  useEffect(() => {
+    if (isListening) return
+    if (!transcriptRef.current.trim()) return
+    submitUserText(transcriptRef.current)
+    // submitUserText is a stable scope-level helper (useCallback with a
+    // stable transitive dep chain). Listing it would churn this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isListening])
+
+  // ── Synthesis ────────────────────────────────────────────────────────────
   const runSynthesis = useCallback(async () => {
     if (!interviewId) return
     setSynthesisStatus('running')
@@ -246,32 +502,20 @@ export default function OnboardingInterview() {
     }
   }, [interviewId, founderName, dryRun])
 
-  // Auto-trigger synthesis as soon as the interview flips to completed.
-  // Idempotency: status==='synthesized' on first load short-circuits to
-  // 'already' (set in bootstrap), so we never re-run.
   useEffect(() => {
     if (!completed || !interviewId) return
     if (synthesisStatus !== 'idle') return
     runSynthesis()
   }, [completed, interviewId, synthesisStatus, runSynthesis])
 
-  const handleSend = useCallback(async () => {
-    const trimmed = input.trim()
-    if (!trimmed || streaming || completed) return
-    const next = [...messages, { role: 'user', content: trimmed }]
-    setMessages(next)
-    setInput('')
-    await runAssistantTurn(next, { isFirstMessage: false })
-  }, [input, streaming, completed, messages, runAssistantTurn])
-
-  const handleKeyDown = useCallback((e) => {
-    // Cmd/Ctrl + Enter sends. Plain Enter inserts a newline — onboarding answers
-    // are often multi-paragraph and we'd rather not surprise-submit a half-thought.
-    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-      e.preventDefault()
-      handleSend()
-    }
-  }, [handleSend])
+  // Stop any in-flight TTS / mic on unmount.
+  useEffect(() => () => {
+    ttsRef.current?.cancel()
+    window.speechSynthesis?.cancel()
+    userAnswerActiveRef.current = false
+    clearTimeout(restartTimerRef.current)
+    try { recognitionRef.current?.stop() } catch { /* ignore */ }
+  }, [])
 
   // ── Render guards ────────────────────────────────────────────────────────
 
@@ -311,6 +555,12 @@ export default function OnboardingInterview() {
         </Card>
       </div>
     )
+  }
+
+  // MicCheck gate — pre-interview audio test. Only required for a fresh
+  // interview (no messages yet, not completed). Resumed sessions skip it.
+  if (!micCheckPassed) {
+    return <MicCheck onContinue={() => setMicCheckPassed(true)} />
   }
 
   // ── Main UI ──────────────────────────────────────────────────────────────
@@ -371,34 +621,141 @@ export default function OnboardingInterview() {
           onHome={() => navigate('/')}
         />
       ) : (
-        <div className="border-t pt-4 space-y-2">
+        <>
+          {/* Audio-interrupted recovery banner — iOS BT/CarPlay routing changes
+              fire this; the click is the user gesture we need to re-prime. */}
+          {audioInterrupted && (
+            <button
+              type="button"
+              onClick={handleRestoreAudio}
+              className="mb-3 w-full rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-left hover:bg-amber-100 active:bg-amber-100 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            >
+              <div className="flex items-center gap-3">
+                <Volume2 className="h-5 w-5 text-amber-700 shrink-0" aria-hidden="true" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-900">Audio interrupted</p>
+                  <p className="text-xs text-amber-800">
+                    Tap to restore audio and replay the last question. Often happens when headphones or CarPlay change connection.
+                  </p>
+                </div>
+                <RefreshCw className="h-4 w-4 text-amber-700 shrink-0" aria-hidden="true" />
+              </div>
+            </button>
+          )}
+
           {error && (
-            <p className="text-sm text-destructive flex items-center gap-2">
+            <p className="text-sm text-destructive flex items-center gap-2 mb-2">
               <AlertCircle className="h-4 w-4" /> {error}
             </p>
           )}
-          <div className="flex gap-2 items-end">
-            <Textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Type your answer… (⌘/Ctrl + Enter to send)"
-              rows={3}
-              disabled={streaming}
-              className="resize-none"
-            />
-            <Button
-              onClick={handleSend}
-              disabled={streaming || !input.trim()}
-              size="icon"
-              className="h-10 w-10 shrink-0"
-              aria-label="Send"
-            >
-              {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-            </Button>
-          </div>
-        </div>
+
+          {/* Bottom dock — mic for SpeechRecognition browsers, textarea for
+              iOS Safari et al. Same visual surface either way. */}
+          {hasSpeechRecognition ? (
+            <div className="border-t pt-4 flex flex-col items-center gap-3">
+              {transcript && (
+                <div
+                  aria-live="polite"
+                  aria-label="Transcript"
+                  className="w-full rounded-xl bg-muted px-4 py-3 text-sm text-foreground/80 italic min-h-[44px]"
+                >
+                  &quot;{transcript}&quot;
+                </div>
+              )}
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-xs text-muted-foreground h-4"
+              >
+                {streaming ? '' : isSpeaking ? (
+                  <span className="flex items-center gap-1.5">
+                    <Volume2 className="h-3 w-3 animate-pulse" aria-hidden="true" /> Speaking…
+                  </span>
+                ) : isListening ? (
+                  <span className="flex items-center gap-1.5 text-red-500">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse" aria-hidden="true" /> Listening — take your time. Say &quot;done&quot; or tap mic to send.
+                  </span>
+                ) : 'Tap to speak'}
+              </p>
+              <button
+                onClick={isListening ? stopListening : () => startListening()}
+                disabled={streaming || isSpeaking}
+                aria-label={isListening ? 'Stop recording' : 'Start recording'}
+                aria-pressed={isListening}
+                className={`h-16 w-16 rounded-full flex items-center justify-center transition-all shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-primary
+                  ${isListening
+                    ? 'bg-red-500 text-white scale-110'
+                    : 'bg-primary text-primary-foreground hover:opacity-90 active:scale-95'
+                  } disabled:opacity-30 disabled:cursor-not-allowed disabled:scale-100`}
+              >
+                {isListening
+                  ? <MicOff className="h-6 w-6" aria-hidden="true" />
+                  : <Mic className="h-6 w-6" aria-hidden="true" />
+                }
+              </button>
+            </div>
+          ) : (
+            <div className="border-t pt-4 flex flex-col gap-2">
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-xs text-muted-foreground h-4 flex items-center gap-1.5"
+              >
+                {streaming ? '' : isSpeaking ? (
+                  <><Volume2 className="h-3 w-3 animate-pulse" aria-hidden="true" /> Speaking…</>
+                ) : (
+                  <><Keyboard className="h-3 w-3" aria-hidden="true" /> Type your answer — voice input isn&rsquo;t supported in this browser</>
+                )}
+              </p>
+              <div className="flex items-end gap-2">
+                <Textarea
+                  value={typedAnswer}
+                  onChange={(e) => setTypedAnswer(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault()
+                      if (!streaming && !isSpeaking && typedAnswer.trim()) {
+                        submitUserText(typedAnswer)
+                      }
+                    }
+                  }}
+                  placeholder="Type your answer… (⌘/Ctrl + Enter to send)"
+                  rows={3}
+                  disabled={streaming || isSpeaking}
+                  className="resize-none"
+                />
+                <Button
+                  onClick={() => submitUserText(typedAnswer)}
+                  disabled={streaming || isSpeaking || !typedAnswer.trim()}
+                  size="icon"
+                  className="h-10 w-10 shrink-0"
+                  aria-label="Send"
+                >
+                  {streaming ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
+    </div>
+  )
+}
+
+function MessageBubble({ role, content, streaming = false }) {
+  const isUser = role === 'user'
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div
+        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
+          isUser
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-muted text-foreground'
+        }`}
+      >
+        {content}
+        {streaming && <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-current opacity-50 animate-pulse" />}
+      </div>
     </div>
   )
 }
@@ -494,23 +851,5 @@ function SynthesisStateCard({ status, error, counts, result, dryRun, onRetry, on
         </div>
       </CardContent>
     </Card>
-  )
-}
-
-function MessageBubble({ role, content, streaming = false }) {
-  const isUser = role === 'user'
-  return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap ${
-          isUser
-            ? 'bg-primary text-primary-foreground'
-            : 'bg-muted text-foreground'
-        }`}
-      >
-        {content}
-        {streaming && <span className="inline-block w-1.5 h-4 ml-0.5 align-middle bg-current opacity-50 animate-pulse" />}
-      </div>
-    </div>
   )
 }
