@@ -442,3 +442,25 @@ export function updateCampaign(patch, userId) {
     body: JSON.stringify(patch),
   })
 }
+
+// Per-clinician campaign override (workspace default is at /api/db/settings).
+// Returns { clinician_id, name, settings | null }. null settings = clinician
+// uses the workspace default; an object means they've overridden.
+/** @param {string} clinicianId @returns {Promise<unknown>} */
+export function fetchClinicianCampaign(clinicianId) {
+  return apiFetch(`/api/clinicians/campaign-settings?clinician_id=${encodeURIComponent(clinicianId)}`)
+}
+
+// settings === null  → clear the override (use workspace default)
+// settings === object → set override (must include mode + optional CTA fields)
+/** @param {string} clinicianId @param {Record<string, unknown> | null} settings @returns {Promise<unknown>} */
+export function updateClinicianCampaign(clinicianId, settings) {
+  const body = settings === null
+    ? { use_default: true }
+    : { settings }
+  return apiFetch(`/api/clinicians/campaign-settings?clinician_id=${encodeURIComponent(clinicianId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
