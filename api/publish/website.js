@@ -39,6 +39,7 @@ export const config = { runtime: 'nodejs' }
 import { marked } from 'marked'
 import { getCredential } from '../_lib/getCredential.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
+import { requireRole } from '../_lib/auth.js'
 import { rewriteMarkdownImageUrls } from '../_lib/publishImageMirror.js'
 
 async function handler(req, res) {
@@ -54,6 +55,8 @@ async function handler(req, res) {
   }
 
   const scope = await workspaceScope(req)
+  const auth = await requireRole(req, null, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   const workspaceId = scope?.workspace?.id
 
   const wpCred = await getCredential(workspaceId, 'wordpress')

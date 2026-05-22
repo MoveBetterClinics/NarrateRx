@@ -32,6 +32,7 @@ export const config = { runtime: 'nodejs' }
 import { marked } from 'marked'
 import { getCredential } from '../_lib/getCredential.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
+import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 
 const BEEHIIV_API = 'https://api.beehiiv.com/v2'
@@ -61,6 +62,8 @@ async function handler(req, res) {
   }
 
   const scope = await workspaceScope(req)
+  const auth = await requireRole(req, null, { orgId: scope.workspace.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   const workspaceId = scope?.workspace?.id
 
   const cred = await getCredential(workspaceId, 'beehiiv')
