@@ -416,15 +416,19 @@ export default function App() {
               {/* Public pages — no auth required */}
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/terms" element={<TermsOfService />} />
-              <Route path="/onboard/brand-kit" element={<ProtectedAppWithProvider />} />
-              {/* /onboard/interview is the founder's one-time onboarding
-                  interview — runs on an established subdomain (post-wizard),
-                  needs WorkspaceProvider + Clerk org, so it routes through
-                  ProtectedAppWithProvider just like /onboard/brand-kit.
-                  Without this explicit exemption, the /onboard/* catch-all
-                  below dispatches it to the apex wizard. */}
-              <Route path="/onboard/interview" element={<ProtectedAppWithProvider />} />
-              <Route path="/onboard/*" element={<OnboardingShell />} />
+              {/* The apex wizard lives at /onboard exactly. Anything deeper
+                  (/onboard/brand-kit, /onboard/interview) is part of the
+                  authenticated app and falls through to the * catch-all
+                  below, which dispatches to ProtectedAppWithProvider →
+                  inner Routes. Older code used /onboard/* here with explicit
+                  exemptions for the deep paths, but that pattern broke
+                  React Router's descendant-Routes matching: the parent
+                  consumed the full URL with no splat remaining, so the
+                  inner <Route path="/"> (Home) matched the "empty index"
+                  and rendered Home at /onboard/interview. Using /onboard
+                  exact + * catch-all sidesteps the descendant-matching
+                  trap. */}
+              <Route path="/onboard" element={<OnboardingShell />} />
               <Route path="*" element={<ProtectedAppWithProvider />} />
             </Routes>
           </BrowserRouter>
