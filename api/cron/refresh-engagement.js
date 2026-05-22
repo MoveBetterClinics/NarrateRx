@@ -340,11 +340,10 @@ async function processWorkspaceGA4(ws, summary) {
 
 async function handler(req, res) {
   const cronSecret = process.env.CRON_SECRET
-  if (cronSecret) {
-    const auth = req.headers?.authorization || req.headers?.Authorization
-    if (auth !== `Bearer ${cronSecret}`) {
-      return res.status(401).json({ error: 'Unauthorized' })
-    }
+  if (!cronSecret) return res.status(503).json({ error: 'CRON_SECRET not configured' })
+  const auth = req.headers?.authorization || req.headers?.Authorization
+  if (auth !== `Bearer ${cronSecret}`) {
+    return res.status(401).json({ error: 'Unauthorized' })
   }
 
   if (!SUPABASE_URL || !SUPABASE_KEY) {
