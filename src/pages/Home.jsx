@@ -13,6 +13,7 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { greetingFor } from '@/components/home/helpers'
 import DraftsReadyRow from '@/components/home/DraftsReadyRow'
 import GettingStarted from '@/components/home/GettingStarted'
+import OnboardingCard from '@/components/home/OnboardingCard'
 import HomeStats from '@/components/home/HomeStats'
 import ResumeStrip from '@/components/home/ResumeStrip'
 import PlanNextInterview from '@/components/home/PlanNextInterview'
@@ -215,6 +216,11 @@ export default function Home() {
           </Link>
         </div>
       </div>
+
+      {/* "Finish onboarding" card. Self-gated (admin + workspace not yet
+          onboarded + not snoozed) — renders nothing for the 99% case. Sits
+          above HomeStats so the founder's first task lands above the fold. */}
+      <OnboardingCard />
 
       {/* Stat row — pulled from useStories, no extra fetch. Wired to real
           data (interviews this week, drafts awaiting work + piece-platform
