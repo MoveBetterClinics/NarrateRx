@@ -3,6 +3,7 @@ export const config = { runtime: 'nodejs' }
 import { requireRole } from '../../_lib/auth.js'
 import { STAFF_ROLES } from '../../_lib/roles.js'
 import { workspaceScope } from '../../_lib/workspaceScope.js'
+import { invalidateWorkspaceCacheById } from '../../_lib/workspaceContext.js'
 
 // Assign or clear a role within the current workspace's Brand Kit.
 //
@@ -109,6 +110,7 @@ async function handler(req, res) {
             headers: { Prefer: 'return=minimal' },
             body: JSON.stringify({ brand_style: nextStyle }),
           })
+          invalidateWorkspaceCacheById(scope.id)
         }
       }
     }

@@ -39,6 +39,24 @@ function setCached(slug, row) {
   _wsCache.set(slug, { row, expiresAt: Date.now() + WS_TTL_MS })
 }
 
+// Drop a workspace from the in-process cache. Call after any handler that
+// writes to the `workspaces` row (brand_style, voice config, brandbook,
+// enabled outputs, etc.) so the next read in this instance hits the DB and
+// the caller sees their write. The cache is per-instance — other warm
+// instances still expire on the 60s TTL — but in practice the same instance
+// usually serves the immediate follow-up read.
+export function invalidateWorkspaceCacheBySlug(slug) {
+  if (!slug) return
+  _wsCache.delete(slug)
+}
+
+export function invalidateWorkspaceCacheById(id) {
+  if (!id) return
+  for (const [slug, entry] of _wsCache.entries()) {
+    if (entry.row?.id === id) _wsCache.delete(slug)
+  }
+}
+
 function extractSlug(host) {
   if (!host) return null
   const h = host.split(':')[0].toLowerCase()

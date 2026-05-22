@@ -4,7 +4,7 @@ import { waitUntil } from '@vercel/functions'
 import { requireRole } from '../_lib/auth.js'
 import { STAFF_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
-import { workspaceById } from '../_lib/workspaceContext.js'
+import { workspaceById, invalidateWorkspaceCacheById } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import {
   parseFilenameTokens,
@@ -226,6 +226,7 @@ async function handler(req, res) {
                 body: JSON.stringify({ brand_guidelines: guidelines }),
               })
               if (!ws.ok) console.error('workspace brand_guidelines sync failed:', ws.status, await ws.text())
+              else invalidateWorkspaceCacheById(scopeId)
               // Merge extracted colors/fonts into workspaces.brand_style (JSONB).
               // Re-fetch current value first so we don't overwrite existing manual entries.
               if (Object.keys(stylePatch).length > 0) {
@@ -238,6 +239,7 @@ async function handler(req, res) {
                   body: JSON.stringify({ brand_style: nextStyle }),
                 })
                 if (!styleUpd.ok) console.error('brand_style patch failed:', styleUpd.status, await styleUpd.text())
+                else invalidateWorkspaceCacheById(scopeId)
               }
             }).catch((e) => console.error('brand guideline extraction failed:', e?.message))
           )
