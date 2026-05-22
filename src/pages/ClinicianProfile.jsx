@@ -23,6 +23,8 @@ import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOption
 import { getCleanupLevel } from '@/lib/cleanupLevels'
 import VoiceNotesPanel from '@/components/VoiceNotesPanel'
 import VoiceFreshnessCard from '@/components/VoiceFreshnessCard'
+import VoicePlaybackCard from '@/components/VoicePlaybackCard'
+import { DisplayNameCard } from '@/components/DisplayNameCard'
 import { ClinicianCampaignCard } from '@/components/ClinicianCampaignCard'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
@@ -140,6 +142,15 @@ export default function ClinicianProfile() {
       </div>
 
       <Separator />
+
+      {/* Personal identity controls — own-only. Display name updates Clerk
+          metadata and propagates to clinician.name. Voice playback adjusts
+          how fast Bernard speaks during this clinician's interviews
+          (clinicians.tts_settings). Both were previously on /account but
+          they're clinician-shaped settings; /account is now login/security
+          only. */}
+      {isMyClinicianProfile && <DisplayNameCard />}
+      {isMyClinicianProfile && <VoicePlaybackCard clinician={clinician} />}
 
       {/* Voice freshness — structured substrate visible to everyone (it's the
           input the AI consults, not a critique of editing behavior). */}

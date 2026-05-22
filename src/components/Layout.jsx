@@ -135,7 +135,7 @@ export default function Layout({ children }) {
             )}
             <DrawerClose asChild>
               <Link to="/account" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
-                <UserCircle className="h-4 w-4" /> Your account
+                <UserCircle className="h-4 w-4" /> Account &amp; security
               </Link>
             </DrawerClose>
             <DrawerClose asChild>
