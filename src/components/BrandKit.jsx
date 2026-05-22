@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { FIXTURE_ASSETS, ROLE_DEFS, FIXTURE_STYLE } from '@/components/brandKitFixtures'
+import { ColorPickerPopover } from '@/components/ColorPickerPopover'
 import { uploadBrandAsset } from '@/lib/brandKitLib'
 import { useQueryClient } from '@tanstack/react-query'
 import {
@@ -976,11 +977,10 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
               <div>
                 <Label className="text-xs">Accent color</Label>
                 <div className="flex items-center gap-2 mt-1">
-                  <input
-                    type="color"
+                  <ColorPickerPopover
                     value={style.accent_color || '#000000'}
-                    onChange={(e) => setStyle((s) => ({ ...s, accent_color: e.target.value }))}
-                    className="h-8 w-12 rounded border cursor-pointer"
+                    onChange={(hex) => setStyle((s) => ({ ...s, accent_color: hex }))}
+                    ariaLabel="Pick accent color"
                   />
                   <Input value={style.accent_color || ''} onChange={(e) => setStyle((s) => ({ ...s, accent_color: e.target.value }))} className="h-8 text-xs font-mono" placeholder="#0a7f3f" />
                 </div>
@@ -1025,11 +1025,11 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                   ))}
                   {addingCustomColor ? (
                     <div className="flex items-center gap-1.5">
-                      <input
-                        type="color"
+                      <ColorPickerPopover
                         value={customColorDraft || '#888888'}
-                        onChange={(e) => setCustomColorDraft(e.target.value)}
-                        className="h-7 w-10 rounded border cursor-pointer"
+                        onChange={(hex) => setCustomColorDraft(hex)}
+                        swatchClassName="h-7 w-10"
+                        ariaLabel="Pick secondary color"
                       />
                       <Input
                         value={customColorDraft}

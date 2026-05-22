@@ -53,6 +53,7 @@
     "pdf-parse": "^2.4.5",
     "react": "^18.2.0",
     "react-advanced-cropper": "^0.20.1",
+    "react-colorful": "^5.7.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.22.3",
