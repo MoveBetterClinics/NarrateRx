@@ -39,21 +39,33 @@ async function handler(req, res) {
   // Three parallel reads — assets, roles, and the brand_style column on the
   // workspace row. brand_style lives on workspaces (not its own table) because
   // it's a small JSON blob of non-file state that already had a natural home.
-  const [assetsRes, rolesRes] = await Promise.all([
+  //
+  // brand_style is read fresh from the DB (not from scope.workspace) because
+  // the workspaceContext cache is per-instance with a 60s TTL: a sibling
+  // warm instance serving this GET right after a PATCH on another instance
+  // would otherwise return the pre-write style and the UI would re-render
+  // with stale chips. See PR #752 + follow-up.
+  const [assetsRes, rolesRes, styleRes] = await Promise.all([
     sb(`brand_assets?select=${ASSET_COLS}&${scope.column}=eq.${scope.id}&order=uploaded_at.desc`),
     sb(`brand_kit_roles?select=role,asset_id,assigned_at&${scope.column}=eq.${scope.id}`),
+    sb(`workspaces?id=eq.${scope.id}&select=brand_style`),
   ])
   if (!assetsRes.ok) return res.status(500).json({ error: 'Database error (assets)' })
   if (!rolesRes.ok)  return res.status(500).json({ error: 'Database error (roles)' })
+  if (!styleRes.ok)  return res.status(500).json({ error: 'Database error (style)' })
 
-  const [assets, roleRows] = await Promise.all([assetsRes.json(), rolesRes.json()])
+  const [assets, roleRows, styleRows] = await Promise.all([assetsRes.json(), rolesRes.json(), styleRes.json()])
 
   // Roles come back as rows; flatten to a { role: asset_id } map for the UI.
   const roles = {}
   for (const r of roleRows) roles[r.role] = r.asset_id
 
-  // brand_style is already on scope.workspace (workspaceContext fetched it).
-  const style = scope.workspace?.brand_style || {}
+  const style = styleRows?.[0]?.brand_style || {}
+
+  // Prevent the browser's conditional-GET cache from short-circuiting writes:
+  // a 304 with stale body would defeat the fresh-read above. The endpoint is
+  // tiny and per-workspace so skipping ETag/304 has negligible cost.
+  res.setHeader('Cache-Control', 'no-store')
 
   return res.status(200).json({ assets, roles, style })
 }
