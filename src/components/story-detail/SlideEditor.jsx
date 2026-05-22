@@ -116,7 +116,7 @@ function PositionPickerPopover({ anchorRef, photoUrl, value, onChange, onClose }
   return (
     <div
       ref={ref}
-      className="absolute z-50 mt-1 w-[280px] rounded-lg border bg-popover p-3 shadow-lg"
+      className="absolute z-50 mt-1 w-[280px] rounded-lg border bg-white p-3 shadow-lg"
       style={{ top: '100%', left: 0 }}
     >
       <p className="mb-2 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -394,7 +394,7 @@ function SlideCard({
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </button>
         {photoOpen && (
-          <div className="absolute left-0 right-0 z-40 mt-1 rounded-md border bg-popover p-1.5 shadow-lg max-h-48 overflow-auto">
+          <div className="absolute left-0 right-0 z-40 mt-1 rounded-md border bg-white p-1.5 shadow-lg max-h-48 overflow-auto">
             <button
               type="button"
               onClick={() => { onBindPhoto(null); setPhotoOpen(false) }}
@@ -450,7 +450,7 @@ function SlideCard({
           Add text block
         </button>
         {addOpen && (
-          <div className="absolute left-0 right-0 z-40 mt-1 rounded-md border bg-popover p-1 shadow-lg">
+          <div className="absolute left-0 right-0 z-40 mt-1 rounded-md border bg-white p-1 shadow-lg">
             {BLOCK_ROLES.map((role) => (
               <button
                 key={role}
