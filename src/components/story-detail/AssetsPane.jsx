@@ -1614,7 +1614,13 @@ function ApprovalPanel({ piece }) {
  * with role-gated actions (send for review, approve, request changes, publish).
  * The full ReviewPost editor remains accessible via the "Open for editing" link.
  */
-export default function AssetsPane({ story, onProvenanceHighlight, className = '' }) {
+export default function AssetsPane({
+  story,
+  onProvenanceHighlight,
+  className = '',
+  view: viewProp,
+  onViewChange,
+}) {
   // Sort so series parts appear in series_part order within their series.
   // The content API returns rows by created_at.desc, which doesn't match
   // series_part ordering, so without this the tabs would render as e.g.
@@ -1634,7 +1640,15 @@ export default function AssetsPane({ story, onProvenanceHighlight, className = '
     ? Math.max(0, pieces.findIndex((p) => p.id === pieceParam))
     : 0
   const [activeIdx, setActiveIdx] = useState(initialIdx)
-  const [view, setView] = useState(pieceParam ? 'edit' : 'plan')
+  // Controlled-or-uncontrolled `view` — StoryDetail passes it in so its
+  // outer layout (transcript pane vs. transcript rail) can react to mode
+  // changes. Falls back to internal state if a parent doesn't control it.
+  const [viewInternal, setViewInternal] = useState(pieceParam ? 'edit' : 'plan')
+  const view = viewProp ?? viewInternal
+  const setView = (next) => {
+    if (onViewChange) onViewChange(next)
+    if (viewProp === undefined) setViewInternal(next)
+  }
 
   // If the ?piece=<id> param resolves after pieces load (async story fetch),
   // sync the active tab once the matching piece appears.
@@ -1645,6 +1659,9 @@ export default function AssetsPane({ story, onProvenanceHighlight, className = '
       setActiveIdx(idx)
       setView('edit')
     }
+    // setView is stable enough for our needs; including it would require
+    // useCallback and adds noise without changing behavior.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pieceParam, pieces, activeIdx])
 
   const handleSelectPiece = (pieceId) => {

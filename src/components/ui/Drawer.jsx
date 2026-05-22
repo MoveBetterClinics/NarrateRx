@@ -23,6 +23,8 @@ DrawerOverlay.displayName = 'DrawerOverlay'
 const SIDE_CLASSES = {
   right:
     'fixed inset-y-0 right-0 z-50 flex h-full w-full max-w-md flex-col border-l bg-background shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right',
+  left:
+    'fixed inset-y-0 left-0 z-50 flex h-full w-full max-w-md flex-col border-r bg-background shadow-xl duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left',
   bottom:
     'fixed inset-x-0 bottom-0 z-50 flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t bg-background shadow-xl pb-[env(safe-area-inset-bottom)] duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
 }

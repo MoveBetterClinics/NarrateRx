@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import { AlertCircle, ArrowLeft, ChevronDown, Link as LinkIcon, Loader2, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -12,6 +12,8 @@ import { apiFetch } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { getStageToken } from '@/lib/stageTokens'
 import TranscriptPane from '@/components/story-detail/TranscriptPane'
+import TranscriptRail from '@/components/story-detail/TranscriptRail'
+import TranscriptDrawer from '@/components/story-detail/TranscriptDrawer'
 import AssetsPane from '@/components/story-detail/AssetsPane'
 import TranscriptExport from '@/components/story-detail/TranscriptExport'
 import LoadingState from '@/components/LoadingState'
@@ -80,15 +82,24 @@ function EditablePill({ value, options, placeholder, onChange, disabled }) {
 /**
  * StoryDetail — consolidated view for a single story (interview + pieces).
  *
- * Two-column layout on md+:
- *   Left  — TranscriptPane: interview transcript
- *   Right — AssetsPane: tabbed content pieces
+ * Layout responds to the Plan/Edit toggle (lifted from AssetsPane so the
+ * layout itself can react to mode changes):
+ *
+ *   Plan mode  → two-column grid (TranscriptPane | AssetsPane)
+ *                The transcript is fully visible because planning means
+ *                deciding what gets routed where.
+ *
+ *   Edit mode  → 44px transcript rail + wide AssetsPane
+ *                The transcript collapses to a clickable rail; clicking it
+ *                opens TranscriptDrawer as a slide-over for spot lookups
+ *                and "select text → route to a content format" actions.
  *
  * Accessed via /stories/:storyId where storyId is the interview UUID.
  */
 export default function StoryDetail() {
   const { storyId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { data: story, isLoading, isError, isPlaceholderData } = useStory(storyId)
 
   // Provenance highlight — lifted here so TranscriptPane and AssetsPane can
@@ -99,6 +110,17 @@ export default function StoryDetail() {
   const [refsOpen, setRefsOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  // Lifted from AssetsPane. Initial value mirrors AssetsPane's previous logic
+  // — if the URL deep-links into a specific piece (?piece=<id>) we land in
+  // Edit mode so the user doesn't see a planning surface they have to click
+  // past to reach the piece they were sent to.
+  const [view, setView] = useState(searchParams.get('piece') ? 'edit' : 'plan')
+  // Edit-mode slide-over for the transcript. Closes automatically when we
+  // flip back to Plan mode (the expanded pane takes over).
+  const [transcriptDrawerOpen, setTranscriptDrawerOpen] = useState(false)
+  useEffect(() => {
+    if (view !== 'edit') setTranscriptDrawerOpen(false)
+  }, [view])
   const { workspace } = useWorkspace()
   const { user } = useUser()
   const updateInterview = useUpdateInterview()
@@ -292,13 +314,49 @@ export default function StoryDetail() {
         )}
       </div>
 
-      {/* Two-column body. On mobile, AssetsPane (approve/distribute) renders
-          first so a clinician reviewing on a phone doesn't scroll past the
-          full transcript to reach the action surface. */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
-        <TranscriptPane story={story} isLoadingTranscript={isPlaceholderData} provenanceHighlight={provenanceHighlight} />
-        <AssetsPane story={story} onProvenanceHighlight={setProvenanceHighlight} className="order-first md:order-none" />
+      {/* Body — layout responds to Plan vs Edit (see component-level docs).
+          On mobile, AssetsPane renders first regardless of mode so a
+          clinician on a phone doesn't have to scroll past the transcript to
+          reach the action surface. The rail collapse only happens on md+
+          where there's a meaningful horizontal split to be had. */}
+      <div
+        className={`grid gap-5 items-start grid-cols-1 ${
+          view === 'edit'
+            ? 'md:[grid-template-columns:44px_minmax(0,1fr)]'
+            : 'md:grid-cols-2'
+        }`}
+      >
+        {view === 'edit' ? (
+          // Hidden on mobile — the rail only earns its keep on md+; on
+          // phones the user already scrolls past the transcript and the
+          // drawer would just duplicate the expanded pane below.
+          <div className="hidden md:block">
+            <TranscriptRail onClick={() => setTranscriptDrawerOpen(true)} />
+          </div>
+        ) : (
+          <TranscriptPane
+            story={story}
+            isLoadingTranscript={isPlaceholderData}
+            provenanceHighlight={provenanceHighlight}
+          />
+        )}
+        <AssetsPane
+          story={story}
+          onProvenanceHighlight={setProvenanceHighlight}
+          view={view}
+          onViewChange={setView}
+          className="order-first md:order-none"
+        />
       </div>
+
+      {/* Slide-over transcript for Edit mode. Mounted unconditionally so the
+          open/close transition animates both directions; the Radix Dialog
+          underneath only renders into the portal while `open`. */}
+      <TranscriptDrawer
+        story={story}
+        open={transcriptDrawerOpen}
+        onOpenChange={setTranscriptDrawerOpen}
+      />
 
       {/* Delete confirmation — only reachable for the interview's owner (the
           trash button is hidden otherwise). The DELETE handler enforces the
