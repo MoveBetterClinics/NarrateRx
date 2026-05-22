@@ -64,6 +64,23 @@ cd "/Users/qbook/Claude Projects/NarrateRx" && npm run verify-bundles
 
 **Allowlisting:** handlers that legitimately cannot be smoke-tested in isolation are listed in the `ALLOWLIST` set at the top of `scripts/verify-function-bundles.mjs`. Each entry must include an inline comment explaining why. The allowlist should stay empty — never add a handler just because it checks env vars at *call* time; the smoke test only loads the module graph, it doesn't invoke any handler.
 
+## Router conventions (App.jsx)
+
+The outer `<Routes>` in `src/App.jsx` has a deliberately minimal shape:
+
+```jsx
+<Route path="/privacy" element={<PrivacyPolicy />} />
+<Route path="/terms" element={<TermsOfService />} />
+<Route path="/onboard" element={<OnboardingShell />} />
+<Route path="*" element={<ProtectedAppWithProvider />} />
+```
+
+Every authenticated app route — including deep paths like `/onboard/interview` and `/onboard/brand-kit` — flows through the `*` catch-all into `ProtectedAppWithProvider`, which renders a descendant `<Routes>` block matching the actual page. **Do not add explicit outer exemptions** like `<Route path="/onboard/interview" element={<ProtectedAppWithProvider />} />`.
+
+React Router v6 footgun: a parent `<Route>` matched with a fixed path (no `/*` splat) consumes the entire URL. The descendant `<Routes>` rendered inside the parent's element then matches against the EMPTY remainder, and an inner `<Route path="/">` (Home) matches the empty index — so the page silently renders Home at the wrong URL. The `*` catch-all sidesteps this because `*` is splat: the matched parent path is empty, so descendant routes see the full URL. Three PRs in the 2026-05-21 onboarding sprint were burned chasing this; see PR #729.
+
+If you genuinely need an outer exemption (e.g. for a route that must bypass `WorkspaceProvider` or `OrgGate`), use `<Route path="/your-path/*">` with the splat to preserve descendant matching.
+
 ## Large-file handling
 Functions that download media (videos, audio, large images) from blob storage **must stream** the response body to disk rather than buffering. `await res.arrayBuffer()` materializes the entire file in RAM and OOMs the function on anything over ~500MB (default Node function memory is 1024MB):
 
@@ -100,6 +117,34 @@ const { data: liveAsset } = useQuery({
 ```
 
 `pipelinePending` is a row-shape predicate (`!web_blob_url` for photos, `transcode_status in ('pending', 'processing')` for videos, etc.). The 60s hard cap matters — silent pipeline failures must not produce an infinite polling loop. Editable form state stays seeded from the original `asset` prop on `asset.id` change so in-progress user edits aren't clobbered by a poll round-trip.
+
+## Streaming chat (/api/stream) conventions
+
+The shared `/api/stream` endpoint and its client wrapper `streamMessage()` in `src/lib/claude.js` are used by every conversational page (InterviewSession, OnboardingInterview, future variants). Two rules to follow when building a NEW page that calls them, or `AI_InvalidPromptError` and retry storms will eat your day:
+
+1. **Inject a silent first-turn user message.** Claude API and the Vercel AI Gateway both require `messages` to contain at least one user message — a system-only request returns `AI_InvalidPromptError` immediately. The canonical pattern (see `InterviewSession.jsx:643`):
+
+   ```js
+   const streamInput = currentMessages.length === 0
+     ? [{ role: 'user', content: 'Please begin the interview.' }]
+     : currentMessages
+   for await (const delta of streamMessage(streamInput, systemPrompt, opts)) { ... }
+   ```
+
+   The seed message is sent to the stream only; it must NOT be added to the visible transcript or persisted to the row.
+
+2. **Guard the kickoff effect against retry storms.** Any `useEffect` that auto-fires `streamMessage` on mount must have a one-shot ref. Without it, a stream failure clears `streaming` back to false while leaving `messages.length === 0`, and the effect re-fires on every render — producing a ~10 rps hammer on `/api/stream` until the tab closes:
+
+   ```js
+   const kickedOffRef = useRef(false)
+   useEffect(() => {
+     if (loading || streaming || messages.length > 0 || kickedOffRef.current) return
+     kickedOffRef.current = true
+     runAssistantTurn([], { isFirstMessage: true })
+   }, [loading, streaming, messages.length, runAssistantTurn])
+   ```
+
+   On error, the user gets the error card with a "Try again" action that page-reloads (resetting the ref). No silent auto-retry. PR #731 fixed both bugs after they hit prod.
 
 ## Lint ratchet
 The `npm run lint` script enforces a `--max-warnings <N>` ceiling (currently **0** — the ratchet has been driven all the way down from 152 at the pre-launch audit). The ratchet should drift **down** over time, not up. Rule:
