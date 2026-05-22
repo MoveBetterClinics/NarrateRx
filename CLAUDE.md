@@ -146,6 +146,18 @@ All production media lives in a single Vercel Blob store (`narraterx-prod`, pref
 ## GitHub
 Use the GitHub CLI (`gh`) for GitHub-specific interactions — PRs, issues, releases, repo management. `gh` is configured as the git credential helper, so plain `git push` / `git fetch` are fine for ref operations (they authenticate through `gh` under the hood). Do not set up separate HTTPS basic auth or raw SSH credentials.
 
+## Parallel sessions — one worktree per session
+The project root (`/Users/qbook/Claude Projects/NarrateRx`) is reserved for two things only: `git pull` on `main` and `npm run deploy:prod`. **No session — Claude or human — does feature work there.** Every active Claude session runs in its own git worktree, so two sessions can never collide on a branch, a working tree, or a half-committed file.
+
+The 2026-05-21 deploy stall was the canonical failure: Session A (post-interview UX, on `fix/post-interview-flow`) finished and merged its PR. Session B (onboarding P2) was still working in the same project root on `feat/onboarding-interview-p2` with uncommitted edits to `src/App.jsx`. When Session A tried `git checkout main` to deploy, the checkout aborted on B's WIP. A had to wait for B to commit before prod could ship. With per-session worktrees, A's deploy step is `cd "/Users/qbook/Claude Projects/NarrateRx" && git pull && npm run deploy:prod` — independent of whatever B is doing.
+
+**Helper:** `scripts/new-session-worktree.sh <session-name>` creates a fresh worktree at `../NarrateRx-worktrees/<session-name>` branched off `origin/main`, copies `.env.local` + `.vercel/` in, and symlinks `node_modules` so `npm run dev` works immediately. When the session's PR is merged, clean up with `git worktree remove ../NarrateRx-worktrees/<session-name>`.
+
+**Rules:**
+- A new Claude session that intends to edit code starts by creating a worktree, not by editing in the project root.
+- The project root stays on `main`. If you find yourself on another branch in the project root, you (or another session) skipped the worktree step — recover by stashing, switching back to `main`, and re-doing the work in a fresh worktree.
+- Long-running sessions can stay parked in their worktree across days. Stale branches still cost nothing in disk space.
+
 ## Branch workflow (avoiding pile-ups)
 PRs need to merge close to when they're opened, not batch-stacked indefinitely. The 26-PR pileup of 2026-05-12 happened because work batched while `main` moved in parallel from other contexts — every PR ended up conflicting with a different file `main` had since rewritten. To avoid the repeat:
 
