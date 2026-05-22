@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { HexColorPicker } from 'react-colorful'
+import { Pipette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 const HEX_RE = /^#?[0-9a-fA-F]{6}$/
@@ -58,6 +59,21 @@ export function ColorPickerPopover({ value, onChange, swatchClassName = 'h-8 w-1
     if (HEX_RE.test(v)) setDraft(normalize(v))
   }
 
+  const eyeDropperSupported = typeof window !== 'undefined' && 'EyeDropper' in window
+
+  async function pickWithEyeDropper() {
+    if (!eyeDropperSupported) return
+    try {
+      const result = await new window.EyeDropper().open()
+      if (result?.sRGBHex) {
+        setDraft(result.sRGBHex)
+        setHexInput(result.sRGBHex)
+      }
+    } catch {
+      // user cancelled — no-op
+    }
+  }
+
   return (
     <div ref={rootRef} className="relative inline-block">
       <button
@@ -68,7 +84,7 @@ export function ColorPickerPopover({ value, onChange, swatchClassName = 'h-8 w-1
         style={{ background: normalize(value) }}
       />
       {open && (
-        <div className="absolute z-50 mt-1 left-0 rounded-lg border bg-popover shadow-lg p-3 w-[232px]">
+        <div className="absolute z-50 mt-1 left-0 rounded-lg border bg-card shadow-lg p-3 w-[232px]">
           <HexColorPicker color={draft} onChange={(c) => { setDraft(c); setHexInput(c) }} style={{ width: '100%', height: 160 }} />
           <div className="mt-2 flex items-center gap-2">
             <div className="h-7 w-9 rounded border shrink-0" style={{ background: draft }} />
@@ -80,6 +96,17 @@ export function ColorPickerPopover({ value, onChange, swatchClassName = 'h-8 w-1
               placeholder="#000000"
               spellCheck={false}
             />
+            {eyeDropperSupported && (
+              <button
+                type="button"
+                onClick={pickWithEyeDropper}
+                title="Pick color from screen"
+                aria-label="Pick color from screen"
+                className="h-7 w-7 rounded border flex items-center justify-center hover:bg-accent shrink-0"
+              >
+                <Pipette className="h-3.5 w-3.5" />
+              </button>
+            )}
           </div>
           <div className="mt-2 flex items-center justify-end gap-1.5">
             <Button size="sm" variant="ghost" className="h-7 text-2xs" onClick={cancel}>Cancel</Button>
