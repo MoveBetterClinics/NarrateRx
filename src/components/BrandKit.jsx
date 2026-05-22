@@ -1023,31 +1023,43 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                       ><X className="h-3 w-3" /></button>
                     </div>
                   ))}
-                  {addingCustomColor ? (
-                    <div className="flex items-center gap-1.5">
-                      <ColorPickerPopover
-                        value={customColorDraft || '#888888'}
-                        onChange={(hex) => setCustomColorDraft(hex)}
-                        swatchClassName="h-7 w-10"
-                        ariaLabel="Pick secondary color"
-                      />
-                      <Input
-                        value={customColorDraft}
-                        onChange={(e) => setCustomColorDraft(e.target.value)}
-                        className="h-7 w-24 text-xs font-mono"
-                        placeholder="#000000"
-                      />
-                      <Button size="sm" className="h-7 text-2xs" onClick={() => {
-                        const hex = customColorDraft.trim()
-                        if (/^#[0-9a-f]{3,6}$/i.test(hex)) {
-                          setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), hex.toUpperCase()] }))
-                        }
-                        setAddingCustomColor(false)
-                        setCustomColorDraft('')
-                      }}>Add</Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-2xs" onClick={() => { setAddingCustomColor(false); setCustomColorDraft('') }}>Cancel</Button>
-                    </div>
-                  ) : (
+                  {addingCustomColor ? (() => {
+                    const raw = (customColorDraft || '').trim().replace(/^#?/, '')
+                    const normalized = raw ? `#${raw}` : ''
+                    const isValid = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(normalized)
+                    const addColor = (hex) => {
+                      setStyle((s) => ({ ...s, secondary_colors: [...(s.secondary_colors || []), hex.toUpperCase()] }))
+                      setAddingCustomColor(false)
+                      setCustomColorDraft('')
+                    }
+                    return (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <ColorPickerPopover
+                          value={normalized || '#888888'}
+                          onChange={(hex) => addColor(hex)}
+                          swatchClassName="h-7 w-10"
+                          ariaLabel="Pick secondary color"
+                        />
+                        <Input
+                          value={customColorDraft}
+                          onChange={(e) => setCustomColorDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && isValid) { e.preventDefault(); addColor(normalized) } }}
+                          className="h-7 w-24 text-xs font-mono"
+                          placeholder="#000000"
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 text-2xs"
+                          disabled={!isValid}
+                          onClick={() => addColor(normalized)}
+                        >Add</Button>
+                        <Button size="sm" variant="ghost" className="h-7 text-2xs" onClick={() => { setAddingCustomColor(false); setCustomColorDraft('') }}>Cancel</Button>
+                        {customColorDraft && !isValid && (
+                          <span className="text-2xs text-destructive">Enter a hex like #1d4e38 or pick from the swatch</span>
+                        )}
+                      </div>
+                    )
+                  })() : (
                     <Button size="sm" variant="ghost" className="h-6 text-2xs"
                       onClick={() => { setCustomColorDraft(''); setAddingCustomColor(true) }}
                     >+ Add custom</Button>
