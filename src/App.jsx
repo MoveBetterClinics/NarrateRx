@@ -16,6 +16,7 @@ import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
 const NewInterview = lazy(() => import('@/pages/NewInterview'))
 const InterviewSession = lazy(() => import('@/pages/InterviewSession'))
+const OnboardingInterview = lazy(() => import('@/pages/OnboardingInterview'))
 const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
 const MediaHub = lazy(() => import('@/pages/MediaHub'))
 const Integrations = lazy(() => import('@/pages/Integrations'))
@@ -225,6 +226,7 @@ function AppRoutes() {
             <Route path="/" element={guarded(<Home />)} />
             <Route path="/new" element={guarded(<NewInterview />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
+            <Route path="/onboard/interview" element={guarded(<OnboardingInterview />)} />
             {/* Legacy paths — both now redirect to /stories/:interviewId */}
             <Route path="/interview/:clinicianId/:interviewId/output" element={<LegacyOutputRedirect />} />
             <Route path="/output/:clinicianId/:interviewId" element={<LegacyOutputRedirect />} />
