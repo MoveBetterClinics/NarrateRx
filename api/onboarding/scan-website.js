@@ -1,4 +1,7 @@
 import { withSentry } from '../_lib/sentry.js'
+import { enforceLimit } from '../_lib/ratelimit.js'
+import dns from 'node:dns/promises'
+import net from 'node:net'
 export const config = { runtime: 'nodejs' }
 // POST /api/onboarding/scan-website
 //
@@ -44,25 +47,104 @@ function normalizeUrl(raw) {
   try {
     const u = new URL(s)
     if (!['http:', 'https:'].includes(u.protocol)) return null
+    if (!u.hostname) return null
+    // Block hostname literals that are obviously private before we even hit
+    // DNS — catches `http://127.0.0.1`, `http://[::1]/`, `http://localhost`.
+    if (isBlockedHostnameLiteral(u.hostname)) return null
     return u
   } catch {
     return null
   }
 }
 
+// SSRF guard: reject any address inside a non-routable / link-local /
+// loopback / unique-local / cloud-metadata range. This is the address-level
+// check; DNS resolution wraps it for hostnames.
+function isPrivateIp(ip) {
+  const family = net.isIP(ip)
+  if (family === 4) {
+    const parts = ip.split('.').map(Number)
+    if (parts.length !== 4 || parts.some(n => Number.isNaN(n))) return true
+    const [a, b] = parts
+    if (a === 10) return true                                  // 10.0.0.0/8
+    if (a === 127) return true                                 // 127.0.0.0/8 loopback
+    if (a === 0) return true                                   // 0.0.0.0/8
+    if (a === 169 && b === 254) return true                    // 169.254.0.0/16 link-local + AWS/GCP metadata
+    if (a === 172 && b >= 16 && b <= 31) return true           // 172.16.0.0/12
+    if (a === 192 && b === 168) return true                    // 192.168.0.0/16
+    if (a === 100 && b >= 64 && b <= 127) return true          // 100.64.0.0/10 CGNAT
+    if (a >= 224) return true                                  // 224.0.0.0/4 multicast + reserved
+    return false
+  }
+  if (family === 6) {
+    const lower = ip.toLowerCase()
+    if (lower === '::1' || lower === '::') return true
+    // IPv4-mapped (::ffff:a.b.c.d) — re-check as IPv4
+    const mapped = lower.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/)
+    if (mapped) return isPrivateIp(mapped[1])
+    // Unique-local fc00::/7 → first byte 0xfc or 0xfd
+    if (/^f[cd][0-9a-f]{2}:/.test(lower)) return true
+    // Link-local fe80::/10
+    if (/^fe[89ab][0-9a-f]:/.test(lower)) return true
+    return false
+  }
+  // Unknown / unparseable — treat as private to be safe.
+  return true
+}
+
+function isBlockedHostnameLiteral(hostname) {
+  const h = hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  if (h === 'localhost' || h.endsWith('.localhost')) return true
+  if (h.endsWith('.internal') || h.endsWith('.local')) return true
+  if (net.isIP(h) && isPrivateIp(h)) return true
+  return false
+}
+
+async function isPublicHostname(hostname) {
+  const h = hostname.replace(/^\[|\]$/g, '')
+  if (isBlockedHostnameLiteral(h)) return false
+  if (net.isIP(h)) return !isPrivateIp(h)
+  try {
+    const addrs = await dns.lookup(h, { all: true })
+    if (!addrs.length) return false
+    return addrs.every(a => !isPrivateIp(a.address))
+  } catch {
+    return false
+  }
+}
+
+// Manual-redirect fetch that re-runs the SSRF check on every hop. Setting
+// `redirect: 'follow'` is unsafe — undici resolves redirects internally and
+// would happily follow a 302 → http://169.254.169.254/.
 async function fetchPage(url) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   try {
-    const r = await fetch(url, {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: {
-        'User-Agent': 'NarrateRxBot/1.0 (+https://narraterx.ai)',
-        Accept: 'text/html,application/xhtml+xml',
-      },
-    })
-    if (!r.ok) return null
+    let current = url
+    let r
+    for (let hop = 0; hop < 5; hop++) {
+      let parsed
+      try { parsed = new URL(current) } catch { return null }
+      if (!['http:', 'https:'].includes(parsed.protocol)) return null
+      if (!(await isPublicHostname(parsed.hostname))) return null
+
+      r = await fetch(current, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'NarrateRxBot/1.0 (+https://narraterx.ai)',
+          Accept: 'text/html,application/xhtml+xml',
+        },
+      })
+      if (r.status >= 300 && r.status < 400) {
+        const loc = r.headers.get('location')
+        if (!loc) return null
+        current = new URL(loc, current).toString()
+        continue
+      }
+      break
+    }
+    if (!r || !r.ok) return null
     const ct = r.headers.get('content-type') || ''
     if (!ct.includes('html')) return null
     const reader = r.body?.getReader?.()
@@ -214,6 +296,7 @@ async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'method-not-allowed' })
   }
+  if (!(await enforceLimit(req, res, 'generic'))) return
   if (!process.env.AI_GATEWAY_API_KEY) {
     console.error('[scan-website] AI_GATEWAY_API_KEY not set')
     return res.status(500).json({ error: 'ai-not-configured' })
