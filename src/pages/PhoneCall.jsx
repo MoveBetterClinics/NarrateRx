@@ -110,13 +110,17 @@ export default function PhoneCall() {
   const turnsRef       = useRef(/** @type {{role:'user'|'assistant',content:string,partial?:boolean}[]} */ ([]))
   const completedRef   = useRef(false)
   const assistantBufRef = useRef('')
-  // Live user-side transcript buffer. Whisper streams .delta events while the
-  // user is speaking; we accumulate them into a partial user turn so the
-  // clinician sees their words appear in real time (parity with the chat
-  // interview's interim-transcript UI). On .completed we promote the partial
-  // to a final turn — OR drop it entirely if it failed the hallucination /
-  // speech-duration gates.
+  // Live user-side transcript buffer. The OpenAI Realtime transcription model
+  // only emits .delta events AFTER speech_stopped fires (server-side
+  // transcription processes the full utterance, then streams the result
+  // word-by-word) — so "live typing while talking" requires a parallel
+  // client-side STT. We use the browser's SpeechRecognition API in parallel
+  // for INTERIM display only, then overwrite with OpenAI's authoritative
+  // transcript on .completed. Same dual-source pattern the chat interview
+  // uses for interim feedback.
   const userBufRef     = useRef('')
+  const recognitionRef = useRef(/** @type {SpeechRecognition | null} */ (null))
+  const recognitionRunningRef = useRef(false)
   // Speech duration tracking: VAD fires speech_started → speech_stopped with
   // timestamps. We use the duration to reject ambient-noise blips (Whisper
   // hallucinates "Diolch yn fawr" / "Thank you" on silence; if the speech
@@ -131,7 +135,10 @@ export default function PhoneCall() {
   // doesn't capture stale state when the event handler closures over it.
   useEffect(() => { turnsRef.current = turns }, [turns])
 
-  // Tear down on unmount in case the user navigates away mid-call.
+  // Tear down on unmount in case the user navigates away mid-call. hangUp is
+  // a stable scope-level helper — listing it would force the effect to re-run
+  // every render (defeating its purpose as a one-shot unmount cleanup).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => () => hangUp(), [])
 
   // ── Topic suggestions (lightweight, just the workspace's curated list) ──
@@ -299,6 +306,12 @@ export default function PhoneCall() {
     micStreamRef.current = micStream
     for (const track of micStream.getTracks()) pc.addTrack(track, micStream)
 
+    // Kick off the parallel client-side STT for live interim display.
+    // Failure is non-fatal — Web Speech is unavailable on Firefox / older
+    // Safari, and the UI degrades to "transcript appears after each turn"
+    // (still functional, just less immediate).
+    startWebSpeechSTT()
+
     // Data channel — server events arrive here AND we push session.update
     // outbound the moment it opens.
     const dc = pc.createDataChannel('oai-events')
@@ -361,6 +374,98 @@ export default function PhoneCall() {
   }
 
   // ────────────────────────────────────────────────────────────────────────
+  // Parallel client-side STT (Web Speech API) for live interim feedback
+  // ────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Run the browser's SpeechRecognition in parallel with the WebRTC stream so
+   * the user sees their words appear in real time WHILE they're talking.
+   *
+   * Why parallel: OpenAI's server-side transcription only emits delta events
+   * AFTER input_audio_buffer.speech_stopped fires (verified via debug logs).
+   * So WebRTC alone is "transcript appears AFTER you stop talking" — which
+   * Michael flagged as making him unsure the call was even hearing him.
+   *
+   * Web Speech runs locally in the browser, gives true-interim results
+   * character by character. We use it for DISPLAY only — OpenAI's
+   * authoritative transcript still arrives via the WebRTC data channel and
+   * overwrites the partial on .completed. Two transcribers, one source of
+   * truth.
+   *
+   * Caveats:
+   *  - Web Speech is unavailable on Firefox + some older Safari. Failure is
+   *    silent and non-fatal; UI degrades to OpenAI-only (transcript appears
+   *    after each turn, same as the previous build).
+   *  - Chrome's continuous mode auto-stops on extended silence; we restart
+   *    via the onend handler.
+   */
+  function startWebSpeechSTT() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) {
+      console.info('[phone-call] SpeechRecognition unavailable — interim feedback disabled')
+      return
+    }
+    if (recognitionRef.current) return // already running
+
+    const recognition = new SR()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+
+    let finalText = ''
+    recognition.onresult = (event) => {
+      let interim = ''
+      let newFinal = ''
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const result = event.results[i]
+        if (result.isFinal) {
+          newFinal += result[0].transcript
+        } else {
+          interim += result[0].transcript
+        }
+      }
+      if (newFinal) finalText += newFinal
+      const display = (finalText + interim).trim()
+      if (!display) return
+      // Render as a partial user turn. OpenAI's .completed will overwrite
+      // this with its authoritative transcript (which is what we persist).
+      userBufRef.current = display
+      setTurns((prev) => upsertPartialUser(prev, display))
+    }
+    recognition.onend = () => {
+      // Reset for the next utterance (we keep restarting until hangUp).
+      finalText = ''
+      if (recognitionRunningRef.current) {
+        try { recognition.start() } catch { /* already starting */ }
+      }
+    }
+    recognition.onerror = (e) => {
+      // Common: 'no-speech' fires during long silences; 'not-allowed' if
+      // mic was revoked. We just log and let onend handle restart.
+      console.info('[phone-call] SR error', e?.error || e)
+    }
+
+    recognitionRef.current = recognition
+    recognitionRunningRef.current = true
+    try {
+      recognition.start()
+    } catch (e) {
+      console.warn('[phone-call] SR start failed', e?.message)
+      recognitionRef.current = null
+      recognitionRunningRef.current = false
+    }
+  }
+
+  function stopWebSpeechSTT() {
+    recognitionRunningRef.current = false
+    const r = recognitionRef.current
+    recognitionRef.current = null
+    if (!r) return
+    try { r.onend = null } catch { /* ignore */ }
+    try { r.abort() } catch { /* ignore */ }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
   // Realtime event handling
   // ────────────────────────────────────────────────────────────────────────
 
@@ -379,20 +484,6 @@ export default function PhoneCall() {
    */
   function handleRealtimeEvent(evt) {
     if (!evt || typeof evt.type !== 'string') return
-
-    // TEMPORARY DEBUG (debug/phone-call-event-log): log every event type
-    // unconditionally so we can see in prod DevTools what the GA API is
-    // actually emitting. Smoke #5 reported live partials still don't show
-    // even after switching to gpt-4o-mini-transcribe; need ground truth on
-    // whether the .delta events arrive at all. Remove after diagnosis.
-    if (
-      evt.type.includes('input_audio_transcription') ||
-      evt.type.includes('transcript')
-    ) {
-      console.info('[phone-call DEBUG]', evt.type, evt)
-    } else {
-      console.info('[phone-call DEBUG]', evt.type)
-    }
 
     // ── Assistant streaming transcript ────────────────────────────────────
     if (
@@ -441,8 +532,14 @@ export default function PhoneCall() {
     if (evt.type === 'input_audio_buffer.speech_started') {
       speechStartedAtRef.current = Date.now()
       // New utterance starting — drop any leftover partial buffer so we
-      // don't bleed the previous turn's deltas into this one.
+      // don't bleed the previous turn's deltas into this one. Also abort
+      // Web Speech so its internal results array resets cleanly for the
+      // new utterance (its onend handler will restart it).
       userBufRef.current = ''
+      const r = recognitionRef.current
+      if (r) {
+        try { r.abort() } catch { /* ignore */ }
+      }
       return
     }
     if (evt.type === 'input_audio_buffer.speech_stopped') {
@@ -620,6 +717,7 @@ export default function PhoneCall() {
   function hangUp() {
     setConnState('ending')
     clearTimeout(persistTimerRef.current)
+    stopWebSpeechSTT()
     try { dcRef.current?.close() } catch { /* already closed */ }
     try { pcRef.current?.close() } catch { /* already closed */ }
     dcRef.current = null
