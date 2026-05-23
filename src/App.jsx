@@ -18,6 +18,7 @@ const Welcome = lazy(() => import('@/pages/Welcome'))
 const CapturePicker = lazy(() => import('@/pages/CapturePicker'))
 const NewInterview = lazy(() => import('@/pages/NewInterview'))
 const VoiceMemo = lazy(() => import('@/pages/VoiceMemo'))
+const PhoneCall = lazy(() => import('@/pages/PhoneCall'))
 const CaptureReview = lazy(() => import('@/pages/CaptureReview'))
 const ImportUrl = lazy(() => import('@/pages/ImportUrl'))
 const InterviewSession = lazy(() => import('@/pages/InterviewSession'))
@@ -233,6 +234,7 @@ function AppRoutes() {
             <Route path="/new" element={guarded(<CapturePicker />)} />
             <Route path="/new/interview" element={guarded(<NewInterview />)} />
             <Route path="/new/voice-memo" element={guarded(<VoiceMemo />)} />
+            <Route path="/new/phone-call" element={guarded(<PhoneCall />)} />
             <Route path="/new/import" element={guarded(<ImportUrl />)} />
             <Route path="/capture/:clinicianId/:interviewId/review" element={guarded(<CaptureReview />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
