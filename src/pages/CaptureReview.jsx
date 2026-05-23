@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic } from 'lucide-react'
+import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, FileText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -172,9 +172,13 @@ export default function CaptureReview() {
           </Link>
         </Button>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Review transcript</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {interview?.capture_mode === 'text_import' ? 'Review imported text' : 'Review transcript'}
+          </h1>
           <p className="text-sm text-muted-foreground">
-            Fix any mishearing, then generate.
+            {interview?.capture_mode === 'text_import'
+              ? 'Edit anything before generating.'
+              : 'Fix any mishearing, then generate.'}
           </p>
         </div>
       </div>
@@ -184,8 +188,14 @@ export default function CaptureReview() {
         <Card>
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center gap-2 text-sm font-medium">
-              <Mic className="h-4 w-4 text-muted-foreground" />
-              <span>Transcribed from your recording</span>
+              {interview?.capture_mode === 'text_import'
+                ? <FileText className="h-4 w-4 text-muted-foreground" />
+                : <Mic className="h-4 w-4 text-muted-foreground" />}
+              <span>
+                {interview?.capture_mode === 'text_import'
+                  ? 'Imported text'
+                  : 'Transcribed from your recording'}
+              </span>
             </div>
             <Textarea
               value={transcript ?? ''}
