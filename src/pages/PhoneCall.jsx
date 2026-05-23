@@ -21,6 +21,29 @@ import { getInterviewSystemPrompt } from '@/lib/prompts'
 const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
 
 /**
+ * Realtime-mode patience addendum. The chat interview's system prompt
+ * encourages brief acknowledgments ("Got it." "Yeah, makes sense.") between
+ * the clinician's answers — which works great when typing but is exactly the
+ * "impatient interrupter" pattern on a live voice call. We prepend this block
+ * to override that behavior for the realtime lane only. Without it, Bernard
+ * fills natural thinking pauses with chatter and cuts off mid-thought when
+ * the user resumes speaking.
+ */
+const REALTIME_PATIENCE_ADDENDUM = `REALTIME VOICE MODE — PATIENCE OVERRIDE:
+
+You are speaking on a live voice call, not typing. Apply these rules ABOVE the conversational style guidance below — they override anything that suggests quick acknowledgments.
+
+- Wait for FULL silence before responding. Clinical thinking pauses are 2-4 seconds long. If they trail off ("...so that there's...") DO NOT respond — they are still thinking. Wait.
+- Do NOT interject acknowledgments ("got it", "yeah", "makes sense", "interesting") while they're speaking, pausing, or mid-thought. Those are interruptions on a voice call, not encouragements.
+- Keep your turns SHORT. One question at a time. Then stop and wait.
+- If you started talking and the clinician begins speaking, stop immediately — don't restart your thought, just let them lead.
+- The clinician will say something like "I think that covers it" or "that's everything" when they're done. Only then emit INTERVIEW_COMPLETE on its own line.
+
+---
+
+`
+
+/**
  * PhoneCall — real-time duplex voice interview (Phase 5 Feature #1).
  *
  * Two states: a topic-picker "setup" form, then the live call surface. On
@@ -165,7 +188,7 @@ export default function PhoneCall() {
         }
       }
 
-      const fullPrompt = getInterviewSystemPrompt(
+      const baseSystemPrompt = getInterviewSystemPrompt(
         workspace,
         clinician.name,
         topic.trim(),
@@ -180,6 +203,9 @@ export default function PhoneCall() {
           gapBlock:       conceptCtx?.gapBlock || '',
         },
       )
+      // Voice-mode patience override sits ABOVE the standard prompt so the
+      // model reads it first and treats it as the dominant rule set.
+      const fullPrompt = REALTIME_PATIENCE_ADDENDUM + baseSystemPrompt
 
       // 4. Mint the realtime ephemeral. The server validates workspace flag
       //    + tenant ownership of interviewId before calling OpenAI.
@@ -468,16 +494,48 @@ export default function PhoneCall() {
   }
 
   function endCall() {
-    // User clicked End — same flush+navigate path as auto-complete, but
-    // without requiring the INTERVIEW_COMPLETE token. The interview row
-    // stays status='in_progress' so the user can continue in chat mode
-    // from /interview/:cid/:iid if they cut short.
+    // User clicked End — treat as "wrap up & generate." We inject the
+    // INTERVIEW_COMPLETE token into the last assistant message (or synthesize
+    // one if Bernard never spoke) so InterviewSession's auto-gen effect
+    // fires on load and the user lands on a blog-generation screen, NOT the
+    // chat-interview resume UI. The first smoke surfaced this: clicking End
+    // dropped Michael into what looked like "start typing more here," which
+    // wasn't the intent.
+    //
+    // If the user wants to save without generating, they navigate away with
+    // the back arrow — messages are already persisted via the 1.5s debounce.
     if (completedRef.current) return
     setPhase('completing')
     clearTimeout(persistTimerRef.current)
+
     const snapshot = turnsRef.current
       .filter((t) => !t.partial && t.content?.trim())
       .map((t) => ({ role: t.role, content: t.content }))
+
+    // Find the last assistant turn and append the completion token. If there
+    // is no assistant turn yet (call ended VERY early), synthesize one so the
+    // downstream "did the AI signal completion?" check has something to match.
+    const lastAssistantIdx = (() => {
+      for (let i = snapshot.length - 1; i >= 0; i--) {
+        if (snapshot[i].role === 'assistant') return i
+      }
+      return -1
+    })()
+    if (lastAssistantIdx >= 0) {
+      const last = snapshot[lastAssistantIdx]
+      if (!last.content.includes(COMPLETE_TOKEN)) {
+        snapshot[lastAssistantIdx] = {
+          ...last,
+          content: `${last.content.trim()}\n\n${COMPLETE_TOKEN}`,
+        }
+      }
+    } else {
+      snapshot.push({
+        role: 'assistant',
+        content: `Thanks for the conversation.\n\n${COMPLETE_TOKEN}`,
+      })
+    }
+
     const persistP = snapshot.length
       ? updateInterview(interviewIdRef.current, { messages: snapshot }).catch(() => {})
       : Promise.resolve()

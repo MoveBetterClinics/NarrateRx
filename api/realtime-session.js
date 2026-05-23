@@ -42,11 +42,11 @@ const OPENAI_KEY   = process.env.OPENAI_API_KEY
 const REALTIME_MODEL = 'gpt-realtime'
 
 // Bernard's voice. The chat interview uses an ElevenLabs voice that the
-// Realtime API can't reproduce — true clone is Phase 5 Feature #3 (ElevenLabs
-// realtime). For now we pick `ash` from OpenAI's built-in set: masculine,
-// conversational, closest match to Bernard's "thoughtful senior colleague"
-// framing. Don't use `alloy` (default) — too neutral/feminine for Bernard.
-const REALTIME_VOICE = 'ash'
+// Realtime API can't reproduce — true clone is Phase 5 Feature #3. For now we
+// pick `ballad` from OpenAI's built-in set: British male, softer-spoken,
+// closer to "thoughtful senior colleague over coffee" than the American
+// voices (alloy/ash/echo) feel.
+const REALTIME_VOICE = 'ballad'
 
 // Ephemeral token TTL. OpenAI caps client_secret lifetime to 10 min so a
 // dropped session needs a fresh mint. We pass the max so a long call doesn't
@@ -135,11 +135,25 @@ export default async function handler(req, res) {
     instructions: BOOTSTRAP_INSTRUCTIONS,
     audio: {
       output: { voice: REALTIME_VOICE },
-      // Whisper input transcription so the data channel emits
-      // conversation.item.input_audio_transcription.completed events. Without
-      // this we can't persist user turns to interviews.messages.
       input: {
+        // Whisper transcription so the data channel emits user-side
+        // input_audio_transcription.completed events. Without this we can't
+        // persist user turns to interviews.messages.
         transcription: { model: 'whisper-1' },
+        // Patience knob. server_vad (default) fires after ~500ms of silence
+        // and cancels Bernard's in-flight response when the user makes ANY
+        // sound, which produces the cut-off / restart pattern we saw on the
+        // first smoke. semantic_vad uses the model to decide if the user is
+        // actually done speaking, and low eagerness errs strongly on the
+        // side of waiting. Combined with the realtime-mode patience addendum
+        // we prepend to the system prompt client-side, this fixes the
+        // "impatient interrupter" feel.
+        turn_detection: {
+          type: 'semantic_vad',
+          eagerness: 'low',
+          create_response:    true,
+          interrupt_response: true,
+        },
       },
     },
   }
