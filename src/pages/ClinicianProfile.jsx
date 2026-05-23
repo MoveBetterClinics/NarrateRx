@@ -105,7 +105,7 @@ export default function ClinicianProfile() {
   const showArc = isMyClinicianProfile || role === 'admin'
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ml-2">
         <Link to="/">
           <ArrowLeft className="h-4 w-4 mr-1.5" />

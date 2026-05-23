@@ -252,7 +252,7 @@ export default function Synthesis() {
     .slice(0, 5)
 
   return (
-    <div className="max-w-6xl mx-auto py-8 space-y-8 px-4">
+    <div className="py-8 space-y-8 px-4">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
