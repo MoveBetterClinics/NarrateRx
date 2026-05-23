@@ -190,17 +190,22 @@ export default function VoiceMemo() {
     setState('uploading')
     try {
       const token = await getToken()
-      const form = new FormData()
-      form.append('audio', blob, filename || 'voice-memo.webm')
-      form.append('filename', filename || 'voice-memo.webm')
-      form.append('mimeType', mimeType || blob.type || 'audio/webm')
-      form.append('durationSec', String(Math.round(elapsed)))
-
-      const r = await fetch('/api/voice-memo', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: form,
-      })
+      // Send the audio as a raw binary body so the server can pipe it straight
+      // to Vercel Blob without a multipart parser. Metadata travels via query
+      // params (filename, durationSec) and the Content-Type header.
+      const safeFilename = encodeURIComponent(filename || 'voice-memo.webm')
+      const safeDuration = Math.round(elapsed)
+      const r = await fetch(
+        `/api/voice-memo?filename=${safeFilename}&durationSec=${safeDuration}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': mimeType || blob.type || 'audio/webm',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: blob,
+        }
+      )
       if (!r.ok) {
         const txt = await r.text().catch(() => '')
         throw new Error(txt || `Upload failed (${r.status})`)
