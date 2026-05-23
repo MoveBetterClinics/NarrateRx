@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Mic, MessageSquareText, Presentation, Link as LinkIcon } from 'lucide-react'
+import { ArrowLeft, Mic, MessageSquareText, Phone, Presentation, Link as LinkIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -86,6 +86,33 @@ export default function CapturePicker() {
                 <p className="text-sm text-muted-foreground mt-1">
                   Quick capture. Hit record, say what happened, save. For real
                   moments between patients or end-of-day reflections.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </button>
+
+        {/* Phone Call — real-time duplex voice (Phase 5 spike, Beta) */}
+        <button
+          type="button"
+          onClick={() => go('/new/phone-call')}
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
+        >
+          <Card className="h-full transition hover:border-primary hover:shadow-sm">
+            <CardContent className="p-5 space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="h-10 w-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                  <Phone className="h-5 w-5" />
+                </div>
+                <span className="text-3xs font-medium uppercase tracking-wide px-1.5 py-0.5 rounded border text-muted-foreground">
+                  Beta
+                </span>
+              </div>
+              <div>
+                <div className="font-medium">Phone Call</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Continuous voice conversation. No press-to-talk — feels like a
+                  call with a curious colleague. Talk, pause, think out loud.
                 </p>
               </div>
             </CardContent>
