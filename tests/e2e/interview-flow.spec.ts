@@ -26,17 +26,28 @@ test('interview create flow + integrations page', async ({ page }) => {
   const newInterviewLink = page.getByRole('link', { name: /new interview/i }).first()
   await expect(newInterviewLink).toBeVisible({ timeout: 30_000 })
 
-  // ── 2. New Interview screen ──────────────────────────────────────────────
-  // /new is a single-screen setup form (Clinician + Topic + tune chips +
-  // Start interview). The earlier "Continue → Step 2" flow was collapsed
-  // in the May 2026 redesign; one Start press creates the clinician +
+  // ── 2. Capture-mode picker → New Interview screen ────────────────────────
+  // As of the voice-memo-lane PR, /new is a picker (Interview vs Voice Memo
+  // vs Seminar). The existing "+ New Interview" link routes through the
+  // picker; we click "Start Interview" to land on the original form at
+  // /new/interview.
+  //
+  // The setup form itself is unchanged: single-screen (Clinician + Topic +
+  // tune chips + Start interview). One Start press creates the clinician +
   // interview rows and navigates straight into the session.
   //
   // This is the PR #244 surface: without workspace_id filtering on the
   // clinicians/interviews POSTs, the create returned "Create failed" with a
   // 500. We assert (a) no error banner, (b) navigation to the session URL.
   await newInterviewLink.click()
-  await expect(page).toHaveURL(/\/new/)
+  await expect(page).toHaveURL(/\/new$/)
+
+  // Picker: click the Interview card. The card is a <button> wrapping a
+  // <Card>; its accessible name starts with "Start Interview" followed by
+  // the descriptive text, so a substring match is enough.
+  await page.getByRole('button', { name: /start interview/i }).first().click()
+  await expect(page).toHaveURL(/\/new\/interview/)
+
   await page.getByLabel(/^clinician$/i).fill(FIXTURE_CLINICIAN)
   await page.getByLabel(/^topic/i).fill('E2E smoke topic — safe to delete')
   await page.getByRole('button', { name: /start interview/i }).click()
