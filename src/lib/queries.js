@@ -291,6 +291,8 @@ export function useDeleteInterview() {
     mutationFn: ({ id }) => deleteInterview(id),
     onSuccess: (_data, { id }) => {
       qc.removeQueries({ queryKey: queryKeys.interviews.detail(id) })
+      qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
+      qc.invalidateQueries({ queryKey: queryKeys.stories.all })
       qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
     },
