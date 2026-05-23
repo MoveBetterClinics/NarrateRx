@@ -136,10 +136,13 @@ export default async function handler(req, res) {
     audio: {
       output: { voice: REALTIME_VOICE },
       input: {
-        // Whisper transcription so the data channel emits user-side
-        // input_audio_transcription.completed events. Without this we can't
-        // persist user turns to interviews.messages.
-        transcription: { model: 'whisper-1' },
+        // Streaming transcription. whisper-1 (our first pick) only emits a
+        // single end-of-turn .completed event — no live partial deltas — so
+        // the user couldn't see their words appear while speaking. Switched
+        // to gpt-4o-mini-transcribe which streams .delta events every
+        // ~200-500ms during the utterance. Cheaper than gpt-4o-transcribe,
+        // good enough accuracy for interview-grade transcripts.
+        transcription: { model: 'gpt-4o-mini-transcribe' },
         // Turn-detection — third revision after smokes #2 and #3.
         //
         // The breakthrough learning from smoke #3: Whisper hallucinates on
