@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { Target, User, X } from 'lucide-react'
+import { Mic, Target, User, X } from 'lucide-react'
 import { useStories, useOnboardingProgress, useCampaigns, useClinicians, useLocations } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -53,12 +53,16 @@ export default function Stories() {
   // dedicated browseable view of their own work as the catalog grows.
   const ownerFilter    = searchParams.get('owner')    || ''
   const mineOnly       = ownerFilter === 'me'
+  // 'real' = voice_memo + seminar captures only (Real moments filter)
+  const captureFilter  = searchParams.get('capture')  || ''
+  const realOnly       = captureFilter === 'real'
 
   const { data: storiesAll = [], isLoading } = useStories()
-  const stories = useMemo(
-    () => (mineOnly && user?.id ? storiesAll.filter((s) => s.owner_id === user.id) : storiesAll),
-    [storiesAll, mineOnly, user],
-  )
+  const stories = useMemo(() => {
+    let list = mineOnly && user?.id ? storiesAll.filter((s) => s.owner_id === user.id) : storiesAll
+    if (realOnly) list = list.filter((s) => s.capture_mode === 'voice_memo' || s.capture_mode === 'seminar')
+    return list
+  }, [storiesAll, mineOnly, realOnly, user])
   const { data: progress } = useOnboardingProgress()
   const { data: campaigns = [] } = useCampaigns()
   const { data: clinicians = [] } = useClinicians({ enabled: !!campaignFilter })
@@ -99,6 +103,15 @@ export default function Stories() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev)
       next.delete('owner')
+      return next
+    }, { replace: true })
+  }
+
+  function toggleRealOnly() {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (realOnly) next.delete('capture')
+      else next.set('capture', 'real')
       return next
     }, { replace: true })
   }
@@ -148,6 +161,22 @@ export default function Stories() {
             <X className="h-3 w-3" aria-hidden="true" />
           </button>
         ) : null}
+
+        {/* Real moments — filters to voice_memo + seminar captures */}
+        <button
+          type="button"
+          onClick={toggleRealOnly}
+          aria-pressed={realOnly}
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+            realOnly
+              ? 'border-primary/40 bg-[hsl(20_60%_95%)] text-[#c04d18] hover:bg-[hsl(20_70%_92%)]'
+              : 'border-border bg-white text-foreground hover:border-slate-300 hover:bg-slate-50'
+          }`}
+        >
+          <Mic className="h-3 w-3" aria-hidden="true" />
+          Real moments
+          {realOnly ? <X className="h-3 w-3" aria-hidden="true" /> : null}
+        </button>
 
         {/* Campaign — active chip or selector */}
         {activeCampaignObj ? (

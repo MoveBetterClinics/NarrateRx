@@ -40,14 +40,15 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
 
 const CLINICIAN_RECIPE_FIELDS = 'default_audience,default_story_type,default_tone,default_voice_mode'
 const CLINICIAN_BASE_FIELDS = `id,name,user_id,created_by_id,created_by_email,created_at,voice_notes,voice_notes_refreshed_at,voice_notes_edits_analyzed,preferred_length,tts_settings,${CLINICIAN_RECIPE_FIELDS}`
-const INTERVIEW_FIELDS = 'id,topic,status,created_at,updated_at,owner_id,owner_email,verbatim_flags,messages,session_state,location_id,prototype_id,campaign_id,campaign:campaigns(id,name)'
+const INTERVIEW_FIELDS = 'id,topic,status,capture_mode,created_at,updated_at,owner_id,owner_email,verbatim_flags,messages,session_state,location_id,prototype_id,campaign_id,campaign:campaigns(id,name)'
 
 // Slim shape for the Stories list. Drops the heavy `messages` and `session_state`
 // JSON columns (full transcript per interview) which the list views never render —
 // they are fetched separately by useStory() when a detail page opens.
 // Includes a joined `campaign(id,name)` so the Stories card view can render the
 // per-card campaign badge without a second hop.
-const INTERVIEW_FIELDS_CARD = 'id,workspace_id,topic,status,session_state,created_at,updated_at,owner_id,owner_email,location_id,prototype_id,pull_quote_candidates,campaign_id,campaign:campaigns(id,name)'
+// capture_mode included so the "Real moments" filter chip can work client-side.
+const INTERVIEW_FIELDS_CARD = 'id,workspace_id,topic,status,capture_mode,session_state,created_at,updated_at,owner_id,owner_email,location_id,prototype_id,pull_quote_candidates,campaign_id,campaign:campaigns(id,name)'
 const CLINICIAN_FIELDS_CARD = 'id,workspace_id,name,user_id,created_at'
 
 export default async function handler(req, res) {

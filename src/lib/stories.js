@@ -167,6 +167,7 @@ export function buildStories(clinicians, contentItems) {
         clinician_name: clinician.name,
         topic: interview.topic,
         status: interview.status,
+        capture_mode: interview.capture_mode || 'interview',
         owner_id: interview.owner_id ?? null,
         owner_email: interview.owner_email ?? null,
         location_id: interview.location_id ?? null,
