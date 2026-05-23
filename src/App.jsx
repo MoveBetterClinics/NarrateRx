@@ -15,7 +15,9 @@ import Layout from '@/components/Layout'
 import Home from '@/pages/Home'
 import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
+const CapturePicker = lazy(() => import('@/pages/CapturePicker'))
 const NewInterview = lazy(() => import('@/pages/NewInterview'))
+const VoiceMemo = lazy(() => import('@/pages/VoiceMemo'))
 const InterviewSession = lazy(() => import('@/pages/InterviewSession'))
 const OnboardingInterview = lazy(() => import('@/pages/OnboardingInterview'))
 const ClinicianProfile = lazy(() => import('@/pages/ClinicianProfile'))
@@ -226,7 +228,9 @@ function AppRoutes() {
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={guarded(<Home />)} />
-            <Route path="/new" element={guarded(<NewInterview />)} />
+            <Route path="/new" element={guarded(<CapturePicker />)} />
+            <Route path="/new/interview" element={guarded(<NewInterview />)} />
+            <Route path="/new/voice-memo" element={guarded(<VoiceMemo />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
             <Route path="/onboard/interview" element={guarded(<OnboardingInterview />)} />
             {/* Legacy paths — both now redirect to /stories/:interviewId */}
