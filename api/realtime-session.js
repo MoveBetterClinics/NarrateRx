@@ -4,19 +4,23 @@
 // uses to open a direct WebRTC connection to OpenAI's GA Realtime API
 // (https://api.openai.com/v1/realtime/calls). Keeping the long-lived
 // OPENAI_API_KEY off the wire is the whole point — the browser only ever sees
-// a token that expires in ~10 minutes.
+// a token that expires within minutes.
 //
 // Flow:
-//   1. Browser: POST /api/realtime-session  (this handler)
-//   2. Handler: POST https://api.openai.com/v1/realtime/client_secrets
-//                with the workspace's interview system instructions
-//   3. Handler: returns { clientSecret, expiresAt, model } to the browser
-//   4. Browser: opens WebRTC to /v1/realtime/calls using clientSecret
-//
-// Spike notes (Sat May 23): the `instructions` field below is a placeholder.
-// Sunday wires getInterviewSystemPrompt() through with the same args
-// InterviewSession.jsx uses today (tone / voice mode / audience / voice
-// phrases / cross-staff context).
+//   1. Browser creates the interview row via createInterview() and gets back
+//      an interviewId.
+//   2. Browser: POST /api/realtime-session  { interviewId }
+//   3. This handler verifies the workspace has realtime_voice_enabled=true,
+//      auth + tenant ownership, and that the interview belongs to the active
+//      workspace. Then it POSTs OpenAI's /v1/realtime/client_secrets with the
+//      Bernard voice + Whisper input transcription enabled.
+//   4. Returns { clientSecret, expiresAt, model } to the browser.
+//   5. The full system prompt is sent BY THE BROWSER via a session.update
+//      data-channel event once the WebRTC connection is established — this
+//      gets `getInterviewSystemPrompt(workspace, clinician, topic, …)`
+//      identical to what InterviewSession.jsx uses today. Doing it from the
+//      browser keeps the prompt-building logic in one place (src/lib/prompts)
+//      and avoids a server-side replica.
 //
 // Runtime: Node (Clerk + Supabase REST helpers are Node-only).
 
@@ -29,30 +33,47 @@ import { requireRole } from './_lib/auth.js'
 import { workspaceContext } from './_lib/workspaceContext.js'
 import { enforceLimit } from './_lib/ratelimit.js'
 
-const OPENAI_KEY = process.env.OPENAI_API_KEY
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+const OPENAI_KEY   = process.env.OPENAI_API_KEY
 
-// GA model as of Aug 2025. Older preview names (gpt-4o-realtime-preview-*) are
-// still accepted but gpt-realtime is the recommended default.
+// GA model as of Aug 2025. Older preview names (gpt-4o-realtime-preview-*)
+// are still accepted but gpt-realtime is the recommended default.
 const REALTIME_MODEL = 'gpt-realtime'
 
-// Default voice. ElevenLabs voice cloning enters in Phase 5 Feature #3 — for
-// now, alloy is OpenAI's standard balanced voice.
-const REALTIME_VOICE = 'alloy'
+// Bernard's voice. The chat interview uses an ElevenLabs voice that the
+// Realtime API can't reproduce — true clone is Phase 5 Feature #3 (ElevenLabs
+// realtime). For now we pick `ash` from OpenAI's built-in set: masculine,
+// conversational, closest match to Bernard's "thoughtful senior colleague"
+// framing. Don't use `alloy` (default) — too neutral/feminine for Bernard.
+const REALTIME_VOICE = 'ash'
 
-// Ephemeral token TTL. OpenAI caps at 10 min for client_secrets bound to a
-// session. We pass the max so a long call doesn't need re-minting mid-stream.
+// Ephemeral token TTL. OpenAI caps client_secret lifetime to 10 min so a
+// dropped session needs a fresh mint. We pass the max so a long call doesn't
+// re-mint mid-stream.
 const TOKEN_TTL_SEC = 600
 
-// Placeholder instructions for the Sat spike — proves voice round-trip works
-// end-to-end. Sunday replaces this with getInterviewSystemPrompt(...) so the
-// realtime model gets the same persona/tone/audience context the chat
-// interview already uses.
-const SPIKE_INSTRUCTIONS = [
-  'You are Bernard, a warm content facilitator at a movement clinic.',
-  'Greet the clinician briefly by name if they introduce themselves, then ask one open question about a patient they recently treated.',
-  'Stay conversational — short reactions ("got it", "yeah"), then the next question. No clinical jargon, no flattery.',
-  'When the clinician says they want to wrap up, end with a brief thank-you.',
+// Bootstrap instructions. These are intentionally generic — the FULL system
+// prompt arrives from the browser via session.update once the data channel
+// opens, which lets us reuse `getInterviewSystemPrompt()` exactly as the
+// chat-interview path does. This bootstrap just keeps the model from blurting
+// nonsense if the user starts talking before session.update lands.
+const BOOTSTRAP_INSTRUCTIONS = [
+  'Wait silently for the session to be configured before speaking.',
+  'Once configured, you will receive detailed instructions about a clinical interview to conduct.',
 ].join(' ')
+
+function sb(path, init = {}) {
+  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      ...init.headers,
+    },
+  })
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
@@ -61,39 +82,62 @@ export default async function handler(req, res) {
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
 
+  // Feature flag gate — only workspaces with realtime_voice_enabled=true can
+  // mint a realtime session. Default false means external tenants don't get
+  // the $5/call surprise until they're explicitly onboarded to the feature.
+  if (!ws.realtime_voice_enabled) {
+    return res.status(403).json({
+      error: 'Realtime voice is not enabled for this workspace.',
+    })
+  }
+
   const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
-  // The `ai` bucket is shared with chat-style interview streaming; realtime
-  // sessions are far more expensive (~$5 / 15-min vs cents per chat exchange),
-  // but the bucket cap is on session *creation*, not in-call activity, so the
-  // same limit is the right shape. A per-workspace daily minute cap is Sun/Mon
-  // work (separate from this rate limit).
   if (!(await enforceLimit(req, res, 'ai'))) return
 
   if (!OPENAI_KEY) {
     console.error('[realtime-session] OPENAI_API_KEY is not set — refusing to mint')
     return res.status(500).json({
-      error: 'Realtime voice is not configured on this deployment. Set OPENAI_API_KEY.',
+      error: 'Realtime voice is not configured on this deployment.',
     })
+  }
+
+  // ── Verify the interview belongs to this workspace ──────────────────────
+  // Defence-in-depth: the browser sends an interviewId it just created. We
+  // confirm it's in the same workspace before minting — keeps a hostile
+  // client from spending a different tenant's budget. Forgetting this check
+  // is exactly the kind of bug the tenant-isolation audit memory exists for.
+  const body = req.body || {}
+  const interviewId = typeof body.interviewId === 'string' ? body.interviewId : null
+  if (!interviewId) {
+    return res.status(400).json({ error: 'interviewId is required' })
+  }
+
+  const ivRes = await sb(
+    `interviews?id=eq.${encodeURIComponent(interviewId)}&workspace_id=eq.${ws.id}&select=id,topic&limit=1`,
+  )
+  if (!ivRes.ok) {
+    console.error(`[realtime-session] interview lookup failed ${ivRes.status} ws=${ws.slug}`)
+    return res.status(500).json({ error: 'Could not verify interview ownership' })
+  }
+  const rows = await ivRes.json().catch(() => [])
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(404).json({ error: 'Interview not found in this workspace' })
   }
 
   // ── Mint ephemeral client_secret ────────────────────────────────────────
   const sessionConfig = {
     type: 'realtime',
     model: REALTIME_MODEL,
-    instructions: SPIKE_INSTRUCTIONS,
-    // Voice + audio modalities. The GA API defaults output_modalities to
-    // ['audio'] (audio + transcript); we leave it implicit.
+    instructions: BOOTSTRAP_INSTRUCTIONS,
     audio: {
       output: { voice: REALTIME_VOICE },
-      // Enable Whisper transcription of the user's microphone audio. Without
-      // this, the data channel only carries assistant-side transcript events,
-      // not user-side ones — which means we can't persist the user turns to
-      // interviews.messages on Sunday. Setting it here avoids a session.update
-      // round-trip on connect.
+      // Whisper input transcription so the data channel emits
+      // conversation.item.input_audio_transcription.completed events. Without
+      // this we can't persist user turns to interviews.messages.
       input: {
         transcription: { model: 'whisper-1' },
       },
@@ -107,8 +151,6 @@ export default async function handler(req, res) {
       headers: {
         Authorization: `Bearer ${OPENAI_KEY}`,
         'Content-Type': 'application/json',
-        // Bind the ephemeral to this user so OpenAI usage/abuse reports can
-        // attribute back to a NarrateRx identity.
         'OpenAI-Safety-Identifier': `narraterx:${ws.slug}:${auth.userId}`,
       },
       body: JSON.stringify({
@@ -122,16 +164,14 @@ export default async function handler(req, res) {
   }
 
   if (!openaiRes.ok) {
-    const body = await openaiRes.text().catch(() => '')
-    console.error(`[realtime-session] mint failed ${openaiRes.status} ws=${ws.slug}: ${body.slice(0, 300)}`)
+    const errBody = await openaiRes.text().catch(() => '')
+    console.error(`[realtime-session] mint failed ${openaiRes.status} ws=${ws.slug} iv=${interviewId}: ${errBody.slice(0, 300)}`)
     return res.status(502).json({
       error: `Realtime mint failed (${openaiRes.status})`,
     })
   }
 
   const data = await openaiRes.json().catch(() => null)
-  // The GA response shape is { value, expires_at, session: {...} }. `value` is
-  // the short-lived bearer the browser uses against /v1/realtime/calls.
   const clientSecret = data?.value
   const expiresAt    = data?.expires_at ?? null
   if (!clientSecret) {
@@ -143,5 +183,6 @@ export default async function handler(req, res) {
     clientSecret,
     expiresAt,
     model: REALTIME_MODEL,
+    voice: REALTIME_VOICE,
   })
 }

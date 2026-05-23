@@ -3,6 +3,7 @@ import { ArrowLeft, Mic, MessageSquareText, Phone, Presentation, Link as LinkIco
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 
 /**
  * CapturePicker — entry point at /new. Asks the user which capture mode they
@@ -20,6 +21,11 @@ export default function CapturePicker() {
   useDocumentTitle('New capture')
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const workspace = useWorkspace()
+  // Phone Call lane is gated on the per-workspace realtime_voice_enabled flag.
+  // Default false — only workspaces explicitly onboarded to the Phase 5 spike
+  // see the tile. Avoids the $5/call surprise for tenants who haven't asked.
+  const phoneCallEnabled = workspace?.realtime_voice_enabled === true
 
   // Preserve any incoming query params (?topic=…, ?topicBacklogId=…) when
   // routing into the chosen mode — these come from suggestion links and
@@ -92,7 +98,10 @@ export default function CapturePicker() {
           </Card>
         </button>
 
-        {/* Phone Call — real-time duplex voice (Phase 5 spike, Beta) */}
+        {/* Phone Call — real-time duplex voice (Phase 5 spike, Beta).
+            Gated on workspace.realtime_voice_enabled; hidden entirely for
+            workspaces that haven't been onboarded yet. */}
+        {phoneCallEnabled && (
         <button
           type="button"
           onClick={() => go('/new/phone-call')}
@@ -118,6 +127,7 @@ export default function CapturePicker() {
             </CardContent>
           </Card>
         </button>
+        )}
 
         {/* Import writing — URL import lane */}
         <button
