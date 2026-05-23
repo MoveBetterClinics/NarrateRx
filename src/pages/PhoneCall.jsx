@@ -380,6 +380,20 @@ export default function PhoneCall() {
   function handleRealtimeEvent(evt) {
     if (!evt || typeof evt.type !== 'string') return
 
+    // TEMPORARY DEBUG (debug/phone-call-event-log): log every event type
+    // unconditionally so we can see in prod DevTools what the GA API is
+    // actually emitting. Smoke #5 reported live partials still don't show
+    // even after switching to gpt-4o-mini-transcribe; need ground truth on
+    // whether the .delta events arrive at all. Remove after diagnosis.
+    if (
+      evt.type.includes('input_audio_transcription') ||
+      evt.type.includes('transcript')
+    ) {
+      console.info('[phone-call DEBUG]', evt.type, evt)
+    } else {
+      console.info('[phone-call DEBUG]', evt.type)
+    }
+
     // ── Assistant streaming transcript ────────────────────────────────────
     if (
       evt.type === 'response.audio_transcript.delta' ||
