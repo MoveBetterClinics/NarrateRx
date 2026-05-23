@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Mic, MessageSquareText, Presentation } from 'lucide-react'
+import { ArrowLeft, Mic, MessageSquareText, Presentation, Link as LinkIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -47,7 +47,7 @@ export default function CapturePicker() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Interview — existing AI-led flow */}
         <button
           type="button"
@@ -86,6 +86,28 @@ export default function CapturePicker() {
                 <p className="text-sm text-muted-foreground mt-1">
                   Quick capture. Hit record, say what happened, save. For real
                   moments between patients or end-of-day reflections.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </button>
+
+        {/* Import writing — URL import lane */}
+        <button
+          type="button"
+          onClick={() => go('/new/import')}
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
+        >
+          <Card className="h-full transition hover:border-primary hover:shadow-sm">
+            <CardContent className="p-5 space-y-3">
+              <div className="h-10 w-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                <LinkIcon className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-medium">Import writing</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Paste a URL from your blog or any article you&apos;ve written.
+                  We pull the text and turn it into fresh content.
                 </p>
               </div>
             </CardContent>
