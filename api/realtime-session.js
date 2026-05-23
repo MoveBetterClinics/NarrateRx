@@ -140,19 +140,31 @@ export default async function handler(req, res) {
         // input_audio_transcription.completed events. Without this we can't
         // persist user turns to interviews.messages.
         transcription: { model: 'whisper-1' },
-        // Patience knob. server_vad (default) fires after ~500ms of silence
-        // and cancels Bernard's in-flight response when the user makes ANY
-        // sound, which produces the cut-off / restart pattern we saw on the
-        // first smoke. semantic_vad uses the model to decide if the user is
-        // actually done speaking, and low eagerness errs strongly on the
-        // side of waiting. Combined with the realtime-mode patience addendum
-        // we prepend to the system prompt client-side, this fixes the
-        // "impatient interrupter" feel.
+        // Turn-detection patience. Two prior tries:
+        //   1. server_vad default (~500ms silence) — Bernard cut us off
+        //      mid-sentence on every breath pause.
+        //   2. semantic_vad with eagerness 'low' — max timeout is 8s, so
+        //      Bernard never replied AND user-side transcripts never
+        //      rendered (Whisper only fires once VAD declares turn-end).
+        //
+        // Sweet spot: server_vad with silence_duration_ms = 1200ms. Bernard
+        // waits ~1.2s of silence before declaring the user's turn done.
+        // Long enough to ride out the natural thinking pause inside a
+        // sentence, short enough that user-side transcripts and Bernard's
+        // replies both surface in conversational time. The patience addendum
+        // in the system prompt (PhoneCall.jsx) tells Bernard not to use that
+        // window for "got it" interjections.
+        //
+        // prefix_padding_ms: amount of audio to include BEFORE the model
+        // detected speech start — 300ms is the OpenAI default and gives
+        // Whisper enough lead-in to transcribe the first word cleanly.
         turn_detection: {
-          type: 'semantic_vad',
-          eagerness: 'low',
-          create_response:    true,
-          interrupt_response: true,
+          type: 'server_vad',
+          threshold: 0.5,
+          prefix_padding_ms:   300,
+          silence_duration_ms: 1200,
+          create_response:     true,
+          interrupt_response:  true,
         },
       },
     },
