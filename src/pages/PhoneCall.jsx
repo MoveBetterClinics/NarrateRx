@@ -29,15 +29,28 @@ const COMPLETE_TOKEN = 'INTERVIEW_COMPLETE'
  * fills natural thinking pauses with chatter and cuts off mid-thought when
  * the user resumes speaking.
  */
-const REALTIME_PATIENCE_ADDENDUM = `REALTIME VOICE MODE — PATIENCE OVERRIDE:
+const REALTIME_PATIENCE_ADDENDUM = `REALTIME VOICE MODE — OVERRIDE RULES (apply ABOVE the standard interview guidance):
 
-You are speaking on a live voice call, not typing. Apply these rules ABOVE the conversational style guidance below — they override anything that suggests quick acknowledgments.
+You are conducting a live voice interview. The rules below SUPERSEDE anything later in this prompt that conflicts.
 
-- Wait for FULL silence before responding. Clinical thinking pauses are 2-4 seconds long. If they trail off ("...so that there's...") DO NOT respond — they are still thinking. Wait.
-- Do NOT interject acknowledgments ("got it", "yeah", "makes sense", "interesting") while they're speaking, pausing, or mid-thought. Those are interruptions on a voice call, not encouragements.
-- Keep your turns SHORT. One question at a time. Then stop and wait.
-- If you started talking and the clinician begins speaking, stop immediately — don't restart your thought, just let them lead.
-- The clinician will say something like "I think that covers it" or "that's everything" when they're done. Only then emit INTERVIEW_COMPLETE on its own line.
+## NEVER INFER. NEVER SPECULATE. NEVER FILL IN DETAILS.
+
+- DO NOT say what the clinician is seeing, doing, thinking, or finding unless they have said it themselves in this conversation.
+- DO NOT say "I'm guessing you're seeing X", "Often you'd find Y", "So you're probably doing Z", "That makes sense because…", or any phrasing that adds your own clinical content.
+- You have NO opinions on this topic. You have NO domain knowledge of your own to contribute. You are a curious interviewer pulling the clinician's perspective OUT of them.
+- If they said something vague, ask ONE clean follow-up like "Can you walk me through what that looks like?" — do not paraphrase, do not extend, do not guess.
+- Reflect their own words back to them when probing. Use their language, not yours.
+
+## SPEAK BRIEFLY. LET SILENCE EXIST.
+
+- Keep every turn to ONE short question or ONE brief acknowledgment + ONE question. Never two questions in a row.
+- Do not fill silence. If the clinician pauses, stay quiet — they are thinking. The system will tell you when they're done.
+- Do not greet, restart, or check in if you've already greeted once. No "I'm right here", no "take your time", no "go ahead." Just wait.
+- If you've just spoken and haven't heard from the clinician, DO NOT speak again. Wait for them.
+
+## ENDING THE INTERVIEW
+
+Only emit INTERVIEW_COMPLETE on its own line when the clinician clearly signals they want to stop (e.g. "I think that covers it", "that's everything", "I'm done"). Do not end the interview on your own.
 
 ---
 
@@ -97,6 +110,15 @@ export default function PhoneCall() {
   const turnsRef       = useRef(/** @type {{role:'user'|'assistant',content:string,partial?:boolean}[]} */ ([]))
   const completedRef   = useRef(false)
   const assistantBufRef = useRef('')
+  // Speech duration tracking: VAD fires speech_started → speech_stopped with
+  // timestamps. We use the duration to reject ambient-noise blips (Whisper
+  // hallucinates "Diolch yn fawr" / "Thank you" on silence; if the speech
+  // duration was < 500ms it was almost certainly noise, not a real utterance,
+  // so we suppress both the transcript render AND the response.create.
+  const speechStartedAtRef = useRef(/** @type {number | null} */ (null))
+  const lastSpeechDurMsRef = useRef(0)
+  const greetedRef         = useRef(false) // true once Bernard's first turn finished
+  const responseInFlightRef = useRef(false) // true between response.created and response.done
 
   // Keep turnsRef in sync — the persist debounce reads from the ref so it
   // doesn't capture stale state when the event handler closures over it.
@@ -376,7 +398,6 @@ export default function PhoneCall() {
         turnsRef.current = next
         return next
       })
-
       // Completion detection — the model emits INTERVIEW_COMPLETE on a line
       // by itself in its final spoken turn. Same exact token convention as
       // InterviewSession so the downstream completion logic doesn't need a
@@ -390,16 +411,87 @@ export default function PhoneCall() {
       return
     }
 
+    // ── VAD speech-window tracking ────────────────────────────────────────
+    // We use these to distinguish a real user utterance from ambient-noise
+    // blips. server_vad fires speech_started when its threshold gets crossed
+    // and speech_stopped on the silence-duration tail. The duration between
+    // them is our gate: real speech is usually > 500ms even for short
+    // answers; ambient noise that triggers VAD is typically < 300ms.
+    if (evt.type === 'input_audio_buffer.speech_started') {
+      speechStartedAtRef.current = Date.now()
+      return
+    }
+    if (evt.type === 'input_audio_buffer.speech_stopped') {
+      const startedAt = speechStartedAtRef.current
+      lastSpeechDurMsRef.current = startedAt ? Date.now() - startedAt : 0
+      speechStartedAtRef.current = null
+      return
+    }
+
     // ── User-side STT (Whisper, server-side) ──────────────────────────────
     if (evt.type === 'conversation.item.input_audio_transcription.completed') {
       const text = String(evt.transcript ?? '').trim()
       if (!text) return
+
+      // Whisper hallucinates on silence/noise — common artifacts: "Thank you",
+      // "Thank you very much", "Diolch yn fawr" (Welsh), ".", "...", "Bye".
+      // We reject in two ways:
+      //   1. Speech duration < 500ms — VAD declared a turn but the speech was
+      //      too short to be real. Suppress AND skip Bernard's response.
+      //   2. Known hallucination phrases — short, formulaic, no information
+      //      content. Suppress + skip.
+      const looksHallucinated = isLikelyWhisperHallucination(text)
+      const tooShort = lastSpeechDurMsRef.current > 0 && lastSpeechDurMsRef.current < 500
+      if (looksHallucinated || tooShort) {
+        if (import.meta.env.DEV) {
+          console.info(
+            '[phone-call] suppressing likely hallucination',
+            { text, durMs: lastSpeechDurMsRef.current, looksHallucinated },
+          )
+        }
+        // Don't render, don't persist, don't ask Bernard to respond.
+        return
+      }
+
       setTurns((prev) => {
         const next = appendOrMergeUser(prev, text)
         turnsRef.current = next
         return next
       })
       schedulePersist()
+
+      // Manual response trigger — server is configured with
+      // create_response:false so Bernard never auto-responds. This is the
+      // only place we ask him to.
+      //
+      // Two gates:
+      //   - greetedRef: don't fire before Bernard's opening question finishes.
+      //     Otherwise an ambient blip during the greeting would queue a
+      //     second response that collides with the first.
+      //   - responseInFlightRef: don't fire while a response is already
+      //     streaming. interrupt_response:true means the model handles
+      //     barge-in itself; queueing another response.create here would
+      //     produce double-talk.
+      if (greetedRef.current && !responseInFlightRef.current) {
+        try {
+          dcRef.current?.send(JSON.stringify({ type: 'response.create' }))
+        } catch (e) {
+          console.warn('[phone-call] response.create after user turn failed', e?.message)
+        }
+      }
+      return
+    }
+
+    // Track in-flight responses so we don't double-fire response.create.
+    // greetedRef flips on the FIRST response.created so an early interrupter
+    // (user starts talking during greeting) is still answered correctly.
+    if (evt.type === 'response.created') {
+      responseInFlightRef.current = true
+      greetedRef.current = true
+      return
+    }
+    if (evt.type === 'response.done' || evt.type === 'response.cancelled') {
+      responseInFlightRef.current = false
       return
     }
 
@@ -759,6 +851,43 @@ function Header({ topic }) {
       </div>
     </div>
   )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Whisper-hallucination filter
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Whisper, the model OpenAI Realtime uses for input transcription, is known
+ * to hallucinate plausible-sounding phrases when fed silence or ambient noise.
+ * The most common artifacts are sign-off phrases ("Thank you", "Goodbye") and
+ * a handful of foreign-language equivalents that show up in Whisper's
+ * subtitle training data (especially "Diolch yn fawr" — Welsh for "thank you
+ * very much"). These come with no actual user speech, so we reject them at
+ * the transcript layer AND skip the Bernard reply trigger.
+ *
+ * This is paired with the speech-duration gate (< 500ms = noise) in the
+ * caller. Both filters together are belt-and-suspenders against the cold-mic
+ * cascade we hit on smoke #3.
+ */
+const HALLUCINATION_PATTERNS = [
+  /^\s*\.+\s*$/,                            // just dots
+  /^\s*$/,                                  // empty / whitespace
+  /^(thank you|thanks|goodbye|bye|bye-bye)[.!\s]*$/i,
+  /^thank you( so| very)? much[.!\s]*$/i,
+  /^diolch( yn fawr)?[.!\s]*$/i,            // Welsh "thank you (very much)"
+  /^merci( beaucoup)?[.!\s]*$/i,            // French
+  /^gracias[.!\s]*$/i,                      // Spanish
+  /^danke( schön| schoen)?[.!\s]*$/i,       // German
+  /^arigato( gozaimasu)?[.!\s]*$/i,         // Japanese
+  /^xie xie[.!\s]*$/i,                      // Mandarin
+  /^(uh+|um+|hmm+|mm+|mhm+)[.!\s]*$/i,      // filler-only
+]
+
+function isLikelyWhisperHallucination(text) {
+  const t = String(text || '').trim()
+  if (!t) return true
+  return HALLUCINATION_PATTERNS.some((re) => re.test(t))
 }
 
 // ────────────────────────────────────────────────────────────────────────────

@@ -140,30 +140,32 @@ export default async function handler(req, res) {
         // input_audio_transcription.completed events. Without this we can't
         // persist user turns to interviews.messages.
         transcription: { model: 'whisper-1' },
-        // Turn-detection patience. Two prior tries:
-        //   1. server_vad default (~500ms silence) — Bernard cut us off
-        //      mid-sentence on every breath pause.
-        //   2. semantic_vad with eagerness 'low' — max timeout is 8s, so
-        //      Bernard never replied AND user-side transcripts never
-        //      rendered (Whisper only fires once VAD declares turn-end).
+        // Turn-detection — third revision after smokes #2 and #3.
         //
-        // Sweet spot: server_vad with silence_duration_ms = 1200ms. Bernard
-        // waits ~1.2s of silence before declaring the user's turn done.
-        // Long enough to ride out the natural thinking pause inside a
-        // sentence, short enough that user-side transcripts and Bernard's
-        // replies both surface in conversational time. The patience addendum
-        // in the system prompt (PhoneCall.jsx) tells Bernard not to use that
-        // window for "got it" interjections.
+        // The breakthrough learning from smoke #3: Whisper hallucinates on
+        // silence + ambient noise. With `create_response: true` (default), the
+        // model auto-generates a reply on every turn-end — including turn-ends
+        // VAD declared on ambient noise that wasn't actually user speech. So
+        // Bernard ended up "responding" to hallucinated Welsh phrases and
+        // talking to himself.
         //
-        // prefix_padding_ms: amount of audio to include BEFORE the model
-        // detected speech start — 300ms is the OpenAI default and gives
-        // Whisper enough lead-in to transcribe the first word cleanly.
+        // Fix: `create_response: false`. The model never auto-replies. The
+        // CLIENT decides when to fire `response.create` — only after we see a
+        // genuine user utterance (length-of-speech ≥ 500ms tracked from
+        // `input_audio_buffer.speech_started` / `speech_stopped`).
+        //
+        // threshold bumped 0.5 → 0.6 (slightly less sensitive to ambient).
+        // silence_duration_ms stays 1200 (rides out mid-sentence thinking).
+        //
+        // interrupt_response stays true so when the user starts speaking
+        // mid-Bernard, his in-flight response is cancelled — that's the right
+        // duplex behavior.
         turn_detection: {
           type: 'server_vad',
-          threshold: 0.5,
+          threshold: 0.6,
           prefix_padding_ms:   300,
           silence_duration_ms: 1200,
-          create_response:     true,
+          create_response:     false,
           interrupt_response:  true,
         },
       },
