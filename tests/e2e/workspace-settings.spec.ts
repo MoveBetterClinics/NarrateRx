@@ -46,12 +46,17 @@ test('workspace settings page resolves the role guard correctly', async ({ page 
 
   // ── 1. Wait for the page to settle into a terminal state ────────────────
   // Either:
-  //   (a) Workspace Settings heading visible — admin path
+  //   (a) Settings sidebar visible — admin path. The May 2026 redesign moved
+  //       workspace settings into a sidebar layout: a level-2 heading
+  //       "Settings" lives in the rail, and the page H1 reflects the active
+  //       sub-page (/settings/workspace lands on "General" by default). The
+  //       previous H1 was "Workspace Settings"; matching the sidebar h2 is
+  //       resilient to whichever sub-page is active.
   //   (b) Dashboard greeting visible — non-admin redirected to "/" by the
-  //       role guard
+  //       role guard.
   // Anything else (stuck spinner, redirect to sign-in, generic error) is a
   // failure — the page didn't resolve its guards.
-  const settingsHeading = page.getByRole('heading', { name: /workspace settings/i })
+  const settingsHeading = page.getByRole('heading', { name: /^settings$/i, level: 2 })
   const dashboardGreeting = page.getByRole('heading', { name: /good (morning|afternoon|evening)/i })
 
   await expect(
@@ -76,10 +81,12 @@ test('workspace settings page resolves the role guard correctly', async ({ page 
     // No load-error indicator near Save.
     await expect(page.locator('text=/network-error|save-failed/i')).toHaveCount(0)
 
-    // Save button reachable + not stuck in saving state.
+    // Save button is visible — its presence proves the form rendered. We
+    // do NOT assert toBeEnabled(): the May 2026 redesign gates Save on
+    // `isDirty`, and this is a read-only test that never modifies the form,
+    // so the button is correctly disabled here.
     const saveBtn = page.getByRole('button', { name: /save changes/i })
     await expect(saveBtn).toBeVisible()
-    await expect(saveBtn).toBeEnabled()
   } else {
     // Non-admin path — we should be on the Dashboard, NOT still on
     // /settings/workspace. The Navigate replaces the URL, so the path must

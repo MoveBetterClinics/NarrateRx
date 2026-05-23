@@ -26,18 +26,19 @@ test('interview create flow + integrations page', async ({ page }) => {
   const newInterviewLink = page.getByRole('link', { name: /new interview/i }).first()
   await expect(newInterviewLink).toBeVisible({ timeout: 30_000 })
 
-  // ── 2. New Interview Step 1 ──────────────────────────────────────────────
-  await newInterviewLink.click()
-  await expect(page).toHaveURL(/\/new/)
-  await page.getByLabel(/clinician name/i).fill(FIXTURE_CLINICIAN)
-  await page.getByRole('button', { name: /^continue$/i }).click()
-
-  // ── 3. New Interview Step 2 ──────────────────────────────────────────────
+  // ── 2. New Interview screen ──────────────────────────────────────────────
+  // /new is a single-screen setup form (Clinician + Topic + tune chips +
+  // Start interview). The earlier "Continue → Step 2" flow was collapsed
+  // in the May 2026 redesign; one Start press creates the clinician +
+  // interview rows and navigates straight into the session.
+  //
   // This is the PR #244 surface: without workspace_id filtering on the
   // clinicians/interviews POSTs, the create returned "Create failed" with a
   // 500. We assert (a) no error banner, (b) navigation to the session URL.
-  await page.getByLabel(/condition, treatment, or topic/i)
-    .fill('E2E smoke topic — safe to delete')
+  await newInterviewLink.click()
+  await expect(page).toHaveURL(/\/new/)
+  await page.getByLabel(/^clinician$/i).fill(FIXTURE_CLINICIAN)
+  await page.getByLabel(/^topic/i).fill('E2E smoke topic — safe to delete')
   await page.getByRole('button', { name: /start interview/i }).click()
 
   // The "Create failed" banner is the canary for the regression. Use a race

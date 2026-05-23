@@ -69,21 +69,30 @@ test('pipeline card links contain valid UUIDs, not /undefined or /null', async (
 // ── 3. Story detail loads correctly (data-conditional) ─────────────────────
 
 test('clicking a story card navigates to a valid story detail page', async ({ page }) => {
-  await page.goto('/stories')
+  // Pin the Cards view explicitly. Without ?view=cards the page resolves to
+  // the staff default (pipeline) for admin users — including the e2e
+  // fixture — which renders /review/<piece-id> content-piece links instead
+  // of /stories/<interview-id> story-card links, so a story-card assertion
+  // would never find a match. See src/pages/Stories.jsx — `defaultView =
+  // isStaff ? 'pipeline' : 'cards'`.
+  await page.goto('/stories?view=cards')
   await expect(
     page.getByRole('heading', { name: /^stories$/i }),
   ).toBeVisible({ timeout: 30_000 })
 
   // Find story card links — each StoryCard is a <Link to="/stories/:id">
-  // wrapping the whole card.
-  const storyCardLink = page
-    .locator('a[href^="/stories/"]')
-    .first()
-
-  const href = await storyCardLink.getAttribute('href').catch(() => null)
-  if (!href) {
-    // No story cards yet — skip without failing.
+  // wrapping the whole card. Use count() so an empty workspace skips
+  // cleanly instead of hanging .first().getAttribute() until the test-level
+  // timeout fires.
+  const storyCardLinks = page.locator('a[href^="/stories/"]')
+  if ((await storyCardLinks.count()) === 0) {
     console.log('[content-hub] No story cards found in prod — skipping navigation check.')
+    return
+  }
+  const storyCardLink = storyCardLinks.first()
+  const href = await storyCardLink.getAttribute('href')
+  if (!href) {
+    console.log('[content-hub] First story card had no href — skipping navigation check.')
     return
   }
 
@@ -114,15 +123,20 @@ test('clicking a story card navigates to a valid story detail page', async ({ pa
 // ── 4. Story detail content pieces render without auth error (data-conditional)
 
 test('story detail renders content pieces without auth error', async ({ page }) => {
-  await page.goto('/stories')
+  // See note on test 3 above for why ?view=cards is pinned.
+  await page.goto('/stories?view=cards')
   await expect(
     page.getByRole('heading', { name: /^stories$/i }),
   ).toBeVisible({ timeout: 30_000 })
 
-  const storyCardLink = page.locator('a[href^="/stories/"]').first()
-  const href = await storyCardLink.getAttribute('href').catch(() => null)
-  if (!href) {
+  const storyCardLinks = page.locator('a[href^="/stories/"]')
+  if ((await storyCardLinks.count()) === 0) {
     console.log('[content-hub] No story cards found — skipping content-pieces check.')
+    return
+  }
+  const href = await storyCardLinks.first().getAttribute('href')
+  if (!href) {
+    console.log('[content-hub] First story card had no href — skipping content-pieces check.')
     return
   }
 
