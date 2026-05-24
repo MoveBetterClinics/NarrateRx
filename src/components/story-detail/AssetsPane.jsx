@@ -23,6 +23,7 @@ import {
   useUpdateContentItem,
   useUpdateContentItemStatus,
   useRegenerateContentItem,
+  useRegenerateBlogStreamed,
   useSplitBlogIntoSeries,
   queryKeys,
 } from '@/lib/queries'
@@ -358,7 +359,10 @@ const GENERATION_STYLE_DESCRIPTIONS = {
 }
 
 function GenerationStyleSwitcher({ piece, story }) {
-  const regenerate = useRegenerateContentItem()
+  // Blog regen routes through the streamed pipeline (prepare → /api/stream →
+  // finalize) to escape the 60–180s function-cap dance that Opus 4.7 + the
+  // practice-memory block were pushing /regenerate past.
+  const regenerate = useRegenerateBlogStreamed()
   const currentStyle = story?.generation_style || 'blog_post'
   const [pending, setPending] = useState(null) // 'blog_post' | 'minimal_edits' | null
 
@@ -454,7 +458,14 @@ function GenerationStyleSwitcher({ piece, story }) {
 }
 
 function RegenerateButton({ piece, story }) {
-  const regenerate = useRegenerateContentItem()
+  // Blog → streamed pipeline (no function-cap timeouts). Atoms stay on the
+  // non-streaming /regenerate endpoint (Sonnet 4.6 @ 1500 tokens, well under
+  // 60s). Hook choice is by platform; either hook exposes the same
+  // mutateAsync({ id, lengthPreset?, generationStyle? }) shape.
+  const isBlogPiece = piece.platform === 'blog'
+  const blogRegen = useRegenerateBlogStreamed()
+  const atomRegen = useRegenerateContentItem()
+  const regenerate = isBlogPiece ? blogRegen : atomRegen
   const workspace = useWorkspace()
   const [confirming, setConfirming] = useState(false)
 

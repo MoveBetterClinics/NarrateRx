@@ -686,6 +686,69 @@ export function useRegenerateContentItem() {
   })
 }
 
+// Streamed blog-piece regeneration. Splits the old single-shot
+// /api/content-items/regenerate call into three steps so the long-running
+// Opus blog generation goes through /api/stream (which has its own 300s cap
+// and emits SSE chunks, sidestepping the 60→180s function-cap dance):
+//
+//   1. POST /api/content-items/blog-regen-prepare  — server builds prompt
+//   2. stream the model via /api/stream            — chunks accumulate
+//   3. POST /api/content-items/blog-regen-finalize — server writes DB
+//
+// onChunk is optional; pass it to render partial output as it streams.
+// The mutation resolves with the finalized content_items row.
+export function useRegenerateBlogStreamed() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: 'Regeneration failed',
+    mutationFn: async ({ id, lengthPreset, generationStyle, onChunk, signal } = {}) => {
+      const { streamMessage } = await import('@/lib/claude')
+      const prep = await apiFetch('/api/content-items/blog-regen-prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          ...(lengthPreset != null ? { length_preset: lengthPreset } : {}),
+          ...(generationStyle != null ? { generation_style: generationStyle } : {}),
+        }),
+        signal,
+      })
+      if (!prep?.systemPrompt || !Array.isArray(prep.messages)) {
+        throw new Error('Prepare returned an invalid payload')
+      }
+
+      let acc = ''
+      for await (const delta of streamMessage(prep.messages, prep.systemPrompt, {
+        model: prep.model,
+        maxOutputTokens: prep.maxOutputTokens,
+        signal,
+      })) {
+        acc += delta
+        if (onChunk) onChunk(acc)
+      }
+      if (!acc.trim()) throw new Error('No content returned from generation')
+
+      const row = await apiFetch('/api/content-items/blog-regen-finalize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id,
+          content: acc,
+          ...(lengthPreset != null ? { length_preset: lengthPreset } : {}),
+          ...(generationStyle != null ? { generation_style: generationStyle } : {}),
+        }),
+        signal,
+      })
+      return row
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+      qc.invalidateQueries({ queryKey: queryKeys.stories.all })
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
+    },
+  })
+}
+
 // Split a single blog content_item into a multi-part series. Calls the
 // two-pass cluster+write pipeline server-side. On success the original blog
 // is archived and N new draft pieces appear with series_id / series_part /
