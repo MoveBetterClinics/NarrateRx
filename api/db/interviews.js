@@ -189,6 +189,14 @@ export default async function handler(req, res) {
     // rows. Empty string is treated as null so the editor can "clear" a slot.
     if (body.audience !== undefined)  patch.audience   = body.audience   || null
     if (body.storyType !== undefined) patch.story_type = body.storyType || null
+    // topic — story title. Trim and reject empty strings (a story must
+    // always have a title visible in the header / lists). Length-capped to
+    // 300 chars to keep the header layout sane on long entries.
+    if (body.topic !== undefined) {
+      const next = typeof body.topic === 'string' ? body.topic.trim() : ''
+      if (!next) return err(res, 'Title required')
+      patch.topic = next.slice(0, 300)
+    }
     // session_state: null clears it (interview complete); object saves it
     if ('session_state' in body) patch.session_state = body.session_state ?? null
     if ('paused_at' in body) patch.paused_at = body.paused_at ?? null
