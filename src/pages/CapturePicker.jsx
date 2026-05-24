@@ -22,10 +22,11 @@ export default function CapturePicker() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const workspace = useWorkspace()
-  // Phone Call lane is gated on the per-workspace realtime_voice_enabled flag.
-  // Default false — only workspaces explicitly onboarded to the Phase 5 spike
-  // see the tile. Avoids the $5/call surprise for tenants who haven't asked.
-  const phoneCallEnabled = workspace?.realtime_voice_enabled === true
+  // Live Interview lane (formerly "Phone Call") is gated on the per-workspace
+  // realtime_voice_enabled flag. Default false — only workspaces explicitly
+  // onboarded to the Phase 5 spike see the tile. Avoids the $5/call surprise
+  // for tenants who haven't asked.
+  const liveInterviewEnabled = workspace?.realtime_voice_enabled === true
 
   // Preserve any incoming query params (?topic=…, ?topicBacklogId=…) when
   // routing into the chosen mode — these come from suggestion links and
@@ -98,13 +99,16 @@ export default function CapturePicker() {
           </Card>
         </button>
 
-        {/* Phone Call — real-time duplex voice (Phase 5 spike, Beta).
+        {/* Live Interview — real-time duplex voice (Phase 5 spike, Beta).
             Gated on workspace.realtime_voice_enabled; hidden entirely for
-            workspaces that haven't been onboarded yet. */}
-        {phoneCallEnabled && (
+            workspaces that haven't been onboarded yet. Originally shipped
+            as "Phone Call" — renamed 2026-05-24 because "live interview"
+            better matches what users called it and avoids confusion with
+            actual telephony. */}
+        {liveInterviewEnabled && (
         <button
           type="button"
-          onClick={() => go('/new/phone-call')}
+          onClick={() => go('/new/live-interview')}
           className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
         >
           <Card className="h-full transition hover:border-primary hover:shadow-sm">
@@ -118,10 +122,10 @@ export default function CapturePicker() {
                 </span>
               </div>
               <div>
-                <div className="font-medium">Phone Call</div>
+                <div className="font-medium">Live Interview</div>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Continuous voice conversation. No press-to-talk — feels like a
-                  call with a curious colleague. Talk, pause, think out loud.
+                  Continuous voice conversation with Bernard. No press-to-talk —
+                  just talk, pause, think out loud.
                 </p>
               </div>
             </CardContent>

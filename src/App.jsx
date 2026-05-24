@@ -234,7 +234,11 @@ function AppRoutes() {
             <Route path="/new" element={guarded(<CapturePicker />)} />
             <Route path="/new/interview" element={guarded(<NewInterview />)} />
             <Route path="/new/voice-memo" element={guarded(<VoiceMemo />)} />
-            <Route path="/new/phone-call" element={guarded(<PhoneCall />)} />
+            <Route path="/new/live-interview" element={guarded(<PhoneCall />)} />
+            {/* Legacy redirect — the Phase 5 spike originally shipped as
+                /new/phone-call. Kept for bookmark safety after the
+                2026-05-24 rename to /new/live-interview. */}
+            <Route path="/new/phone-call" element={<Navigate to="/new/live-interview" replace />} />
             <Route path="/new/import" element={guarded(<ImportUrl />)} />
             <Route path="/capture/:clinicianId/:interviewId/review" element={guarded(<CaptureReview />)} />
             <Route path="/interview/:clinicianId/:interviewId" element={guarded(<InterviewSession />)} />
