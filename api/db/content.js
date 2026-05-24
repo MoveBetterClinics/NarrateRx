@@ -9,6 +9,7 @@ import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { extractConcepts } from '../_lib/conceptExtractor.js'
 import { extractVoicePhrases } from '../_lib/voicePhraseExtractor.js'
+import { indexContentItem } from '../_lib/practiceMemoryRag.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -195,6 +196,8 @@ export default async function handler(req, res) {
           content:     updated.content,
         })
       }
+      // Phase 5 Feature 2 PR3 — embed approved content into the RAG corpus.
+      indexContentItem({ workspaceId: ws.id, contentItemId: updated.id })
     } else if (updated && patch.status === 'in_review' && patch.notes?.trim() && updated.content?.trim()) {
       // Change request returned — mild negative signal on the rejected draft.
       extractConcepts({
