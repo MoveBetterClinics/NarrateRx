@@ -661,15 +661,23 @@ export default function PhoneCall() {
       return
     }
     if (evt.type === 'response.done' || evt.type === 'response.cancelled') {
+      // Tokens are done generating, but Bernard's audio may STILL be playing
+      // out of the speaker — we observed up to ~1s of tail audio after
+      // response.done. We hold off restarting Web Speech until
+      // output_audio_buffer.stopped fires (see below), otherwise SR captures
+      // the tail of Bernard's question as "user" speech. Smoke #7 caught
+      // exactly that — italic "You:" line containing Bernard's last words.
       responseInFlightRef.current = false
+      return
+    }
+    // Audio playback actually finished — now it's safe to restart SR. This
+    // is the correct restart trigger, not response.done.
+    if (evt.type === 'output_audio_buffer.stopped') {
       srPausedRef.current = false
-      // SR was aborted on response.created and the auto-restart was skipped
-      // (srPausedRef was true). Bring it back online for the next user turn.
       const r = recognitionRef.current
       if (r) {
         try { r.start() } catch { /* already running */ }
       } else {
-        // No instance — first call or unmounted. Reinitialize.
         startWebSpeechSTT()
       }
       return
