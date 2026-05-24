@@ -151,6 +151,23 @@ export function fetchSimilarInterviews(topic, excludeId) {
 }
 
 /**
+ * Practice-memory hot context: this clinician's most recent voice-bearing
+ * content (approved or published). Used to inject prior-thinking style
+ * anchors into the live interview's system prompt.
+ * @param {string} clinicianId
+ * @param {number} [limit]
+ * @returns {Promise<unknown>}
+ */
+export function fetchClinicianRecentContent(clinicianId, limit = 3) {
+  const params = new URLSearchParams({
+    clinicianId,
+    status: 'approved,published',
+    limit: String(limit),
+  })
+  return apiFetch(`/api/db/content?${params}`)
+}
+
+/**
  * @param {{ clinicianId: string, topic: string, ownerEmail: string, tone?: string, voiceMode?: string, prototypeId?: string, locationId?: string, audience?: string, storyType?: string, cleanupLevel?: string, topicBacklogId?: string }} opts
  * @returns {Promise<unknown>}
  */

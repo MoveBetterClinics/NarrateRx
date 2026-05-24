@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { apiFetch, fetchSimilarInterviews, fetchClinician, updateInterview, cleanupTranscript, populateContentItemProvenance } from '@/lib/api'
+import { apiFetch, fetchSimilarInterviews, fetchClinician, fetchClinicianRecentContent, updateInterview, cleanupTranscript, populateContentItemProvenance } from '@/lib/api'
+import { buildOwnHistoryBlock, pickPriorInterviews } from '@/lib/practiceMemory'
 import { extractProvenanceBlock } from '@/lib/provenance'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
@@ -245,8 +246,10 @@ export default function InterviewSession() {
   const emotionStateRef = useRef(null)
   // Track which user-message indexes have already triggered a re-probe
   const reprobedIndexesRef = useRef(new Set())
-  // Prior session context for returning clinicians
-  const priorSessionContextRef = useRef(null)
+  // Phase 5 Feature 2 — hot-context block (this clinician's prior interviews
+  // + recent approved content). Built once when clinician + content fetch
+  // resolve; injected into every system prompt for the session.
+  const ownHistoryBlockRef = useRef('')
   // Neural-TTS player (ElevenLabs) with speechSynthesis fallback. Constructed
   // lazily so SSR / no-window environments don't blow up. See src/lib/tts.js.
   const ttsRef = useRef(null)
@@ -472,26 +475,28 @@ export default function InterviewSession() {
       })
       .catch((err) => console.warn('[InterviewSession] concepts/context failed', err?.status, err?.message))
 
-    // Feature 5: use clinician data (already fetched) to find prior sessions
-    // for returning clinicians. fetchClinician returns interviews with topic+status
-    // but not messages — topic alone is enough for the keyword-overlap check and
-    // the system prompt reference.
-    fetchClinician(clinicianId)
-      .then((clinicianRow) => {
-        const priorInterviews = (clinicianRow?.interviews || [])
-          .filter((iv) => iv.status === 'completed' && iv.id !== interviewId)
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-        if (priorInterviews.length === 0) return
-        const prior = priorInterviews[0]
-        if (!prior.topic) return
-        // Simple keyword-overlap check: at least 1 word (>3 chars) in common
-        const topicWords = (interviewData.topic || '').toLowerCase().split(/\W+/).filter((w) => w.length > 3)
-        const priorWords = prior.topic.toLowerCase().split(/\W+/).filter((w) => w.length > 3)
-        const hasOverlap = topicWords.some((w) => priorWords.includes(w))
-        if (!hasOverlap) return
-        priorSessionContextRef.current = { topic: prior.topic }
+    // Phase 5 Feature 2 (PR 1) — hot practice-memory context: this clinician's
+    // own prior interviews + recently approved/published content. Injected
+    // into the system prompt so the model can reference what they've already
+    // said and build on it instead of starting cold. The block is bounded
+    // (3 interviews × 4 user turns; 3 content pieces × 500 chars) so prompt
+    // size stays predictable as the clinician's corpus grows.
+    //
+    // Falls back silently when there's no signal. A later PR replaces the
+    // recency-based pick with embedding-based RAG.
+    Promise.all([
+      fetchClinician(clinicianId).catch(() => null),
+      fetchClinicianRecentContent(clinicianId, 3).catch(() => []),
+    ])
+      .then(([clinicianRow, recentContent]) => {
+        const priorInterviews = pickPriorInterviews(clinicianRow?.interviews || [], interviewId)
+        ownHistoryBlockRef.current = buildOwnHistoryBlock({
+          clinicianName: clinicianRow?.name || 'this clinician',
+          priorInterviews,
+          priorContent: Array.isArray(recentContent) ? recentContent : [],
+        })
       })
-      .catch((err) => console.warn('[InterviewSession] prior session fetch failed', err?.status, err?.message))
+      .catch((err) => console.warn('[InterviewSession] practice-memory fetch failed', err?.status, err?.message))
     // `saveMessages` is a stable scope-level helper; `user.id` doesn't change
     // mid-session (the auth-gated route remounts on user change). Listing
     // them would re-fire this seeding effect and clobber in-progress state.
@@ -613,7 +618,7 @@ export default function InterviewSession() {
         tone: interviewRef.current?.tone || 'smart',
         isFirstMessage,
         shallowReprobe: shouldReprobe,
-        priorSessionContext: priorSessionContextRef.current,
+        ownHistoryBlock: ownHistoryBlockRef.current,
         conceptBlock:   conceptBlockRef.current,
         agreementBlock: agreementBlockRef.current,
         gapBlock:       gapBlockRef.current,
