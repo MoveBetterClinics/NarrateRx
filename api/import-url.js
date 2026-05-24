@@ -88,6 +88,7 @@ export default async function handler(req, res) {
   // Jina.ai prepends r.jina.ai/ to any URL and returns clean plain-text /
   // markdown of the main content — navigation, ads, and boilerplate stripped.
   let extractedText
+  let extractedTitle = ''
   try {
     const jinaRes = await fetch(`${JINA_BASE}${encodeURIComponent(cleanUrl)}`, {
       headers: {
@@ -111,16 +112,21 @@ export default async function handler(req, res) {
     const raw = await jinaRes.text()
     if (!raw?.trim()) throw new Error('No content extracted from that URL.')
 
-    // Strip Jina's header block. Jina prepends metadata lines like:
+    // Parse the page title from Jina's metadata header before stripping.
+    // Jina prepends metadata lines like:
     //   Title: ...
     //   URL Source: ...
     //   Published Time: ...
     //   Markdown Content:
-    // followed by a blank line and then the actual content. We want only the
-    // body — the header is noise when the imported text is used as the
-    // keystone piece (or as input to LLM generation).
+    // followed by a blank line and then the actual content.
     let body = raw.trim()
     const markerIdx = body.indexOf('Markdown Content:')
+    const header = markerIdx !== -1 ? body.slice(0, markerIdx) : ''
+    const titleMatch = header.match(/^Title:\s*(.+?)\s*$/m)
+    extractedTitle = titleMatch ? titleMatch[1].trim() : ''
+
+    // Strip the metadata header — it's noise when the imported text is used
+    // as the keystone piece (or as input to LLM generation).
     if (markerIdx !== -1) {
       body = body.slice(markerIdx + 'Markdown Content:'.length).replace(/^\s+/, '')
     }
@@ -176,8 +182,14 @@ export default async function handler(req, res) {
   // source_audio_url stores the original page URL for provenance.
   // The extracted text lands as a single user-role message — same shape as
   // a voice memo transcript, so CaptureReview + generation work unchanged.
+  //
+  // Topic = page title (parsed from Jina's metadata header). Falls back to
+  // "Imported from <hostname> — <date>" when Jina didn't surface a title
+  // (rare — most pages have a <title> tag). Cap at 300 chars to match the
+  // PATCH validator in api/db/interviews.js so user-entered titles and
+  // imported titles share the same column constraints.
   const hostname = new URL(cleanUrl).hostname.replace(/^www\./, '')
-  const topic = `Imported from ${hostname} — ${new Date().toLocaleDateString('en-CA')}`
+  const topic = (extractedTitle || `Imported from ${hostname} — ${new Date().toLocaleDateString('en-CA')}`).slice(0, 300)
 
   const ivRes = await sb('interviews', {
     method: 'POST',
