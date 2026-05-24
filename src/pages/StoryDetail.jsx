@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
-import { AlertCircle, ArrowLeft, ChevronDown, Link as LinkIcon, Loader2, Plus, Trash2 } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ChevronDown, Link as LinkIcon, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -76,6 +76,88 @@ function EditablePill({ value, options, placeholder, onChange, disabled }) {
         ))}
       </select>
     </label>
+  )
+}
+
+function EditableTitle({ value, canEdit, disabled, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [saving, setSaving] = useState(false)
+  const inputRef = useRef(null)
+
+  useEffect(() => { if (!editing) setDraft(value) }, [value, editing])
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus()
+      inputRef.current.select()
+    }
+  }, [editing])
+
+  const accent = (
+    <span
+      className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+      style={{ background: 'hsl(var(--primary))' }}
+      aria-hidden="true"
+    />
+  )
+
+  async function commit() {
+    const next = draft.trim()
+    if (!next || next === value) {
+      setEditing(false)
+      setDraft(value)
+      return
+    }
+    try {
+      setSaving(true)
+      await onSave(next)
+      setEditing(false)
+    } catch (err) {
+      toast.error(err?.message || 'Could not update title')
+      setDraft(value)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <h1 className="text-2xl font-bold tracking-tight text-foreground leading-snug flex items-center min-w-0">
+        {accent}
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') { e.preventDefault(); commit() }
+            else if (e.key === 'Escape') { e.preventDefault(); setDraft(value); setEditing(false) }
+          }}
+          disabled={saving || disabled}
+          maxLength={300}
+          className="flex-1 min-w-0 bg-transparent border-b border-primary/60 focus:outline-none focus:border-primary text-2xl font-bold tracking-tight"
+          aria-label="Story title"
+        />
+      </h1>
+    )
+  }
+
+  return (
+    <h1 className="group text-2xl font-bold tracking-tight text-foreground leading-snug flex items-center min-w-0">
+      {accent}
+      <span className="truncate">{value || 'Untitled interview'}</span>
+      {canEdit && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          className="ml-2 inline-flex items-center justify-center h-7 w-7 rounded-full text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-foreground hover:bg-muted/60 transition"
+          title="Edit title"
+          aria-label="Edit title"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
+      )}
+    </h1>
   )
 }
 
@@ -192,14 +274,12 @@ export default function StoryDetail() {
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div className="space-y-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold tracking-tight text-foreground leading-snug flex items-center">
-                <span
-                  className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
-                  style={{ background: 'hsl(var(--primary))' }}
-                  aria-hidden="true"
-                />
-                {story.topic || 'Untitled interview'}
-              </h1>
+              <EditableTitle
+                value={story.topic || ''}
+                canEdit={user?.id === story.owner_id}
+                disabled={updateInterview.isPending}
+                onSave={(next) => updateInterview.mutateAsync({ id: story.id, patch: { topic: next } })}
+              />
               <Badge className={`text-xs border-0 shrink-0 ${stageMeta.badge}`}>
                 {stageMeta.label}
               </Badge>
