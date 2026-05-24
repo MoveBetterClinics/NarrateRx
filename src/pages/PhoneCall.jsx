@@ -86,6 +86,14 @@ export default function PhoneCall() {
   const [errorMsg, setErrorMsg] = useState(null)
   const [connState, setConnState] = useState('idle') // idle | connecting | connected | ending
   const [paused, setPaused] = useState(false)
+  /**
+   * Live connection-quality reading from RTCPeerConnection.getStats(). null
+   * before the first poll completes; thereafter the dot colour reflects the
+   * worst-of (packet loss, jitter). The raw numbers feed the tooltip so
+   * Michael can debug a flaky call without DevTools.
+   * @type {[ { quality: 'green'|'yellow'|'red', lossPct: number, jitterMs: number, rttMs: number|null } | null, Function ]}
+   */
+  const [quality, setQuality] = useState(null)
 
   // Form fields
   const [topic, setTopic] = useState(searchParams.get('topic') || '')
@@ -135,10 +143,95 @@ export default function PhoneCall() {
   const lastSpeechDurMsRef = useRef(0)
   const greetedRef         = useRef(false) // true once Bernard's first turn finished
   const responseInFlightRef = useRef(false) // true between response.created and response.done
+  // Session start timestamp for the daily-cap accounting. Set when the
+  // peer connection moves to 'connected', read on hangUp to PATCH
+  // realtime_voice_seconds. durationPersistedRef guards against
+  // double-PATCH when hangUp() runs both via endCall and the unmount
+  // cleanup effect.
+  const callStartedAtRef     = useRef(/** @type {number | null} */ (null))
+  const durationPersistedRef = useRef(false)
+  // Reconnect machinery. Realtime sessions drop on flaky wifi: pc.connectionState
+  // flips to 'failed' or 'disconnected'. We re-mint, reopen, and re-prime
+  // Bernard with the last 5 turns so he picks up the thread.
+  const systemPromptRef        = useRef(/** @type {string | null} */ (null))
+  const reconnectAttemptsRef   = useRef(0)
+  const reconnectingRef        = useRef(false)
+  const reconnectTimerRef      = useRef(/** @type {ReturnType<typeof setTimeout> | null} */ (null))
+  const hangingUpRef           = useRef(false)
+  const MAX_RECONNECT_ATTEMPTS = 3
 
   // Keep turnsRef in sync — the persist debounce reads from the ref so it
   // doesn't capture stale state when the event handler closures over it.
   useEffect(() => { turnsRef.current = turns }, [turns])
+
+  // Connection-quality polling. Runs every 2s while the peer connection is
+  // connected. Reads inbound-rtp (audio) packet loss + jitter and the
+  // selected ICE candidate-pair RTT. Loss is a delta-since-last-poll
+  // percentage so a one-time blip doesn't permanently colour the dot red
+  // (and a long-lived call doesn't slowly slide into red from a single
+  // early loss).
+  useEffect(() => {
+    if (connState !== 'connected') {
+      setQuality(null)
+      return undefined
+    }
+    let prev = { lost: 0, received: 0 }
+    let cancelled = false
+
+    async function poll() {
+      const pc = pcRef.current
+      if (!pc || cancelled) return
+      let stats
+      try {
+        stats = await pc.getStats(null)
+      } catch {
+        return
+      }
+      let lost = 0
+      let received = 0
+      let jitter = 0
+      let rtt = null
+      stats.forEach((report) => {
+        if (report.type === 'inbound-rtp' && (report.kind === 'audio' || report.mediaType === 'audio')) {
+          lost     = Number(report.packetsLost) || 0
+          received = Number(report.packetsReceived) || 0
+          // jitter is reported in seconds per the spec.
+          jitter   = (Number(report.jitter) || 0) * 1000
+        }
+        if (
+          report.type === 'candidate-pair' &&
+          (report.nominated === true || report.state === 'succeeded') &&
+          typeof report.currentRoundTripTime === 'number'
+        ) {
+          rtt = report.currentRoundTripTime * 1000
+        }
+      })
+
+      // Delta-window loss percentage. First poll has no baseline → treat
+      // the cumulative value as the window (usually near-zero anyway).
+      const dLost     = Math.max(0, lost - prev.lost)
+      const dReceived = Math.max(0, received - prev.received)
+      const denom     = dLost + dReceived
+      const lossPct   = denom > 0 ? (dLost / denom) * 100 : 0
+      prev = { lost, received }
+
+      let q = 'green'
+      if (lossPct > 8 || jitter > 100) q = 'red'
+      else if (lossPct > 2 || jitter > 30) q = 'yellow'
+
+      if (!cancelled) {
+        setQuality({ quality: q, lossPct, jitterMs: jitter, rttMs: rtt })
+      }
+    }
+
+    // First poll fires after the interval so the very first reading isn't
+    // an artifact of "we just connected, zero packets received yet."
+    const handle = setInterval(poll, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(handle)
+    }
+  }, [connState])
 
   // Tear down on unmount in case the user navigates away mid-call. hangUp is
   // a stable scope-level helper — listing it would force the effect to re-run
@@ -166,6 +259,15 @@ export default function PhoneCall() {
     turnsRef.current = []
     assistantBufRef.current = ''
     completedRef.current = false
+    callStartedAtRef.current = null
+    durationPersistedRef.current = false
+    reconnectAttemptsRef.current = 0
+    reconnectingRef.current = false
+    hangingUpRef.current = false
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
     setPhase('starting')
 
     try {
@@ -247,6 +349,7 @@ export default function PhoneCall() {
       // Voice-mode patience override sits ABOVE the standard prompt so the
       // model reads it first and treats it as the dominant rule set.
       const fullPrompt = REALTIME_PATIENCE_ADDENDUM + baseSystemPrompt
+      systemPromptRef.current = fullPrompt
 
       // 4. Mint the realtime ephemeral. The server validates workspace flag
       //    + tenant ownership of interviewId before calling OpenAI.
@@ -279,8 +382,12 @@ export default function PhoneCall() {
   /**
    * @param {{ clientSecret: string, model: string }} mint
    * @param {string} systemPrompt full getInterviewSystemPrompt() result
+   * @param {{ resumeTurns?: {role:'user'|'assistant',content:string}[] }} [opts]
+   *        Last few turns to replay as conversation context (used on reconnect
+   *        so Bernard picks up where the call dropped).
    */
-  async function openRealtimeConnection(mint, systemPrompt) {
+  async function openRealtimeConnection(mint, systemPrompt, opts = {}) {
+    const resumeTurns = Array.isArray(opts.resumeTurns) ? opts.resumeTurns : []
     setConnState('connecting')
     const pc = new RTCPeerConnection({
       iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -298,9 +405,20 @@ export default function PhoneCall() {
 
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState
-      if (s === 'connected') setConnState('connected')
-      if (s === 'failed' || s === 'closed' || s === 'disconnected') {
-        setConnState((prev) => (prev === 'ending' ? prev : (s === 'failed' ? 'idle' : 'idle')))
+      if (s === 'connected') {
+        setConnState('connected')
+        if (callStartedAtRef.current == null) {
+          callStartedAtRef.current = Date.now()
+        }
+        // A successful (re)connection resets the attempt counter so the
+        // NEXT drop gets a full 3-attempt budget.
+        reconnectAttemptsRef.current = 0
+        reconnectingRef.current = false
+      }
+      if (s === 'failed' || s === 'disconnected') {
+        // Don't reconnect when we initiated the teardown.
+        if (hangingUpRef.current) return
+        scheduleReconnect(s)
       }
     }
 
@@ -336,10 +454,37 @@ export default function PhoneCall() {
       } catch (e) {
         console.error('[phone-call] session.update send failed', e?.message)
       }
+      // Resume mode — replay the last few turns as conversation items so
+      // Bernard has the immediate context of what was just being discussed
+      // before the call dropped. Without this he'd open with a generic
+      // greeting and Michael would have to re-orient him.
+      if (resumeTurns.length > 0) {
+        for (const t of resumeTurns) {
+          const isUser = t.role === 'user'
+          const item = {
+            type: 'conversation.item.create',
+            item: {
+              type: 'message',
+              role: t.role,
+              content: [{
+                type: isUser ? 'input_text' : 'text',
+                text: String(t.content || '').replace(COMPLETE_TOKEN, '').trim(),
+              }],
+            },
+          }
+          try { dc.send(JSON.stringify(item)) } catch (e) {
+            console.warn('[phone-call] resume conv.item.create failed', e?.message)
+          }
+        }
+      }
       // Trigger the first assistant turn now that instructions are in.
       // Without this prod the model waits for user audio — which is fine, but
       // the system prompt's "open with one warm sentence" instruction expects
       // an assistant-first turn. response.create kicks that off.
+      //
+      // On resume, this also asks Bernard to take the next turn picking up
+      // the thread (his system prompt's "stay in character" rules apply, so
+      // he won't restart with a fresh greeting).
       try {
         dc.send(JSON.stringify({ type: 'response.create' }))
       } catch (e) {
@@ -753,7 +898,100 @@ export default function PhoneCall() {
     setPaused(next)
   }
 
+  // ────────────────────────────────────────────────────────────────────────
+  // Reconnect — pc.connectionState went 'failed' or 'disconnected'
+  // ────────────────────────────────────────────────────────────────────────
+
+  function scheduleReconnect(triggerState) {
+    if (reconnectingRef.current || hangingUpRef.current) return
+    reconnectingRef.current = true
+    setConnState('reconnecting')
+    // 'disconnected' can recover on its own (ICE may re-establish); give it
+    // ~2s before tearing down. 'failed' is terminal so go immediately.
+    const delay = triggerState === 'disconnected' ? 2000 : 0
+    reconnectTimerRef.current = setTimeout(() => {
+      // Last check — if ICE healed itself during the wait, abort.
+      const pc = pcRef.current
+      if (!hangingUpRef.current && pc && pc.connectionState === 'connected') {
+        reconnectingRef.current = false
+        setConnState('connected')
+        return
+      }
+      attemptReconnect()
+    }, delay)
+  }
+
+  async function attemptReconnect() {
+    if (hangingUpRef.current) { reconnectingRef.current = false; return }
+    const ivId = interviewIdRef.current
+    const prompt = systemPromptRef.current
+    if (!ivId || !prompt) {
+      // Nothing to reconnect with — surface a real error.
+      setErrorMsg('Connection lost and could not be restored.')
+      setPhase('error')
+      reconnectingRef.current = false
+      return
+    }
+
+    reconnectAttemptsRef.current += 1
+    const attempt = reconnectAttemptsRef.current
+    if (attempt > MAX_RECONNECT_ATTEMPTS) {
+      setErrorMsg('Lost the connection and could not get it back. Please start a new call.')
+      setPhase('error')
+      hangUp()
+      return
+    }
+
+    // Tear down the broken peer connection BUT keep the audio element +
+    // interview/clinician refs + transcript. We're rebuilding the pipe,
+    // not the conversation.
+    try { dcRef.current?.close() } catch { /* already closed */ }
+    try { pcRef.current?.close() } catch { /* already closed */ }
+    dcRef.current = null
+    pcRef.current = null
+    stopWebSpeechSTT()
+    if (micStreamRef.current) {
+      for (const t of micStreamRef.current.getTracks()) t.stop()
+      micStreamRef.current = null
+    }
+
+    // Capture the tail of the conversation so Bernard can pick up the thread.
+    const finalized = turnsRef.current
+      .filter((t) => !t.partial && t.content?.trim())
+      .map((t) => ({ role: t.role, content: t.content }))
+    const resumeTurns = finalized.slice(-5)
+
+    try {
+      const mint = /** @type {{ clientSecret: string, model: string }} */ (
+        await apiFetch('/api/realtime-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ interviewId: ivId }),
+        })
+      )
+      await openRealtimeConnection(mint, prompt, { resumeTurns })
+      // setConnState('connected') happens via onconnectionstatechange.
+    } catch (e) {
+      console.warn(`[phone-call] reconnect attempt ${attempt} failed:`, e?.message)
+      if (attempt >= MAX_RECONNECT_ATTEMPTS) {
+        setErrorMsg(e?.message || 'Could not reconnect.')
+        setPhase('error')
+        hangUp()
+        return
+      }
+      // Back off and try again. Linear 2s — exponential would push the
+      // total reconnect window past the user's patience.
+      reconnectTimerRef.current = setTimeout(() => attemptReconnect(), 2000)
+    }
+  }
+
   function hangUp() {
+    hangingUpRef.current = true
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
+    }
+    reconnectingRef.current = false
     setConnState('ending')
     clearTimeout(persistTimerRef.current)
     stopWebSpeechSTT()
@@ -769,6 +1007,19 @@ export default function PhoneCall() {
     if (el) {
       el.pause()
       el.srcObject = null
+    }
+    // Persist actual session duration for daily-cap accounting. Fire-and-
+    // forget — if it fails the cap will just under-count today. Guarded so
+    // an unmount cleanup running after endCall() doesn't double-PATCH (and
+    // overwrite with a slightly later, larger value).
+    const startedAt = callStartedAtRef.current
+    const ivId = interviewIdRef.current
+    if (startedAt && ivId && !durationPersistedRef.current) {
+      durationPersistedRef.current = true
+      const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000))
+      updateInterview(ivId, { realtime_voice_seconds: seconds }).catch((err) => {
+        console.warn('[phone-call] duration persist failed', err?.status, err?.message)
+      })
     }
     setConnState('idle')
     setPaused(false)
@@ -949,23 +1200,29 @@ export default function PhoneCall() {
               <div className="text-sm font-medium">
                 {phase === 'completing' && 'Wrapping up…'}
                 {phase === 'in_call' && connState === 'connecting' && 'Connecting…'}
+                {phase === 'in_call' && connState === 'reconnecting' && 'Reconnecting…'}
                 {phase === 'in_call' && connState === 'connected' && (paused ? 'Paused' : 'In call')}
                 {phase === 'in_call' && connState === 'idle' && 'Ended'}
               </div>
               <div className="text-xs text-muted-foreground mt-0.5">
                 {phase === 'in_call' && connState === 'connected' && !paused &&
                   'Listening — go ahead and talk. Say "I think that covers it" to wrap up.'}
+                {phase === 'in_call' && connState === 'reconnecting' &&
+                  `Lost the connection — re-establishing it now (attempt ${reconnectAttemptsRef.current || 1}/${MAX_RECONNECT_ATTEMPTS}). Bernard will pick up where you left off.`}
                 {phase === 'in_call' && paused &&
                   'Your mic is paused. Bernard can’t hear you. Tap Resume to keep going.'}
                 {phase === 'completing' && 'Saving the conversation and generating your blog post.'}
               </div>
             </div>
             <span
-              aria-hidden="true"
+              aria-label={qualityLabel(connState, quality)}
+              title={qualityTooltip(connState, quality)}
               className={
-                connState === 'connected' ? 'h-2.5 w-2.5 rounded-full bg-emerald-500' :
-                connState === 'connecting' ? 'h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse' :
-                'h-2.5 w-2.5 rounded-full bg-muted-foreground/30'
+                connState === 'connecting' || connState === 'reconnecting'
+                  ? 'h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse'
+                : connState === 'connected'
+                  ? `h-2.5 w-2.5 rounded-full ${qualityDotColor(quality)}`
+                  : 'h-2.5 w-2.5 rounded-full bg-muted-foreground/30'
               }
             />
           </div>
@@ -1040,6 +1297,32 @@ function Header({ topic }) {
       </div>
     </div>
   )
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Connection-quality helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+function qualityDotColor(quality) {
+  if (!quality) return 'bg-emerald-500'
+  if (quality.quality === 'red')    return 'bg-red-500'
+  if (quality.quality === 'yellow') return 'bg-amber-500'
+  return 'bg-emerald-500'
+}
+
+function qualityLabel(connState, quality) {
+  if (connState === 'connecting')   return 'Connecting'
+  if (connState === 'reconnecting') return 'Reconnecting'
+  if (connState !== 'connected')    return 'Disconnected'
+  if (!quality)                     return 'Connected'
+  return `Connection ${quality.quality}`
+}
+
+function qualityTooltip(connState, quality) {
+  if (connState !== 'connected') return undefined
+  if (!quality) return 'Measuring connection…'
+  const rtt = quality.rttMs == null ? '—' : `${Math.round(quality.rttMs)}ms`
+  return `Loss ${quality.lossPct.toFixed(1)}%  ·  Jitter ${Math.round(quality.jitterMs)}ms  ·  RTT ${rtt}`
 }
 
 // ────────────────────────────────────────────────────────────────────────────

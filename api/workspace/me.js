@@ -34,6 +34,7 @@ const PATCHABLE_FIELDS = new Set([
   'skip_review',
   'buffer_use_queue',
   'schedule_prefs',
+  'realtime_voice_daily_cap_min',
 ])
 
 // Platforms recognized in schedule_prefs. Mirrors PLATFORM_SCHEDULE_PREFS in
@@ -301,6 +302,19 @@ async function handler(req, res) {
         const cleaned = sanitizePublishTopics(value)
         if (cleaned === null) return res.status(400).json({ error: 'invalid-publish-topics' })
         patch.publish_topics = cleaned
+        continue
+      }
+      if (key === 'realtime_voice_daily_cap_min') {
+        // Accept null (unlimited, ops escalation) or an integer in [0, 1440].
+        // 1440 = a full day in minutes; higher than that is functionally
+        // equivalent to unlimited and almost certainly a typo. 0 is the
+        // "temporarily disable Live Interview" knob.
+        if (value === null) { patch.realtime_voice_daily_cap_min = null; continue }
+        const n = typeof value === 'number' ? value : parseInt(value, 10)
+        if (!Number.isInteger(n) || n < 0 || n > 1440) {
+          return res.status(400).json({ error: 'invalid-realtime-voice-daily-cap-min' })
+        }
+        patch.realtime_voice_daily_cap_min = n
         continue
       }
       if (key === 'schedule_prefs') {

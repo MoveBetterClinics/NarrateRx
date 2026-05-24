@@ -40,6 +40,7 @@ function formFromWorkspace(ws) {
     skip_review:             !!ws.skip_review,
     buffer_use_queue:        !!ws.buffer_use_queue,
     schedule_prefs:          ws.schedule_prefs ?? null,
+    realtime_voice_daily_cap_min: ws.realtime_voice_daily_cap_min ?? 60,
   }
 }
 
@@ -66,6 +67,7 @@ function formToPatch(form) {
     skip_review:             !!form.skip_review,
     buffer_use_queue:        !!form.buffer_use_queue,
     schedule_prefs:          form.schedule_prefs ?? null,
+    realtime_voice_daily_cap_min: form.realtime_voice_daily_cap_min,
   }
 }
 
@@ -294,6 +296,27 @@ export default function WorkspaceSettings() {
           </div>
         </label>
       </SectionCard>
+
+      {ws.realtime_voice_enabled && (
+        <SectionCard
+          title="Live Interview daily cap"
+          description="Maximum minutes of real-time voice conversation per day across this workspace. Helps cap OpenAI Realtime spend if a session loops or someone runs back-to-back calls. Resets at midnight UTC."
+        >
+          <Field
+            label="Daily cap (minutes)"
+            type="number"
+            value={form.realtime_voice_daily_cap_min ?? ''}
+            onChange={(v) => {
+              const n = parseInt(v, 10)
+              setForm((f) => ({
+                ...f,
+                realtime_voice_daily_cap_min: Number.isFinite(n) && n >= 0 ? n : 0,
+              }))
+            }}
+            hint="Default 60. Set to 0 to block all Live Interview sessions temporarily."
+          />
+        </SectionCard>
+      )}
 
       <SectionCard
         title="Optimal posting times"

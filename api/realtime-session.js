@@ -128,6 +128,43 @@ export default async function handler(req, res) {
     return res.status(404).json({ error: 'Interview not found in this workspace' })
   }
 
+  // ── Daily minute cap ───────────────────────────────────────────────────
+  // Sum today's completed realtime_voice session seconds for this workspace.
+  // A NULL cap means "unlimited" — reserved for ops escalations and not
+  // exposed in the settings UI. Sessions abandoned before hangup leave
+  // realtime_voice_seconds NULL and do not count toward the cap (rare
+  // enough that we'd rather under-bill than aggressively gate). The 10-min
+  // OpenAI token TTL bounds the worst-case drift from an in-flight session.
+  const capMin = ws.realtime_voice_daily_cap_min
+  if (capMin != null && Number.isFinite(capMin) && capMin > 0) {
+    const todayStart = new Date()
+    todayStart.setUTCHours(0, 0, 0, 0)
+    const iso = todayStart.toISOString()
+    const usageRes = await sb(
+      `interviews?workspace_id=eq.${ws.id}` +
+        `&capture_mode=eq.realtime_voice` +
+        `&created_at=gte.${encodeURIComponent(iso)}` +
+        `&realtime_voice_seconds=not.is.null` +
+        `&select=realtime_voice_seconds`,
+    )
+    if (usageRes.ok) {
+      const usageRows = await usageRes.json().catch(() => [])
+      const totalSec = (Array.isArray(usageRows) ? usageRows : [])
+        .reduce((sum, r) => sum + (Number(r.realtime_voice_seconds) || 0), 0)
+      if (totalSec >= capMin * 60) {
+        console.warn(`[realtime-session] daily cap reached ws=${ws.slug} used=${totalSec}s cap=${capMin}m`)
+        return res.status(429).json({
+          error: `You've reached today's voice-call limit (${capMin} min). Resets at midnight UTC.`,
+          code: 'daily_cap_reached',
+        })
+      }
+    } else {
+      // Best-effort accounting — log and proceed on lookup failure rather
+      // than soft-lock the feature.
+      console.error(`[realtime-session] usage lookup failed ${usageRes.status} ws=${ws.slug}`)
+    }
+  }
+
   // ── Mint ephemeral client_secret ────────────────────────────────────────
   const sessionConfig = {
     type: 'realtime',
