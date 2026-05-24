@@ -4,8 +4,14 @@
 // browser. Used by InterviewSession to replace the browser's robotic
 // speechSynthesis with a neural voice for the interviewer.
 //
-// Request body: { text: string, voiceId?: string }
+// Request body: { text: string, voiceId?: string, clinicianId?: string }
 // Response: audio/mpeg stream
+//
+// Voice resolution order (Phase 5 Feature 3):
+//   1. clinicianId → live (non-revoked) clone on clinicians.eleven_voice_id
+//   2. explicit voiceId param
+//   3. TTS_DEFAULT_VOICE_ID env
+//   4. DEFAULT_VOICE_ID constant (Adam — Bernard's voice)
 //
 // Falls back gracefully — if ELEVENLABS_API_KEY is missing or the upstream
 // call fails, returns a non-2xx and the client falls back to speechSynthesis.
@@ -42,12 +48,44 @@ export default async function handler(req, res) {
   const apiKey = process.env.ELEVENLABS_API_KEY
   if (!apiKey) return res.status(503).json({ error: 'TTS not configured' })
 
-  const { text, voiceId, speed: bodySpeed } = req.body || {}
+  const { text, voiceId, clinicianId, speed: bodySpeed } = req.body || {}
   if (!text || typeof text !== 'string') return res.status(400).json({ error: 'Missing text' })
   const trimmed = text.trim().slice(0, MAX_TEXT_LENGTH)
   if (!trimmed) return res.status(400).json({ error: 'Empty text' })
 
-  const voice = voiceId || process.env.TTS_DEFAULT_VOICE_ID || DEFAULT_VOICE_ID
+  // Phase 5 Feature 3 — if caller identifies a clinician AND that clinician
+  // has a live voice clone, use the clone. Caller's explicit voiceId is the
+  // next fallback, then env, then the Adam default. clinicianId is silently
+  // ignored if no workspace context (auth path didn't resolve) or no clone.
+  let cloneVoiceId = null
+  if (clinicianId && ws) {
+    try {
+      const r = await fetch(
+        `${process.env.SUPABASE_URL}/rest/v1/clinicians` +
+        `?id=eq.${encodeURIComponent(clinicianId)}` +
+        `&workspace_id=eq.${ws.id}` +
+        `&voice_clone_revoked_at=is.null` +
+        `&eleven_voice_id=not.is.null` +
+        `&select=eleven_voice_id&limit=1`,
+        {
+          headers: {
+            apikey:        process.env.SUPABASE_SERVICE_KEY,
+            Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
+          },
+        },
+      )
+      if (r.ok) {
+        const rows = await r.json()
+        if (rows[0]?.eleven_voice_id) cloneVoiceId = rows[0].eleven_voice_id
+      } else {
+        console.error(`[tts] clinician voice lookup ${r.status} clinician=${clinicianId}`)
+      }
+    } catch (e) {
+      console.error('[tts] clinician voice lookup threw:', e?.message || e)
+    }
+  }
+
+  const voice = cloneVoiceId || voiceId || process.env.TTS_DEFAULT_VOICE_ID || DEFAULT_VOICE_ID
   const model = process.env.TTS_DEFAULT_MODEL_ID || DEFAULT_MODEL_ID
 
   // Playback speed — ElevenLabs accepts 0.7 (slower) … 1.2 (faster), default 1.0.
