@@ -337,6 +337,7 @@ export default async function handler(req, res) {
             summarizeInterview({
               interviewId:   id,
               workspaceId:   ws.id,
+              clinicianId:   rows[0].clinician_id ?? null,
               clinicianName,
               topic:         topic,
               messages:      turns,

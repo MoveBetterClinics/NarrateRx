@@ -11,6 +11,7 @@
 // [interviewSummarizer] so they surface in `vercel logs`.
 
 import { generateText } from 'ai'
+import { indexInterviewSummary } from './practiceMemoryRag.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -64,6 +65,7 @@ Return only the summary text — no preamble, no labels.`
  * @typedef {object} SummarizeArgs
  * @property {string} interviewId
  * @property {string} workspaceId
+ * @property {string=} clinicianId
  * @property {string=} clinicianName
  * @property {string=} topic
  * @property {Array<{role:string,content:string}>} messages   — preferred cleaned_messages, else raw
@@ -75,7 +77,7 @@ Return only the summary text — no preamble, no labels.`
  *
  * @param {SummarizeArgs} args
  */
-export async function summarizeInterview({ interviewId, workspaceId, clinicianName, topic, messages }) {
+export async function summarizeInterview({ interviewId, workspaceId, clinicianId, clinicianName, topic, messages }) {
   try {
     if (!interviewId || !workspaceId) return
 
@@ -116,6 +118,17 @@ export async function summarizeInterview({ interviewId, workspaceId, clinicianNa
     }
 
     console.info(`[interviewSummarizer] interview=${interviewId} summarized (${summary.length} chars)`)
+
+    // Phase 5 Feature 2 PR3 — embed the summary so it joins the RAG corpus.
+    // Fire-and-forget; failures log but never break the summarization path.
+    indexInterviewSummary({
+      workspaceId,
+      clinicianId,
+      interviewId,
+      summaryText: summary,
+      topic,
+      createdAt:   new Date().toISOString(),
+    })
   } catch (e) {
     console.error(`[interviewSummarizer] interview=${interviewId} threw: ${e?.message}`)
   }
