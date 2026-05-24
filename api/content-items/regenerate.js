@@ -17,7 +17,12 @@
 // On success the row's status is reset to 'draft' and approved_by/at are
 // cleared — regenerated content needs fresh review.
 
-export const config = { runtime: 'nodejs', maxDuration: 60 }
+// maxDuration bumped 60 → 180 on 2026-05-24 after practice-memory PR #796
+// added the YOUR PRIOR THINKING block to the blog regen prompt. Opus 4.7 +
+// non-streaming generateText() + a ~1500-char prompt addition pushed blog
+// regenerations past 60s and produced 504s (Vercel runtime timeout). 180s
+// gives Opus comfortable headroom; platform default cap is 300s.
+export const config = { runtime: 'nodejs', maxDuration: 180 }
 
 import { generateText } from 'ai'
 import { workspaceContext } from '../_lib/workspaceContext.js'
