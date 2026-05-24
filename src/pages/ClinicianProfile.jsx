@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/clerk-react'
 import {
   Plus, FileText, Clock, Trash2, ChevronRight, MessageSquare, Loader2, AlertCircle,
@@ -73,7 +73,15 @@ export default function ClinicianProfile() {
   const { data: clinician, isLoading: loading, error: loadError } = useClinician(clinicianId)
   const { data: clinicians = [] } = useClinicianSummaries()
 
-  const [activeTab, setActiveTab] = useState('activity')
+  // Initial tab can be deep-linked via ?tab=voice|settings|activity. Used by
+  // /settings/voice-training success path so users land directly on the
+  // Voice tab and see their new clone.
+  const [searchParams] = useSearchParams()
+  const initialTab = (() => {
+    const t = searchParams.get('tab')
+    return t === 'voice' || t === 'settings' ? t : 'activity'
+  })()
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleteError, setDeleteError] = useState('')
   const [arc, setArc] = useState(null)
