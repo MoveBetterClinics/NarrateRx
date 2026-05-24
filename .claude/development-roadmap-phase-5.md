@@ -25,7 +25,7 @@ The only end-to-end staff storytelling → clinical content pipeline. Phase 5 de
 ## Sequencing rationale
 
 ```
-1. Phone-call mode ─────► ✅ SHIPPED (PR #772 + 8 follow-ups) — iterating on quality
+1. Live Interview  ─────► ✅ SHIPPED (PR #772 + 10 follow-ups) — polish pass spawned
                        │
 2. Practice memory ────► 🚧 IN PROGRESS (practice-memory-hot worktree)
                        │
@@ -40,9 +40,11 @@ Each feature stands on its own — but every feature gets better as the one abov
 
 ---
 
-## Feature 1 — Phone-call mode (real-time duplex voice) ✅ SHIPPED
+## Feature 1 — Live Interview (real-time duplex voice) ✅ SHIPPED
 
-**Status:** ✅ Shipped over the weekend of May 23–24 via a parallel session. Iterating on quality. 9 merged PRs to date — spike + integration + 7 quality fixes.
+**Status:** ✅ Shipped over the weekend of May 23–24. 11 merged PRs total — Sat spike → Sun full integration → 8 quality fixes → rename. Polish pass spawned as a separate task chip on 2026-05-24 (iOS, reconnect, minute cap, quality dot).
+
+**Originally named "Phone Call"; renamed to "Live Interview" 2026-05-24** (PR #790) — "live interview" better matches what users called it dogfooding and avoids the implicit comparison with actual telephony. Internal identifiers (file name `PhoneCall.jsx`, log prefix `[phone-call]`, workspace flag column `realtime_voice_enabled`) intentionally kept — renaming them would add churn without user benefit. Route: `/new/live-interview` (with `/new/phone-call` legacy redirect for bookmark safety).
 
 ### What shipped
 
@@ -53,10 +55,10 @@ Replaced the turn-based STT→AI→TTS rhythm with a **continuous duplex audio s
 | Piece | File | Notes |
 |---|---|---|
 | Ephemeral session endpoint | `api/realtime-session.js` | Mints a short-lived `client_secret` via OpenAI Realtime sessions API; Clerk-auth + workspace-scoped |
-| Phone-call page | `src/pages/PhoneCall.jsx` | Standalone page (not an InterviewSession variant). Big mic button UI, mute, end-call. Uses WebRTC (not raw WebSocket) for browser audio I/O |
+| Live Interview page | `src/pages/PhoneCall.jsx` | Standalone page (not an InterviewSession variant). Big mic button UI, Pause (mute), End call. Uses WebRTC (not raw WebSocket) for browser audio I/O |
 | Workspace flag | Migration `069_realtime_voice_workspace_flag.sql` | `workspaces.realtime_voice_enabled` boolean; tile only shows when true |
 | Capture mode | Same migration | Extends `interviews_capture_mode_check` to accept `'realtime_voice'` — distinguishes realtime interviews in Stories + analytics |
-| Capture Picker tile | `src/pages/CapturePicker.jsx` | 4th tile "Phone Call" — gated on the workspace flag |
+| Capture Picker tile | `src/pages/CapturePicker.jsx` | 4th tile "Live Interview" (with Beta pill) — gated on the workspace flag |
 | Live partial transcript | Parallel Web Speech API alongside OpenAI Realtime | PRs #777 + #782 — gives the user a live "what you just said" overlay while Bernard processes |
 | `[INTERVIEW_COMPLETE]` detection | In-page handler in PhoneCall.jsx | Same token convention as turn-based interviews; triggers existing completion → blog generation path |
 | Patience prompt addendum | PhoneCall.jsx — prepended to system prompt | Realtime-lane-only override that tames the chat prompt's "brief acknowledgment" behavior, which reads as "impatient interrupter" on a live voice call |
@@ -76,16 +78,20 @@ OpenAI GPT-4o Realtime — ~$0.06/min input + $0.24/min output. A 15-min intervi
 | #781 | Temporary unconditional event logging (debug aid) |
 | #782 | Parallel Web Speech API for true live interim transcript |
 | #784 | Pause Web Speech while Bernard talks (kill mic-echo capture); dedup assistant turns |
-| (in-flight) | Restart Web Speech on `output_audio_buffer.stopped` not `response.done` — fixes tail-end mic capture of Bernard's last words |
+| #786 | Restart Web Speech on `output_audio_buffer.stopped` not `response.done` — fixed tail-end mic capture of Bernard's last words |
+| #790 | Rename "Phone Call" → "Live Interview" (user-facing strings + route alias; internals unchanged) |
 
-### Known remaining quality work
+### Known remaining quality work — SPAWNED as separate polish task (2026-05-24)
+
+A task chip "Polish Live Interview: iOS, reconnect, cap, quality" was spawned to a fresh worktree. Items:
 
 - **iOS Safari smoke** — not yet validated. Per memory entries `feedback_ios_audio_element_per_element_unlock.md` + `feedback_ios_speech_synthesis_gesture_priming.md`, expect to need gesture-prime + element-sharing.
-- **Disconnect/reconnect** — current handling not yet verified; sessions don't gracefully resume by default.
-- **Per-workspace minute cap** — not yet implemented; Move Better is the only enabled workspace so risk is bounded.
-- **Promotion criteria** — tile remains gated behind `realtime_voice_enabled` until Move Better completes 5 successful real interviews on it. After that, consider promoting from "Beta" to the default, and retiring the turn-based path.
+- **Disconnect/reconnect** — current handling not yet verified; sessions don't gracefully resume by default. Plan: on `pc.connectionState === 'failed' | 'disconnected'`, re-mint ephemeral + re-open peer connection + replay last 5 turns as `conversation.item.create`.
+- **Per-workspace daily minute cap** — Migration 070 adds `workspaces.realtime_voice_daily_cap_min` (default 60). Server checks before minting; 429 with reset-at-midnight message on cap.
+- **Connection-quality dot** — green/yellow/red from `pc.getStats()` polled every ~2s (loss, jitter, RTT).
+- **Promote from Beta** — DO NOT remove the Beta pill until Move Better completes 5 successful Live Interview sessions. Count: `SELECT count(*) FROM interviews WHERE capture_mode='realtime_voice' AND workspace_id = (SELECT id FROM workspaces WHERE slug='movebetter-people') AND status='completed'`. Decide with Michael whether to also retire the turn-based "Start Interview" tile when promoting.
 
--- **Status: shipped, iterating**
+-- **Status: shipped, polish queued**
 
 ---
 
