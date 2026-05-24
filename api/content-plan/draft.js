@@ -9,6 +9,7 @@ import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
 import { getContextBlock } from '../_lib/conceptRetrieval.js'
+import { resolveOwnHistoryBlock } from '../_lib/practiceMemory.js'
 import { loadActiveCampaign } from '../_lib/campaignSettings.js'
 import { getCampaignPromptContext } from '../../src/lib/campaigns.js'
 import { extractProvenanceBlock } from '../../src/lib/provenance.js'
@@ -116,6 +117,18 @@ export default async function handler(req, res) {
     const activeCampaign = await loadActiveCampaign(ws.id, interview.clinician_id)
     const campaignContext = getCampaignPromptContext(activeCampaign, ws)
 
+    // Phase 5 Feature 2 — this clinician's prior thinking block, shared
+    // across the canonical atom call below AND any per-location GBP variant
+    // calls that follow. Resolved once to avoid N+1 Supabase round-trips
+    // when a workspace has many GBP locations.
+    const ownHistoryBlock = interview.clinician_id
+      ? await resolveOwnHistoryBlock({
+          workspaceId:        ws.id,
+          clinicianId:        interview.clinician_id,
+          excludeInterviewId: interview.id,
+        })
+      : ''
+
     // Build the focused atom prompt
     const systemPrompt = getAtomSystemPrompt(
       ws,
@@ -131,6 +144,7 @@ export default async function handler(req, res) {
       audienceLabel,
       storyTypeLabel,
       campaignContext,
+      ownHistoryBlock,
     )
     if (!systemPrompt) throw new Error(`No prompt defined for ${atom.platform}/${atom.angle}`)
 
@@ -260,6 +274,7 @@ export default async function handler(req, res) {
                 audienceLabel,
                 storyTypeLabel,
                 campaignContext,
+                ownHistoryBlock,
               )
               if (!locPrompt) return null
               const { text: locText } = await generateText({

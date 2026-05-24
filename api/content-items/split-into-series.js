@@ -35,6 +35,7 @@ import {
   getSeriesPartSystemPrompt,
   buildVerbatimBlock,
 } from '../../src/lib/prompts.js'
+import { resolveOwnHistoryBlock } from '../_lib/practiceMemory.js'
 import { applyLocationOverlay } from '../../src/lib/locationOverlay.js'
 import { extractProvenanceBlock } from '../../src/lib/provenance.js'
 import { resolveLengthPreset, LENGTH_PRESETS } from '../../src/lib/lengthPresets.js'
@@ -220,6 +221,16 @@ export default async function handler(req, res) {
     clinicianPreferredLength,
   )
 
+  // Phase 5 Feature 2 — clinician's prior thinking, fetched once and reused
+  // across every series-part call below.
+  const ownHistoryBlock = interview.clinician_id
+    ? await resolveOwnHistoryBlock({
+        workspaceId:        ws.id,
+        clinicianId:        interview.clinician_id,
+        excludeInterviewId: interview.id,
+      })
+    : ''
+
   // Best-effort rollback of the atomic claim. Used when the AI pass or the
   // bulk insert fails after we've already marked the source row archived.
   // Without this, a generation failure leaves the user's original draft
@@ -310,6 +321,7 @@ export default async function handler(req, res) {
         cluster,
         siblingSummaries,
         seriesTitle,
+        ownHistoryBlock,
       ) + buildVerbatimBlock(interview.verbatim_flags)
 
       const { text } = await generateText({

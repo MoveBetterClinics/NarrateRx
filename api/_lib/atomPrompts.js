@@ -24,7 +24,7 @@ function buildVoicePhrasesBlock(phrases) {
 // active campaign is set. When present, it overrides the default CTA framing
 // in each per-platform instruction. Blog posts intentionally do NOT consume
 // this; see src/lib/campaigns.js header for the why.
-export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = [], audienceLabel = null, storyTypeLabel = null, campaignContext = '') {
+export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = [], audienceLabel = null, storyTypeLabel = null, campaignContext = '', ownHistoryBlock = '') {
   const firstName = clinicianName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
   const toneNote = tone === 'smart'
@@ -254,5 +254,5 @@ PLAIN TEXT ONLY: Do not use markdown formatting — no *asterisks* for emphasis,
 
 ${instruction}
 
-${toneNote}${brandBlock}${voiceBlock}${voicePhrasesBlockStr}${campaignContext ? `\n${campaignContext}\n\nThe CAMPAIGN FOCUS directive above OVERRIDES any default "book a visit" / "link in bio" CTAs in the per-platform instructions. Rewrite the CTA portion of this piece to match the campaign — including the exact URL and button phrasing when provided. Keep platform-specific structural rules (character limits, hashtag counts, overlay format) intact.\n` : ''}`
+${toneNote}${brandBlock}${voiceBlock}${voicePhrasesBlockStr}${ownHistoryBlock}${campaignContext ? `\n${campaignContext}\n\nThe CAMPAIGN FOCUS directive above OVERRIDES any default "book a visit" / "link in bio" CTAs in the per-platform instructions. Rewrite the CTA portion of this piece to match the campaign — including the exact URL and button phrasing when provided. Keep platform-specific structural rules (character limits, hashtag counts, overlay format) intact.\n` : ''}`
 }

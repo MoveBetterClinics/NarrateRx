@@ -472,9 +472,9 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
-export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null, lengthPreset = null) {
+export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null, lengthPreset = null, ownHistoryBlock = '') {
   if (isGeneralMode(workspace)) {
-    return getGeneralBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset)
+    return getGeneralBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset, ownHistoryBlock)
   }
   const isPersonal = voiceMode === 'personal'
   const audiencePhrase = audienceSlot ? audienceSlot.label : (workspace.region ? `${workspace.region} readers` : 'readers')
@@ -484,7 +484,7 @@ export function getBlogPostSystemPrompt(workspace, clinicianName, condition, ton
   return `You are a content writer for ${workspace.display_name} in ${workspace.location}. Based on the interview transcript below with ${clinicianName} about treating ${condition}, write an engaging, on-brand blog post targeted at ${audiencePhrase}.${storyTypeNote}
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
-${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}
 
@@ -941,7 +941,7 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
-function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset = null) {
+function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset = null, ownHistoryBlock = '') {
   const isPersonal = voiceMode === 'personal'
   const audiencePhrase = audienceSlot ? audienceSlot.label : 'readers'
   const storyTypeNote = storyTypeSlot
@@ -960,7 +960,7 @@ function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voic
   return `You are a writer for ${workspace.display_name}. Based on the interview transcript below with ${expertName} about ${topic}, write an engaging long-form piece targeted at ${audiencePhrase}.${storyTypeNote}
 
 ${getFramingRuleGeneral(workspace, { voiceMode, expertName })}
-${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${brandVoice}
 ${internalLinks}
@@ -1057,9 +1057,9 @@ Return valid JSON only. No markdown, no explanation, no "Here's the plan:" pream
 // `cluster` is the parts[i] object from the cluster JSON.
 // `siblingSummaries` is an array of { part, title } for the OTHER parts so the
 // writer can add cross-references and avoid stepping on their material.
-export function getSeriesPartSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], lengthPreset = null, cluster = null, siblingSummaries = [], seriesTitle = '') {
+export function getSeriesPartSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], lengthPreset = null, cluster = null, siblingSummaries = [], seriesTitle = '', ownHistoryBlock = '') {
   if (isGeneralMode(workspace)) {
-    return getGeneralSeriesPartSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, lengthPreset, cluster, siblingSummaries, seriesTitle)
+    return getGeneralSeriesPartSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, lengthPreset, cluster, siblingSummaries, seriesTitle, ownHistoryBlock)
   }
   const isPersonal = voiceMode === 'personal'
   const partNum = cluster?.part || 1
@@ -1083,7 +1083,7 @@ export function getSeriesPartSystemPrompt(workspace, clinicianName, condition, t
   return `You are a content writer for ${workspace.display_name} in ${workspace.location}. You are writing Part ${partNum} of a multi-part blog series about ${condition} based on an interview with ${clinicianName}. The full transcript is in the conversation history above.
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
-${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}
 
@@ -1129,7 +1129,7 @@ ${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
 
 // General-paradigm variant of the series part writer. Parallels
 // getGeneralBlogPostSystemPrompt's voice/structure relaxations.
-function getGeneralSeriesPartSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, lengthPreset, cluster, siblingSummaries, seriesTitle) {
+function getGeneralSeriesPartSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, lengthPreset, cluster, siblingSummaries, seriesTitle, ownHistoryBlock = '') {
   const isPersonal = voiceMode === 'personal'
   const partNum = cluster?.part || 1
   const partTitle = cluster?.title || `Part ${partNum}`
@@ -1159,7 +1159,7 @@ function getGeneralSeriesPartSystemPrompt(workspace, expertName, topic, tone, vo
   return `You are a writer for ${workspace.display_name}. You are writing Part ${partNum} of a multi-part series about ${topic} based on an interview with ${expertName}.
 
 ${getFramingRuleGeneral(workspace, { voiceMode, expertName })}
-${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${brandVoice}
 ${internalLinks}

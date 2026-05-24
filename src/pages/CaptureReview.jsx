@@ -7,7 +7,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
-import { updateInterview, populateContentItemProvenance } from '@/lib/api'
+import { updateInterview, populateContentItemProvenance, fetchClinician, fetchClinicianRecentContent } from '@/lib/api'
+import { buildOwnHistoryBlock, pickPriorInterviews } from '@/lib/practiceMemory'
 import { streamMessage } from '@/lib/claude'
 import { extractProvenanceBlock } from '@/lib/provenance'
 import { getBlogPostSystemPrompt } from '@/lib/prompts'
@@ -89,15 +90,28 @@ export default function CaptureReview() {
         ? applyLocationOverlay(ws, interview.location_id)
         : ws
 
-      // Voice phrases for this clinician — improves voice fidelity in the
-      // generated output. Best-effort; a failure must not block generation.
+      // Voice phrases + practice-memory history for this clinician.
+      // Best-effort across the board — a failure on any of these must not
+      // block generation. Run in parallel to keep the pre-stream wait short.
       let voicePhrases = []
+      let ownHistoryBlock = ''
       try {
         const { apiFetch } = await import('@/lib/api')
-        const vp = await apiFetch(`/api/clinicians/voice-phrases?clinician_id=${clinicianId}&limit=8`)
+        const [vp, clinicianRow, recentContent] = await Promise.all([
+          apiFetch(`/api/clinicians/voice-phrases?clinician_id=${clinicianId}&limit=8`).catch(() => null),
+          fetchClinician(clinicianId).catch(() => null),
+          fetchClinicianRecentContent(clinicianId, 3).catch(() => []),
+        ])
         voicePhrases = Array.isArray(vp?.phrases) ? vp.phrases : []
+        if (clinicianRow) {
+          ownHistoryBlock = buildOwnHistoryBlock({
+            clinicianName: clinicianRow.name || 'this clinician',
+            priorInterviews: pickPriorInterviews(clinicianRow.interviews || [], interviewId),
+            priorContent: Array.isArray(recentContent) ? recentContent : [],
+          })
+        }
       } catch (e) {
-        console.warn('[CaptureReview] voice phrase fetch failed:', e?.message)
+        console.warn('[CaptureReview] context fetch failed:', e?.message)
       }
 
       const systemPrompt = getBlogPostSystemPrompt(
@@ -111,6 +125,8 @@ export default function CaptureReview() {
         voicePhrases,
         resolveAudienceSlot(interview?.audience, overlaidWorkspace?.audience_options),
         resolveStoryTypeSlot(interview?.story_type, overlaidWorkspace?.story_type_options),
+        null, // lengthPreset
+        ownHistoryBlock,
       )
 
       // The transcript is the sole user message. We append a generation cue

@@ -1085,6 +1085,8 @@ export default function InterviewSession() {
             voicePhrases,
             resolveAudienceSlot(interview.audience, overlaidWorkspace?.audience_options),
             resolveStoryTypeSlot(interview.story_type, overlaidWorkspace?.story_type_options),
+            null, // lengthPreset — not currently surfaced in the in-session generate flow
+            ownHistoryBlockRef.current,
           ) + buildVerbatimBlock(interview.verbatim_flags)
 
       const streamMessages = [

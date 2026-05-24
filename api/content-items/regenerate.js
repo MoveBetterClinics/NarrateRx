@@ -25,6 +25,7 @@ import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
 import { getContextBlock } from '../_lib/conceptRetrieval.js'
+import { resolveOwnHistoryBlock } from '../_lib/practiceMemory.js'
 import { loadActiveCampaign } from '../_lib/campaignSettings.js'
 import { getCampaignPromptContext } from '../../src/lib/campaigns.js'
 import {
@@ -133,6 +134,17 @@ export default async function handler(req, res) {
     }
   }
 
+  // Phase 5 Feature 2 — hot practice-memory block for THIS clinician.
+  // Same shape the interview prompt already injects; reused across both
+  // regen paths (atom + blog) below.
+  const ownHistoryBlock = interview.clinician_id
+    ? await resolveOwnHistoryBlock({
+        workspaceId:        ws.id,
+        clinicianId:        interview.clinician_id,
+        excludeInterviewId: interview.id,
+      })
+    : ''
+
   // Resolve length preset: explicit request body wins, else persisted on the
   // piece, else clinician default, else 'standard'. Only consulted by the
   // blog path below.
@@ -192,6 +204,7 @@ export default async function handler(req, res) {
         audienceLabel,
         storyTypeLabel,
         campaignContext,
+        ownHistoryBlock,
       )
       if (!systemPrompt) {
         return err(res, `No prompt defined for ${atom.platform}/${atom.angle}`, 422)
@@ -298,6 +311,7 @@ export default async function handler(req, res) {
             null, // audienceSlot — not currently threaded through regenerate
             null, // storyTypeSlot — not currently threaded through regenerate
             effectiveLengthPreset,
+            ownHistoryBlock,
           ) + buildVerbatimBlock(interview.verbatim_flags)
 
       const messages = [
