@@ -244,6 +244,8 @@ cd "/Users/qbook/Claude Projects/NarrateRx" && npm run deploy:prod
 
 If the project root is on another branch (with WIP), do not switch under the user. Either run the deploy from a separate `main`-tracking worktree that's `vercel link`ed to the `narraterx` project (copy `.vercel/project.json` in if needed) or ask the user to free up the project root. Always confirm the resulting deploy is aliased to `narraterx.ai` + `*.narraterx.ai` with `vercel inspect <dpl-id>` before declaring it done — deploys from an unlinked worktree silently create a separate Vercel project and never touch the real prod aliases.
 
+**Auto-deploy after your own merge.** When a PR you opened in this session is merged and the project root is clean + on `main`, immediately run `npm run deploy:prod` without asking. The preflight guard (cwd / branch / clean tree / origin parity) is the safety net — confirming each time just adds friction to a loop the user has already pre-authorized via the Git autonomy policy. Skip the auto-deploy and confirm first when (a) the merge wasn't yours this session, (b) the PR touched migrations that haven't been verified on prod, billing, or auth, (c) the user is mid-conversation about something else, or (d) `gh pr view` shows the PR merged but `mergeStateStatus` indicates a blocked state worth surfacing. Don't auto-deploy more than once per session without checking back in — batch follow-up merges into a single deploy after the user gives a "go" or after a meaningful pause.
+
 ## Audit and checkup
 Three complementary commands cover code/UI/prod health:
 
