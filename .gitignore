@@ -17,8 +17,16 @@ public/version.json
 .claude/scheduled_tasks.lock
 .vercel
 .env*.local
+.env.local.1pw
 
 # Playwright
 test-results/
 playwright-report/
 tests/e2e/.auth/
+
+# Local-only design mockups + audit baselines (per-developer working files)
+.claude/mockups/
+.claude/audit-history/
+
+# Local test/sample media (recordings, screenshots, zips used in dev sessions)
+data/
