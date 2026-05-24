@@ -121,6 +121,11 @@ export default function PhoneCall() {
   const userBufRef     = useRef('')
   const recognitionRef = useRef(/** @type {SpeechRecognition | null} */ (null))
   const recognitionRunningRef = useRef(false)
+  // True while Bernard's response is in flight. The SR onend auto-restart
+  // checks this flag and skips restart when paused, so SR stays cleanly
+  // off while Bernard is speaking (preventing it from transcribing his
+  // own audio via the mic-echo loop).
+  const srPausedRef           = useRef(false)
   // Speech duration tracking: VAD fires speech_started → speech_stopped with
   // timestamps. We use the duration to reject ambient-noise blips (Whisper
   // hallucinates "Diolch yn fawr" / "Thank you" on silence; if the speech
@@ -435,7 +440,10 @@ export default function PhoneCall() {
     recognition.onend = () => {
       // Reset for the next utterance (we keep restarting until hangUp).
       finalText = ''
-      if (recognitionRunningRef.current) {
+      // Skip restart when paused — Bernard is speaking and we don't want SR
+      // to transcribe his audio via the mic-echo loop. response.done will
+      // call startWebSpeechSTT to bring SR back online.
+      if (recognitionRunningRef.current && !srPausedRef.current) {
         try { recognition.start() } catch { /* already starting */ }
       }
     }
@@ -637,10 +645,33 @@ export default function PhoneCall() {
     if (evt.type === 'response.created') {
       responseInFlightRef.current = true
       greetedRef.current = true
+      // Pause Web Speech while Bernard is speaking. Web Speech runs its own
+      // audio capture session that doesn't see WebRTC's echo cancellation,
+      // so without this it transcribes Bernard's own voice (coming out of
+      // the speakers and bouncing into the mic) AS user speech. Smoke #6
+      // showed "he sounds like hey thanks for making the time let's Dive
+      // Right Here…" — literally what Bernard had just said. srPausedRef
+      // blocks the onend auto-restart while Bernard talks; response.done
+      // resumes.
+      srPausedRef.current = true
+      const r = recognitionRef.current
+      if (r) {
+        try { r.abort() } catch { /* ignore */ }
+      }
       return
     }
     if (evt.type === 'response.done' || evt.type === 'response.cancelled') {
       responseInFlightRef.current = false
+      srPausedRef.current = false
+      // SR was aborted on response.created and the auto-restart was skipped
+      // (srPausedRef was true). Bring it back online for the next user turn.
+      const r = recognitionRef.current
+      if (r) {
+        try { r.start() } catch { /* already running */ }
+      } else {
+        // No instance — first call or unmounted. Reinitialize.
+        startWebSpeechSTT()
+      }
       return
     }
 
@@ -1119,11 +1150,21 @@ function dropPartialUser(prev) {
  * @param {string} buffered
  */
 function upsertPartialAssistant(prev, buffered) {
-  const last = prev[prev.length - 1]
-  if (last && last.role === 'assistant' && last.partial) {
-    const next = prev.slice(0, -1)
-    next.push({ role: 'assistant', content: buffered, partial: true })
-    return next
+  // Look for an existing assistant partial anywhere in the list, not just at
+  // the end. A user partial can occasionally slip in between assistant deltas
+  // (e.g. early interruption barge-in) — without this, the next assistant
+  // delta would create a duplicate assistant turn below the user partial.
+  // Smoke #6 saw the same Bernard sentence rendered 3-4 times because of
+  // this. Updating in place keeps a single assistant turn.
+  for (let i = prev.length - 1; i >= 0; i--) {
+    if (prev[i].role === 'assistant' && prev[i].partial) {
+      const next = prev.slice()
+      next[i] = { role: 'assistant', content: buffered, partial: true }
+      return next
+    }
+    // Stop scanning past the most recent finalized assistant turn — anything
+    // older belongs to a prior round and shouldn't get updated.
+    if (prev[i].role === 'assistant' && !prev[i].partial) break
   }
   return [...prev, { role: 'assistant', content: buffered, partial: true }]
 }
@@ -1136,11 +1177,15 @@ function upsertPartialAssistant(prev, buffered) {
  * @param {string} finalText
  */
 function finalizeAssistant(prev, finalText) {
-  const last = prev[prev.length - 1]
-  if (last && last.role === 'assistant' && last.partial) {
-    const next = prev.slice(0, -1)
-    next.push({ role: 'assistant', content: finalText })
-    return next
+  // Same defensive scan as upsertPartialAssistant — promote whichever
+  // assistant partial exists, regardless of position.
+  for (let i = prev.length - 1; i >= 0; i--) {
+    if (prev[i].role === 'assistant' && prev[i].partial) {
+      const next = prev.slice()
+      next[i] = { role: 'assistant', content: finalText }
+      return next
+    }
+    if (prev[i].role === 'assistant' && !prev[i].partial) break
   }
   return [...prev, { role: 'assistant', content: finalText }]
 }
