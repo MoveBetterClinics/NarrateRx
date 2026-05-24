@@ -29,7 +29,9 @@ import {
   computeProvenance,
   summarize,
   enrichWithVoicePhrases,
+  promoteSynthesisFromPriorCorpus,
 } from '../_lib/provenanceMatcher.js'
+import { resolvePriorCorpusSnippets } from '../_lib/practiceMemory.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -77,9 +79,14 @@ export default async function handler(req, res) {
   const item = itemRows[0]
   if (!item.content?.trim()) return err(res, 'Content item has no body to attribute', 422)
 
-  // Load interview messages + voice phrases in parallel (non-blocking on phrases).
+  // Load interview messages + voice phrases + prior-corpus snippets in
+  // parallel. Prior corpus is the same source pool the YOUR PRIOR THINKING
+  // generation block draws from; the matcher uses it to distinguish
+  // "model drew on your prior work" (prior_corpus) from "model invented this"
+  // (synthesis).
   let userMessages = []
   let voicePhrases = []
+  let priorCorpusSnippets = []
 
   const parallelFetches = []
 
@@ -110,6 +117,15 @@ export default async function handler(req, res) {
         .then(async (r) => { if (r.ok) voicePhrases = await r.json() })
         .catch(() => {}),
     )
+    parallelFetches.push(
+      resolvePriorCorpusSnippets({
+        workspaceId: ws.id,
+        clinicianId,
+        excludeInterviewId: item.interview_id,
+      })
+        .then((snips) => { priorCorpusSnippets = snips })
+        .catch(() => {}),
+    )
   }
 
   await Promise.all(parallelFetches)
@@ -137,7 +153,16 @@ export default async function handler(req, res) {
   }
 
   if (!provenance) {
-    provenance = computeProvenance(item.content, userMessages, { source: 'algorithmic_fallback' })
+    provenance = computeProvenance(item.content, userMessages, {
+      source: 'algorithmic_fallback',
+      priorCorpusSnippets,
+    })
+  } else if (priorCorpusSnippets.length) {
+    // Model-emit path: re-classify any model-labeled synthesis blocks that
+    // actually echo the prior corpus. Covers (a) generations whose prompts
+    // pre-date the prior_corpus type and (b) cases where the model didn't
+    // recognize the connection on its own.
+    provenance = promoteSynthesisFromPriorCorpus(provenance, item.content, priorCorpusSnippets)
   }
 
   // Enrich all blocks with voice-phrase echo annotations (non-destructive post-pass).

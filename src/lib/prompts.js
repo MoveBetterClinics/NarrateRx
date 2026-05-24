@@ -298,15 +298,20 @@ After the content body, emit a single JSON block in this exact shape, on its own
 
 For EACH paragraph in the content body above (in order), emit one block with:
 - text_prefix: the first 80 characters of that paragraph (used to verify alignment)
-- msg: the index of the user message in the transcript that inspired the paragraph (0-indexed), OR null if the paragraph is synthesis from workspace context / your own knowledge
-- type: "verbatim" if quoted exactly | "paraphrase" if reworded from the user message | "synthesis" if drawn from workspace context, exemplars, or your own knowledge
-- span: [start, end] character offsets within that user message's text; OMIT this field when type is "synthesis"
+- msg: the index of the user message in the transcript that inspired the paragraph (0-indexed), OR null if the paragraph is prior_corpus or synthesis
+- type: one of:
+  - "verbatim" — quoted exactly from a user message in THIS transcript
+  - "paraphrase" — reworded from a user message in THIS transcript
+  - "prior_corpus" — drawn from the YOUR PRIOR THINKING block (this clinician's prior interviews or approved/published content)
+  - "synthesis" — drawn from workspace context, exemplars, or your own model knowledge (NOT this transcript and NOT the clinician's prior corpus)
+- span: [start, end] character offsets within that user message's text; OMIT when type is "prior_corpus" or "synthesis"
 
 Rules:
 - Emit ONLY the JSON block — no markdown fence, no commentary, no leading or trailing prose.
 - The number of blocks MUST equal the number of paragraphs in the content body.
 - Do NOT include the <PROVENANCE> markers themselves in the content body above.
-- If your message index is wrong or you cannot identify a source, prefer "synthesis" with msg: null over guessing.`
+- If your message index is wrong or you cannot identify a source, prefer "synthesis" with msg: null over guessing.
+- Prefer "prior_corpus" over "synthesis" when the paragraph echoes the YOUR PRIOR THINKING block — readers treat synthesis as "model-invented, read closely" and prior_corpus as "drew on your own prior work, trust the voice."`
 
 // Returns the framing-rule block injected into each generation prompt.
 // In practice mode: scrub first-person → clinic voice (existing behavior).

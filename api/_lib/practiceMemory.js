@@ -79,3 +79,58 @@ export async function resolveOwnHistoryBlock({ workspaceId, clinicianId, exclude
     return ''
   }
 }
+
+/**
+ * Resolve a flat array of prior-corpus text snippets for the provenance
+ * matcher. Mirrors the source pool that feeds `resolveOwnHistoryBlock` —
+ * interview summaries + approved/published content bodies — so the matcher
+ * scores paragraphs against the same material the model saw in the
+ * YOUR PRIOR THINKING block. Returns [] on failure or no signal.
+ *
+ * Pulls a bit wider than the generation block (more interviews, more
+ * content, no per-piece truncation) because the matcher benefits from
+ * recall — false positives are cheap (mislabels a paragraph as drawn from
+ * prior work instead of synthesis) and false negatives are the bug we're
+ * trying to fix.
+ *
+ * @param {object} args
+ * @param {string} args.workspaceId
+ * @param {string} args.clinicianId
+ * @param {string=} args.excludeInterviewId
+ * @returns {Promise<string[]>}
+ */
+export async function resolvePriorCorpusSnippets({ workspaceId, clinicianId, excludeInterviewId }) {
+  try {
+    if (!workspaceId || !clinicianId) return []
+    const [clinicianRow, recentContent] = await Promise.all([
+      fetchClinicianInterviews(workspaceId, clinicianId),
+      fetchRecentApprovedContent(workspaceId, clinicianId, 6),
+    ])
+    if (!clinicianRow) return []
+    const snippets = []
+    for (const iv of (clinicianRow.interviews || [])) {
+      if (!iv || iv.id === excludeInterviewId) continue
+      if (typeof iv.summary_text === 'string' && iv.summary_text.trim()) {
+        snippets.push(iv.summary_text.trim())
+        continue
+      }
+      // Fall back to raw user turns when summary hasn't been generated yet.
+      if (Array.isArray(iv.messages)) {
+        const turns = iv.messages
+          .filter((m) => m?.role === 'user' && typeof m?.content === 'string' && m.content.trim())
+          .map((m) => m.content.trim())
+          .join('\n')
+        if (turns) snippets.push(turns)
+      }
+    }
+    for (const ci of recentContent) {
+      if (typeof ci?.content === 'string' && ci.content.trim()) {
+        snippets.push(ci.content.trim())
+      }
+    }
+    return snippets
+  } catch (e) {
+    console.error(`[practiceMemory] resolvePriorCorpusSnippets threw: ${e?.message}`)
+    return []
+  }
+}
