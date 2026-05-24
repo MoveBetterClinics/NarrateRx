@@ -74,7 +74,7 @@ Only emit INTERVIEW_COMPLETE on its own line when the clinician clearly signals 
  * only needs the bootstrap "wait for instructions" stub during the mint.
  */
 export default function PhoneCall() {
-  useDocumentTitle('Phone Call (Beta)')
+  useDocumentTitle('Live Interview (Beta)')
 
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -1028,7 +1028,7 @@ function Header({ topic }) {
       </Button>
       <div className="min-w-0">
         <h1 className="text-2xl font-semibold tracking-tight">
-          Phone Call{' '}
+          Live Interview{' '}
           <span className="ml-2 text-3xs font-normal text-muted-foreground align-middle border rounded px-1.5 py-0.5">
             Beta
           </span>
