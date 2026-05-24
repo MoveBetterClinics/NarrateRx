@@ -156,6 +156,11 @@ export default async function handler(req, res) {
     const message = e?.message || String(e)
     console.error(`[voice-clone] createInstantVoice failed for clinician=${clinicianId}: ${message}`)
     // Map known upstream errors to friendlier messages.
+    if (/missing_permissions/i.test(message) || /create_instant_voice_clone/i.test(message)) {
+      return res.status(503).json({
+        error: 'The ElevenLabs API key is missing the voice-cloning permission. An admin needs to enable "voices_write" on the key in the ElevenLabs dashboard, then redeploy.',
+      })
+    }
     if (/max_voices_reached/i.test(message)) {
       return res.status(409).json({
         error: 'Your ElevenLabs voice slot allowance is full. Revoke an existing clone (or upgrade your plan) and try again.',
