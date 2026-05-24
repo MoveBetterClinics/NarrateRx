@@ -167,6 +167,7 @@ function CommentThread({ pieceId }) {
 const BLOCK_BORDER = {
   verbatim:         'border-l-emerald-400',
   close_paraphrase: 'border-l-sky-400',
+  prior_corpus:     'border-l-teal-400',
   synthesis:        'border-l-slate-300',
 }
 
@@ -1372,6 +1373,11 @@ function ApprovalPanel({ piece }) {
           <span className="inline-flex items-center rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs text-emerald-700">
             {ownWordsPct}% in clinician&rsquo;s voice
           </span>
+          {(provSummary.prior_corpus_pct ?? 0) > 0 && (
+            <span className="inline-flex items-center rounded-full bg-teal-50 border border-teal-200 px-2 py-0.5 text-xs text-teal-700">
+              {provSummary.prior_corpus_pct}% drew on your prior work
+            </span>
+          )}
           {echoCount > 0 && (
             <span className="inline-flex items-center rounded-full bg-indigo-50 border border-indigo-200 px-2 py-0.5 text-xs text-indigo-700">
               {echoCount} phrase{echoCount === 1 ? '' : 's'} echo prior work
@@ -1379,7 +1385,7 @@ function ApprovalPanel({ piece }) {
           )}
           {provSummary.synthesis_pct > 40 && (
             <span className="inline-flex items-center rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-xs text-amber-700">
-              {provSummary.synthesis_pct}% synthesis — read closely
+              {provSummary.synthesis_pct}% model-invented — read closely
             </span>
           )}
         </div>

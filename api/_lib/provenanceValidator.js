@@ -25,7 +25,11 @@ export { extractProvenanceBlock } from '../../src/lib/provenance.js'
 const TEXT_PREFIX_LEN = 80
 const MAX_PREFIX_LEVENSHTEIN = 5
 
-const VALID_TYPES = new Set(['verbatim', 'paraphrase', 'synthesis', 'close_paraphrase'])
+const VALID_TYPES = new Set(['verbatim', 'paraphrase', 'synthesis', 'close_paraphrase', 'prior_corpus'])
+
+// Types that don't reference the current interview's user messages — no msg
+// index or span required.
+const TRANSCRIPT_FREE_TYPES = new Set(['synthesis', 'prior_corpus'])
 
 // ─── JSON parse ────────────────────────────────────────────────────────────
 
@@ -104,20 +108,20 @@ export function validateProvenance(rawBlocks, content, userMessages) {
 
     // msg index — must be a valid user-message index OR null.
     let msgIndex = null
-    if (sourceType !== 'synthesis') {
+    if (!TRANSCRIPT_FREE_TYPES.has(sourceType)) {
       const raw = b?.msg
       if (!Number.isInteger(raw) || raw < 0 || raw >= msgCount) {
         return { ok: false, normalized: [], error: `block_${i}: invalid msg index ${raw}` }
       }
       msgIndex = raw
     } else if (b?.msg !== undefined && b?.msg !== null) {
-      // Synthesis with a msg index — non-fatal, just drop the claim.
+      // prior_corpus / synthesis with a stray msg index — non-fatal, drop it.
       msgIndex = null
     }
 
     // span — when present, must fit inside the named message.
     let span = null
-    if (sourceType !== 'synthesis' && Array.isArray(b?.span) && b.span.length === 2) {
+    if (!TRANSCRIPT_FREE_TYPES.has(sourceType) && Array.isArray(b?.span) && b.span.length === 2) {
       const msg = userMessages[msgIndex]
       const msgText = typeof msg === 'string' ? msg : (msg?.content ?? '')
       const [s, e] = b.span

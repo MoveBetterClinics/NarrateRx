@@ -32,15 +32,20 @@
 
 const VERBATIM_THRESHOLD      = 0.30
 const PARAPHRASE_THRESHOLD    = 0.15
+const PRIOR_CORPUS_THRESHOLD  = 0.15  // paragraph echoes the YOUR PRIOR THINKING block
 const VOICE_PHRASE_THRESHOLD  = 0.20
 const TEXT_PREFIX_LEN         = 80
 
 // ─── public ────────────────────────────────────────────────────────────────
 
-export function computeProvenance(content, userMessages, { source = 'algorithmic_fallback' } = {}) {
+export function computeProvenance(content, userMessages, {
+  source = 'algorithmic_fallback',
+  priorCorpusSnippets = [],
+} = {}) {
   const paragraphs = splitParagraphs(content)
   const messages = Array.isArray(userMessages) ? userMessages : []
-  const blocks = paragraphs.map((para, i) => classifyParagraph(para, messages, i))
+  const priorSnippets = Array.isArray(priorCorpusSnippets) ? priorCorpusSnippets : []
+  const blocks = paragraphs.map((para, i) => classifyParagraph(para, messages, i, priorSnippets))
   return {
     version: 1,
     granularity: 'paragraph',
@@ -81,10 +86,9 @@ export function scoreParagraph(paragraph, userMessages) {
   return best
 }
 
-export function classifyParagraph(paragraph, userMessages, ordinal = 0) {
+export function classifyParagraph(paragraph, userMessages, ordinal = 0, priorCorpusSnippets = []) {
   const text_prefix = paragraph.slice(0, TEXT_PREFIX_LEN)
   const best = scoreParagraph(paragraph, userMessages)
-  if (best.score === 0) return baseBlock(ordinal, text_prefix, 'synthesis')
 
   if (best.score >= VERBATIM_THRESHOLD) {
     return {
@@ -106,12 +110,32 @@ export function classifyParagraph(paragraph, userMessages, ordinal = 0) {
       confidence: round3(best.score),
     }
   }
+
+  // Below the transcript-match thresholds — see if the paragraph echoes the
+  // clinician's prior corpus (interview summaries + approved/published content)
+  // before falling through to synthesis. This carves the "drew on your own
+  // prior work" case out of synthesis_pct so the "read closely" warning only
+  // fires for content the model actually made up.
+  if (priorCorpusSnippets.length) {
+    const priorBest = scoreParagraph(paragraph, priorCorpusSnippets)
+    if (priorBest.score >= PRIOR_CORPUS_THRESHOLD) {
+      return {
+        ordinal,
+        text_prefix,
+        source_type: 'prior_corpus',
+        source_msg_index: null,
+        source_span: null,
+        confidence: round3(priorBest.score),
+      }
+    }
+  }
+
   return baseBlock(ordinal, text_prefix, 'synthesis')
 }
 
 export function summarize(blocks, source = 'algorithmic_fallback') {
   const total = blocks.length || 1
-  const counts = { verbatim: 0, close_paraphrase: 0, synthesis: 0 }
+  const counts = { verbatim: 0, close_paraphrase: 0, synthesis: 0, prior_corpus: 0 }
   let voiceEchoCount = 0
   for (const b of blocks) {
     if (counts[b.source_type] !== undefined) counts[b.source_type] += 1
@@ -120,11 +144,45 @@ export function summarize(blocks, source = 'algorithmic_fallback') {
   return {
     verbatim_pct:          Math.round((counts.verbatim         / total) * 100),
     paraphrase_pct:        Math.round((counts.close_paraphrase / total) * 100),
+    prior_corpus_pct:      Math.round((counts.prior_corpus     / total) * 100),
     synthesis_pct:         Math.round((counts.synthesis        / total) * 100),
     voice_phrase_echo_pct: Math.round((voiceEchoCount          / total) * 100),
     voice_phrase_echo_count: voiceEchoCount,
     computed_at:           new Date().toISOString(),
     source,
+  }
+}
+
+// Post-pass: promote synthesis-labeled blocks to prior_corpus when the
+// paragraph echoes the YOUR PRIOR THINKING source pool. Runs on both
+// model-emit-validated and algorithmic provenance objects so the model-emit
+// path (which historically only knew about 3 types) gets the same carve-out
+// as the matcher. No-op when there are no snippets or no synthesis blocks.
+export function promoteSynthesisFromPriorCorpus(provenance, content, priorCorpusSnippets) {
+  const snippets = Array.isArray(priorCorpusSnippets) ? priorCorpusSnippets : []
+  if (!snippets.length || !provenance?.blocks?.length) return provenance
+  const synthesisBlocks = provenance.blocks.filter((b) => b.source_type === 'synthesis')
+  if (synthesisBlocks.length === 0) return provenance
+
+  const paragraphs = splitParagraphs(content)
+  const promotedBlocks = provenance.blocks.map((block, i) => {
+    if (block.source_type !== 'synthesis') return block
+    const para = paragraphs[i] ?? block.text_prefix ?? ''
+    const priorBest = scoreParagraph(para, snippets)
+    if (priorBest.score < PRIOR_CORPUS_THRESHOLD) return block
+    return {
+      ...block,
+      source_type: 'prior_corpus',
+      source_msg_index: null,
+      source_span: null,
+      confidence: round3(priorBest.score),
+    }
+  })
+
+  return {
+    ...provenance,
+    blocks:  promotedBlocks,
+    summary: summarize(promotedBlocks, provenance.summary?.source ?? 'algorithmic_fallback'),
   }
 }
 
