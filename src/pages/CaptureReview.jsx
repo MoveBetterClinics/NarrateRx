@@ -48,6 +48,8 @@ export default function CaptureReview() {
     setTranscript(interview.messages[0].content)
   }
 
+  const isTextImport = interview?.capture_mode === 'text_import'
+
   const generate = useCallback(async () => {
     if (genFiredRef.current || isGenerating) return
     genFiredRef.current = true
@@ -56,6 +58,32 @@ export default function CaptureReview() {
     setStreamingText('')
 
     try {
+      // URL-import path — the imported text IS the keystone. No LLM call;
+      // it makes no sense to "write a blog post" from a blog post. We save
+      // the (possibly user-edited) text directly as outputs.blogPost; atoms
+      // (social, video, marketing) are generated downstream from this
+      // keystone the same way they would be for a clinician-voiced post.
+      if (isTextImport) {
+        const blogPost = (transcript || '').trim()
+        if (!blogPost) throw new Error('Imported text is empty — nothing to save.')
+
+        await updateInterview(interviewId, {
+          messages: [{ role: 'user', content: transcript }],
+          outputs: { blogPost, generatedAt: new Date().toISOString() },
+          status: 'completed',
+        })
+
+        qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
+        qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
+        qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
+        qc.invalidateQueries({ queryKey: queryKeys.stories?.all ?? ['stories'] })
+
+        toast.success('Imported — your atoms are ready.')
+        navigate(`/stories/${interviewId}`, { replace: true })
+        return
+      }
+
+      // Voice-memo path — synthesize a blog post from the transcript.
       // Resolve workspace overlay (location-level overrides, if any).
       const overlaidWorkspace = interview?.location_id
         ? applyLocationOverlay(ws, interview.location_id)
@@ -133,7 +161,7 @@ export default function CaptureReview() {
       setStreamingText('')
       setError(err?.message || 'Generation failed — please try again.')
     }
-  }, [transcript, clinician, interview, ws, clinicianId, interviewId, isGenerating, navigate, qc])
+  }, [transcript, clinician, interview, ws, clinicianId, interviewId, isGenerating, isTextImport, navigate, qc])
 
   const loading = ivLoading || clLoading
 
@@ -167,17 +195,17 @@ export default function CaptureReview() {
       {/* Header */}
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild>
-          <Link to="/new/voice-memo">
+          <Link to={isTextImport ? '/new/import' : '/new/voice-memo'}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
-            {interview?.capture_mode === 'text_import' ? 'Review imported text' : 'Review transcript'}
+            {isTextImport ? 'Review imported text' : 'Review transcript'}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {interview?.capture_mode === 'text_import'
-              ? 'Edit anything before generating.'
+            {isTextImport
+              ? 'Clean up anything before saving as your keystone.'
               : 'Fix any mishearing, then generate.'}
           </p>
         </div>
@@ -188,13 +216,11 @@ export default function CaptureReview() {
         <Card>
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center gap-2 text-sm font-medium">
-              {interview?.capture_mode === 'text_import'
+              {isTextImport
                 ? <FileText className="h-4 w-4 text-muted-foreground" />
                 : <Mic className="h-4 w-4 text-muted-foreground" />}
               <span>
-                {interview?.capture_mode === 'text_import'
-                  ? 'Imported text'
-                  : 'Transcribed from your recording'}
+                {isTextImport ? 'Imported text' : 'Transcribed from your recording'}
               </span>
             </div>
             <Textarea
@@ -202,16 +228,19 @@ export default function CaptureReview() {
               onChange={(e) => setTranscript(e.target.value)}
               rows={10}
               className="resize-y text-sm leading-relaxed"
-              placeholder="Transcript will appear here…"
+              placeholder={isTextImport ? 'Imported text will appear here…' : 'Transcript will appear here…'}
             />
             <p className="text-xs text-muted-foreground">
-              Edit anything Whisper got wrong before you generate.
+              {isTextImport
+                ? 'This will be saved as your keystone piece — atoms (social, video, email) will derive from it.'
+                : 'Edit anything Whisper got wrong before you generate.'}
             </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Streaming preview during generation */}
+      {/* Streaming preview during generation (voice-memo only — text imports
+          don't run an LLM call, so they go straight to the saving state). */}
       {isGenerating && streamingText && (
         <Card>
           <CardContent className="p-5">
@@ -226,14 +255,18 @@ export default function CaptureReview() {
         </Card>
       )}
 
-      {/* Generating with no text yet */}
+      {/* Generating / saving with no text yet */}
       {isGenerating && !streamingText && (
         <Card>
           <CardContent className="p-6 flex flex-col items-center gap-3">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm font-medium">Generating content…</p>
+            <p className="text-sm font-medium">
+              {isTextImport ? 'Saving your keystone…' : 'Generating content…'}
+            </p>
             <p className="text-xs text-muted-foreground text-center max-w-xs">
-              Turning your voice memo into a full blog post. Won&apos;t be long.
+              {isTextImport
+                ? 'One moment — your story will open next.'
+                : "Turning your voice memo into a full blog post. Won't be long."}
             </p>
           </CardContent>
         </Card>
@@ -246,7 +279,7 @@ export default function CaptureReview() {
         </div>
       )}
 
-      {/* Generate CTA */}
+      {/* Primary CTA */}
       {!isGenerating && (
         <Button
           className="w-full"
@@ -255,7 +288,7 @@ export default function CaptureReview() {
           disabled={!transcript?.trim()}
         >
           <Sparkles className="h-4 w-4 mr-2" />
-          Generate content
+          {isTextImport ? 'Save and atomize' : 'Generate content'}
         </Button>
       )}
     </div>

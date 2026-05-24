@@ -104,10 +104,20 @@ export default async function handler(req, res) {
     const raw = await jinaRes.text()
     if (!raw?.trim()) throw new Error('No content extracted from that URL.')
 
-    // Trim to cap and strip Jina's header block (first few lines that say
-    // "Title: ... URL: ... ..."). The header is useful for debugging but
-    // we don't want it in the generation prompt.
-    extractedText = raw.trim().slice(0, MAX_TEXT_CHARS)
+    // Strip Jina's header block. Jina prepends metadata lines like:
+    //   Title: ...
+    //   URL Source: ...
+    //   Published Time: ...
+    //   Markdown Content:
+    // followed by a blank line and then the actual content. We want only the
+    // body — the header is noise when the imported text is used as the
+    // keystone piece (or as input to LLM generation).
+    let body = raw.trim()
+    const markerIdx = body.indexOf('Markdown Content:')
+    if (markerIdx !== -1) {
+      body = body.slice(markerIdx + 'Markdown Content:'.length).replace(/^\s+/, '')
+    }
+    extractedText = body.slice(0, MAX_TEXT_CHARS)
     if (!extractedText) throw new Error('Page appears to be empty after extraction.')
   } catch (e) {
     console.error(`[import-url] fetch failed for ${cleanUrl}: ${e?.message}`)
