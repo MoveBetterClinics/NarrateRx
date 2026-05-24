@@ -366,6 +366,7 @@ export function getInterviewSystemPrompt(workspace, clinicianName, condition, pa
     isFirstMessage = false,
     shallowReprobe = false,
     priorSessionContext = null,
+    ownHistoryBlock = '',
     conceptBlock   = '',
     agreementBlock = '',
     gapBlock       = '',
@@ -438,7 +439,7 @@ ${conceptBlock}
 ${agreementBlock}
 ${gapBlock}
 ${probeGoal}
-${reprobeInstruction}${priorSessionBlock}
+${reprobeInstruction}${ownHistoryBlock || priorSessionBlock}
 CONTENT YOU NEED TO COLLECT — each area below produces specific downstream content. Ask about them in any order that flows naturally, but DO NOT move on from an area until the answer is specific and concrete enough to write from. Vague answers get follow-ups.
 
 1. CLINICAL PHILOSOPHY — How they approach ${condition} and the underlying principle that makes their approach different. The "why" behind their method, not just the "what." Press for the principle, not just the procedure.
@@ -866,6 +867,7 @@ function getGeneralInterviewSystemPrompt(workspace, expertName, topic, opts = {}
     isFirstMessage = false,
     shallowReprobe = false,
     priorSessionContext = null,
+    ownHistoryBlock = '',
     conceptBlock = '',
     agreementBlock = '',
     gapBlock = '',
@@ -910,7 +912,7 @@ ${contextBlock}${brandVoiceBlock}${conceptBlock}
 ${agreementBlock}
 ${gapBlock}
 ${probeGoal}
-${reprobeInstruction}${priorSessionBlock}
+${reprobeInstruction}${ownHistoryBlock || priorSessionBlock}
 CONTENT YOU NEED TO COLLECT — each area below produces material for the final piece. Ask about them in any order that flows naturally, but DO NOT move on from an area until the answer is specific and concrete enough to write from. Vague answers get follow-ups.
 
 1. THE CONCRETE MOMENT — One specific moment, story, or experience that anchors this topic. Real, vivid, with enough detail to ground the reader. Push for the actual scene — who, where, when, what specifically happened. The piece will open here, so the more grounded the better.
