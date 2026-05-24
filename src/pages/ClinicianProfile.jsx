@@ -23,6 +23,7 @@ import { getCleanupLevel } from '@/lib/cleanupLevels'
 import VoiceNotesPanel from '@/components/VoiceNotesPanel'
 import VoiceFreshnessCard from '@/components/VoiceFreshnessCard'
 import VoicePlaybackCard from '@/components/VoicePlaybackCard'
+import VoiceCloneCard from '@/components/VoiceCloneCard'
 import { DisplayNameCard } from '@/components/DisplayNameCard'
 import { ClinicianCampaignCard } from '@/components/ClinicianCampaignCard'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
@@ -502,6 +503,7 @@ export default function ClinicianProfile() {
           {/* Light area below hero — existing voice components */}
           <div className="px-6 py-6 space-y-4">
             {isMyClinicianProfile && <VoicePlaybackCard clinician={clinician} />}
+            {isMyClinicianProfile && <VoiceCloneCard clinician={clinician} />}
             <VoiceFreshnessCard clinicianId={clinician.id} clinicianName={clinician.name} />
             {isMyClinicianProfile && <VoiceNotesPanel clinician={clinician} />}
           </div>
