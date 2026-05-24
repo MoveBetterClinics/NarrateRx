@@ -168,7 +168,7 @@ export default async function handler(req, res) {
 
     if (!id) return err(res, 'Missing id')
 
-    const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,clinician_id,topic,location_id`)
+    const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,clinician_id,topic,location_id,capture_mode,source_audio_url`)
     if (!chk.ok) return dbErr(res, chk)
     const rows = await chk.json()
     if (!rows.length) return err(res, 'Not found', 404)
@@ -219,8 +219,13 @@ export default async function handler(req, res) {
     // already saved before this branch ran — we never want any of the
     // enrichment paths to bubble up and 500 the PATCH.
     if (body.outputs && body.status === 'completed') {
-      const { clinician_id, topic, location_id } = rows[0]
+      const { clinician_id, topic, location_id, capture_mode, source_audio_url } = rows[0]
       const o = body.outputs
+      // URL-import keystone is already-published content (the source URL is
+      // the live post). Mark the blog content_item as published with the
+      // source URL as resolved_url so the UI surfaces "Published to Website"
+      // + "View live post" instead of draft/approve/publish actions.
+      const isImportedKeystone = capture_mode === 'text_import' && !!source_audio_url
 
       // Fetch clinician name once for the inserts below. Workspace filter
       // is defense-in-depth: clinician_id came from the interview row that's
@@ -258,22 +263,30 @@ export default async function handler(req, res) {
             { key: 'instagramAds',    platform: 'instagram_ads' },
           ]
 
+          const nowIso = new Date().toISOString()
           const items = platformMap
             .filter(({ key }) => o[key]?.trim())
-            .map(({ key, platform }) => ({
-              workspace_id:   ws.id,
-              interview_id:   id,
-              clinician_id,
-              clinician_name: clinicianName,
-              topic:          topic ?? '',
-              platform,
-              content:        o[key],
-              // Voice-memory snapshot — never overwritten on edit
-              ai_original_content: o[key],
-              status:         'draft',
-              media_urls:     [],
-              location_id:    location_id ?? null,
-            }))
+            .map(({ key, platform }) => {
+              // Imported blog = already-published source. Other platforms
+              // (atoms generated from it) are still drafts pending review.
+              const isImportedBlog = isImportedKeystone && platform === 'blog'
+              return {
+                workspace_id:   ws.id,
+                interview_id:   id,
+                clinician_id,
+                clinician_name: clinicianName,
+                topic:          topic ?? '',
+                platform,
+                content:        o[key],
+                // Voice-memory snapshot — never overwritten on edit
+                ai_original_content: o[key],
+                status:         isImportedBlog ? 'published' : 'draft',
+                published_at:   isImportedBlog ? nowIso : null,
+                resolved_url:   isImportedBlog ? source_audio_url : null,
+                media_urls:     [],
+                location_id:    location_id ?? null,
+              }
+            })
 
           if (items.length > 0) {
             const insRes = await sb('content_items', {

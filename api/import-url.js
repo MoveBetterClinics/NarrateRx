@@ -93,9 +93,16 @@ export default async function handler(req, res) {
       headers: {
         'Accept': 'text/plain',
         'X-Return-Format': 'markdown',
-        // Ask Jina to wait for JS-rendered content (up to 10s). Helps with
-        // React/Next.js sites that hydrate on client.
+        // Wait for JS-rendered content. Helps with React/Next.js sites.
         'X-Wait-For-Selector': 'article, main, .content, .post-content',
+        // Scope extraction to the article body so site chrome (nav, header,
+        // footer, related-notes blocks) is dropped. Sites without these
+        // semantic tags fall back to Jina's default heuristics.
+        'X-Target-Selector': 'article, main, .content, .post-content',
+        // Belt-and-suspenders: explicitly remove common chrome elements that
+        // sometimes slip past target-selector scoping when nested inside the
+        // article (e.g. inline related-content lists, share bars).
+        'X-Remove-Selector': 'nav, header, footer, [role="navigation"], .nav, .navigation, .header, .footer, .related, .related-notes, .related-posts, .share, .social-share',
       },
     })
     if (!jinaRes.ok) {
