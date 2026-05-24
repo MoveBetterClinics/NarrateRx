@@ -28,6 +28,40 @@ const PREFERRED_MIME_TYPES = [
 const MIN_DURATION_SEC = 60
 const RECOMMENDED_DURATION_SEC = 180
 
+// Resume-from-failed-upload stash: when /api/voice-clone/create succeeds in
+// uploading the audio but the upstream clone step fails, we keep the blob
+// URL here so the user can retry without re-recording. Keyed by clinicianId
+// because different clinicians could share a browser.
+const STASH_KEY = 'narraterx.voice-clone.pending.v1'
+const STASH_TTL_MS = 24 * 60 * 60 * 1000
+
+function loadStash(clinicianId) {
+  if (!clinicianId || typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage.getItem(STASH_KEY)
+    if (!raw) return null
+    const all = JSON.parse(raw)
+    const entry = all?.[clinicianId]
+    if (!entry?.sampleUrl || !entry?.recordedAt) return null
+    if (Date.now() - new Date(entry.recordedAt).getTime() > STASH_TTL_MS) {
+      saveStash(clinicianId, null)
+      return null
+    }
+    return entry
+  } catch { return null }
+}
+
+function saveStash(clinicianId, entry) {
+  if (!clinicianId || typeof window === 'undefined') return
+  try {
+    const raw = window.localStorage.getItem(STASH_KEY)
+    const all = raw ? JSON.parse(raw) : {}
+    if (entry) all[clinicianId] = entry
+    else delete all[clinicianId]
+    window.localStorage.setItem(STASH_KEY, JSON.stringify(all))
+  } catch { /* localStorage full or blocked — silent */ }
+}
+
 function pickMimeType() {
   if (typeof MediaRecorder === 'undefined') return null
   for (const t of PREFERRED_MIME_TYPES) {
@@ -58,6 +92,11 @@ export default function VoiceTraining() {
   const [mimeType, setMimeType] = useState('')
   const [isPlaying, setIsPlaying] = useState(false)
 
+  // Resumable stash from a prior failed-upstream attempt for this clinician.
+  // Set on mount via loadStash(); cleared on successful clone OR explicit dismiss.
+  const [pendingStash, setPendingStash] = useState(null)
+  const [resuming, setResuming] = useState(false)
+
   const mediaRecorderRef = useRef(null)
   const chunksRef = useRef([])
   const streamRef = useRef(null)
@@ -83,6 +122,29 @@ export default function VoiceTraining() {
     setBlobUrl(url)
     return () => URL.revokeObjectURL(url)
   }, [blob])
+
+  // Load any pending resume stash once we know the clinician id.
+  useEffect(() => {
+    if (!clinicianId) return
+    const entry = loadStash(clinicianId)
+    if (entry) setPendingStash(entry)
+  }, [clinicianId])
+
+  // Warn before leaving the page when an unsaved recording is present.
+  // beforeunload fires on tab close, reload, or hard navigation; React Router
+  // internal navigation needs a separate guard, but the highest-cost loss
+  // events (reload, accidental close) are the ones this covers.
+  useEffect(() => {
+    const hasUnsavedRecording = !!blob && state !== 'uploading'
+    if (!hasUnsavedRecording) return undefined
+    const handler = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+      return ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [blob, state])
 
   const startRecording = useCallback(async () => {
     setError('')
@@ -173,10 +235,26 @@ export default function VoiceTraining() {
           body: blob,
         },
       )
+      const data = await r.json().catch(() => ({}))
       if (!r.ok) {
-        const data = await r.json().catch(() => ({}))
+        // If the server got far enough to upload the audio but then failed
+        // upstream, it returns the sampleUrl. Stash it so a retry on the
+        // same browser doesn't ask the clinician to re-record.
+        if (data?.sampleUrl) {
+          const stash = {
+            sampleUrl:    data.sampleUrl,
+            durationSec:  Math.round(elapsed),
+            filename,
+            recordedAt:   new Date().toISOString(),
+          }
+          saveStash(clinicianId, stash)
+          setPendingStash(stash)
+        }
         throw new Error(data?.error || `Upload failed (${r.status})`)
       }
+      // Success — clear any prior stash.
+      saveStash(clinicianId, null)
+      setPendingStash(null)
       toast.success('Voice clone created — content can now use your voice.')
       navigate('/settings')
     } catch (e) {
@@ -184,6 +262,52 @@ export default function VoiceTraining() {
       setState('recorded')
     }
   }, [blob, clinicianId, elapsed, mimeType, getToken, navigate])
+
+  // Resume a prior failed clone using the stashed sampleUrl. Skips re-record
+  // and re-upload — server pulls the existing blob and calls ElevenLabs.
+  const resume = useCallback(async () => {
+    if (!pendingStash || !clinicianId) return
+    setError('')
+    setResuming(true)
+    try {
+      const token = await getToken()
+      const r = await fetch('/api/voice-clone/resume', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          clinicianId,
+          sampleUrl: pendingStash.sampleUrl,
+        }),
+      })
+      const data = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        // 410 means the blob is gone — clear the stash so we don't keep
+        // offering a dead-end resume button.
+        if (r.status === 410) {
+          saveStash(clinicianId, null)
+          setPendingStash(null)
+        }
+        throw new Error(data?.error || `Resume failed (${r.status})`)
+      }
+      saveStash(clinicianId, null)
+      setPendingStash(null)
+      toast.success('Voice clone created — content can now use your voice.')
+      navigate('/settings')
+    } catch (e) {
+      setError(e?.message || 'Resume failed.')
+    } finally {
+      setResuming(false)
+    }
+  }, [pendingStash, clinicianId, getToken, navigate])
+
+  const dismissStash = useCallback(() => {
+    if (!clinicianId) return
+    saveStash(clinicianId, null)
+    setPendingStash(null)
+  }, [clinicianId])
 
   const recording = state === 'recording'
   const recorded = state === 'recorded'
@@ -210,6 +334,37 @@ export default function VoiceTraining() {
           </p>
         )}
       </div>
+
+      {pendingStash && !recorded && !uploading && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-start gap-3">
+              <Sparkles className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold">Resume your last recording?</div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  We saved your last sample ({pendingStash.durationSec}s, recorded {new Date(pendingStash.recordedAt).toLocaleString()}). The clone step failed last time — you can try again without re-recording.
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" onClick={resume} disabled={resuming}>
+                {resuming ? (
+                  <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Cloning…</>
+                ) : (
+                  'Resume from last recording'
+                )}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={dismissStash} disabled={resuming}>
+                Discard and record fresh
+              </Button>
+            </div>
+            {error && (
+              <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="p-4 space-y-2">
