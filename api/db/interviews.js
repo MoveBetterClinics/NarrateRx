@@ -10,6 +10,7 @@ import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { buildPlanRows } from '../_lib/atomPlan.js'
 import { extractConcepts, buildInterviewText } from '../_lib/conceptExtractor.js'
+import { summarizeInterview } from '../_lib/interviewSummarizer.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -329,6 +330,16 @@ export default async function handler(req, res) {
               text:         interviewText,
               clinicianId:  rows[0].clinician_id ?? null,
               weightDelta:  1.0,
+            })
+            // Phase 5 Feature 2 — practice-memory summarization runs alongside
+            // concept extraction. Same fire-and-forget contract; writes back to
+            // interviews.summary_text on success.
+            summarizeInterview({
+              interviewId:   id,
+              workspaceId:   ws.id,
+              clinicianName,
+              topic:         topic,
+              messages:      turns,
             })
           }
         }

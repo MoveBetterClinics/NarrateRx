@@ -1,15 +1,21 @@
-// Phase 5 Feature 2 — PR 1: hot-context injection.
+// Phase 5 Feature 2 — hot-context injection.
 // Builds a "YOUR PRIOR THINKING" block from this clinician's own recent
 // interviews and approved/published content. Injected into the interview
 // system prompt so the model can reference what the clinician has already
 // said and build on it (vs. starting cold each session).
 //
-// Scope of this PR: the bounded, no-embeddings version. A later PR adds
-// the pgvector RAG layer that retrieves by semantic relevance instead of
-// raw recency.
+// PR 1 shipped the bounded, no-embeddings version.
+// PR 2 (this) prefers interviews.summary_text when available — a 3–5
+// sentence distillation written on completion by interviewSummarizer.js.
+// Summaries are ~300–500 chars each vs. ~1k for raw first-N turns, so we
+// can lift the per-clinician interview cap from 3 to 6 without inflating
+// prompt size. Falls back to raw turns for rows still awaiting summary
+// (in-flight summarization, pre-backfill, or summarizer failure).
+//
+// A later PR replaces the recency-based pick with embedding-based RAG.
 
-const MAX_PRIOR_INTERVIEWS = 3
-const TURNS_PER_INTERVIEW = 4         // user turns kept per prior interview
+const MAX_PRIOR_INTERVIEWS = 6        // doubled from PR 1 — summaries are compact
+const TURNS_PER_INTERVIEW = 4         // user turns kept when summary is missing
 const MAX_CONTENT_PIECES = 3
 const CONTENT_BODY_CHARS = 500        // truncation cap per prior content piece
 
@@ -34,14 +40,22 @@ function truncate(text, max) {
   return `${t.slice(0, max).trimEnd()}…`
 }
 
-// Select up to 3 of this clinician's most recent completed interviews,
-// excluding the one currently in progress. Returns the lightweight shape
-// already available from fetchClinician(id).interviews[].
+function hasSummary(iv) {
+  return typeof iv?.summary_text === 'string' && iv.summary_text.trim().length > 0
+}
+
+function hasUsableMessages(iv) {
+  return Array.isArray(iv?.messages) && iv.messages.some((m) => m?.role === 'user' && m?.content?.trim())
+}
+
+// Select this clinician's most recent completed interviews, excluding the
+// one currently in progress. Keeps rows that have EITHER a generated summary
+// OR raw messages we can fall back to.
 export function pickPriorInterviews(allInterviews, currentInterviewId) {
   if (!Array.isArray(allInterviews) || allInterviews.length === 0) return []
   return allInterviews
     .filter((iv) => iv && iv.status === 'completed' && iv.id !== currentInterviewId)
-    .filter((iv) => Array.isArray(iv.messages) && iv.messages.length > 0)
+    .filter((iv) => hasSummary(iv) || hasUsableMessages(iv))
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
     .slice(0, MAX_PRIOR_INTERVIEWS)
 }
@@ -58,6 +72,11 @@ export function buildOwnHistoryBlock({ clinicianName, priorInterviews = [], prio
   if (hasInterviews) {
     const formatted = priorInterviews.map((iv) => {
       const topic = iv.topic || 'an earlier session'
+      // Prefer the generated summary (compact, on-prompt-purpose). Fall back
+      // to raw user turns for rows where summarization hasn't run yet.
+      if (hasSummary(iv)) {
+        return `[YOUR PRIOR INTERVIEW] "${topic}"\n${iv.summary_text.trim()}`
+      }
       const turns = (iv.messages || [])
         .filter((m) => m && m.role === 'user' && typeof m.content === 'string')
         .slice(0, TURNS_PER_INTERVIEW)
