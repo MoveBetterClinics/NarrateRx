@@ -146,6 +146,13 @@ export async function apiFetchResponse(path, init = {}) {
         const expectedOrgId = /** @type {string | undefined} */ (
           /** @type {any} */ (window).__narraterxExpectedClerkOrgId
         )
+        if (!expectedOrgId) {
+          // Force-flip path can't run without the target. This means
+          // WorkspaceContext hasn't resolved a DB workspace yet, or the
+          // workspace endpoint returned a shape that doesn't include
+          // clerk_org_id. Log loudly so the cause is obvious.
+          console.error(`[apiFetch] CANNOT force-flip: window.__narraterxExpectedClerkOrgId is unset. WorkspaceContext likely returned slim shape without clerk_org_id.`)
+        }
         if (expectedOrgId && expectedOrgId !== freshOrgId) {
           _forceFlipAttempted = true
           console.warn(`[apiFetch] session wedged on org_id=${freshOrgId}; expected ${expectedOrgId}. Forcing setActive.`)
