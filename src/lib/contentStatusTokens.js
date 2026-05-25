@@ -9,6 +9,7 @@
 // for the kanban lane borders. Keep the palette aligned with the
 // existing PipelineKanban lanes so visual output stays identical.
 
+// See also src/lib/contentMeta.js (STATUS_META — badge+icon variant used by ContentHub/Stories surfaces with the "Approved" label and an `archived` row).
 export const CONTENT_STATUS_TOKENS = {
   draft:     { label: 'Draft',               badge: 'bg-slate-100 text-slate-700',    accent: 'border-slate-200'   },
   in_review: { label: 'Needs Review',        badge: 'bg-amber-100 text-amber-700',    accent: 'border-amber-200'   },

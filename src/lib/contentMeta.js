@@ -30,6 +30,7 @@ export const PLATFORM_META = {
   pinterest:    { label: 'Pinterest',       icon: Pin,        color: 'text-red-500',    bg: 'bg-red-50' },
 }
 
+// See also src/lib/contentStatusTokens.js (kanban-lane variant with `accent` borders and different labels — "Ready to Distribute" vs "Approved").
 export const STATUS_META = {
   draft:      { label: 'Draft',      color: 'bg-slate-100 text-slate-700',   icon: FileText },
   in_review:  { label: 'In Review',  color: 'bg-amber-100 text-amber-700',   icon: Clock },
