@@ -241,12 +241,12 @@ export function listContentItemComments(itemId) {
   return apiFetch(`/api/content-item-comments?itemId=${encodeURIComponent(itemId)}`)
 }
 
-/** @param {string} itemId @param {{ body: string, kind: string, userId: string, userEmail: string }} opts @returns {Promise<unknown>} */
-export function createContentItemComment(itemId, { body, kind, userId, userEmail }) {
+/** @param {string} itemId @param {{ body: string, kind: string }} opts @returns {Promise<unknown>} */
+export function createContentItemComment(itemId, { body, kind }) {
   return apiFetch('/api/content-item-comments', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ itemId, body, kind, userId, userEmail }),
+    body: JSON.stringify({ itemId, body, kind }),
   })
 }
 
