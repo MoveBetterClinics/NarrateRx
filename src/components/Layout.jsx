@@ -170,7 +170,7 @@ function WorkspaceSwitcher() {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const currentWs = useWorkspace()
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, getToken } = useAuth()
   const { setActive } = useClerk()
 
   const { data: workspaces = [] } = useQuery({
@@ -210,8 +210,24 @@ function WorkspaceSwitcher() {
     setOpen(false)
     try {
       await setActive({ organization: ws.clerk_org_id })
+      // After setActive resolves the session object updates, but the JWT can
+      // still carry the previous org_id for a short window while Clerk rotates
+      // the token. OrgGate on the destination uses an optimistic-on-error
+      // fallback that can let children render before the token is ready →
+      // wrong-org API failures. Poll here (max ~2s) until the token confirms
+      // the switch so OrgGate finds it already correct on arrival.
+      for (let i = 0; i < 8; i++) {
+        const tok = await getToken({ skipCache: true }).catch(() => null)
+        if (tok) {
+          try {
+            const { org_id } = JSON.parse(atob(tok.split('.')[1]))
+            if (org_id === ws.clerk_org_id) break
+          } catch { /* unparseable — keep polling */ }
+        }
+        await new Promise(resolve => { setTimeout(resolve, 250) })
+      }
     } catch {
-      // OrgGate on the target subdomain will activate the correct org on load
+      // navigate anyway — OrgGate will handle activation on the destination
     }
     window.location.assign(`https://${ws.slug}.narraterx.ai`)
   }
