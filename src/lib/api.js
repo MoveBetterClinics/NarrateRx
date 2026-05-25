@@ -31,6 +31,38 @@ async function getClerkToken() {
 }
 
 /**
+ * Force-refresh from Clerk's servers, bypassing the local cache. Used to
+ * recover from `wrong-org` responses where the cached token still carries
+ * the previous workspace's org_id.
+ * @returns {Promise<string | null>}
+ */
+async function getClerkTokenFresh() {
+  if (typeof window === 'undefined') return null
+  try {
+    return await window.Clerk?.session?.getToken?.({ skipCache: true }) ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Decode the org_id claim from a JWT without verifying it. Used purely for
+ * diagnostics (logging which org our token claims when we hit wrong-org).
+ * @param {string | null} token
+ * @returns {string | null}
+ */
+function decodeJwtOrgId(token) {
+  if (!token) return null
+  try {
+    const parts = token.split('.')
+    if (parts.length < 2) return null
+    return JSON.parse(atob(parts[1]))?.org_id || null
+  } catch {
+    return null
+  }
+}
+
+/**
  * @param {HeadersInit | undefined} headers
  * @returns {boolean}
  */
@@ -44,8 +76,32 @@ function hasAuthHeader(headers) {
 }
 
 /**
+ * Peek the `error` field from a non-2xx response body without consuming the
+ * stream (so the caller can still re-read it). Returns null if the body
+ * isn't JSON or doesn't include an `error` field.
+ * @param {Response} res
+ * @returns {Promise<string | null>}
+ */
+async function peekErrorReason(res) {
+  try {
+    const body = await res.clone().json()
+    return typeof body?.error === 'string' ? body.error : null
+  } catch {
+    return null
+  }
+}
+
+/**
  * Fetch an internal /api route, injecting a Clerk bearer token and
  * defaulting credentials to 'include'. Throws ApiError on non-2xx.
+ *
+ * **Wrong-org self-healing**: Clerk caches issued tokens for ~50s. After a
+ * workspace switch, the cached token still carries the previous org_id even
+ * though the session has flipped. The first request after a switch can hit
+ * the server with the stale token and get back `401 { error: 'wrong-org' }`.
+ * We detect that response, force a fresh token via getToken({ skipCache:true }),
+ * and retry the request once. Subsequent calls in the same page load reuse
+ * the now-refreshed cache.
  * @param {string} path
  * @param {ApiFetchInit} [init]
  * @returns {Promise<Response>}
@@ -53,15 +109,44 @@ function hasAuthHeader(headers) {
 export async function apiFetchResponse(path, init = {}) {
   const { auth = true, headers, credentials, ...rest } = init
   const mergedHeaders = /** @type {Record<string, string>} */ ({ ...(headers || {}) })
+  let usedToken = /** @type {string | null} */ (null)
   if (auth && !hasAuthHeader(mergedHeaders)) {
-    const token = await getClerkToken()
-    if (token) mergedHeaders.Authorization = `Bearer ${token}`
+    usedToken = await getClerkToken()
+    if (usedToken) mergedHeaders.Authorization = `Bearer ${usedToken}`
   }
-  const res = await fetch(path, {
+  let res = await fetch(path, {
     ...rest,
     credentials: credentials ?? 'include',
     headers: mergedHeaders,
   })
+
+  // Defensive retry on wrong-org. Only fires when we attached a bearer token
+  // ourselves (skipped for callers that passed an explicit Authorization).
+  if (auth && res.status === 401 && usedToken) {
+    const reason = await peekErrorReason(res)
+    if (reason === 'wrong-org') {
+      const staleOrgId = decodeJwtOrgId(usedToken)
+      console.warn(`[apiFetch] wrong-org on ${path} — cached token org_id=${staleOrgId}; refreshing & retrying`)
+      // Brief wait so any in-flight token rotation in Clerk's SDK lands.
+      await new Promise(resolve => { setTimeout(resolve, 250) })
+      const freshToken = await getClerkTokenFresh()
+      const freshOrgId = decodeJwtOrgId(freshToken)
+      if (freshToken && freshOrgId && freshOrgId !== staleOrgId) {
+        console.info(`[apiFetch] retrying ${path} with fresh org_id=${freshOrgId}`)
+        const retryHeaders = { ...mergedHeaders, Authorization: `Bearer ${freshToken}` }
+        res = await fetch(path, {
+          ...rest,
+          credentials: credentials ?? 'include',
+          headers: retryHeaders,
+        })
+      } else {
+        // Fresh token didn't change — Clerk's server still has the old active
+        // org. The retry would just fail again, so don't bother.
+        console.warn(`[apiFetch] fresh token still org_id=${freshOrgId}; not retrying`)
+      }
+    }
+  }
+
   if (!res.ok) await throwApiError(res)
   return res
 }
