@@ -3,6 +3,8 @@
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -32,6 +34,11 @@ async function dbErr(res, r, msg = 'Database error') {
 export default async function handler(req, res) {
   const ws = await workspaceContext(req)
   if (!ws) return err(res, 'Workspace not resolved', 400)
+
+  const auth = await requireRole(req, STAFF_ROLES, { orgId: ws.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
 
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
