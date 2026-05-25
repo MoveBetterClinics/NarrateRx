@@ -11,6 +11,7 @@ export const config = { runtime: 'nodejs', maxDuration: 60 }
 import { generateText } from 'ai'
 import { workspaceContext, invalidateWorkspaceCacheById } from './_lib/workspaceContext.js'
 import { enforceLimit } from './_lib/ratelimit.js'
+import { requireRole } from './_lib/auth.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -190,10 +191,14 @@ async function saveCache(wsId, suggestions) {
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') return err(res, 'Method not allowed', 405)
-  if (!(await enforceLimit(req, res, 'ai'))) return
 
   const ws = await workspaceContext(req)
   if (!ws) return err(res, 'Workspace not resolved', 400)
+
+  const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+
+  if (!(await enforceLimit(req, res, 'ai'))) return
 
   const url = new URL(req.url, 'http://localhost')
   const forceRefresh = url.searchParams.get('refresh') === 'true'
