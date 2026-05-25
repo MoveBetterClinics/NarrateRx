@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { UserButton } from '@clerk/clerk-react'
+import { UserButton, useAuth, useClerk } from '@clerk/clerk-react'
+import { useQuery } from '@tanstack/react-query'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
-import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, UserCircle, Mic2, BookOpen } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
@@ -11,6 +12,7 @@ import { CampaignModeChip } from '@/components/CampaignWidget'
 import { workspace as STATIC_WORKSPACE } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
+import { apiFetch } from '@/lib/api'
 import TrialBanner from '@/components/TrialBanner'
 
 const APP_BYLINE = 'Voice-faithful clinical content'
@@ -50,6 +52,7 @@ export default function Layout({ children }) {
               </p>
             </div>
           </Link>
+          <WorkspaceSwitcher />
 
           <div className="flex-1" />
 
@@ -158,6 +161,85 @@ export default function Layout({ children }) {
       <main className="container py-8">
         {children}
       </main>
+    </div>
+  )
+}
+
+// Chip that lists all workspaces the user has access to. Only rendered when
+// the user belongs to more than one workspace (external tenants won't see it).
+function WorkspaceSwitcher() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const currentWs = useWorkspace()
+  const { isSignedIn } = useAuth()
+  const { setActive } = useClerk()
+
+  const { data: workspaces = [] } = useQuery({
+    queryKey: ['workspace-list'],
+    queryFn: () => apiFetch('/api/workspace/list'),
+    enabled: !!isSignedIn,
+    staleTime: 5 * 60_000,
+  })
+
+  useEffect(() => {
+    if (!open) return
+    function onKey(e) { if (e.key === 'Escape') setOpen(false) }
+    function onOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('mousedown', onOutside)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('mousedown', onOutside)
+    }
+  }, [open])
+
+  if (!Array.isArray(workspaces) || workspaces.length <= 1) return null
+
+  async function handleSwitch(ws) {
+    if (ws.slug === currentWs?.slug) { setOpen(false); return }
+    setOpen(false)
+    try {
+      await setActive({ organization: ws.clerk_org_id })
+    } catch {
+      // OrgGate on the target subdomain will activate the correct org on load
+    }
+    window.location.assign(`https://${ws.slug}.narraterx.ai`)
+  }
+
+  return (
+    <div className="relative hidden sm:block" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-1 h-6 pl-2 pr-1.5 text-xs font-medium rounded-full border border-border bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+      >
+        <span className="max-w-[140px] truncate">{currentWs?.display_name || 'My Workspace'}</span>
+        <ChevronDown className="h-3 w-3 shrink-0" />
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          aria-label="Switch workspace"
+          className="absolute left-0 top-full mt-1 w-56 rounded-lg border border-border bg-white shadow-md py-1 z-50"
+        >
+          {workspaces.map(ws => (
+            <button
+              key={ws.slug}
+              type="button"
+              role="option"
+              aria-selected={ws.slug === currentWs?.slug}
+              onClick={() => handleSwitch(ws)}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left text-muted-foreground hover:bg-accent/30 hover:text-foreground transition-colors"
+            >
+              <Check className={`h-3.5 w-3.5 shrink-0 ${ws.slug === currentWs?.slug ? 'text-primary' : 'text-transparent'}`} />
+              <span className="truncate">{ws.display_name}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
