@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ClinicianChip } from '@/components/ClinicianChip'
+import ReadAloudButton from '@/components/ReadAloudButton'
 import { PLATFORM_META, STATUS_META } from '@/lib/contentMeta'
 import { getStageToken } from '@/lib/stageTokens'
 import { getPatientPrototypesUi } from '@/lib/prompts'
@@ -274,7 +275,9 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
 
   return (
     <div className="space-y-2">
-      {/* View-mode toggle — always visible; Attributed only when provenance exists */}
+      {/* View-mode toggle — always visible; Attributed only when provenance exists.
+          Read-aloud (Phase 5 F#3 audio caller) sits on the right; uses this
+          piece's clinician_id so the voice clone is auto-resolved server-side. */}
       <div className="flex items-center gap-1">
         {(['edit', ...(hasProvenance ? ['attributed'] : []), 'assets']).map((mode) => (
           <button
@@ -290,6 +293,15 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
             {mode}
           </button>
         ))}
+        <div className="ml-auto">
+          <ReadAloudButton
+            text={value}
+            clinicianId={piece.clinician_id}
+            size="sm"
+            variant="ghost"
+            className="h-6 text-xs"
+          />
+        </div>
       </div>
 
       {viewMode === 'attributed' && hasProvenance ? (
