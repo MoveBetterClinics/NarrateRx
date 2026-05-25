@@ -158,16 +158,52 @@ function OrgGate({ clerkOrgId, children }) {
     return () => { cancelled = true }
   }, [match, isActive, setActive, activeOrgId])
 
-  // Stuck-detection timers. After 1.5s blank, show a spinner. After 5s,
-  // offer a Reload button (the underlying retry loop has already exhausted
-  // by then). Reset whenever the gate's children become renderable.
+  // Stuck-detection timers + auto-reload escape hatch.
+  //
+  // Despite #842 retrying setActive 10x at 500ms intervals (5s total), prod
+  // testing showed Clerk's session sometimes refuses to flip the active org
+  // no matter how many times we call setActive — only a fresh page load
+  // rehydrates it correctly. Manual reload always works. So at the 5s mark
+  // we just do the reload automatically.
+  //
+  // Loop guard: sessionStorage flag ensures only ONE auto-reload per arrival.
+  // If the reload also doesn't fix it, we leave the manual "Reload page"
+  // button visible so the user has agency without us pinging Clerk forever.
+  // The flag is cleared the moment children successfully render (effect
+  // below), so each new arrival gets a fresh chance to auto-recover.
   useEffect(() => {
     if (!isLoaded || !match) { setStuckLevel(0); return }
     if (isActive && tokenReady) { setStuckLevel(0); return }
     const t1 = setTimeout(() => setStuckLevel(s => Math.max(s, 1)), 1500)
-    const t2 = setTimeout(() => setStuckLevel(s => Math.max(s, 2)), 5000)
+    const t2 = setTimeout(() => {
+      setStuckLevel(s => Math.max(s, 2))
+      // Auto-reload once per arrival. A full page-load reliably re-hydrates
+      // Clerk into a clean state where the session reflects the cookie-stored
+      // active org (which our switcher's setActive already updated).
+      if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+        try {
+          const key = 'narraterx:orggate-stuck-reloaded'
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1')
+            console.warn('[OrgGate] session failed to activate within 5s; auto-reloading once')
+            window.location.reload()
+          } else {
+            console.error('[OrgGate] still stuck after auto-reload; surfacing manual Reload button')
+          }
+        } catch { /* sessionStorage disabled — show the button */ }
+      }
+    }, 5000)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [isLoaded, match, isActive, tokenReady])
+
+  // Clear the auto-reload guard the moment the gate successfully unblocks,
+  // so the NEXT workspace switch in the same tab starts with a clean slate
+  // and can auto-recover if it also gets stuck.
+  useEffect(() => {
+    if (isActive && tokenReady && typeof sessionStorage !== 'undefined') {
+      try { sessionStorage.removeItem('narraterx:orggate-stuck-reloaded') } catch { /* noop */ }
+    }
+  }, [isActive, tokenReady])
 
   // Once the session says the right org is active, confirm the issued token
   // actually carries that org before letting children fetch any API routes.
@@ -241,10 +277,14 @@ function OrgGate({ clerkOrgId, children }) {
           {stuckLevel === 2 && (
             <>
               <p className="text-sm text-muted-foreground">
-                Workspace is taking longer than expected to activate.
+                Workspace session is taking longer than expected. A page reload
+                usually resolves this.
               </p>
               <button
-                onClick={() => window.location.reload()}
+                onClick={() => {
+                  try { sessionStorage.removeItem('narraterx:orggate-stuck-reloaded') } catch { /* noop */ }
+                  window.location.reload()
+                }}
                 className="text-sm font-medium text-primary underline-offset-4 hover:underline"
               >
                 Reload page
