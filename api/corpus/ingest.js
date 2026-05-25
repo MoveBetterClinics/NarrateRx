@@ -1,41 +1,21 @@
 // POST /api/corpus/ingest
 //
-// Author Mode ingestion endpoint. Accepts a single piece of the clinician's
-// OWN prose and adds it to the raw-substrate corpus so the Author Mode
-// writing environment can retrieve from it.
+// Upsert a clinician corpus document (title + body) and index it into
+// practice_memory_chunks so the Author Mode semantic sidebar can retrieve it.
 //
-// ONLY original_blog and uploaded_draft are accepted here. AI-generated
-// content (interview summaries, approved content_items) is indexed
-// separately by the hot-tier hooks — never through this endpoint.
+// Body: { docType?: string, title: string, body: string }
+//   docType defaults to 'uploaded_draft'.
+//   Title uniqueness is enforced per (workspace, clinician, docType) so
+//   re-saving the same draft is idempotent — the existing row is updated.
 //
-// Flow:
-//   1. Validate + auth
-//   2. Upsert a row in clinician_corpus_documents (source of truth)
-//   3. Call indexOriginalBlog / indexUploadedDraft (chunks → embeds → upserts
-//      into practice_memory_chunks under source_type = doc_type)
-//   4. Return { ok: true, docId, chunks }
-//
-// Body:
-//   {
-//     docType:     'original_blog' | 'uploaded_draft'   (required)
-//     title:       string                                (required)
-//     body:        string                                (required, ≥100 chars)
-//     sourceUrl?:  string                                (optional, original_blog)
-//     docDate?:    ISO-8601 string                       (optional)
-//   }
-//
-// The caller must be authenticated and the workspace must be resolved from
-// the subdomain. clinician_id is resolved from the authenticated user.
-//
-// To update/re-index an existing document, POST the same title — the existing
-// row is patched and re-indexed (old chunks deleted, new chunks inserted).
-
-export const config = { runtime: 'nodejs', maxDuration: 60 }
+// Returns: { id, title, doc_type, updated_at }
+export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
-import { indexOriginalBlog, indexUploadedDraft } from '../_lib/practiceMemoryRag.js'
+import { chunkContent, searchPracticeMemory } from '../_lib/practiceMemoryRag.js'
+import { embedTexts } from '../_lib/embeddings.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -44,36 +24,25 @@ function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
     headers: {
-      apikey:         SUPABASE_KEY,
-      Authorization:  `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
+      apikey:          SUPABASE_KEY,
+      Authorization:   `Bearer ${SUPABASE_KEY}`,
+      'Content-Type':  'application/json',
+      Prefer:          'return=representation',
       ...init.headers,
     },
   })
 }
 
-const ok  = (res, data, status = 200) => res.status(status).json(data)
-const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
+const err = (res, msg, status = 400) => res.status(status).json({ error: msg })
 
-async function dbErr(res, r, msg = 'Database error', status = 500) {
+async function dbErr(res, r, msg = 'Database error') {
   const body = await r.text().catch(() => '')
-  console.error(`[corpus/ingest] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
-  return res.status(status).json({ error: msg })
-}
-
-/** Resolve the clinician row for the authenticated user in this workspace. */
-async function resolveClinicianId(workspaceId, userId) {
-  const r = await sb(
-    `clinicians?workspace_id=eq.${workspaceId}&user_id=eq.${userId}&select=id&limit=1`
-  )
-  if (!r.ok) return null
-  const [row] = await r.json()
-  return row?.id ?? null
+  console.error(`[corpus/ingest] ${msg} — supabase ${r.status}: ${body.slice(0, 300)}`)
+  return res.status(500).json({ error: msg })
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return err(res, 'Method not allowed', 405)
-  if (!(await enforceLimit(req, res, 'corpus-ingest'))) return
+  if (req.method !== 'POST') return res.status(405).send('Method not allowed')
 
   const ws = await workspaceContext(req)
   if (!ws) return err(res, 'Workspace not resolved', 400)
@@ -81,110 +50,121 @@ export default async function handler(req, res) {
   const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
-  const { docType, title, body, sourceUrl, docDate } = req.body ?? {}
+  if (!(await enforceLimit(req, res, 'generic'))) return
 
-  // Validation
-  if (!docType || !['original_blog', 'uploaded_draft'].includes(docType)) {
-    return err(res, 'docType must be "original_blog" or "uploaded_draft"')
-  }
-  if (!title || typeof title !== 'string' || !title.trim()) {
-    return err(res, 'title is required')
-  }
-  if (!body || typeof body !== 'string' || body.trim().length < 100) {
-    return err(res, 'body must be at least 100 characters')
-  }
+  const { docType = 'uploaded_draft', title, body } = req.body || {}
+  if (!title || typeof title !== 'string' || !title.trim()) return err(res, 'Missing title')
+  if (typeof body !== 'string') return err(res, 'Missing body')
 
-  const clinicianId = await resolveClinicianId(ws.id, auth.userId)
-  // clinicianId can be null for workspace-level ingestion (admin scripts),
-  // but we want a real clinician for Author Mode retrieval.
-  if (!clinicianId) {
-    return err(res, 'No clinician record found for this user', 404)
-  }
+  const ALLOWED_DOC_TYPES = new Set(['uploaded_draft', 'original_blog', 'interview_transcript_full'])
+  if (!ALLOWED_DOC_TYPES.has(docType)) return err(res, 'Invalid docType')
 
-  // Check for an existing document with the same title.
-  const existRes = await sb(
-    `clinician_corpus_documents?workspace_id=eq.${ws.id}` +
-    `&clinician_id=eq.${clinicianId}` +
-    `&title=eq.${encodeURIComponent(title.trim())}` +
-    `&select=id,updated_at` +
-    `&limit=1`
+  // Resolve clinician_id from the authenticated user.
+  const clinicianRes = await sb(
+    `clinicians?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}&select=id&limit=1`
   )
-  if (!existRes.ok) return dbErr(res, existRes, 'lookup failed')
-  const [existing] = await existRes.json()
+  if (!clinicianRes.ok) return dbErr(res, clinicianRes, 'Clinician lookup failed')
+  const clinicianRows = await clinicianRes.json()
+  if (!clinicianRows.length) return err(res, 'Clinician not found for this user', 404)
+  const clinicianId = clinicianRows[0].id
 
-  // Count how many chunks we currently have for this source
-  async function countChunks(docId) {
-    const r = await sb(
-      `practice_memory_chunks?source_id=eq.${docId}&source_type=eq.${docType}&select=id`
-    )
-    if (!r.ok) return 0
-    const rows = await r.json()
-    return rows.length
-  }
+  const titleTrimmed = title.trim()
+  const bodyTrimmed  = body.trim()
 
-  if (existing) {
-    // Same title already exists. Re-index in case body changed.
-    // Upsert updated body/url/date.
-    const patchRes = await sb(
-      `clinician_corpus_documents?id=eq.${existing.id}`,
+  // Upsert the document row. The unique index on (workspace_id, clinician_id,
+  // doc_type, title) WHERE archived_at IS NULL drives the on_conflict key.
+  const upsertRes = await sb(
+    'clinician_corpus_documents?on_conflict=workspace_id,clinician_id,doc_type,title',
+    {
+      method: 'POST',
+      headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+      body: JSON.stringify({
+        workspace_id: ws.id,
+        clinician_id: clinicianId,
+        doc_type:     docType,
+        title:        titleTrimmed,
+        body:         bodyTrimmed,
+      }),
+    }
+  )
+  if (!upsertRes.ok) return dbErr(res, upsertRes, 'Upsert failed')
+  const rows = await upsertRes.json()
+  const doc  = rows[0]
+  if (!doc) return err(res, 'Upsert returned no row', 500)
+
+  // Index into practice_memory_chunks asynchronously — don't block the save
+  // response on embedding latency.
+  setImmediate(() => indexCorpusDoc({ doc, workspaceId: ws.id, clinicianId }).catch(() => {}))
+
+  return res.status(200).json({ id: doc.id, title: doc.title, doc_type: doc.doc_type, updated_at: doc.updated_at })
+}
+
+// Fire-and-forget: chunk + embed + upsert into practice_memory_chunks so
+// the RAG sidebar can retrieve text from this document.
+async function indexCorpusDoc({ doc, workspaceId, clinicianId }) {
+  try {
+    if (!doc.body.trim()) return
+
+    const chunks    = chunkContent(doc.body)
+    if (!chunks.length) return
+    const embeddings = await embedTexts(chunks)
+
+    const dateLabel = doc.updated_at ? new Date(doc.updated_at).toISOString().slice(0, 10) : ''
+    const baseLabel = doc.title
+      ? `Draft: "${doc.title}"${dateLabel ? ` (${dateLabel})` : ''}`
+      : `Draft${dateLabel ? ` (${dateLabel})` : ''}`
+
+    const payload = chunks.map((text, i) => {
+      const embedding = embeddings[i]
+      if (!embedding) return null
+      return {
+        workspace_id: workspaceId,
+        clinician_id: clinicianId,
+        source_type:  'uploaded_draft',
+        source_id:    doc.id,
+        chunk_index:  i,
+        source_label: chunks.length > 1
+          ? `${baseLabel} — section ${i + 1}/${chunks.length}`
+          : baseLabel,
+        text,
+        tokens:       Math.ceil(text.length / 4),
+        embedding:    `[${embedding.join(',')}]`,
+      }
+    }).filter(Boolean)
+
+    if (!payload.length) return
+
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/practice_memory_chunks?on_conflict=source_type,source_id,chunk_index`, {
+      method:  'POST',
+      headers: {
+        apikey:          SUPABASE_KEY,
+        Authorization:   `Bearer ${SUPABASE_KEY}`,
+        'Content-Type':  'application/json',
+        Prefer:          'resolution=merge-duplicates,return=minimal',
+      },
+      body: JSON.stringify(payload),
+    })
+    if (!r.ok) {
+      const body = await r.text().catch(() => '')
+      console.error(`[corpus/ingest] chunk upsert ${r.status}: ${body.slice(0, 300)}`)
+    }
+
+    // Remove orphan chunks from a prior (shorter) version of this document.
+    const delRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/practice_memory_chunks?source_type=eq.uploaded_draft&source_id=eq.${doc.id}&chunk_index=gte.${payload.length}`,
       {
-        method: 'PATCH',
-        headers: { Prefer: 'return=representation' },
-        body: JSON.stringify({
-          body:       body.trim(),
-          source_url: sourceUrl ?? null,
-          doc_date:   docDate ?? null,
-          updated_at: new Date().toISOString(),
-        }),
+        method:  'DELETE',
+        headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` },
       }
     )
-    if (!patchRes.ok) return dbErr(res, patchRes, 'patch failed')
-
-    await reindex({ workspaceId: ws.id, clinicianId, docId: existing.id, docType, title: title.trim(), body: body.trim(), docDate })
-    const chunks = await countChunks(existing.id)
-    return ok(res, { ok: true, docId: existing.id, chunks, action: 'updated' })
-  }
-
-  // Insert new document
-  const insertRes = await sb('clinician_corpus_documents', {
-    method: 'POST',
-    headers: { Prefer: 'return=representation' },
-    body: JSON.stringify({
-      workspace_id: ws.id,
-      clinician_id: clinicianId,
-      doc_type:     docType,
-      title:        title.trim(),
-      body:         body.trim(),
-      source_url:   sourceUrl ?? null,
-      doc_date:     docDate ?? null,
-    }),
-  })
-  if (!insertRes.ok) return dbErr(res, insertRes, 'insert failed')
-  const [doc] = await insertRes.json()
-
-  await reindex({ workspaceId: ws.id, clinicianId, docId: doc.id, docType, title: title.trim(), body: body.trim(), docDate })
-  const chunks = await countChunks(doc.id)
-  return ok(res, { ok: true, docId: doc.id, chunks, action: 'created' }, 201)
-}
-
-async function reindex({ workspaceId, clinicianId, docId, docType, title, body, docDate }) {
-  if (docType === 'original_blog') {
-    await indexOriginalBlog({
-      workspaceId,
-      clinicianId,
-      blogId:      docId,
-      title,
-      body,
-      publishedAt: docDate,
-    })
-  } else {
-    await indexUploadedDraft({
-      workspaceId,
-      clinicianId,
-      docId,
-      title,
-      body,
-      uploadedAt:  docDate,
-    })
+    if (!delRes.ok) {
+      const body = await delRes.text().catch(() => '')
+      console.error(`[corpus/ingest] orphan cleanup ${delRes.status}: ${body.slice(0, 200)}`)
+    }
+  } catch (e) {
+    console.error(`[corpus/ingest] indexCorpusDoc threw: ${e?.message}`)
   }
 }
+
+// Re-export searchPracticeMemory under the name the feature spec expects.
+export { searchPracticeMemory as searchAuthorCorpus }

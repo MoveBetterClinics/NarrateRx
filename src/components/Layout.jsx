@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
-import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, UserCircle, Mic2 } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, UserCircle, Mic2, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
@@ -23,6 +23,7 @@ const NAV_ITEMS = [
   { to: '/stories',    label: 'Stories',   match: (p) => p.startsWith('/stories') },
   { to: '/library',    label: 'Library',   match: (p) => p.startsWith('/library') },
   { to: '/pre-visit',  label: 'Pre-Visit', match: (p) => p.startsWith('/pre-visit'), icon: Mic2 },
+  { to: '/write',      label: 'Write',     match: (p) => p.startsWith('/write'), icon: BookOpen },
 ]
 
 export default function Layout({ children }) {
@@ -56,7 +57,7 @@ export default function Layout({ children }) {
               overflow on phones — the hamburger holds the same items. */}
           <nav className="hidden md:flex items-center gap-4">
             {NAV_ITEMS.map((item) => (
-              <NavLink key={item.to} to={item.to} label={item.label} active={item.match(location.pathname)} />
+              <NavLink key={item.to} to={item.to} label={item.label} active={item.match(location.pathname)} icon={item.icon} />
             ))}
           </nav>
           <div className="hidden md:flex items-center gap-1">
@@ -161,12 +162,13 @@ export default function Layout({ children }) {
   )
 }
 
-function NavLink({ to, label, active }) {
+function NavLink({ to, label, active, icon: Icon }) {
   return (
     <Link
       to={to}
-      className={`text-sm font-medium transition-colors px-1 pb-0.5 border-b-2 ${active ? 'text-foreground border-primary' : 'text-muted-foreground border-transparent hover:text-foreground'}`}
+      className={`inline-flex items-center gap-1.5 text-sm font-medium transition-colors px-1 pb-0.5 border-b-2 ${active ? 'text-foreground border-primary' : 'text-muted-foreground border-transparent hover:text-foreground'}`}
     >
+      {Icon && <Icon className="h-3.5 w-3.5 shrink-0" />}
       {label}
     </Link>
   )
