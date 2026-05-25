@@ -173,6 +173,53 @@ export default async function handler(req, res) {
   const messages = Array.isArray(interview.messages) ? interview.messages : []
   if (messages.length < 2) return err(res, 'Transcript too short to synthesize', 422)
 
+  // ── Atomic claim (real runs only) ──────────────────────────────────────
+  // Flip status from 'completed' → 'synthesizing' with a conditional PATCH
+  // (filter: status=eq.completed). Concurrent callers race here; only one
+  // PATCH returns a row, the other gets zero rows back and bails with 409.
+  // Without this, two requests can both pass the status gate above, both
+  // run a ~30s Claude call, and both clobber workspaces.brand_voice /
+  // patient_context / topic_suggestions while doubling voice_phrases
+  // upserts (P0-2, audit 2026-05-24). Dry runs skip the claim — they
+  // don't write, so there's nothing to race on.
+  if (!isDryRun) {
+    const claimR = await sb(
+      `workspace_onboarding_interviews?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${ws.id}&status=eq.completed`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'synthesizing',
+          updated_at: new Date().toISOString(),
+        }),
+      }
+    )
+    if (!claimR.ok) return dbErr(res, claimR, 'Claim failed')
+    const claimRows = await claimR.json()
+    if (!claimRows.length) {
+      return err(res, 'Another synthesis is already in flight or has already completed', 409)
+    }
+  }
+
+  // After this point, on any failure we must revert status back to
+  // 'completed' so the user can retry — otherwise the row is stuck in
+  // 'synthesizing' forever.
+  const revertClaim = async () => {
+    try {
+      await sb(
+        `workspace_onboarding_interviews?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${ws.id}&status=eq.synthesizing`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({
+            status: 'completed',
+            updated_at: new Date().toISOString(),
+          }),
+        }
+      )
+    } catch (e) {
+      console.error('[onboarding/synthesize] revert claim failed:', e?.message)
+    }
+  }
+
   // Load the founder's clinician row + the current workspace patient_context
   // so we can merge additively. One round-trip; both lookups are cheap.
   const fname = (founderName || '').trim() || 'Founder'
@@ -182,8 +229,8 @@ export default async function handler(req, res) {
       : Promise.resolve({ ok: true, json: async () => [] }),
     sb(`workspaces?id=eq.${ws.id}&select=patient_context,topic_suggestions,brand_voice,display_name`),
   ])
-  if (!clinR.ok) return dbErr(res, clinR, 'Clinician load failed')
-  if (!wsR.ok)   return dbErr(res, wsR,   'Workspace load failed')
+  if (!clinR.ok) { await revertClaim(); return dbErr(res, clinR, 'Clinician load failed') }
+  if (!wsR.ok)   { await revertClaim(); return dbErr(res, wsR,   'Workspace load failed') }
 
   const clinician = (await clinR.json())[0] || null
   const wsRow     = (await wsR.json())[0] || {}
@@ -205,6 +252,7 @@ export default async function handler(req, res) {
     rawText = text
   } catch (e) {
     console.error('[onboarding/synthesize] generateText failed:', e?.message)
+    await revertClaim()
     return err(res, e?.message || 'Synthesis call failed', 502)
   }
 
@@ -213,6 +261,7 @@ export default async function handler(req, res) {
     parsed = JSON.parse(stripFences(rawText))
   } catch {
     console.error('[onboarding/synthesize] JSON parse failed; raw output (first 1000):', String(rawText).slice(0, 1000))
+    await revertClaim()
     return err(res, 'Synthesizer returned non-JSON output', 502)
   }
 
@@ -221,6 +270,7 @@ export default async function handler(req, res) {
     normalized = validateSynthesis(parsed)
   } catch (e) {
     console.error('[onboarding/synthesize] validation failed:', e?.message, 'parsed:', JSON.stringify(parsed).slice(0, 1000))
+    await revertClaim()
     return err(res, `Synthesis validation failed: ${e?.message}`, 502)
   }
 
@@ -289,7 +339,7 @@ export default async function handler(req, res) {
     method: 'PATCH',
     body: JSON.stringify(wsPatch),
   })
-  if (!patchR.ok) return dbErr(res, patchR, 'Workspace update failed')
+  if (!patchR.ok) { await revertClaim(); return dbErr(res, patchR, 'Workspace update failed') }
   // The synthesize step writes patient_context / topic_suggestions /
   // brand_voice / display_name onto the workspace, and the user is redirected
   // straight to Settings. Drop the per-instance cache so the first GET on
