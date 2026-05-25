@@ -2,7 +2,12 @@ import { withSentry } from '../_lib/sentry.js'
 export const config = { runtime: 'nodejs' }
 // Workspace profile endpoint.
 //
-// GET  — returns the active workspace row (resolved from Host header). No auth required.
+// GET  — returns the active workspace row (resolved from Host header).
+//        Unauthenticated callers (or JWTs whose org_id doesn't match this
+//        workspace's clerk_org_id) get a slim public-branding shape so the
+//        sign-in page can render without leaking tenant-editable fields like
+//        brand_voice, patient_context, schedule_prefs, etc. (Audit
+//        2026-05-25 item 9.) Authenticated, org-bound callers get the full row.
 // PATCH — updates tenant-editable fields on the workspace row. Requires Clerk admin role.
 //
 // 404 when no resolvable workspace (apex, www, preview URL, unknown subdomain).
@@ -206,6 +211,25 @@ async function handler(req, res) {
     const workspace = await workspaceContext(req)
     if (!workspace) return res.status(404).json({ error: 'no-workspace-context' })
 
+    // Gate the full row behind a Clerk session bound to this workspace's org.
+    // Unauth/wrong-org callers get a slim shape (sign-in page branding only).
+    // We don't 401 here because the sign-in page itself is unauth and reads
+    // app_name / sign_in_blurb from this endpoint to render the panel.
+    const auth = await requireRole(req, null, { orgId: workspace.clerk_org_id })
+    res.setHeader('Cache-Control', 'private, no-store')
+
+    if (!auth.ok) {
+      return res.status(200).json({
+        id:               workspace.id,
+        slug:             workspace.slug,
+        app_name:         workspace.app_name,
+        display_name:     workspace.display_name,
+        sign_in_blurb:    workspace.sign_in_blurb,
+        logo:             workspace.logo,
+        colors:           workspace.colors,
+      })
+    }
+
     // Attach active workspace_locations so the SPA can render the per-post
     // location picker without an extra round trip. Locations are not secret —
     // the same identity (city/region/hashtag) is already interpolated into
@@ -242,7 +266,6 @@ async function handler(req, res) {
       console.error('[workspace/me] primary_logo fetch failed:', e?.message)
     }
 
-    res.setHeader('Cache-Control', 'private, no-store')
     return res.status(200).json({ ...workspace, locations, primary_logo_url })
   }
 

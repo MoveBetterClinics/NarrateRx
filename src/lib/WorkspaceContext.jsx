@@ -1,5 +1,6 @@
-import { createContext, useContext } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { createContext, useContext, useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@clerk/clerk-react'
 import { workspace as STATIC } from './workspace'
 import { queryKeys } from './queries'
 
@@ -61,8 +62,17 @@ function isSubdomainHost() {
 // "404 — apex/preview, fall back to STATIC silently" from "5xx — something is
 // actually wrong on a subdomain". TanStack treats throws as errors and resolves
 // as success; we resolve normally and let the consumer branch.
+// Attach the Clerk bearer token when the session is hydrated so the server
+// returns the full workspace row (brand_voice, patient_context, etc.).
+// Unauthenticated callers — including this same fetch on first paint before
+// Clerk hydrates — get a slim public-branding shape used by the sign-in page.
 async function fetchWorkspaceMe() {
-  const r = await fetch('/api/workspace/me')
+  const headers = {}
+  try {
+    const token = await window.Clerk?.session?.getToken?.()
+    if (token) headers.Authorization = `Bearer ${token}`
+  } catch { /* unauth fetch is the supported fallback */ }
+  const r = await fetch('/api/workspace/me', { headers, credentials: 'include' })
   if (r.ok) return { row: await r.json(), status: 200 }
   return { row: null, status: r.status }
 }
@@ -78,6 +88,18 @@ export function WorkspaceProvider({ children }) {
     // session. Settings page invalidates on save when the user edits it.
     staleTime: 5 * 60_000,
   })
+
+  // When the Clerk session flips (sign-in, sign-out, org switch), refetch
+  // /api/workspace/me so the slim public-branding shape served pre-auth is
+  // replaced by the full row — and vice versa on sign-out. Without this, the
+  // first fetch (unauth) stays cached for the staleTime window and signed-in
+  // pages that need brand_voice / patient_context render empty.
+  const { isLoaded, isSignedIn, orgId } = useAuth()
+  const qc = useQueryClient()
+  useEffect(() => {
+    if (!isLoaded) return
+    qc.invalidateQueries({ queryKey: queryKeys.workspace.me })
+  }, [isLoaded, isSignedIn, orgId, qc])
 
   // Resolve workspace + error from the query result. Apex/www/preview hit
   // 404 and silently fall back to STATIC (the build-time legacy shape).
