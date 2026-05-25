@@ -267,10 +267,10 @@ function Card({ title, subtitle, children, footer }) {
 
 function LoadingScreen() {
   return (
-    <Card title="Loading…">
+    <Card title="Just a moment…" subtitle="Checking if founding-owner spots are still open.">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Checking founding-owner availability
+        <Loader2 className="h-4 w-4 animate-spin text-orange-600" />
+        Loading
       </div>
     </Card>
   )
@@ -325,6 +325,17 @@ function AuthScreen({ capacity, onSignedIn }) {
         </div>
       )}
       <SignedOut>
+        {/* "What you'll need" pre-screen so brand-new users don't bail mid-flow.
+            Shown only to signed-out users — returning users skip it. */}
+        <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1.5">
+          <div className="font-semibold text-foreground">Before you start</div>
+          <ul className="list-disc list-inside text-muted-foreground space-y-0.5">
+            <li>About 5 minutes to fill in your business + voice setup</li>
+            <li>Your website URL (we&apos;ll auto-extract what we can)</li>
+            <li>A subdomain you want (e.g. <code className="px-1 py-0.5 rounded bg-background border text-3xs">yourclinic</code>.narraterx.ai)</li>
+            <li>Logo + brand colors come later — not blocking</li>
+          </ul>
+        </div>
         <div className="flex items-center gap-2 text-xs">
           <button
             type="button"

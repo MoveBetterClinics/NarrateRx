@@ -32,6 +32,29 @@ function clerk() {
   return _clerk
 }
 
+// Fire-and-forget: fetch the NarrateRx mark from the deployed apex and
+// upload it as the org logo. Replaces Clerk's default purple-building avatar.
+// Never throws — log only. Skipped silently in dev when the apex isn't reachable.
+async function uploadDefaultOrgLogo(orgId, userId) {
+  try {
+    const logoUrl = 'https://narraterx.ai/brand/narraterx-icon-512.png'
+    const r = await fetch(logoUrl)
+    if (!r.ok) {
+      console.warn(`[claim] default-logo fetch ${r.status} for org=${orgId}`)
+      return
+    }
+    const ab = await r.arrayBuffer()
+    const file = new Blob([ab], { type: 'image/png' })
+    await clerk().organizations.updateOrganizationLogo({
+      organizationId:  orgId,
+      file,
+      uploaderUserId:  userId,
+    })
+  } catch (e) {
+    console.warn(`[claim] default-logo upload failed for org=${orgId}: ${e?.message}`)
+  }
+}
+
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...init,
@@ -186,6 +209,13 @@ async function handler(req, res) {
     console.error('[claim] createOrganization failed:', e?.message)
     return res.status(500).json({ error: 'org-create-failed', detail: e?.message })
   }
+
+  // 2a. Replace the generic Clerk org avatar with the NarrateRx mark.
+  // Fire-and-forget — failure here shouldn't break the claim flow. Resolves
+  // Clerk-dashboard-punchlist item #3 (new orgs got the purple building
+  // icon). Once the user completes /onboard/brand-kit, their own logo can
+  // replace this; until then the NarrateRx mark is a much better default.
+  uploadDefaultOrgLogo(org.id, userId)
 
   // 3. Insert workspace row.
   const insertBody = [{
