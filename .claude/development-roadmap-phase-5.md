@@ -1,5 +1,7 @@
 # NarrateRx — Development Roadmap, Phase 5
 
+> **PHASE 5 CLOSED (2026-05-24).** Features 1–3 shipped. Feature 4 dormant after PR1 (flag off everywhere). Feature 5 shelved. See [Phase 5 close-out note](#phase-5-close-out-2026-05-24) at the bottom of this doc. Next strategic pass is a separate task — do not start new work from this doc.
+
 _Created 2026-05-23. Status-refreshed 2026-05-24 after discovering Feature #1 had shipped under a parallel session._
 
 _Sequenced from the May 22 strategic review (`memory/project_strategic_review_2026_05_22.md`) and the relationship-moat thesis (`memory/project_relationship_moat_thesis.md`)._
@@ -8,6 +10,8 @@ _Sequenced from the May 22 strategic review (`memory/project_strategic_review_20
 - ✅ **Shipped** — code in `main`, behind workspace flag where relevant, iterating on quality
 - 🚧 **In progress** — worktree exists, partial implementation
 - 📋 **Queued** — designed, not started
+- 💤 **Dormant** — code shipped behind flag, flag off everywhere, no plans to enable
+- ❌ **Shelved** — not built; will not be built without a category-level decision reversal
 
 ## North star (unchanged)
 
@@ -195,7 +199,7 @@ After ~5 completed interviews, the clinician has enough clean audio that ElevenL
 
 ## Feature 4 — Post-visit patient handouts
 
-**Status:** 📋 Queued. Target window: ~5 weeks after phone-call mode lands.
+**Status:** 💤 **DORMANT as of 2026-05-24.** PR1 (#815) shipped — capture page, generation prompt, and migration 076 live behind `workspaces.patient_handouts_enabled` (default false). Verified via Supabase MCP on 2026-05-24: zero workspaces have the flag on. PRs 2–4 (branded template, email delivery, voice-clone audio) will not be built. Reason: shelved under the patient-facing-AI-content category decision below (also kills F#5). See `memory/principle_no_patient_facing_ai_content.md`. Code retained dormant so a future reversal is cheap.
 
 ### What changes
 
@@ -241,7 +245,7 @@ This is the relationship thesis made concrete: content marketing gets the patien
 
 ## Feature 5 — Outcome-tied case study generator (consent-gated)
 
-**Status:** 📋 Queued. Target window: ~8 weeks after phone-call mode lands.
+**Status:** ❌ **SHELVED as of 2026-05-24.** Not built. Shelved as a category decision alongside F#4: NarrateRx will not put AI-generated content in front of real patients, even with consent + anonymization. See `memory/principle_no_patient_facing_ai_content.md`. Revival would require a deliberate reversal of that principle, not a feature-level decision.
 
 ### What changes
 
@@ -301,15 +305,26 @@ At discharge or a milestone visit, a consent form goes out to the patient (email
 
 | # | Feature | Status | Effort | Est. Claude Cost | Compounds with |
 |---|---|---|---|---|---|
-| 1 | Phone-call mode | ✅ Shipped (May 23–24) | ~Done | ~Spent | Foundation |
-| 2 | Practice memory | 🚧 In progress | 8–11 days | $30–60 | Substrate for 3/4/5 |
-| 3 | Voice clone | 📋 Queued | 5–6 days | $10–20 | Audio for 4/5 |
-| 4 | Patient handouts | 📋 Queued | 7–9 days | $15–25 | Builds on 2/3 |
-| 5 | Outcome case studies | 📋 Queued | 19–24 days | $60–100 | Builds on 2/3 |
+| 1 | Live Interview | ✅ Shipped (May 23–24) | ~Done | ~Spent | Foundation |
+| 2 | Practice memory | ✅ Shipped — hot tier #789/#794/#796 + RAG layer #803/#804/#806 | ~Done | ~Spent | Substrate for 3 |
+| 3 | Voice clone | ✅ Shipped — #807/#808/#809 + first caller #816 | ~Done | ~Spent | Read-aloud preview live |
+| 4 | Patient handouts | 💤 Dormant — PR1 #815 shipped behind flag, PRs 2–4 not built | — | — | — |
+| 5 | Outcome case studies | ❌ Shelved (category decision) | — | — | — |
 
-**Phase 5 progress (as of 2026-05-24):** Feature 1 of 5 shipped. Feature 2 in active development. Three to go.
+**Phase 5 closed as of 2026-05-24.** 3 of 5 features shipped; 2 stopped by a deliberate category decision against patient-facing AI content.
 
-**Remaining Claude cost estimate:** ~$115–205 for features 2–5.
+---
+
+## Phase 5 close-out (2026-05-24)
+
+**What shipped:** Live Interview (with practice-memory + voice-clone substrate underneath), persistent practice memory (hot tier + RAG), and clinician voice clone with its first caller surface (read-aloud preview on content pieces). All three are clinician-facing moats — exactly the Shape B "narrow + deep" direction from the May 22 strategic review.
+
+**What didn't, and why:** Patient handouts (F#4) and outcome case studies (F#5) are both patient-facing AI content surfaces. After dogfooding the rest of Phase 5, the decision is that NarrateRx will not produce AI-generated content directed at real patients — handouts emailed to patients, case studies tethered to real outcomes, future ideas in the same lane (AI-voiced SMS reminders, AI-drafted patient replies). The relationship-moat thesis says amplify real moments; AI ghostwriting *to* a patient crosses that line. Captured as a durable principle so future feature ideas in this category get filtered automatically: see `memory/principle_no_patient_facing_ai_content.md`.
+
+**Phase 5 disposition:**
+- F#4 code stays dormant. Flag default-off (verified zero workspaces enabled). Cheap to revive if the principle is ever reversed.
+- F#5 is not built and won't be without a category-level reversal.
+- No new work should be picked up from this roadmap. Next direction is a fresh strategic pass (spawned as a separate task on 2026-05-24).
 
 ---
 
