@@ -24,6 +24,7 @@ import { ConfirmDialog } from '@/components/ui/alert-dialog'
 import MicCheck from '@/components/MicCheck'
 import { createTtsPlayer, primeAudioPlayback, onAudioPlaybackFailure } from '@/lib/tts'
 import { useRegisterBusy } from '@/lib/appBusy'
+import { useInterviewAudioCapture } from '@/hooks/useInterviewAudioCapture'
 
 // Concrete noun list for shallow-answer detection (Feature 2)
 const CONCRETE_NOUNS = ['patient', 'person', 'name', 'case', 'example', 'time', 'moment', 'client', 'athlete', 'runner', 'worker']
@@ -159,6 +160,7 @@ export default function InterviewSession() {
 
   const runtimeWorkspace = useWorkspace()
   const VOICE_MODES = getVoiceModes(runtimeWorkspace)
+  const { startCapture, stopAndUpload } = useInterviewAudioCapture()
   const PATIENT_PROTOTYPES_UI = getPatientPrototypesUi(runtimeWorkspace)
 
   // Initial fetches go through the shared query cache. Cache hits when the
@@ -705,6 +707,9 @@ export default function InterviewSession() {
   useEffect(() => {
     if (!clinician || !interview || hasStarted.current || showInstructions || !micCheckPassed) return
     hasStarted.current = true
+    // Start recording the clinician's mic for voice clone training.
+    // Non-blocking + non-fatal — interview continues even if capture fails.
+    startCapture()
     if (messages.length === 0) {
       sendToAI([])
     } else {
@@ -1132,6 +1137,13 @@ export default function InterviewSession() {
       populateContentItemProvenance(interviewId, provenanceJson || '', 'blog').catch((err) => {
         console.warn('[interview] provenance population failed:', err?.message)
       })
+      // Stop mic recording + upload audio for voice clone training.
+      // Fire-and-forget — resolve() fires before the upload completes so
+      // we don't block the navigation. Any upload failure is silent.
+      stopAndUpload(interviewId).catch((e) => {
+        console.warn('[interview] audio upload failed (non-fatal):', e?.message)
+      })
+
       // Generation done — hand the user off to the Story Detail page. The
       // server-side cascade triggered by the PATCH above has created the
       // content_items rows; the invalidated queries make Stories Detail show
