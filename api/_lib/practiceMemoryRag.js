@@ -235,7 +235,7 @@ function cap(s) {
  * @param {string[]=} args.excludeSourceIds — skip these source IDs (e.g., hot-tier items, current interview)
  * @returns {Promise<Array<{source_type, source_id, source_label, text, similarity}>>}
  */
-export async function searchPracticeMemory({ workspaceId, clinicianId, query, topK = 6, excludeSourceIds = [] }) {
+export async function searchPracticeMemory({ workspaceId, clinicianId, query, topK = 6, excludeSourceIds = [], sourceTypes = null }) {
   try {
     if (!workspaceId) return []
     const q = String(query || '').trim()
@@ -252,6 +252,7 @@ export async function searchPracticeMemory({ workspaceId, clinicianId, query, to
         p_query_embedding:    `[${embedding.join(',')}]`,
         p_match_count:        topK,
         p_exclude_source_ids: excludeSourceIds,
+        p_source_types:       sourceTypes,
       }),
     })
     if (!r.ok) {
@@ -264,4 +265,228 @@ export async function searchPracticeMemory({ workspaceId, clinicianId, query, to
     console.error(`[practiceMemoryRag] searchPracticeMemory threw: ${e?.message}`)
     return []
   }
+}
+
+// ---------------------------------------------------------------------------
+// Author Mode — raw-substrate indexers + retrieval.
+//
+// These index source types added by migration 078:
+//   - interview_transcript_full  — paragraph-chunks of the clinician's raw
+//                                  spoken/typed interview turns (not the
+//                                  AI summary)
+//   - original_blog              — blog posts the clinician typed themselves
+//                                  pre-NarrateRx
+//   - uploaded_draft             — arbitrary draft documents (notes, longhand
+//                                  drafts, transcribed voice memos)
+//
+// Critical principle: Author Mode retrieval (searchAuthorCorpus) filters to
+// JUST these three types, never AI-generated text. The clinician composes
+// their book by pulling from their own raw words; the model never substitutes.
+// ---------------------------------------------------------------------------
+
+/**
+ * Source types that constitute the "raw substrate" — the clinician's own
+ * spoken or typed words, never AI-generated. Author Mode reads only these.
+ */
+export const AUTHOR_MODE_SOURCE_TYPES = [
+  'interview_transcript_full',
+  'original_blog',
+  'uploaded_draft',
+]
+
+/**
+ * Build a single body string from a messages array where assistant turns
+ * become bracketed context markers and user turns are the actual content.
+ * For single-user (text-import) interviews, just returns the user content.
+ */
+function buildTranscriptBody(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return ''
+  const parts = []
+  let lastAsk = null
+  for (const m of messages) {
+    if (!m || typeof m.content !== 'string') continue
+    const content = m.content.trim()
+    if (!content) continue
+    if (m.role === 'assistant') {
+      // Hold onto the most recent assistant prompt so we can pair it with
+      // the next user turn. If two assistant turns fire in a row, the last
+      // one wins (rare; matches user-visible flow).
+      lastAsk = content
+      continue
+    }
+    if (m.role === 'user') {
+      if (lastAsk) {
+        // First sentence of the prompt, max 140 chars. Keeps the chunk's
+        // visible "voice" overwhelmingly the clinician's own words.
+        const askLine = lastAsk.split(/(?<=[.?!])\s/)[0].slice(0, 140).trim()
+        parts.push(`[Asked: ${askLine}${askLine.length === 140 ? '…' : ''}]\n\n${content}`)
+        lastAsk = null
+      } else {
+        parts.push(content)
+      }
+    }
+  }
+  return parts.join('\n\n')
+}
+
+/**
+ * Index the raw transcript of an interview as paragraph-chunks of the
+ * clinician's own words. Author Mode's primary substrate.
+ *
+ * Prefers cleanedMessages (filler removed, voice preserved) and falls back
+ * to messages. Assistant prompts become inline "[Asked: ...]" markers so
+ * retrieved chunks land with their question for context.
+ */
+export async function indexInterviewTranscriptFull({
+  workspaceId,
+  clinicianId,
+  interviewId,
+  messages,
+  cleanedMessages,
+  topic,
+  createdAt,
+}) {
+  try {
+    if (!workspaceId || !interviewId) return
+    const turns = (Array.isArray(cleanedMessages) && cleanedMessages.length)
+      ? cleanedMessages
+      : (Array.isArray(messages) ? messages : [])
+    const body = buildTranscriptBody(turns)
+    if (!body) return
+
+    const chunks = chunkContent(body)
+    if (chunks.length === 0) return
+
+    const embeddings = await embedTexts(chunks)
+    const dateLabel = createdAt ? new Date(createdAt).toISOString().slice(0, 10) : ''
+    const baseLabel = topic
+      ? `Interview transcript: "${topic}"${dateLabel ? ` (${dateLabel})` : ''}`
+      : `Interview transcript${dateLabel ? ` (${dateLabel})` : ''}`
+
+    const rows = chunks.map((text, i) => {
+      const embedding = embeddings[i]
+      if (!embedding) return null
+      return {
+        workspaceId,
+        clinicianId:  clinicianId ?? null,
+        sourceType:   'interview_transcript_full',
+        sourceId:     interviewId,
+        chunkIndex:   i,
+        sourceLabel:  chunks.length > 1
+          ? `${baseLabel} — section ${i + 1}/${chunks.length}`
+          : baseLabel,
+        text,
+        tokens:       approxTokens(text),
+        embedding,
+      }
+    }).filter(Boolean)
+
+    await upsertChunks(rows)
+    await deleteExtraChunks('interview_transcript_full', interviewId, rows.length)
+  } catch (e) {
+    console.error(`[practiceMemoryRag] indexInterviewTranscriptFull interview=${interviewId} threw: ${e?.message}`)
+  }
+}
+
+/**
+ * Shared body for original_blog and uploaded_draft indexers — same chunking
+ * + embedding + upsert flow, parameterized on source type + labels.
+ */
+async function indexAuthoredProse({
+  workspaceId,
+  clinicianId,
+  sourceId,
+  sourceType,
+  title,
+  body,
+  dateLabel,
+  kindLabel,
+}) {
+  try {
+    if (!workspaceId || !sourceId) return
+    const text = String(body || '').trim()
+    if (!text) return
+
+    const chunks = chunkContent(text)
+    if (chunks.length === 0) return
+
+    const embeddings = await embedTexts(chunks)
+    const datePart = dateLabel ? new Date(dateLabel).toISOString().slice(0, 10) : ''
+    const titleLabel = String(title || '').trim() || 'Untitled'
+    const baseLabel = `${kindLabel}: "${titleLabel}"${datePart ? ` (${datePart})` : ''}`
+
+    const rows = chunks.map((t, i) => {
+      const embedding = embeddings[i]
+      if (!embedding) return null
+      return {
+        workspaceId,
+        clinicianId:  clinicianId ?? null,
+        sourceType,
+        sourceId,
+        chunkIndex:   i,
+        sourceLabel:  chunks.length > 1
+          ? `${baseLabel} — section ${i + 1}/${chunks.length}`
+          : baseLabel,
+        text:         t,
+        tokens:       approxTokens(t),
+        embedding,
+      }
+    }).filter(Boolean)
+
+    await upsertChunks(rows)
+    await deleteExtraChunks(sourceType, sourceId, rows.length)
+  } catch (e) {
+    console.error(`[practiceMemoryRag] indexAuthoredProse type=${sourceType} sourceId=${sourceId} threw: ${e?.message}`)
+  }
+}
+
+/**
+ * Index a piece of prose the clinician wrote themselves (pre-NarrateRx
+ * blogs, articles, longhand). Caller supplies a UUID source_id and tracks
+ * the source row in clinician_corpus_documents (migration 079, follow-up).
+ */
+export async function indexOriginalBlog({ workspaceId, clinicianId, blogId, title, body, publishedAt }) {
+  return indexAuthoredProse({
+    workspaceId,
+    clinicianId,
+    sourceId:   blogId,
+    sourceType: 'original_blog',
+    title,
+    body,
+    dateLabel:  publishedAt,
+    kindLabel:  'Original blog',
+  })
+}
+
+/**
+ * Index a draft document the clinician uploaded (notes, voice memo
+ * transcribed verbatim, longhand drafts).
+ */
+export async function indexUploadedDraft({ workspaceId, clinicianId, docId, title, body, uploadedAt }) {
+  return indexAuthoredProse({
+    workspaceId,
+    clinicianId,
+    sourceId:   docId,
+    sourceType: 'uploaded_draft',
+    title,
+    body,
+    dateLabel:  uploadedAt,
+    kindLabel:  'Draft',
+  })
+}
+
+/**
+ * Author Mode retrieval — scoped to raw-substrate source types only.
+ * Returns chunks the clinician spoke or wrote themselves, never AI-generated
+ * text. Use this from the book-composing UI; never use it for Practice Mode.
+ */
+export function searchAuthorCorpus({ workspaceId, clinicianId, query, topK = 6, excludeSourceIds = [] }) {
+  return searchPracticeMemory({
+    workspaceId,
+    clinicianId,
+    query,
+    topK,
+    excludeSourceIds,
+    sourceTypes: AUTHOR_MODE_SOURCE_TYPES,
+  })
 }
