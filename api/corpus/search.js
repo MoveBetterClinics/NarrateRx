@@ -51,18 +51,22 @@ export default async function handler(req, res) {
     clinicianId = rows[0]?.id ?? null
   }
 
+  // Author Mode raw-voice substrate — Q's own spoken and written words only.
+  // NEVER include AI-generated types (interview_summary, content_item) here:
+  // the whole point of Author Mode is to surface the clinician's own voice,
+  // not AI-synthesised output.
+  const AUTHOR_SOURCE_TYPES = ['interview_transcript_full', 'original_blog', 'uploaded_draft']
+
   const results = await searchPracticeMemory({
     workspaceId:      ws.id,
     clinicianId,
     query:            query.trim(),
     topK:             Math.min(Math.max(Number(topK) || 5, 1), 10),
     excludeSourceIds: [],
+    sourceTypes:      AUTHOR_SOURCE_TYPES,
   })
 
-  // Filter to author-relevant source types only — skip voice_phrase which is
-  // not meaningful for long-form writing context.
-  const AUTHOR_SOURCES = new Set(['interview_summary', 'content_item', 'uploaded_draft'])
-  const filtered = results.filter((r) => AUTHOR_SOURCES.has(r.source_type))
+  const filtered = results
 
   return res.status(200).json(filtered)
 }
