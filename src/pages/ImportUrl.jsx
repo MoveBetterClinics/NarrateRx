@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
 import { ArrowLeft, Link as LinkIcon, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
+import { apiFetch } from '@/lib/api'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 
 /**
  * ImportUrl — paste a URL, we fetch + extract the text, then route to
@@ -17,7 +18,7 @@ import { toast } from '@/lib/toast'
 export default function ImportUrl() {
   useDocumentTitle('Import writing')
   const navigate = useNavigate()
-  const { getToken } = useAuth()
+  const workspace = useWorkspace()
 
   const [url, setUrl] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,22 +34,11 @@ export default function ImportUrl() {
     setLoading(true)
 
     try {
-      const token = await getToken()
-      const r = await fetch('/api/import-url', {
+      const { clinicianId, interviewId } = await apiFetch('/api/import-url', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed }),
       })
-
-      if (!r.ok) {
-        const data = await r.json().catch(() => ({}))
-        throw new Error(data.error || `Import failed (${r.status})`)
-      }
-
-      const { clinicianId, interviewId } = await r.json()
       if (!interviewId) throw new Error('Import succeeded but no interview ID returned.')
 
       toast.success('Content fetched — review and edit before generating.')
@@ -57,7 +47,7 @@ export default function ImportUrl() {
       setError(err?.message || 'Import failed — please try again.')
       setLoading(false)
     }
-  }, [url, getToken, navigate])
+  }, [url, navigate])
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
@@ -121,7 +111,7 @@ export default function ImportUrl() {
           <div className="border-t pt-4 space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Works with</p>
             <ul className="text-sm text-muted-foreground space-y-1">
-              <li>• Your existing Move Better blog posts</li>
+              <li>• {workspace?.display_name ? `Your existing ${workspace.display_name} blog posts` : 'Your existing blog posts'}</li>
               <li>• Any public article or page you&apos;ve written</li>
               <li>• Guest posts or syndicated pieces you own</li>
             </ul>
