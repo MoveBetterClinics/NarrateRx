@@ -3,6 +3,8 @@
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { requireRole } from '../_lib/auth.js'
+import { STAFF_ROLES } from '../_lib/roles.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { BUILTIN_THEMES } from '../../src/lib/carouselThemes.js'
 
@@ -34,6 +36,12 @@ async function dbErr(res, r, msg = 'Database error') {
 export default async function handler(req, res) {
   const ws = await workspaceContext(req)
   if (!ws) return err(res, 'Workspace not resolved', 400)
+
+  const allowedRoles = req.method === 'GET' ? null : STAFF_ROLES
+  const auth = await requireRole(req, allowedRoles, { orgId: ws.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
 
   if (req.method === 'GET') {
     const r = await sb(
