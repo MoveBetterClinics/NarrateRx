@@ -27,13 +27,11 @@
 // The caller must be authenticated and the workspace must be resolved from
 // the subdomain. clinician_id is resolved from the authenticated user.
 //
-// To update/re-index an existing document, POST the same title + body — a
-// deterministic fingerprint (SHA-256 of title+body) is used to check for
-// changes. Identical fingerprint = no-op (returns existing docId + chunks).
+// To update/re-index an existing document, POST the same title — the existing
+// row is patched and re-indexed (old chunks deleted, new chunks inserted).
 
 export const config = { runtime: 'nodejs', maxDuration: 60 }
 
-import { createHash } from 'node:crypto'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
@@ -61,10 +59,6 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   const body = await r.text().catch(() => '')
   console.error(`[corpus/ingest] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
   return res.status(status).json({ error: msg })
-}
-
-function fingerprint(title, body) {
-  return createHash('sha256').update(`${title}\n\n${body}`).digest('hex').slice(0, 16)
 }
 
 /** Resolve the clinician row for the authenticated user in this workspace. */
@@ -107,9 +101,7 @@ export default async function handler(req, res) {
     return err(res, 'No clinician record found for this user', 404)
   }
 
-  const fp = fingerprint(title.trim(), body.trim())
-
-  // Check for an existing document with the same fingerprint (no-op path).
+  // Check for an existing document with the same title.
   const existRes = await sb(
     `clinician_corpus_documents?workspace_id=eq.${ws.id}` +
     `&clinician_id=eq.${clinicianId}` +
