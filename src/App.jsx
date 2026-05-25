@@ -160,11 +160,15 @@ function OrgGate({ clerkOrgId, children }) {
 
   // Stuck-detection timers + auto-reload escape hatch.
   //
-  // Despite #842 retrying setActive 10x at 500ms intervals (5s total), prod
-  // testing showed Clerk's session sometimes refuses to flip the active org
-  // no matter how many times we call setActive — only a fresh page load
-  // rehydrates it correctly. Manual reload always works. So at the 5s mark
-  // we just do the reload automatically.
+  // Despite #842 retrying setActive 10x at 500ms intervals, prod testing
+  // confirmed Clerk's session sometimes refuses to flip the active org no
+  // matter how many times setActive is called — only a fresh page load
+  // rehydrates it correctly. So at the 2s mark we reload automatically
+  // (initially 5s in #843, dropped to 2s after the user confirmed setActive
+  // retries provide no benefit in the wedged-session case — the wait was
+  // just delaying the inevitable reload). 2s is the floor: shorter risks
+  // pre-empting a legitimately-slow happy-path render, since Clerk hydration
+  // can take up to ~1s on cold loads.
   //
   // Loop guard: sessionStorage flag ensures only ONE auto-reload per arrival.
   // If the reload also doesn't fix it, we leave the manual "Reload page"
@@ -174,7 +178,7 @@ function OrgGate({ clerkOrgId, children }) {
   useEffect(() => {
     if (!isLoaded || !match) { setStuckLevel(0); return }
     if (isActive && tokenReady) { setStuckLevel(0); return }
-    const t1 = setTimeout(() => setStuckLevel(s => Math.max(s, 1)), 1500)
+    const t1 = setTimeout(() => setStuckLevel(s => Math.max(s, 1)), 800)
     const t2 = setTimeout(() => {
       setStuckLevel(s => Math.max(s, 2))
       // Auto-reload once per arrival. A full page-load reliably re-hydrates
@@ -185,14 +189,14 @@ function OrgGate({ clerkOrgId, children }) {
           const key = 'narraterx:orggate-stuck-reloaded'
           if (!sessionStorage.getItem(key)) {
             sessionStorage.setItem(key, '1')
-            console.warn('[OrgGate] session failed to activate within 5s; auto-reloading once')
+            console.warn('[OrgGate] session failed to activate within 2s; auto-reloading once')
             window.location.reload()
           } else {
             console.error('[OrgGate] still stuck after auto-reload; surfacing manual Reload button')
           }
         } catch { /* sessionStorage disabled — show the button */ }
       }
-    }, 5000)
+    }, 2000)
     return () => { clearTimeout(t1); clearTimeout(t2) }
   }, [isLoaded, match, isActive, tokenReady])
 
