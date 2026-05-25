@@ -8,10 +8,12 @@
 //   coverage   — summary stats (total concepts, total mentions, coverage %)
 //
 // Admin-only: enforced via workspaceContext role check.
+// Plan-gated: requires 'practice' plan or above (cross_staff_synthesis feature).
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole }      from '../_lib/auth.js'
+import { requirePlan }      from '../_lib/planGate.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -34,6 +36,9 @@ export default async function handler(req, res) {
 
   const auth = await requireRole(req, ['admin'], { orgId: ws.clerk_org_id })
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+
+  const planGate = requirePlan(res, ws, 'cross_staff_synthesis')
+  if (planGate) return planGate
 
   // ── Fetch all workspace concepts ─────────────────────────────────────────────
   const conceptsRes = await sb(
