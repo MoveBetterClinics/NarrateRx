@@ -12,7 +12,6 @@ import { CampaignModeChip } from '@/components/CampaignWidget'
 import { workspace as STATIC_WORKSPACE } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
-import { apiFetch } from '@/lib/api'
 import TrialBanner from '@/components/TrialBanner'
 
 const APP_BYLINE = 'Voice-faithful clinical content'
@@ -176,9 +175,20 @@ function WorkspaceSwitcher() {
 
   const { data: workspaces = [] } = useQuery({
     queryKey: ['workspace-list'],
-    queryFn: () => apiFetch('/api/workspace/list'),
+    // Use raw fetch (not apiFetch) so a 401 during the org-activation startup
+    // race doesn't fire the global "session expired" toast. The switcher is a
+    // background enhancement — auth failures should silently return [] and hide
+    // the chip rather than alarming the user with a spurious toast.
+    queryFn: async () => {
+      const token = await window.Clerk?.session?.getToken?.().catch(() => null)
+      const headers = token ? { Authorization: `Bearer ${token}` } : {}
+      const r = await fetch('/api/workspace/list', { credentials: 'include', headers })
+      if (!r.ok) return []
+      return r.json().catch(() => [])
+    },
     enabled: !!isSignedIn,
     staleTime: 5 * 60_000,
+    retry: false,
   })
 
   useEffect(() => {
