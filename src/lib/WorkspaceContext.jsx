@@ -118,6 +118,21 @@ export function WorkspaceProvider({ children }) {
       : null
   }
 
+  // Expose the workspace's expected clerk_org_id on window so the low-level
+  // apiFetch retry path can target it when forcing a stuck Clerk session to
+  // flip. apiFetch can't import WorkspaceContext (it's a hook), and threading
+  // the org id through every caller is impractical — a window-scoped value
+  // is the path of least coupling. Cleared when workspace resolves to STATIC
+  // so a logged-out apex render doesn't leave a stale value behind.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (workspace?.clerk_org_id && source === 'db') {
+      window.__narraterxExpectedClerkOrgId = workspace.clerk_org_id
+    } else {
+      delete window.__narraterxExpectedClerkOrgId
+    }
+  }, [workspace?.clerk_org_id, source])
+
   const state = { workspace, isLoading, source, error }
 
   return (

@@ -129,8 +129,58 @@ export async function apiFetchResponse(path, init = {}) {
       console.warn(`[apiFetch] wrong-org on ${path} — cached token org_id=${staleOrgId}; refreshing & retrying`)
       // Brief wait so any in-flight token rotation in Clerk's SDK lands.
       await new Promise(resolve => { setTimeout(resolve, 250) })
-      const freshToken = await getClerkTokenFresh()
-      const freshOrgId = decodeJwtOrgId(freshToken)
+      let freshToken = await getClerkTokenFresh()
+      let freshOrgId = decodeJwtOrgId(freshToken)
+
+      // Force-flip path. Clerk's session can get genuinely stuck on the wrong
+      // active org after a cross-subdomain switch — every getToken (cached or
+      // skipCache) returns the previous org's id because Clerk's server still
+      // reports lastActiveOrganizationId as the stale org. Diagnosed in prod
+      // 2026-05-25 from console logs showing "fresh token still org_id=X"
+      // repeated across many endpoints. Mitigation: explicitly call setActive
+      // with the expected org_id (exposed by WorkspaceContext on window) to
+      // force the flip, then re-fetch the token. Single attempt per page load
+      // gated by a module-level flag to prevent infinite loops if the flip
+      // still fails.
+      if (freshToken && freshOrgId === staleOrgId && !_forceFlipAttempted && typeof window !== 'undefined') {
+        const expectedOrgId = /** @type {string | undefined} */ (
+          /** @type {any} */ (window).__narraterxExpectedClerkOrgId
+        )
+        if (expectedOrgId && expectedOrgId !== freshOrgId) {
+          _forceFlipAttempted = true
+          console.warn(`[apiFetch] session wedged on org_id=${freshOrgId}; expected ${expectedOrgId}. Forcing setActive.`)
+          try {
+            await /** @type {any} */ (window).Clerk?.setActive?.({ organization: expectedOrgId })
+          } catch (e) {
+            console.error('[apiFetch] forced setActive threw:', e?.message || e)
+          }
+          await new Promise(resolve => { setTimeout(resolve, 600) })
+          freshToken = await getClerkTokenFresh()
+          freshOrgId = decodeJwtOrgId(freshToken)
+          if (freshOrgId === expectedOrgId) {
+            console.info(`[apiFetch] forced flip succeeded; org_id=${freshOrgId}`)
+          } else {
+            console.error(`[apiFetch] forced flip FAILED; token still org_id=${freshOrgId} (expected ${expectedOrgId}). Page reload required.`)
+            // Surface a reload toast. Guarded by sessionStorage so we don't
+            // loop endlessly if Clerk is structurally broken — first failure
+            // we offer the reload; second failure of the same kind we surface
+            // the error as-is.
+            try {
+              const seen = sessionStorage.getItem('narraterx:force-flip-reload-offered')
+              if (!seen) {
+                sessionStorage.setItem('narraterx:force-flip-reload-offered', '1')
+                const { toast } = await import('@/lib/toast')
+                toast.error('Workspace session is stuck', {
+                  description: 'Your active workspace got out of sync. Reload to fix.',
+                  action: { label: 'Reload', onClick: () => window.location.reload() },
+                  duration: Infinity,
+                })
+              }
+            } catch (_e) { /* toast import failure shouldn't mask the original error */ }
+          }
+        }
+      }
+
       if (freshToken && freshOrgId && freshOrgId !== staleOrgId) {
         console.info(`[apiFetch] retrying ${path} with fresh org_id=${freshOrgId}`)
         const retryHeaders = { ...mergedHeaders, Authorization: `Bearer ${freshToken}` }
@@ -150,6 +200,12 @@ export async function apiFetchResponse(path, init = {}) {
   if (!res.ok) await throwApiError(res)
   return res
 }
+
+// Module-level flag for the force-flip path. We only attempt one forced
+// setActive per page load — if it doesn't take, retrying it ad infinitum would
+// hammer Clerk's servers without progress and risk infinite loops as React
+// Query refetches kick in. Cleared naturally on page reload.
+let _forceFlipAttempted = false
 
 /**
  * Fetch an internal /api route and parse the JSON response body.
