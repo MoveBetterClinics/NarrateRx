@@ -122,20 +122,55 @@ function OrgGate({ clerkOrgId, children }) {
 
   // Once the session says the right org is active, confirm the issued token
   // actually carries that org before letting children fetch any API routes.
+  //
+  // Two failure modes the original single-shot check missed:
+  //   A) getToken() rejects (Clerk not yet hydrated on new subdomain, brief
+  //      network hiccup) → was immediately optimistic → children rendered with
+  //      stale token → wrong-org API failures.
+  //   B) token parses but still carries the previous org_id (token rotation
+  //      lags behind session flip) → tokenReady stayed false forever because
+  //      isActive was already true and the effect never re-ran.
+  //
+  // Fix: retry both cases at 250ms intervals for up to ~3s before falling back.
   useEffect(() => {
     if (!isActive) { setTokenReady(false); return }
     let cancelled = false
-    getToken({ skipCache: true }).then((tok) => {
+    let attempts = 0
+    const MAX_ATTEMPTS = 12 // 12 × 250ms ≈ 3s max wait
+
+    function checkToken() {
       if (cancelled) return
-      try {
-        const payload = JSON.parse(atob(tok.split('.')[1]))
-        setTokenReady(payload.org_id === clerkOrgId)
-      } catch {
-        setTokenReady(true) // unparseable token — let it through; API will gate
-      }
-    }).catch(() => {
-      if (!cancelled) setTokenReady(true) // error fetching token — optimistic
-    })
+      getToken({ skipCache: true })
+        .then((tok) => {
+          if (cancelled) return
+          try {
+            const payload = JSON.parse(atob(tok.split('.')[1]))
+            if (payload.org_id === clerkOrgId) {
+              setTokenReady(true)
+            } else if (attempts++ < MAX_ATTEMPTS) {
+              // Token not yet rotated — retry
+              setTimeout(checkToken, 250)
+            } else {
+              // Exhausted retries. Fall through; wrong-org API errors are
+              // better UX than a permanently blank screen.
+              setTokenReady(true)
+            }
+          } catch {
+            setTokenReady(true) // unparseable token — let it through; API will gate
+          }
+        })
+        .catch(() => {
+          if (cancelled) return
+          if (attempts++ < MAX_ATTEMPTS) {
+            // Clerk not fully hydrated yet or transient network — retry
+            setTimeout(checkToken, 250)
+          } else {
+            setTokenReady(true) // exhausted retries — optimistic fallback
+          }
+        })
+    }
+
+    checkToken()
     return () => { cancelled = true }
   }, [isActive, clerkOrgId, getToken])
 
