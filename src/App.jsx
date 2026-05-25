@@ -46,6 +46,7 @@ const Onboarding = lazy(() => import('@/pages/Onboarding'))
 const Stories = lazy(() => import('@/pages/Stories'))
 const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
 const Synthesis = lazy(() => import('@/pages/Synthesis'))
+const PreVisitMessage = lazy(() => import('@/pages/PreVisitMessage'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import { UploadProgressProvider, useUploadProgress } from '@/lib/UploadProgressContext'
@@ -279,6 +280,7 @@ function AppRoutes() {
               {/* Clerk-mounted pages use routing="path" so their deep links resolve. */}
               <Route path="/settings/members/*" element={guarded(<Members />)} />
             </Route>
+            <Route path="/pre-visit" element={guarded(<PreVisitMessage />)} />
             <Route path="/account/*" element={guarded(<Account />)} />
           </Routes>
         </Suspense>

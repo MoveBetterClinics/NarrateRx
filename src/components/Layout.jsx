@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton } from '@clerk/clerk-react'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
-import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, UserCircle } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, UserCircle, Mic2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
@@ -19,9 +19,10 @@ const APP_BYLINE = 'Voice-faithful clinical content'
 // attach + schedule + publish) and a frequent reference for Clinicians, so
 // it sits in the main bar rather than the settings dropdown.
 const NAV_ITEMS = [
-  { to: '/',        label: 'Home',    match: (p) => p === '/' },
-  { to: '/stories', label: 'Stories', match: (p) => p.startsWith('/stories') },
-  { to: '/library', label: 'Library', match: (p) => p.startsWith('/library') },
+  { to: '/',           label: 'Home',      match: (p) => p === '/' },
+  { to: '/stories',    label: 'Stories',   match: (p) => p.startsWith('/stories') },
+  { to: '/library',    label: 'Library',   match: (p) => p.startsWith('/library') },
+  { to: '/pre-visit',  label: 'Pre-Visit', match: (p) => p.startsWith('/pre-visit'), icon: Mic2 },
 ]
 
 export default function Layout({ children }) {
@@ -97,8 +98,9 @@ export default function Layout({ children }) {
               <DrawerClose asChild key={item.to}>
                 <Link
                   to={item.to}
-                  className={`block px-3 py-3 rounded-md text-base font-medium ${item.match(location.pathname) ? 'bg-accent/40 text-foreground' : 'text-muted-foreground active:bg-accent/30'}`}
+                  className={`flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium ${item.match(location.pathname) ? 'bg-accent/40 text-foreground' : 'text-muted-foreground active:bg-accent/30'}`}
                 >
+                  {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
                   {item.label}
                 </Link>
               </DrawerClose>
