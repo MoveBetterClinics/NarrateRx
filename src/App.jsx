@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation, useParams } from 'react-router-dom'
 import { Analytics } from '@vercel/analytics/react'
 import PrivacyPolicy from '@/pages/PrivacyPolicy'
@@ -92,6 +92,13 @@ function OrgGate({ clerkOrgId, children }) {
     userMemberships: { infinite: true },
   })
   const { session } = useSession()
+  const { getToken } = useAuth()
+
+  // tokenReady: the issued JWT actually contains the correct org_id.
+  // This closes the race where session.lastActiveOrganizationId has flipped
+  // but getToken() still returns the previous org's cached token, causing
+  // every API call on first render to return wrong-org.
+  const [tokenReady, setTokenReady] = useState(false)
 
   const memberships = userMemberships?.data ?? []
   const match = isLoaded
@@ -103,7 +110,8 @@ function OrgGate({ clerkOrgId, children }) {
   // actually flipping (race with Clerk's own session restore on page load),
   // which left the JWT with no org_id and every gated endpoint returning
   // wrong-org. Re-running until the session reflects the expected org closes
-  // that gap. Children only render once the active org matches.
+  // that gap. Children only render once the active org matches AND the token
+  // confirms the switch.
   const activeOrgId = session?.lastActiveOrganizationId ?? null
   const isActive = match && activeOrgId === clerkOrgId
 
@@ -112,8 +120,27 @@ function OrgGate({ clerkOrgId, children }) {
     setActive({ organization: match.organization.id }).catch(() => {})
   }, [match, isActive, setActive])
 
-  // Still loading org list, or session hasn't flipped to the right org yet.
-  if (!isLoaded || (match && !isActive)) return null
+  // Once the session says the right org is active, confirm the issued token
+  // actually carries that org before letting children fetch any API routes.
+  useEffect(() => {
+    if (!isActive) { setTokenReady(false); return }
+    let cancelled = false
+    getToken({ skipCache: true }).then((tok) => {
+      if (cancelled) return
+      try {
+        const payload = JSON.parse(atob(tok.split('.')[1]))
+        setTokenReady(payload.org_id === clerkOrgId)
+      } catch {
+        setTokenReady(true) // unparseable token — let it through; API will gate
+      }
+    }).catch(() => {
+      if (!cancelled) setTokenReady(true) // error fetching token — optimistic
+    })
+    return () => { cancelled = true }
+  }, [isActive, clerkOrgId, getToken])
+
+  // Still loading org list, org switch pending, or token hasn't refreshed yet.
+  if (!isLoaded || (match && (!isActive || !tokenReady))) return null
 
   if (!match) {
     return (
