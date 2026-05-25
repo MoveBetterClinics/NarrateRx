@@ -40,7 +40,8 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   const ws = await workspaceContext(req)
-  const auth = await requireRole(req, null, ws ? { orgId: ws.clerk_org_id } : {})
+  if (!ws) return res.status(400).json({ error: 'No workspace resolved for this request' })
+  const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   if (!(await enforceLimit(req, res, 'ai'))) return
@@ -55,10 +56,9 @@ export default async function handler(req, res) {
 
   // Phase 5 Feature 3 — if caller identifies a clinician AND that clinician
   // has a live voice clone, use the clone. Caller's explicit voiceId is the
-  // next fallback, then env, then the Adam default. clinicianId is silently
-  // ignored if no workspace context (auth path didn't resolve) or no clone.
+  // next fallback, then env, then the Adam default.
   let cloneVoiceId = null
-  if (clinicianId && ws) {
+  if (clinicianId) {
     try {
       const r = await fetch(
         `${process.env.SUPABASE_URL}/rest/v1/clinicians` +
