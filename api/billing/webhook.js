@@ -8,6 +8,8 @@
 //   checkout.session.completed        → activate subscription
 //   customer.subscription.updated     → update plan/price
 //   customer.subscription.deleted     → revert to trial
+//   invoice.payment_failed            → mark plan as past_due (blocks paid features)
+//   invoice.paid                      → clear past_due, restore active plan
 //
 // Signature verification uses STRIPE_WEBHOOK_SECRET (HMAC-SHA256).
 // In dev (no secret set), verification is skipped with a warning.
@@ -216,6 +218,67 @@ async function handler(req, res) {
           trial_ends_at: trialEndsAt,
         })
         console.info(`[billing/webhook] workspace ${workspaceId} subscription cancelled — reverted to trial`)
+        break
+      }
+
+      case 'invoice.payment_failed': {
+        // Card declined / payment method expired. Mark the workspace as past_due
+        // so paid features are blocked until payment is resolved. Stripe will
+        // send invoice.paid when the customer updates their card and retries.
+        const invoice = event.data.object
+        const workspaceId = invoice.subscription_details?.metadata?.workspace_id
+          ?? invoice.metadata?.workspace_id
+        if (!workspaceId) {
+          // Try to look up workspace by customer ID as fallback.
+          const customerId = invoice.customer
+          if (customerId) {
+            const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id&limit=1`)
+            if (r.ok) {
+              const rows = await r.json()
+              if (rows[0]?.id) {
+                await updateWorkspace(rows[0].id, { plan: 'past_due' })
+                console.warn(`[billing/webhook] invoice.payment_failed: workspace ${rows[0].id} marked past_due`)
+              }
+            }
+          } else {
+            console.error('[billing/webhook] invoice.payment_failed: could not resolve workspace_id')
+          }
+          break
+        }
+        await updateWorkspace(workspaceId, { plan: 'past_due' })
+        console.warn(`[billing/webhook] invoice.payment_failed: workspace ${workspaceId} marked past_due`)
+        break
+      }
+
+      case 'invoice.paid': {
+        // Successful payment after a past_due state (or normal renewal). Restore
+        // the plan from the subscription's price ID.
+        const invoice = event.data.object
+        const workspaceId = invoice.subscription_details?.metadata?.workspace_id
+          ?? invoice.metadata?.workspace_id
+        if (!workspaceId) break
+
+        const subscriptionId = invoice.subscription
+        if (subscriptionId) {
+          try {
+            const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+              headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` },
+            })
+            const sub = await subRes.json()
+            const priceId = sub?.items?.data?.[0]?.price?.id || null
+            const planConfig = priceId ? PRICE_PLAN_MAP[priceId] : null
+            if (planConfig) {
+              await updateWorkspace(workspaceId, {
+                plan:       planConfig.plan,
+                plan_seats: planConfig.seats,
+                stripe_price_id: priceId,
+              })
+              console.info(`[billing/webhook] invoice.paid: workspace ${workspaceId} restored to ${planConfig.plan}`)
+            }
+          } catch (e) {
+            console.error('[billing/webhook] invoice.paid: failed to restore plan:', e?.message)
+          }
+        }
         break
       }
 
