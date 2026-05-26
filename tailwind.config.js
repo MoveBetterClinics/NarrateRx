@@ -1,3 +1,5 @@
+import typography from '@tailwindcss/typography'
+
 /** @type {import('tailwindcss').Config} */
 export default {
   // Dark mode is intentionally not enabled — there is no `.dark` token block
@@ -75,5 +77,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [typography],
 }
