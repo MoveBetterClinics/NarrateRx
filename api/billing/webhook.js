@@ -19,6 +19,7 @@
 // is disabled via the config export below.
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { buildPricePlanMap } from '../_lib/stripePlans.js'
 
 export const config = {
   runtime: 'nodejs',
@@ -28,15 +29,6 @@ export const config = {
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-// Price ID → plan config mapping (from env vars).
-function buildPricePlanMap() {
-  const m = {}
-  if (process.env.STRIPE_PRICE_SOLO)     m[process.env.STRIPE_PRICE_SOLO]     = { plan: 'solo',     seats: 3 }
-  if (process.env.STRIPE_PRICE_PRACTICE) m[process.env.STRIPE_PRICE_PRACTICE] = { plan: 'practice', seats: 10 }
-  if (process.env.STRIPE_PRICE_MULTI)    m[process.env.STRIPE_PRICE_MULTI]    = { plan: 'multi',    seats: 999 }
-  return m
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {

@@ -8,6 +8,7 @@
 import { withSentry } from '../_lib/sentry.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
+import { buildPricePlanMap } from '../_lib/stripePlans.js'
 
 export const config = { runtime: 'nodejs' }
 
@@ -47,6 +48,16 @@ async function handler(req, res) {
 
   const { priceId } = req.body || {}
   if (!priceId) return res.status(400).json({ error: 'priceId-required' })
+
+  // Allow-list priceId against the same env-driven map the webhook uses to
+  // resolve plan + seats. Without this, an authenticated admin could submit
+  // any Stripe price ID (a 1¢ test price, a different product, or a price
+  // from another account) and the webhook would see no PRICE_PLAN_MAP match,
+  // silently defaulting the workspace to the `solo` plan with 3 seats.
+  const pricePlanMap = buildPricePlanMap()
+  if (!pricePlanMap[priceId]) {
+    return res.status(400).json({ error: 'invalid-price-id' })
+  }
 
   // Build success/cancel URLs from the request host.
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'narraterx.ai'
