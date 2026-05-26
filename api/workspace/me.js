@@ -228,6 +228,11 @@ async function handler(req, res) {
       // — without it, the recovery path silently skips and the user is
       // stranded on a "wrong-org" error screen).
       return res.status(200).json({
+        // Discriminator the SPA uses to tell this apart from a sparse full row.
+        // If the client sees this true while Clerk reports a signed-in session
+        // bound to this workspace's org, it forces a token-refresh refetch —
+        // the slim response means the server didn't see a matching JWT.
+        slim_branding:    true,
         id:               workspace.id,
         slug:             workspace.slug,
         clerk_org_id:     workspace.clerk_org_id,

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect } from 'react'
+import { createContext, useContext, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@clerk/clerk-react'
 import { workspace as STATIC } from './workspace'
@@ -66,10 +66,13 @@ function isSubdomainHost() {
 // returns the full workspace row (brand_voice, patient_context, etc.).
 // Unauthenticated callers — including this same fetch on first paint before
 // Clerk hydrates — get a slim public-branding shape used by the sign-in page.
-async function fetchWorkspaceMe() {
+async function fetchWorkspaceMe({ skipCache = false } = {}) {
   const headers = {}
   try {
-    const token = await window.Clerk?.session?.getToken?.()
+    // skipCache forces Clerk to mint a fresh JWT. We need this on the slim-
+    // shape recovery path because Clerk's cached token may have been issued
+    // before the org membership we need was active in the session.
+    const token = await window.Clerk?.session?.getToken?.(skipCache ? { skipCache: true } : undefined)
     if (token) headers.Authorization = `Bearer ${token}`
   } catch { /* unauth fetch is the supported fallback */ }
   const r = await fetch('/api/workspace/me', { headers, credentials: 'include' })
@@ -100,6 +103,34 @@ export function WorkspaceProvider({ children }) {
     if (!isLoaded) return
     qc.invalidateQueries({ queryKey: queryKeys.workspace.me })
   }, [isLoaded, isSignedIn, orgId, qc])
+
+  // Slim-shape recovery. The server returns { slim_branding: true, ... } when
+  // it couldn't bind the request to a JWT matching this workspace's org. That
+  // can happen legitimately (truly unauth) but it also fires during sign-in
+  // when WorkspaceContext's first fetch raced ahead of Clerk's session
+  // hydration: useAuth().isSignedIn flipping true does NOT guarantee that
+  // window.Clerk.session.getToken() at the moment fetchWorkspaceMe ran
+  // returned a token, and an empty Authorization header silently downgrades
+  // to slim. The downstream symptom is fields like `book_mode` being absent
+  // from the cached row, so consumers like Layout.jsx read undefined and
+  // render the wrong nav. Without this guard the user has to hard-reload.
+  //
+  // Strategy: when Clerk reports signed-in but the cached row is slim, force
+  // a refetch with getToken({ skipCache: true }) to mint a fresh JWT. Cap
+  // attempts so a server that legitimately won't bind (e.g. wrong-org wedge
+  // already being recovered elsewhere) doesn't produce a refetch loop.
+  const slimRecoveryRef = useRef(0)
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return
+    if (!data?.row?.slim_branding) return
+    if (slimRecoveryRef.current >= 3) return
+    slimRecoveryRef.current += 1
+    qc.fetchQuery({
+      queryKey: queryKeys.workspace.me,
+      queryFn: () => fetchWorkspaceMe({ skipCache: true }),
+      staleTime: 0,
+    }).catch(() => { /* surfaced via the query's error path */ })
+  }, [isLoaded, isSignedIn, orgId, data, qc])
 
   // Resolve workspace + error from the query result. Apex/www/preview hit
   // 404 and silently fall back to STATIC (the build-time legacy shape).
