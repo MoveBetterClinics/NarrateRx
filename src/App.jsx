@@ -48,6 +48,7 @@ const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
 const Synthesis = lazy(() => import('@/pages/Synthesis'))
 const PreVisitMessage = lazy(() => import('@/pages/PreVisitMessage'))
 const AuthorMode = lazy(() => import('@/pages/AuthorMode'))
+const Book = lazy(() => import('@/pages/Book'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import { UploadProgressProvider, useUploadProgress } from '@/lib/UploadProgressContext'
@@ -442,6 +443,7 @@ function AppRoutes() {
             <Route path="/stories/:storyId" element={guarded(<StoryDetail />)} />
             <Route path="/synthesis" element={guarded(<Synthesis />)} />
             <Route path="/write" element={guarded(<AuthorMode />)} />
+            <Route path="/book"  element={guarded(<Book />)} />
             <Route path="/library" element={guarded(<MediaHub />)} />
             {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}
             <Route path="/review/:itemId" element={<LegacyReviewRedirect />} />

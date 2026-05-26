@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { UserButton, useAuth, useClerk } from '@clerk/clerk-react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
-import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
@@ -24,7 +24,11 @@ const NAV_ITEMS = [
   { to: '/stories',    label: 'Stories',   match: (p) => p.startsWith('/stories') },
   { to: '/library',    label: 'Library',   match: (p) => p.startsWith('/library') },
   { to: '/pre-visit',  label: 'Pre-Visit', match: (p) => p.startsWith('/pre-visit'), icon: Mic2 },
-  { to: '/write',      label: 'Write',     match: (p) => p.startsWith('/write'), icon: BookOpen },
+  { to: '/book',       label: 'Book',      match: (p) => p.startsWith('/book'),  icon: BookOpen },
+  // Hidden for workspaces with book_mode='group' (Move Better-style group books)
+  // — see filtering in the component body.
+  { to: '/write',      label: 'Write',     match: (p) => p.startsWith('/write'), icon: PenLine,
+    hideWhenBookMode: 'group' },
 ]
 
 export default function Layout({ children }) {
@@ -35,6 +39,11 @@ export default function Layout({ children }) {
   const selfClinicianId = useSelfClinicianId()
   const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
   const logoAlt = ws?.display_name || ws?.name || STATIC_WORKSPACE.name
+
+  // Workspace-dependent nav filtering. The Write surface is a single-author
+  // typing environment; in group workspaces (book_mode='group') it's hidden
+  // because contributions come through interviews + voice memos instead.
+  const navItems = NAV_ITEMS.filter((it) => !it.hideWhenBookMode || ws?.book_mode !== it.hideWhenBookMode)
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,7 +67,7 @@ export default function Layout({ children }) {
           {/* Desktop nav + admin chrome. Hidden below md so the bar doesn't
               overflow on phones — the hamburger holds the same items. */}
           <nav className="hidden md:flex items-center gap-4">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <NavLink key={item.to} to={item.to} label={item.label} active={item.match(location.pathname)} icon={item.icon} />
             ))}
           </nav>
@@ -97,7 +106,7 @@ export default function Layout({ children }) {
             <DrawerTitle>Menu</DrawerTitle>
           </DrawerHeader>
           <div className="overflow-y-auto space-y-1">
-            {NAV_ITEMS.map((item) => (
+            {navItems.map((item) => (
               <DrawerClose asChild key={item.to}>
                 <Link
                   to={item.to}
