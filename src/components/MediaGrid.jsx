@@ -7,7 +7,7 @@ const STATUS_LABEL = {
   raw:      { label: 'Raw',      tone: 'bg-slate-200 text-slate-700' },
   tagged:   { label: 'Tagged',   tone: 'bg-blue-100 text-blue-700' },
   rendered: { label: 'Rendered', tone: 'bg-violet-100 text-violet-700' },
-  approved: { label: 'Approved', tone: 'bg-blue-100 text-blue-700' },
+  approved: { label: 'Approved', tone: 'bg-amber-50 text-amber-700' },
   archived: { label: 'Archived', tone: 'bg-muted text-muted-foreground' },
 }
 

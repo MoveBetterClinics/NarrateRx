@@ -74,7 +74,7 @@ const STATUS_TO_STAGE = {
 const STATUS_DOT = {
   draft:     'bg-slate-400',
   in_review: 'bg-amber-400',
-  approved:  'bg-blue-500',
+  approved:  'bg-amber-500',
   scheduled: 'bg-purple-500',
   published: 'bg-green-500',
   archived:  'bg-zinc-400',
