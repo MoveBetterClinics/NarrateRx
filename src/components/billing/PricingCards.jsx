@@ -198,7 +198,7 @@ export default function PricingCards({ currentPlan = 'trial' }) {
       </div>
 
       <p className="text-xs text-muted-foreground text-center">
-        All plans include a 14-day free trial. Payments processed securely by Stripe.{' '}
+        All plans include a 45-day free trial. Payments processed securely by Stripe.{' '}
         <Link to="/settings/workspace/billing" className="underline underline-offset-2">
           Questions? Contact us.
         </Link>

@@ -114,15 +114,19 @@ export default function BillingSettings() {
       <PricingCards currentPlan={ws.plan || 'trial'} />
 
       {isOnboarding && (
-        <p className="text-center text-xs text-muted-foreground">
-          Not ready yet?{' '}
+        <div className="rounded-xl border border-dashed border-border bg-muted/40 px-6 py-5 flex flex-col items-center gap-2 text-center">
+          <p className="text-sm font-medium">Not ready to subscribe yet?</p>
+          <p className="text-xs text-muted-foreground max-w-sm">
+            Start your <strong>45-day free trial</strong> — full access, no credit card required.
+            You can choose a plan any time before it ends.
+          </p>
           <button
-            className="underline underline-offset-2 hover:text-foreground transition-colors"
+            className="mt-1 inline-flex items-center justify-center rounded-md border border-border bg-background px-5 py-2 text-sm font-medium shadow-sm hover:bg-accent transition-colors"
             onClick={() => navigate('/?welcome=1', { replace: true })}
           >
-            Skip for now — explore the app first
+            Start free trial — decide later
           </button>
-        </p>
+        </div>
       )}
     </div>
   )

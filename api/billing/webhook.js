@@ -208,8 +208,8 @@ async function handler(req, res) {
           console.error('[billing/webhook] customer.subscription.deleted: no workspace_id in metadata')
           break
         }
-        // Revert to trial with 14-day window.
-        const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        // Revert to trial with 45-day window.
+        const trialEndsAt = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString()
         await updateWorkspace(workspaceId, {
           plan: 'trial',
           plan_seats: 3,

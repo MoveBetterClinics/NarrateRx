@@ -64,7 +64,7 @@ export default function TrialBanner() {
           </>
         ) : (
           <>
-            You&rsquo;re on a 14-day free trial.{' '}
+            You&rsquo;re on a 45-day free trial.{' '}
             <strong>{trialDaysLeft} {trialDaysLeft === 1 ? 'day' : 'days'} remaining.</strong>{' '}
           </>
         )}
