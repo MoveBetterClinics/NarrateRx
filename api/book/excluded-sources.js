@@ -19,6 +19,7 @@ export const config = { runtime: 'nodejs' }
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
+import { markBookStale } from '../_lib/bookStale.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -90,6 +91,7 @@ export default async function handler(req, res) {
       console.error(`[book/excluded-sources POST] supabase ${r.status}: ${body.slice(0, 300)}`)
       return res.status(500).json({ error: 'Exclude failed' })
     }
+    await markBookStale({ workspaceId: ws.id })
     return res.status(200).json({ ok: true })
   }
 
@@ -113,6 +115,7 @@ export default async function handler(req, res) {
       console.error(`[book/excluded-sources DELETE] supabase ${r.status}: ${body.slice(0, 300)}`)
       return res.status(500).json({ error: 'Include failed' })
     }
+    await markBookStale({ workspaceId: ws.id })
     return res.status(200).json({ ok: true })
   }
 

@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { useAppMutation } from '@/lib/useAppMutation'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/lib/toast'
+import ExcludeFromBookToggle from '@/components/book/ExcludeFromBookToggle'
 
 // ── API helpers ────────────────────────────────────────────────────────────
 
@@ -86,18 +87,27 @@ function DraftItem({ draft, isActive, onLoad }) {
     ? new Date(draft.updated_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     : ''
   return (
-    <button
-      type="button"
-      onClick={() => onLoad(draft)}
-      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+    <div
+      className={`group flex items-center gap-1 pr-1 rounded-md transition-colors ${
         isActive
-          ? 'bg-primary/10 text-foreground font-medium'
+          ? 'bg-primary/10 text-foreground'
           : 'text-muted-foreground hover:bg-accent/30 hover:text-foreground'
       }`}
     >
-      <span className="block truncate">{draft.title || 'Untitled'}</span>
-      {date && <span className="block text-xs text-muted-foreground">{date}</span>}
-    </button>
+      <button
+        type="button"
+        onClick={() => onLoad(draft)}
+        className={`flex-1 min-w-0 text-left px-3 py-2 text-sm ${isActive ? 'font-medium' : ''}`}
+      >
+        <span className="block truncate">{draft.title || 'Untitled'}</span>
+        {date && <span className="block text-xs text-muted-foreground">{date}</span>}
+      </button>
+      <ExcludeFromBookToggle
+        sourceTable="clinician_corpus_documents"
+        sourceId={draft.id}
+        variant="inline"
+      />
+    </div>
   )
 }
 
