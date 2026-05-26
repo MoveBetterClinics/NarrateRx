@@ -134,13 +134,17 @@ End with a question that invites comments. 1–2 hashtags max.`,
 
     gbp: {
       local_authority: `Write a Google Business Profile post (~200 words) about ${condition} for ${workspace.display_name} in ${workspace.location_keyword ?? 'your area'}.
-ANGLE: Establish local authority. Lead with what ${workspace.display_name} does differently for ${condition} patients locally. Include local keywords naturally.
+ANGLE: Establish local authority.
+VOICE FIRST: Open with 1–2 sentences that use the clinician's distinctive diagnostic framing from the VOICE PHRASE ANCHORS above — their specific clinical insight or "how" explanation about ${condition}. Do NOT open with a generic "At [clinic] we treat..." line.
+Then connect that insight to the local context: what ${workspace.display_name} does differently for ${condition} patients in ${workspace.location_keyword ?? 'your area'}.
 Use "we" and "our team" throughout.
 Close with: "Book your ${condition} assessment at ${workspace.display_name}: ${workspace.website}"
 No hashtags. Conversational, not salesy.`,
 
       patient_outcome: `Write a Google Business Profile post (~200 words) about ${condition} for ${workspace.display_name} in ${workspace.location_keyword ?? 'your area'}.
-ANGLE: Results framing. What does recovery from ${condition} actually look like at ${workspace.display_name}? Lead with a specific, believable outcome ("patients typically find…" or "the goal is…").
+ANGLE: Results framing.
+VOICE FIRST: Open with 1–2 sentences in the clinician's authentic voice — pull a specific clinical mechanism or patient insight from the VOICE PHRASE ANCHORS above rather than leading with a generic outcomes statement.
+Then pivot to results: what does recovery from ${condition} actually look like at ${workspace.display_name}? Include a specific, believable outcome ("patients typically find…" or "the goal is…").
 Use "we" and "our team" throughout.
 Close with: "Ready to start your recovery? Book at ${workspace.display_name}: ${workspace.website}"
 No hashtags. Conversational, results-focused.`,
