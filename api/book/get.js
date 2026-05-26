@@ -32,24 +32,42 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: auth.reason })
   }
 
-  const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/workspace_books` +
-    `?workspace_id=eq.${ws.id}` +
-    `&select=manuscript_md,chapters,source_counts,last_regen_at,stale_at,regen_status,regen_error,updated_at`,
-    {
-      headers: {
-        apikey:        SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-      },
-    }
-  )
-  if (!r.ok) {
-    const body = await r.text().catch(() => '')
-    console.error(`[book/get] supabase ${r.status}: ${body.slice(0, 300)}`)
+  const headers = {
+    apikey:        SUPABASE_KEY,
+    Authorization: `Bearer ${SUPABASE_KEY}`,
+  }
+
+  // Pull the book row and the pinned-chapter slugs in parallel; merging the
+  // pinned flag onto each chapter lets the UI render Pin/Unpin without a
+  // second client-side fetch.
+  const [bookRes, pinnedRes] = await Promise.all([
+    fetch(
+      `${SUPABASE_URL}/rest/v1/workspace_books` +
+      `?workspace_id=eq.${ws.id}` +
+      `&select=manuscript_md,chapters,source_counts,last_regen_at,stale_at,regen_status,regen_error,updated_at`,
+      { headers }
+    ),
+    fetch(
+      `${SUPABASE_URL}/rest/v1/book_pinned_chapters` +
+      `?workspace_id=eq.${ws.id}&select=chapter_slug`,
+      { headers }
+    ),
+  ])
+  if (!bookRes.ok) {
+    const body = await bookRes.text().catch(() => '')
+    console.error(`[book/get] supabase ${bookRes.status}: ${body.slice(0, 300)}`)
     return res.status(500).json({ error: 'Database error' })
   }
-  const rows = await r.json()
+  const rows = await bookRes.json()
   const row = rows[0]
+  const pinnedSlugs = new Set(
+    pinnedRes.ok ? (await pinnedRes.json()).map((p) => p.chapter_slug) : []
+  )
+  const chapters = Array.isArray(row?.chapters) ? row.chapters : []
+  const chaptersWithPin = chapters.map((c) => ({
+    ...c,
+    pinned: pinnedSlugs.has(c?.slug),
+  }))
 
   // Cache-buster header: the workspaceContext 60s in-process cache memory
   // (feedback_workspace_cache_304_stale) doesn't apply to this table, but
@@ -61,7 +79,7 @@ export default async function handler(req, res) {
     workspace_id:   ws.id,
     book_mode:      ws.book_mode || 'personal',
     manuscript_md:  row?.manuscript_md || null,
-    chapters:       Array.isArray(row?.chapters) ? row.chapters : [],
+    chapters:       chaptersWithPin,
     source_counts:  row?.source_counts || {},
     last_regen_at:  row?.last_regen_at || null,
     stale_at:       row?.stale_at || null,

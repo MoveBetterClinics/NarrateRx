@@ -16,7 +16,7 @@
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
-import { BookOpen, RefreshCw, AlertTriangle, Sparkles } from 'lucide-react'
+import { BookOpen, RefreshCw, AlertTriangle, Sparkles, Pin, PinOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppMutation } from '@/lib/useAppMutation'
 import { apiFetch } from '@/lib/api'
@@ -31,6 +31,20 @@ function fetchBook() {
 
 function regenerateBook() {
   return apiFetch('/api/book/regenerate', { method: 'POST' })
+}
+
+function pinChapter(chapterSlug) {
+  return apiFetch('/api/book/pinned-chapters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ chapter_slug: chapterSlug }),
+  })
+}
+
+function unpinChapter(chapterSlug) {
+  return apiFetch(`/api/book/pinned-chapters?chapter_slug=${encodeURIComponent(chapterSlug)}`, {
+    method: 'DELETE',
+  })
 }
 
 // ── Provenance line ──────────────────────────────────────────────────────
@@ -237,19 +251,96 @@ export default function Book() {
           isRegenerating={isRegenerating}
         />
       ) : (
-        <article
-          className="rounded-lg border border-border bg-card px-8 sm:px-12 py-10 prose max-w-none
-            prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-slate-900
-            prose-h2:text-2xl prose-h2:mt-10 prose-h2:mb-4 first:prose-h2:mt-0
-            prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-2
-            prose-p:leading-relaxed prose-p:text-slate-700
-            prose-blockquote:border-l-primary prose-blockquote:text-slate-700 prose-blockquote:italic
-            prose-strong:text-slate-900
-            prose-li:text-slate-700"
-        >
-          <ReactMarkdown>{book?.manuscript_md || ''}</ReactMarkdown>
-        </article>
+        <ManuscriptView
+          chapters={book?.chapters || []}
+          fallbackMarkdown={book?.manuscript_md || ''}
+          isAdmin={isAdmin}
+          onRefetch={refetch}
+        />
       )}
     </div>
+  )
+}
+
+// ── Manuscript view (chapter-by-chapter so we can hang pin UI per chapter) ─
+
+function ManuscriptView({ chapters, fallbackMarkdown, isAdmin, onRefetch }) {
+  const proseClasses =
+    'prose max-w-none ' +
+    'prose-headings:font-bold prose-headings:tracking-tight prose-headings:text-slate-900 ' +
+    'prose-h2:text-2xl prose-h2:mt-0 prose-h2:mb-4 ' +
+    'prose-h3:text-lg prose-h3:mt-6 prose-h3:mb-2 ' +
+    'prose-p:leading-relaxed prose-p:text-slate-700 ' +
+    'prose-blockquote:border-l-primary prose-blockquote:text-slate-700 prose-blockquote:italic ' +
+    'prose-strong:text-slate-900 ' +
+    'prose-li:text-slate-700'
+
+  // Migration safety: an older book row may have manuscript_md without a
+  // populated chapters array. Fall back to rendering the whole markdown if
+  // chapters is empty; per-chapter pin UI is unavailable in that case.
+  if (!Array.isArray(chapters) || chapters.length === 0) {
+    return (
+      <article className={`rounded-lg border border-border bg-card px-8 sm:px-12 py-10 ${proseClasses}`}>
+        <ReactMarkdown>{fallbackMarkdown}</ReactMarkdown>
+      </article>
+    )
+  }
+
+  return (
+    <article className="rounded-lg border border-border bg-card px-8 sm:px-12 py-10 flex flex-col gap-10">
+      {chapters.map((c) => (
+        <ChapterView key={c.slug} chapter={c} isAdmin={isAdmin} proseClasses={proseClasses} onRefetch={onRefetch} />
+      ))}
+    </article>
+  )
+}
+
+function ChapterView({ chapter, isAdmin, proseClasses, onRefetch }) {
+  const pinMutation = useAppMutation({
+    mutationFn: () => (chapter.pinned ? unpinChapter(chapter.slug) : pinChapter(chapter.slug)),
+    onSuccess:  () => {
+      toast.success(chapter.pinned ? 'Chapter unpinned' : 'Chapter pinned')
+      onRefetch()
+    },
+    onError: (e) => {
+      const msg = e?.body?.error || e?.message || (chapter.pinned ? 'Unpin failed' : 'Pin failed')
+      toast.error(msg)
+    },
+  })
+
+  return (
+    <section className="group">
+      <header className="flex items-baseline justify-between gap-3 mb-3">
+        <h2 className="text-2xl font-bold tracking-tight text-slate-900 m-0">{chapter.title}</h2>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => pinMutation.mutate()}
+            disabled={pinMutation.isPending}
+            className={`shrink-0 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors ${
+              chapter.pinned
+                ? 'text-primary bg-primary/10 hover:bg-primary/15'
+                : 'text-muted-foreground hover:text-foreground hover:bg-accent/30 opacity-0 group-hover:opacity-100 focus:opacity-100'
+            }`}
+            title={chapter.pinned ? 'Unpin this chapter (lets regen rewrite it)' : 'Pin this chapter (preserve verbatim across regenerations)'}
+          >
+            {chapter.pinned ? (
+              <>
+                <Pin className="h-3.5 w-3.5" fill="currentColor" />
+                Pinned
+              </>
+            ) : (
+              <>
+                <PinOff className="h-3.5 w-3.5" />
+                Pin
+              </>
+            )}
+          </button>
+        )}
+      </header>
+      <div className={proseClasses}>
+        <ReactMarkdown>{chapter.body_md || ''}</ReactMarkdown>
+      </div>
+    </section>
   )
 }
