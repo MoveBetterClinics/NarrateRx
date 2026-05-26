@@ -82,7 +82,7 @@ Add a blank line, then 8–10 hashtags: condition-specific, movement, ${workspac
 Do NOT include any URLs in the caption body.${instagramOverlayInstructions}`,
 
       cta: `Write a single Instagram caption (~125 words) for ${workspace.display_name} about ${condition}.
-ANGLE: Direct invitation to book. Lead with a one-line condition-specific hook ("Still dealing with ${condition}?"), briefly describe what the assessment includes, then a clear CTA.
+ANGLE: Direct invitation to book. Lead with a one-line hook that mirrors back the specific pattern or experience of someone dealing with ${condition} — not a generic "Are you suffering from pain?" opener. Briefly describe what the assessment at ${workspace.display_name} actually involves (movement screen, not just "a consult"). Make the ask feel like the natural next step after the insight you led with.
 ${isPersonal ? `Write in ${firstName}'s first-person voice.` : `Use "we" and "our team" language.`}
 End with: "Book your assessment — link in bio 👆"
 Add a blank line, then 5–6 targeted local hashtags: ${workspace.location_hashtag ?? '#physicaltherapy'}, ${workspace.brand_hashtag ?? ''}, plus condition tags.
@@ -138,7 +138,7 @@ ANGLE: Establish local authority.
 VOICE FIRST: Open with 1–2 sentences that use the clinician's distinctive diagnostic framing from the VOICE PHRASE ANCHORS above — their specific clinical insight or "how" explanation about ${condition}. Do NOT open with a generic "At [clinic] we treat..." line.
 Then connect that insight to the local context: what ${workspace.display_name} does differently for ${condition} patients in ${workspace.location_keyword ?? 'your area'}.
 Use "we" and "our team" throughout.
-Close with: "Book your ${condition} assessment at ${workspace.display_name}: ${workspace.website}"
+Close with 1–2 sentences that echo the specific insight above before the booking ask — not a bare "book now." E.g. "If that pattern sounds familiar, a movement screen at ${workspace.display_name} is how we start untangling it: ${workspace.website}"
 No hashtags. Conversational, not salesy.`,
 
       patient_outcome: `Write a Google Business Profile post (~200 words) about ${condition} for ${workspace.display_name} in ${workspace.location_keyword ?? 'your area'}.
@@ -146,7 +146,7 @@ ANGLE: Results framing.
 VOICE FIRST: Open with 1–2 sentences in the clinician's authentic voice — pull a specific clinical mechanism or patient insight from the VOICE PHRASE ANCHORS above rather than leading with a generic outcomes statement.
 Then pivot to results: what does recovery from ${condition} actually look like at ${workspace.display_name}? Include a specific, believable outcome ("patients typically find…" or "the goal is…").
 Use "we" and "our team" throughout.
-Close with: "Ready to start your recovery? Book at ${workspace.display_name}: ${workspace.website}"
+Close with 1–2 sentences that connect the outcome above to the next step — not a bare "book now." E.g. "If you're ready to find out what recovery actually looks like for your situation: ${workspace.website}"
 No hashtags. Conversational, results-focused.`,
     },
 

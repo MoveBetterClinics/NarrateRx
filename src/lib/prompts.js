@@ -539,8 +539,8 @@ BLOG POST FORMAT (write in Markdown):
   ? `The key clinical observation from the interview — in my own voice. This is the moment that makes the post human and builds trust.`
   : `The key clinical observation from the interview — framed as ${workspace.display_name}'s team perspective. This makes the post human and builds trust. The clinician's name may appear here once naturally if it adds credibility, e.g. "As our clinician ${clinicianName} puts it…"`}]
 
-## Ready to Move Better?
-[Warm, encouraging CTA — 3–4 sentences. Reinforce movement as the solution. Invite them to book at [${workspace.display_name}](${workspace.booking_url}). Keep it conversational, not salesy.]
+## ${workspace.cta_heading || 'Ready to Move Better?'}
+[Topic-connected CTA — 3–4 sentences. Open by echoing back the specific condition or insight this post covered — the reader should feel you remembered exactly what they just read (e.g. "If the ${condition} pattern we described sounds familiar…" or "If you've been living with this and nothing has stuck…"). Then name the concrete next step at ${workspace.display_name} — call it a movement assessment or movement screen, not just "an appointment." Link to [${workspace.display_name}](${workspace.booking_url}). No exclamation points, no urgency language — a natural next step, not a hard sell.]
 ${isPersonal ? '' : `
 ---
 *${workspace.display_name} · ${workspace.location}*
@@ -1025,7 +1025,7 @@ function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voic
   const ctaUrl = workspace?.booking_url || workspace?.website || ''
   const ctaHeading = workspace?.cta_heading || 'Want to talk?'
   const ctaSection = ctaUrl
-    ? `\n## ${ctaHeading}\n[Warm, direct close — 2–3 sentences. Invite the reader to take a clear next step. Link to [${workspace.display_name}](${ctaUrl}). Conversational, not salesy.]\n`
+    ? `\n## ${ctaHeading}\n[Topic-connected CTA — 2–3 sentences. Open by echoing the specific topic or insight this piece covered ("If what we explored about ${topic} resonates…"), then name the concrete next step at ${workspace.display_name}. Link to [${workspace.display_name}](${ctaUrl}). Conversational — should feel like a natural continuation, not a pivot to "book now."\n`
     : ''
   const brandVoice = workspace?.brand_voice || "(no brand voice set — match the expert's natural voice from the transcript)"
 
@@ -1187,8 +1187,8 @@ BLOG POST FORMAT (write in Markdown):
 
 [Content sections — heading and body each driven by the brief and anchor moments above. Build the thread from the transcript. Lean on the clinician's actual phrasing wherever it fits.]
 
-${siblingSummaries.length ? `[Late in the piece, weave in a natural reference to the other parts of the series — something like "I dug into <Part X's topic> separately" with a link. Do NOT do a "click here to read more" listicle dump; reference siblings only where they genuinely fit the narrative.]\n\n` : ''}## Ready to Move Better?
-[Warm, encouraging CTA — 3 sentences. Invite the reader to book at [${workspace.display_name}](${workspace.booking_url}). Conversational, not salesy.]
+${siblingSummaries.length ? `[Late in the piece, weave in a natural reference to the other parts of the series — something like "I dug into <Part X's topic> separately" with a link. Do NOT do a "click here to read more" listicle dump; reference siblings only where they genuinely fit the narrative.]\n\n` : ''}## ${workspace.cta_heading || 'Ready to Move Better?'}
+[Topic-connected CTA — 3 sentences. Echo back the specific thread this part covered, then invite the reader to take the next step at ${workspace.display_name}. Link to [${workspace.display_name}](${workspace.booking_url}). Conversational — should feel like the clinician remembered what they just shared in this part, not a generic "book now" pivot.]
 ${isPersonal ? '' : `
 ---
 *${workspace.display_name} · ${workspace.location} · ${seriesTitle ? `${seriesTitle} — ` : ''}Part ${partNum}*
@@ -1214,7 +1214,7 @@ function getGeneralSeriesPartSystemPrompt(workspace, expertName, topic, tone, vo
   const ctaUrl = workspace?.booking_url || workspace?.website || ''
   const ctaHeading = workspace?.cta_heading || 'Want to talk?'
   const ctaSection = ctaUrl
-    ? `\n## ${ctaHeading}\n[Warm, direct close — 2–3 sentences. Link to [${workspace.display_name}](${ctaUrl}).]\n`
+    ? `\n## ${ctaHeading}\n[Topic-connected CTA — 2–3 sentences. Echo back the thread this part covered, then name the concrete next step at ${workspace.display_name}. Link to [${workspace.display_name}](${ctaUrl}). Conversational — feels like a natural continuation, not a generic pivot to "book now."]\n`
     : ''
   const brandVoice = workspace?.brand_voice || "(no brand voice set — match the expert's natural voice from the transcript)"
 
