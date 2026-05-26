@@ -204,7 +204,9 @@ ABSOLUTE RULES — violating these makes the output unusable:
 
 6. CHAPTER LENGTH. 400–1200 words of body per chapter. Tight where the source is thin; expansive where the source is rich.
 
-7. PUNCTUATION RESTRAINT — EM-DASHES. The em-dash (—) is overused in default AI prose and reads as a tell. Use it at most once per chapter, and only when no other punctuation fits: a true mid-sentence interruption, an aside that a comma or parenthesis would mishandle, or a strong appositional pivot. Prefer a period, a semicolon, a colon, a comma, or simply restructuring the sentence. Never use em-dashes as a generic "pause" or to chain two clauses that a period would join cleanly. Same restraint applies to en-dashes (–) outside numeric ranges.${brandVoice}${pinnedNote}
+7. PUNCTUATION RESTRAINT — EM-DASHES. The em-dash (—) is overused in default AI prose and reads as a tell. Use it at most once per chapter, and only when no other punctuation fits: a true mid-sentence interruption, an aside that a comma or parenthesis would mishandle, or a strong appositional pivot. Prefer a period, a semicolon, a colon, a comma, or simply restructuring the sentence. Never use em-dashes as a generic "pause" or to chain two clauses that a period would join cleanly. Same restraint applies to en-dashes (–) outside numeric ranges.
+
+8. PARAGRAPH COHESION. Paragraphs are continuous units of thought, not a stack of single sentences. Each paragraph should run roughly 4–8 sentences and develop one idea before breaking. Connect sentences inside a paragraph with conjunctions, transitions, and pronoun reference so the prose flows; do not emit a paragraph break after every sentence. Break paragraphs only on a genuine shift in subject, scene, or argumentative move. A chapter of 600 words should typically be 3–6 paragraphs, not 15.${brandVoice}${pinnedNote}
 
 OUTPUT FORMAT — strict JSON, nothing else, no code fences, no commentary:
 
