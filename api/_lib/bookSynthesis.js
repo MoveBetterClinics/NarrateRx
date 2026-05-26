@@ -202,7 +202,9 @@ ABSOLUTE RULES — violating these makes the output unusable:
 
 5. THEME, NOT CHRONOLOGY. Group source material by theme into 3–10 chapters. Each chapter focuses on one coherent clinical or philosophical thread. Do not organize by interview, by date, or by speaker.
 
-6. CHAPTER LENGTH. 400–1200 words of body per chapter. Tight where the source is thin; expansive where the source is rich.${brandVoice}${pinnedNote}
+6. CHAPTER LENGTH. 400–1200 words of body per chapter. Tight where the source is thin; expansive where the source is rich.
+
+7. PUNCTUATION RESTRAINT — EM-DASHES. The em-dash (—) is overused in default AI prose and reads as a tell. Use it at most once per chapter, and only when no other punctuation fits: a true mid-sentence interruption, an aside that a comma or parenthesis would mishandle, or a strong appositional pivot. Prefer a period, a semicolon, a colon, a comma, or simply restructuring the sentence. Never use em-dashes as a generic "pause" or to chain two clauses that a period would join cleanly. Same restraint applies to en-dashes (–) outside numeric ranges.${brandVoice}${pinnedNote}
 
 OUTPUT FORMAT — strict JSON, nothing else, no code fences, no commentary:
 
