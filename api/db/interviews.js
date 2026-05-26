@@ -11,6 +11,7 @@ import { enforceLimit } from '../_lib/ratelimit.js'
 import { buildPlanRows } from '../_lib/atomPlan.js'
 import { extractConcepts, buildInterviewText } from '../_lib/conceptExtractor.js'
 import { summarizeInterview } from '../_lib/interviewSummarizer.js'
+import { markBookStale } from '../_lib/bookStale.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -371,6 +372,13 @@ export default async function handler(req, res) {
       } catch (e) {
         console.error(`[db/interviews] content_plan_atoms block threw for interview=${id} ws=${ws.slug}: ${e?.message}`)
       }
+
+      // Mark the workspace's book stale so the next cron run (or a manual
+      // regenerate click) weaves this newly-completed interview in. Covers
+      // both regular interviews and voice memos — voice memos go through
+      // this same PATCH path when the capture review pipeline marks them
+      // completed.
+      markBookStale({ workspaceId: ws.id })
     }
 
     return ok(res, data[0])
