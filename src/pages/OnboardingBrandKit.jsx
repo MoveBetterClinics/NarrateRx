@@ -9,10 +9,11 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 //
 // `onAdvance` is wired to both "Looks good — continue" (after auto-assign) and
 // the lightweight "Skip for now" links inside BrandKit. Either way the user
-// lands on `/?welcome=1` and the normal WelcomeGate / dashboard chrome takes
-// over from there.
+// lands on the billing/plan picker so they can subscribe before entering the app.
+// Internal workspaces (plan='internal') are bounced straight to home by
+// BillingSettings when it sees the ?onboarding=1 param.
 export default function OnboardingBrandKit() {
   useDocumentTitle('Add your brand assets')
   const navigate = useNavigate()
-  return <BrandKit variant="onboarding" onAdvance={() => navigate('/?welcome=1', { replace: true })} />
+  return <BrandKit variant="onboarding" onAdvance={() => navigate('/settings/workspace/billing?onboarding=1', { replace: true })} />
 }

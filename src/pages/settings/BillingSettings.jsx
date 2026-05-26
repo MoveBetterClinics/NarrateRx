@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Navigate, useSearchParams } from 'react-router-dom'
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Loader2, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react'
 import PricingCards from '@/components/billing/PricingCards'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -9,12 +9,17 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 // through PricingCards' Stripe checkout. The return-from-Stripe toasts
 // (`?billing=success` / `?billing=cancelled`) live here now since this is
 // where the Stripe return_url points.
+//
+// Also handles `?onboarding=1` — the post-brand-kit redirect from new tenants.
+// Internal workspaces (plan='internal') skip straight to home.
 export default function BillingSettings() {
   useDocumentTitle('Settings — Plan & billing')
   const { role, isLoading: roleLoading } = useUserRole()
   const [searchParams, setSearchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [ws, setWs] = useState(undefined)
   const [billingToast, setBillingToast] = useState(null) // 'success' | 'cancelled' | null
+  const isOnboarding = searchParams.get('onboarding') === '1'
 
   useEffect(() => {
     fetch('/api/workspace/me')
@@ -22,6 +27,13 @@ export default function BillingSettings() {
       .catch(() => null)
       .then(setWs)
   }, [])
+
+  // Internal workspaces don't pay — skip straight to home after onboarding.
+  useEffect(() => {
+    if (isOnboarding && ws?.plan === 'internal') {
+      navigate('/?welcome=1', { replace: true })
+    }
+  }, [isOnboarding, ws, navigate])
 
   useEffect(() => {
     const billing = searchParams.get('billing')
@@ -51,19 +63,31 @@ export default function BillingSettings() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight flex items-center">
-          <span
-            className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
-            style={{ background: 'hsl(var(--primary))' }}
-            aria-hidden="true"
-          />
-          Plan &amp; billing
-        </h1>
-        <p className="text-muted-foreground text-sm mt-1">
-          Manage your subscription plan. Changes take effect immediately.
-        </p>
-      </div>
+      {isOnboarding ? (
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Sparkles className="h-5 w-5 text-orange-500" />
+            <h1 className="text-2xl font-bold tracking-tight">One last step</h1>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Your workspace is ready. Choose a plan to start publishing — you can change or cancel anytime.
+          </p>
+        </div>
+      ) : (
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight flex items-center">
+            <span
+              className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5"
+              style={{ background: 'hsl(var(--primary))' }}
+              aria-hidden="true"
+            />
+            Plan &amp; billing
+          </h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Manage your subscription plan. Changes take effect immediately.
+          </p>
+        </div>
+      )}
 
       {billingToast === 'success' && (
         <div className="flex items-center gap-2 rounded-md bg-green-50 border border-green-200 px-4 py-3 text-sm text-green-800">
@@ -78,7 +102,7 @@ export default function BillingSettings() {
         </div>
       )}
 
-      {ws.plan && ws.plan !== 'trial' && (
+      {!isOnboarding && ws.plan && ws.plan !== 'trial' && ws.plan !== 'internal' && (
         <div className="text-xs text-muted-foreground">
           Current plan: <span className="font-semibold capitalize text-foreground">{ws.plan}</span>
           {ws.plan_seats && ws.plan_seats < 999 && (
@@ -88,6 +112,18 @@ export default function BillingSettings() {
       )}
 
       <PricingCards currentPlan={ws.plan || 'trial'} />
+
+      {isOnboarding && (
+        <p className="text-center text-xs text-muted-foreground">
+          Not ready yet?{' '}
+          <button
+            className="underline underline-offset-2 hover:text-foreground transition-colors"
+            onClick={() => navigate('/?welcome=1', { replace: true })}
+          >
+            Skip for now — explore the app first
+          </button>
+        </p>
+      )}
     </div>
   )
 }
