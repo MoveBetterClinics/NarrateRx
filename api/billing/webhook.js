@@ -254,30 +254,57 @@ async function handler(req, res) {
         // Successful payment after a past_due state (or normal renewal). Restore
         // the plan from the subscription's price ID.
         const invoice = event.data.object
-        const workspaceId = invoice.subscription_details?.metadata?.workspace_id
+        const customerId = invoice.customer || null
+        let workspaceId = invoice.subscription_details?.metadata?.workspace_id
           ?? invoice.metadata?.workspace_id
-        if (!workspaceId) break
+          ?? null
+
+        if (!workspaceId && customerId) {
+          // Fallback: look up by customer id (same pattern as invoice.payment_failed).
+          const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id&limit=1`)
+          if (r.ok) {
+            const rows = await r.json()
+            workspaceId = rows[0]?.id || null
+          }
+        }
+
+        if (!workspaceId) {
+          console.error(`[billing/webhook] invoice.paid: could not resolve workspace_id (customer=${customerId})`)
+          break
+        }
 
         const subscriptionId = invoice.subscription
+        let priceId = null
+        let planConfig = null
         if (subscriptionId) {
           try {
             const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
               headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` },
             })
             const sub = await subRes.json()
-            const priceId = sub?.items?.data?.[0]?.price?.id || null
-            const planConfig = priceId ? PRICE_PLAN_MAP[priceId] : null
-            if (planConfig) {
-              await updateWorkspace(workspaceId, {
-                plan:       planConfig.plan,
-                plan_seats: planConfig.seats,
-                stripe_price_id: priceId,
-              })
-              console.info(`[billing/webhook] invoice.paid: workspace ${workspaceId} restored to ${planConfig.plan}`)
-            }
+            priceId = sub?.items?.data?.[0]?.price?.id || null
+            planConfig = priceId ? PRICE_PLAN_MAP[priceId] : null
           } catch (e) {
-            console.error('[billing/webhook] invoice.paid: failed to restore plan:', e?.message)
+            console.error('[billing/webhook] invoice.paid: failed to fetch subscription:', e?.message)
           }
+        }
+
+        if (planConfig) {
+          await updateWorkspace(workspaceId, {
+            plan:       planConfig.plan,
+            plan_seats: planConfig.seats,
+            stripe_price_id: priceId,
+          })
+          console.info(`[billing/webhook] invoice.paid: workspace ${workspaceId} restored to ${planConfig.plan}`)
+        } else {
+          // Unknown priceId (env-var mismatch, mid-migration price, or a duplicate
+          // subscription). Unblock the workspace at the lowest paid tier rather
+          // than leaving it stuck on past_due, and warn loudly so this is fixed.
+          console.warn(`[billing/webhook] invoice.paid: unknown priceId ${priceId} for workspace ${workspaceId} (customer=${customerId}) — falling back to plan='solo'`)
+          await updateWorkspace(workspaceId, {
+            plan: 'solo',
+            plan_seats: 3,
+          })
         }
         break
       }
