@@ -22,6 +22,10 @@ function fetchDrafts() {
   return apiFetch('/api/corpus/documents?docType=uploaded_draft')
 }
 
+function fetchOriginalBlogs() {
+  return apiFetch('/api/corpus/documents?docType=original_blog')
+}
+
 function searchCorpus(query) {
   return apiFetch('/api/corpus/search', {
     method: 'POST',
@@ -129,6 +133,19 @@ export default function AuthorMode() {
   } = useQuery({
     queryKey: ['corpus-drafts'],
     queryFn: fetchDrafts,
+  })
+
+  // Fetch original blog imports — read-mostly here. Loading one into the
+  // editor uses it as a starting point; saving creates a NEW uploaded_draft
+  // (the original_blog row stays untouched). The reason this list exists in
+  // this surface at all is the per-row admin "Exclude from book" toggle —
+  // there's no other UI today that lists clinician_corpus_documents.
+  const {
+    data: originalBlogs = [],
+    isLoading: originalBlogsLoading,
+  } = useQuery({
+    queryKey: ['corpus-original-blogs'],
+    queryFn: fetchOriginalBlogs,
   })
 
   // Save mutation.
@@ -243,6 +260,28 @@ export default function AuthorMode() {
               </div>
             </div>
           ) : null}
+
+          {/* Original blog imports — separate section so admins can manage
+              what's woven into the book without confusing them with drafts. */}
+          {!originalBlogsLoading && originalBlogs.length > 0 && (
+            <div className="rounded-lg border border-border bg-card p-2">
+              <div className="flex items-center justify-between px-1 mb-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Original articles
+                </p>
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-0.5">
+                {originalBlogs.map((d) => (
+                  <DraftItem
+                    key={d.id}
+                    draft={d}
+                    isActive={d.id === activeDraftId}
+                    onLoad={handleLoad}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Editor card */}
           <div className="rounded-lg border border-border bg-card p-4 flex flex-col gap-3">
