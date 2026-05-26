@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Instagram, MapPin, Quote } from 'lucide-react'
 import { queryKeys } from '@/lib/queries'
+import { createContentItems } from '@/lib/publish'
 import { toast } from '@/lib/toast'
 
 /**
@@ -86,24 +87,15 @@ export default function TranscriptHighlighter({ story, children }) {
   async function createItem(platform, content, actionKey) {
     if (!story) return
     try {
-      const r = await fetch('/api/db/content', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          interviewId:   story.id,
-          clinicianId:   story.clinician_id,
-          clinicianName: story.clinician_name,
-          topic:         story.topic,
-          platform,
-          content,
-          status: 'draft',
-        }),
+      await createContentItems({
+        interviewId:   story.id,
+        clinicianId:   story.clinician_id,
+        clinicianName: story.clinician_name,
+        topic:         story.topic,
+        platform,
+        content,
+        status: 'draft',
       })
-      if (!r.ok) {
-        toast.error('Failed to create content piece')
-        return
-      }
       // Refresh caches so AssetsPane picks up the new piece
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
