@@ -290,14 +290,33 @@ for (const interview of testInterviews) {
       try {
         evalResult = JSON.parse(evalText.trim())
       } catch {
-        // If JSON parse fails, log and continue with empty scores
-        console.warn('\n    ⚠️  Eval JSON parse failed:', evalText.slice(0, 100))
-        evalResult = {}
+        // Strip markdown fences (haiku often ignores the "no fences" instruction)
+        const cleaned = evalText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
+        try {
+          evalResult = JSON.parse(cleaned)
+        } catch {
+          // Fall back to regex extraction — handles truncated JSON where the
+          // closing brace never arrived before the token cap hit.
+          const scores = {}
+          const numRe = /"(voice_fidelity|clinical_texture|redundancy|hook_strength|cta_naturalness|word_count)"\s*:\s*(\d+)/g
+          let m
+          while ((m = numRe.exec(cleaned || evalText)) !== null) scores[m[1]] = parseInt(m[2], 10)
+          const noteM = (cleaned || evalText).match(/"notes"\s*:\s*"([^"]*)"/)
+          if (noteM) scores.notes = noteM[1]
+          evalResult = Object.keys(scores).length ? scores : {}
+          if (Object.keys(evalResult).length) {
+            process.stdout.write(`[partial] `)
+          } else {
+            console.warn('\n    ⚠️  Eval parse completely failed:', evalText.slice(0, 80))
+          }
+        }
       }
 
-      const overallScore = evalResult.voice_fidelity != null
-        ? ((evalResult.voice_fidelity + evalResult.clinical_texture + evalResult.redundancy +
-            evalResult.hook_strength + evalResult.cta_naturalness) / 5).toFixed(1)
+      // Overall = avg of whichever scored dims are present (partial is OK)
+      const scoreDims = ['voice_fidelity', 'clinical_texture', 'redundancy', 'hook_strength', 'cta_naturalness']
+      const presentDims = scoreDims.filter(d => evalResult[d] != null)
+      const overallScore = presentDims.length >= 3
+        ? (presentDims.reduce((s, d) => s + evalResult[d], 0) / presentDims.length).toFixed(1)
         : null
 
       const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
