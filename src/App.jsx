@@ -49,6 +49,7 @@ const Synthesis = lazy(() => import('@/pages/Synthesis'))
 const PreVisitMessage = lazy(() => import('@/pages/PreVisitMessage'))
 const AuthorMode = lazy(() => import('@/pages/AuthorMode'))
 const Book = lazy(() => import('@/pages/Book'))
+const EditorialTest = lazy(() => import('@/pages/EditorialTest'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import { UploadProgressProvider, useUploadProgress } from '@/lib/UploadProgressContext'
@@ -445,6 +446,8 @@ function AppRoutes() {
             <Route path="/write" element={guarded(<AuthorMode />)} />
             <Route path="/book"  element={guarded(<Book />)} />
             <Route path="/library" element={guarded(<MediaHub />)} />
+            {/* Internal dev surface — Phase 2 editorial pipeline test (search clips + render). */}
+            <Route path="/internal/editorial-test" element={guarded(<EditorialTest />)} />
             {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}
             <Route path="/review/:itemId" element={<LegacyReviewRedirect />} />
             <Route path="/review-queue" element={<Navigate to="/?bucket=review" replace />} />
