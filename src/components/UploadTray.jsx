@@ -4,7 +4,7 @@
 // loaded-byte history kept in a ref so the context stays small.
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, X, Loader2, CheckCircle2, AlertCircle, Ban, RotateCw } from 'lucide-react'
+import { ChevronDown, ChevronUp, X, Loader2, CheckCircle2, AlertCircle, Ban, RotateCw, Play, PauseCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Icon from '@/components/ui/Icon'
 import { useUploadProgress } from '@/lib/UploadProgressContext'
@@ -73,7 +73,7 @@ function useSpeedTracker(uploads) {
 }
 
 export default function UploadTray() {
-  const { uploads, hasActiveUploads, dismissCompleted, dismissRow, cancelUpload, retryUpload } = useUploadProgress()
+  const { uploads, hasActiveUploads, dismissCompleted, dismissRow, cancelUpload, retryUpload, resumeUpload } = useUploadProgress()
   const [collapsed, setCollapsed] = useState(false)
   const getSpeed = useSpeedTracker(uploads)
 
@@ -147,6 +147,7 @@ export default function UploadTray() {
                   {r.status === 'done'      && <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${r.slowIndex ? 'text-warning' : 'text-success'}`} />}
                   {r.status === 'error'     && <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
                   {r.status === 'canceled'  && <Ban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                  {r.status === 'paused'    && <PauseCircle className="h-3.5 w-3.5 text-warning shrink-0" />}
                   <span className="truncate flex-1 font-medium" title={r.name}>{r.name}</span>
                   {/* Cancel button on rows still in flight. Disabled during
                       the brief 'indexing' window since at that point the
@@ -177,7 +178,18 @@ export default function UploadTray() {
                       <Icon as={RotateCw} size="xs" />
                     </button>
                   )}
-                  {(r.status === 'done' || r.status === 'error' || r.status === 'canceled') && (
+                  {r.status === 'paused' && (
+                    <button
+                      type="button"
+                      className="p-0.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                      onClick={() => resumeUpload(r.id)}
+                      aria-label={`Resume upload of ${r.name}`}
+                      title="Resume upload"
+                    >
+                      <Icon as={Play} size="xs" />
+                    </button>
+                  )}
+                  {(r.status === 'done' || r.status === 'error' || r.status === 'canceled' || r.status === 'paused') && (
                     <button
                       type="button"
                       className="p-0.5 rounded hover:bg-muted text-muted-foreground"
@@ -240,6 +252,11 @@ export default function UploadTray() {
                 {r.status === 'canceled' && (
                   <div className="mt-1 text-2xs text-muted-foreground">
                     Canceled. Click ↻ to retry.
+                  </div>
+                )}
+                {r.status === 'paused' && (
+                  <div className="mt-1 text-2xs text-muted-foreground">
+                    Paused — {r.progress || 0}% uploaded. Click ▶ to resume.
                   </div>
                 )}
               </div>
