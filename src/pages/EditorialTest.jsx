@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Loader2, Search, Sparkles, Download, ImageIcon } from 'lucide-react'
+import { ArrowLeft, Loader2, Search, Sparkles, Download, ImageIcon, Package } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,11 +12,12 @@ import { useAppMutation } from '@/lib/useAppMutation'
 import { apiFetch } from '@/lib/api'
 
 // Phase 2 internal test page for the editorial pipeline.
-// Lets you type a topic → see top-K visually relevant clips → pick one →
-// type a caption → see the brand-rendered output across channels.
+// Two modes:
+//  • Manual: Search clips → pick one → caption → render (validates each step)
+//  • Auto:   Type topic → Generate Package (one call: clip-pull + caption + render)
 //
 // Not part of the public Story Director UI (that's Phase 3). This is an
-// internal surface for validating clip-pull + render-clip end-to-end
+// internal surface for validating the Day 6-8 pipeline end-to-end
 // without curl gymnastics.
 
 const PHOTO_CHANNELS = [
@@ -62,6 +63,7 @@ export default function EditorialTest() {
     () => Object.fromEntries(PHOTO_CHANNELS.map((c) => [c.id, c.defaultOn])),
   )
   const [renders, setRenders] = useState([])
+  const [autoPackage, setAutoPackage] = useState(null)  // result of generate-package
 
   // Channel list depends on selected clip kind (photo vs video)
   const activeChannels = selectedClip?.kind === 'video' ? VIDEO_CHANNELS : PHOTO_CHANNELS
@@ -120,6 +122,27 @@ export default function EditorialTest() {
     },
   })
 
+  const packageMutation = useAppMutation({
+    mutationFn: () =>
+      apiFetch('/api/editorial/generate-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: query.trim() }),
+      }),
+    onSuccess: (data) => {
+      setAutoPackage(data)
+      if (data?.errors?.length) {
+        toast.error(`Package generated with ${data.errors.length} render error(s)`)
+        console.error('Package errors:', data.errors)
+      } else {
+        toast(`Package ready — ${data?.renders?.length || 0} channels rendered`)
+      }
+    },
+    onError: (err) => {
+      toast.error(err?.message || 'Package generation failed')
+    },
+  })
+
   const onSearch = (e) => {
     e?.preventDefault?.()
     if (!query.trim()) return
@@ -133,6 +156,15 @@ export default function EditorialTest() {
       return
     }
     renderMutation.mutate()
+  }
+
+  const onGeneratePackage = () => {
+    if (!query.trim()) {
+      toast.error('Enter a topic first')
+      return
+    }
+    setAutoPackage(null)
+    packageMutation.mutate()
   }
 
   return (
@@ -175,16 +207,75 @@ export default function EditorialTest() {
               </div>
               <Button
                 type="submit"
+                variant="outline"
                 disabled={searchMutation.isPending || !query.trim()}
               >
                 {searchMutation.isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Searching</>
                   : <><Search className="w-4 h-4 mr-2" /> Search clips</>}
               </Button>
+              <Button
+                type="button"
+                onClick={onGeneratePackage}
+                disabled={packageMutation.isPending || !query.trim()}
+                className="ml-auto"
+              >
+                {packageMutation.isPending
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Generating…</>
+                  : <><Package className="w-4 h-4 mr-2" /> Generate Package</>}
+              </Button>
             </div>
           </form>
         </CardContent>
       </Card>
+
+      {/* ── Auto-Package result ──────────────────────────────────────────────── */}
+      {autoPackage && (
+        <Card className="mb-6 border-primary/40">
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Package className="w-4 h-4 text-primary" />
+              <span>Package generated — {autoPackage.renders?.length || 0} channel(s)</span>
+              <span className="text-zinc-400">•</span>
+              <span className="text-zinc-600 font-normal truncate">{autoPackage.clip?.filename}</span>
+              <span className="text-zinc-400">•</span>
+              <span className="text-zinc-500 font-normal">{Math.round((autoPackage.elapsedMs || 0) / 1000)}s</span>
+            </div>
+            {autoPackage.captionText && (
+              <p className="text-sm text-zinc-700 italic">&ldquo;{autoPackage.captionText}&rdquo;</p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {(autoPackage.renders || []).map((r) => {
+                const allChannels = [...PHOTO_CHANNELS, ...VIDEO_CHANNELS]
+                const chLabel = allChannels.find((c) => c.id === r.channel)?.label || r.channel
+                const isVideoRender = r.blobUrl?.endsWith('.mp4')
+                return (
+                  <div key={r.channel} className="rounded-lg border border-zinc-200 overflow-hidden">
+                    {isVideoRender ? (
+                      <video src={r.blobUrl} controls className="w-full bg-zinc-900" preload="metadata" />
+                    ) : (
+                      <img src={r.blobUrl} alt={chLabel} className="w-full bg-zinc-100" loading="lazy" />
+                    )}
+                    <div className="p-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-sm font-medium">{chLabel}</div>
+                        <div className="text-xs text-zinc-500">
+                          {r.width}×{r.height} · {Math.round(r.sizeBytes / 1024)}KB
+                          {r.hadSubtitles && <span className="ml-2 text-green-600">+ captions</span>}
+                        </div>
+                      </div>
+                      <a href={r.blobUrl} download target="_blank" rel="noreferrer"
+                        className="inline-flex items-center text-sm text-primary hover:underline">
+                        <Download className="w-4 h-4 mr-1" /> Save
+                      </a>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Section 2: Results ─────────────────────────────────────────────── */}
       {clips.length > 0 && (

@@ -33,27 +33,10 @@ export const config = { runtime: 'nodejs' }
 import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { embedTexts } from '../_lib/embeddings.js'
+import { searchClips } from '../_lib/clipSearch.js'
 
-const SUPABASE_URL = process.env.SUPABASE_URL
-const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-const MAX_K = 50
 const DEFAULT_K = 8
 const DEFAULT_MIN_SCORE = 0.5
-
-async function sb(path, init = {}) {
-  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...init,
-    headers: {
-      apikey: SUPABASE_KEY,
-      Authorization: `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation',
-      ...init.headers,
-    },
-  })
-}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -78,7 +61,7 @@ export default async function handler(req, res) {
   if (!query) return res.status(400).json({ error: 'query_required' })
   if (query.length > 2000) return res.status(400).json({ error: 'query_too_long' })
 
-  const k = Math.min(Math.max(parseInt(body.k, 10) || DEFAULT_K, 1), MAX_K)
+  const k = Math.min(Math.max(parseInt(body.k, 10) || DEFAULT_K, 1), 50)
   const kind = body.kind && body.kind !== 'any' ? String(body.kind) : null
   if (kind && !['photo', 'video', 'audio'].includes(kind)) {
     return res.status(400).json({ error: 'invalid_kind' })
@@ -88,61 +71,14 @@ export default async function handler(req, res) {
     : DEFAULT_MIN_SCORE
   const clinicianId = body.clinicianId ? String(body.clinicianId) : null
 
-  // --- Embed the query ---
-  let queryEmbedding
+  // --- Search visual memory via shared helper ---
+  let clips
   try {
-    const [vec] = await embedTexts([query])
-    if (!vec || vec.length !== 1536) {
-      return res.status(500).json({ error: 'embedding_dim_mismatch' })
-    }
-    queryEmbedding = vec
+    clips = await searchClips({ query, workspaceId: ws.id, k, kind, minScore, clinicianId })
   } catch (e) {
-     
-    console.error('[editorial/pull-clips] embed failed:', e?.message)
-    return res.status(500).json({ error: 'embed_failed' })
+    console.error('[editorial/pull-clips] search failed:', e?.message)
+    return res.status(500).json({ error: 'search_failed', detail: e?.message })
   }
-
-  // --- RPC against pgvector via match_visual_memory_chunks ---
-  const rpcRes = await sb('rpc/match_visual_memory_chunks', {
-    method: 'POST',
-    body: JSON.stringify({
-      query_embedding: queryEmbedding,
-      match_count: k,
-      filter_workspace_id: ws.id,
-      filter_kind: kind,
-      filter_min_score: minScore,
-      filter_clinician_id: clinicianId,
-    }),
-  })
-
-  if (!rpcRes.ok) {
-    const errText = await rpcRes.text().catch(() => 'rpc_error')
-     
-    console.error(`[editorial/pull-clips] rpc failed: ${rpcRes.status} ${errText}`)
-    return res.status(500).json({ error: 'rpc_failed' })
-  }
-
-  const rows = await rpcRes.json()
-
-  // --- Shape the response (camelCase + drop nulls for cleanliness) ---
-  const clips = rows.map((r) => ({
-    chunkId: r.chunk_id,
-    assetId: r.source_id,
-    similarity: r.similarity,
-    kind: r.asset_kind,
-    blobUrl: r.asset_blob_url,
-    thumbnailUrl: r.asset_thumbnail_url,
-    filename: r.asset_filename,
-    durationS: r.asset_duration_s,
-    aspectRatio: r.asset_aspect_ratio,
-    capturedAt: r.asset_captured_at,
-    visualNarrative: r.asset_visual_narrative,
-    aiTags: r.asset_ai_tags,
-    audioQuality: r.audio_quality,
-    videoQuality: r.video_quality,
-    storyRole: r.story_role,
-    clinicianId: r.clinician_id,
-  }))
 
   return res.status(200).json({
     query,
