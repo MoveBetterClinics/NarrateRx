@@ -102,6 +102,18 @@ function sanitizeUrl(v) {
   return s
 }
 
+// Mirrors the set in api/onboarding/my-workspaces.js. Public mailbox domains
+// are not a tenant signal — a user signing up with gmail.com should never get
+// matched against a tenant who happens to have a gmail URL on file.
+const PUBLIC_EMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com',
+  'yahoo.com', 'yahoo.co.uk', 'ymail.com',
+  'hotmail.com', 'outlook.com', 'live.com', 'msn.com',
+  'icloud.com', 'me.com', 'mac.com',
+  'aol.com', 'protonmail.com', 'proton.me',
+  'pm.me', 'gmx.com', 'zoho.com', 'fastmail.com',
+])
+
 function pickEnabledOutputs(arr) {
   if (!Array.isArray(arr)) return []
   const valid = new Set(Object.keys(OUTPUT_CHANNELS))
@@ -173,6 +185,49 @@ async function handler(req, res) {
   let website_hostname = null
   if (website) {
     try { website_hostname = new URL(website).hostname } catch { /* noop */ }
+  }
+
+  // Domain-match guard: defense-in-depth against a user signing up at /onboard
+  // and accidentally creating a duplicate of an existing tenant's workspace
+  // (e.g. alli@movebetter.co creating a second "Move Better" while the real
+  // movebetter-people workspace already exists). The wizard surfaces this
+  // earlier as a "your team already has a workspace" prompt, but we re-check
+  // server-side so a stale tab or a hand-crafted POST can't bypass it.
+  //
+  // Match rule: the signed-in user's primary-email domain == an existing
+  // active workspace's website_hostname (both lowercased, www. stripped).
+  // Skipped when the user's domain is a public mailbox (gmail.com etc.) to
+  // avoid false positives.
+  try {
+    const claimingUser = await clerk().users.getUser(userId)
+    const primaryEmail = claimingUser?.emailAddresses?.find(e => e.id === claimingUser?.primaryEmailAddressId)
+      || claimingUser?.emailAddresses?.[0]
+    const addr = primaryEmail?.emailAddress || ''
+    const at = addr.lastIndexOf('@')
+    const userDomain = at > 0 ? addr.slice(at + 1).trim().toLowerCase().replace(/^www\./, '') : null
+    if (userDomain && !PUBLIC_EMAIL_DOMAINS.has(userDomain)) {
+      const existsRes = await sb(`workspaces?status=eq.active&select=slug,display_name,website_hostname`)
+      if (existsRes.ok) {
+        const rows = await existsRes.json().catch(() => null)
+        if (Array.isArray(rows)) {
+          const match = rows.find(r => {
+            const h = (r.website_hostname || '').trim().toLowerCase().replace(/^www\./, '')
+            return h && h === userDomain
+          })
+          if (match) {
+            console.warn(`[claim] domain-already-claimed user=${userId} domain=${userDomain} existing=${match.slug}`)
+            return res.status(409).json({
+              error: 'domain-already-claimed',
+              workspace: { slug: match.slug, display_name: match.display_name },
+            })
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Non-fatal — if Clerk lookup throws, fall through to the normal path
+    // rather than blocking a legitimate claim on an infra blip.
+    console.error('[claim] domain-match check failed:', e?.message)
   }
 
   // Locations: array of { label, city, region }. First entry becomes the
