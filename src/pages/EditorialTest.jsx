@@ -19,13 +19,22 @@ import { apiFetch } from '@/lib/api'
 // internal surface for validating clip-pull + render-clip end-to-end
 // without curl gymnastics.
 
-const CHANNELS = [
-  { id: 'linkedin_feed',        label: 'LinkedIn (1:1)',     defaultOn: true  },
-  { id: 'instagram_reel_still', label: 'IG Reel (9:16)',     defaultOn: true  },
-  { id: 'blog_hero',            label: 'Blog hero (16:9)',   defaultOn: true  },
-  { id: 'instagram_feed',       label: 'IG feed (1:1)',      defaultOn: false },
-  { id: 'facebook_feed',        label: 'Facebook (4:5)',     defaultOn: false },
-  { id: 'tiktok_still',         label: 'TikTok (9:16)',      defaultOn: false },
+const PHOTO_CHANNELS = [
+  { id: 'linkedin_feed',        label: 'LinkedIn (1:1)',      defaultOn: true  },
+  { id: 'instagram_reel_still', label: 'IG Reel still (9:16)', defaultOn: true  },
+  { id: 'blog_hero',            label: 'Blog hero (16:9)',    defaultOn: true  },
+  { id: 'instagram_feed',       label: 'IG feed (1:1)',       defaultOn: false },
+  { id: 'facebook_feed',        label: 'Facebook (4:5)',      defaultOn: false },
+  { id: 'tiktok_still',         label: 'TikTok still (9:16)', defaultOn: false },
+]
+
+const VIDEO_CHANNELS = [
+  { id: 'linkedin_video',  label: 'LinkedIn video (1:1)',   defaultOn: true  },
+  { id: 'instagram_reel',  label: 'IG Reel (9:16)',         defaultOn: true  },
+  { id: 'blog_hero_video', label: 'Blog hero video (16:9)', defaultOn: true  },
+  { id: 'tiktok',          label: 'TikTok (9:16)',          defaultOn: false },
+  { id: 'youtube_short',   label: 'YouTube Short (9:16)',   defaultOn: false },
+  { id: 'facebook_video',  label: 'Facebook video (4:5)',   defaultOn: false },
 ]
 
 function similarityBadge(sim) {
@@ -50,11 +59,21 @@ export default function EditorialTest() {
   const [selectedClip, setSelectedClip] = useState(null)
   const [captionText, setCaptionText] = useState('')
   const [channelOn, setChannelOn] = useState(
-    () => Object.fromEntries(CHANNELS.map((c) => [c.id, c.defaultOn])),
+    () => Object.fromEntries(PHOTO_CHANNELS.map((c) => [c.id, c.defaultOn])),
   )
   const [renders, setRenders] = useState([])
 
-  const selectedChannels = CHANNELS.filter((c) => channelOn[c.id]).map((c) => c.id)
+  // Channel list depends on selected clip kind (photo vs video)
+  const activeChannels = selectedClip?.kind === 'video' ? VIDEO_CHANNELS : PHOTO_CHANNELS
+  const selectedChannels = activeChannels.filter((c) => channelOn[c.id]).map((c) => c.id)
+
+  // Reset channel toggles when a new clip is selected (in case kind changes photo↔video)
+  const handleSelectClip = (clip) => {
+    const list = clip.kind === 'video' ? VIDEO_CHANNELS : PHOTO_CHANNELS
+    setChannelOn(Object.fromEntries(list.map((c) => [c.id, c.defaultOn])))
+    setSelectedClip(clip)
+    setRenders([])
+  }
 
   const searchMutation = useAppMutation({
     mutationFn: () =>
@@ -181,7 +200,7 @@ export default function EditorialTest() {
                 <button
                   key={clip.chunkId}
                   type="button"
-                  onClick={() => setSelectedClip(clip)}
+                  onClick={() => handleSelectClip(clip)}
                   className={`text-left rounded-lg border-2 overflow-hidden transition ${
                     isSel
                       ? 'border-primary ring-2 ring-primary/30'
@@ -243,9 +262,13 @@ export default function EditorialTest() {
             </div>
 
             <div>
-              <Label>Channels</Label>
+              <Label>Channels
+                <span className="ml-2 text-xs font-normal text-zinc-400">
+                  ({selectedClip?.kind === 'video' ? 'video outputs' : 'photo outputs'})
+                </span>
+              </Label>
               <div className="flex flex-wrap gap-2 mt-1.5">
-                {CHANNELS.map((ch) => (
+                {activeChannels.map((ch) => (
                   <label key={ch.id} className="inline-flex items-center gap-2 text-sm cursor-pointer rounded border border-zinc-200 px-3 py-1.5 hover:border-zinc-400 transition">
                     <input
                       type="checkbox"
@@ -275,31 +298,48 @@ export default function EditorialTest() {
         <div>
           <h2 className="text-lg font-medium mb-3">Rendered output</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {renders.map((r) => (
-              <div key={r.channel} className="rounded-lg border border-zinc-200 overflow-hidden">
-                <img
-                  src={r.blobUrl}
-                  alt={`${r.channel} render`}
-                  className="w-full bg-zinc-100"
-                  loading="lazy"
-                />
-                <div className="p-3 flex items-center justify-between">
-                  <div>
-                    <div className="text-sm font-medium">{CHANNELS.find((c) => c.id === r.channel)?.label || r.channel}</div>
-                    <div className="text-xs text-zinc-500">{r.width}×{r.height} · {Math.round(r.sizeBytes / 1024)}KB</div>
+            {renders.map((r) => {
+              const allChannels = [...PHOTO_CHANNELS, ...VIDEO_CHANNELS]
+              const chLabel = allChannels.find((c) => c.id === r.channel)?.label || r.channel
+              const isVideoRender = r.blobUrl?.endsWith('.mp4')
+              return (
+                <div key={r.channel} className="rounded-lg border border-zinc-200 overflow-hidden">
+                  {isVideoRender ? (
+                    <video
+                      src={r.blobUrl}
+                      controls
+                      className="w-full bg-zinc-900"
+                      preload="metadata"
+                    />
+                  ) : (
+                    <img
+                      src={r.blobUrl}
+                      alt={`${r.channel} render`}
+                      className="w-full bg-zinc-100"
+                      loading="lazy"
+                    />
+                  )}
+                  <div className="p-3 flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium">{chLabel}</div>
+                      <div className="text-xs text-zinc-500">
+                        {r.width}×{r.height} · {Math.round(r.sizeBytes / 1024)}KB
+                        {r.hadSubtitles && <span className="ml-2 text-green-600">+ captions</span>}
+                      </div>
+                    </div>
+                    <a
+                      href={r.blobUrl}
+                      download
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center text-sm text-primary hover:underline"
+                    >
+                      <Download className="w-4 h-4 mr-1" /> Save
+                    </a>
                   </div>
-                  <a
-                    href={r.blobUrl}
-                    download
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center text-sm text-primary hover:underline"
-                  >
-                    <Download className="w-4 h-4 mr-1" /> Save
-                  </a>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
