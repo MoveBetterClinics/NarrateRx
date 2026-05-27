@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Navigate, Link } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/react'
 import {
   Loader2, FileText, Mail, MapPin, Instagram, Facebook, Linkedin,
   Youtube, Twitter, Pin, Music2, MessageCircle, Cloud, Megaphone,

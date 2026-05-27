@@ -10,7 +10,7 @@
 // router under that base so deep links (e.g. /settings/members/invitations)
 // keep working without us having to add wildcard routes.
 
-import { OrganizationProfile } from '@clerk/clerk-react'
+import { OrganizationProfile } from '@clerk/react'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'

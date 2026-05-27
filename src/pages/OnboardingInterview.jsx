@@ -9,7 +9,7 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import {
   Loader2, Send, CheckCircle2, AlertCircle, Sparkles, FlaskConical,
   Mic, MicOff, Volume2, RefreshCw, Keyboard,

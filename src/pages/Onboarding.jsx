@@ -15,10 +15,10 @@
 //
 // The component does NOT use the WorkspaceProvider (no workspace exists yet)
 // and does NOT use OrgGate (Clerk Org is created server-side at the claim step).
-// Just <ClerkProvider> + <SignedIn/SignedOut>.
+// Just <ClerkProvider> + <Show when={isSignedIn}>.
 
 import { useState, useEffect, useCallback } from 'react'
-import { SignedIn, SignedOut, SignIn, SignUp, useAuth, useUser } from '@clerk/clerk-react'
+import { Show, SignIn, SignUp, useAuth, useUser } from '@clerk/react'
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -324,7 +324,7 @@ function AuthScreen({ capacity, onSignedIn }) {
           {remaining} founding {remaining === 1 ? 'spot' : 'spots'} left · founding price locked in for life
         </div>
       )}
-      <SignedOut>
+      <Show when={!isSignedIn}>
         {/* "What you'll need" pre-screen so brand-new users don't bail mid-flow.
             Shown only to signed-out users — returning users skip it. */}
         <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1.5">
@@ -357,10 +357,10 @@ function AuthScreen({ capacity, onSignedIn }) {
             ? <SignUp routing="hash" appearance={{ elements: { rootBox: 'mx-auto', card: 'shadow-none border' } }} />
             : <SignIn routing="hash" appearance={{ elements: { rootBox: 'mx-auto', card: 'shadow-none border' } }} />}
         </div>
-      </SignedOut>
-      <SignedIn>
+      </Show>
+      <Show when={isSignedIn}>
         <SignedInPrompt onContinue={onSignedIn} />
-      </SignedIn>
+      </Show>
     </Card>
   )
 }

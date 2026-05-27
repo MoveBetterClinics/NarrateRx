@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { UserButton, useAuth, useClerk } from '@clerk/clerk-react'
+import { UserButton, useAuth, useClerk } from '@clerk/react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
 import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine } from 'lucide-react'

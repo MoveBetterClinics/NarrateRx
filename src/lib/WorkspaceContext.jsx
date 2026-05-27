@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/react'
 import { workspace as STATIC } from './workspace'
 import { queryKeys } from './queries'
 

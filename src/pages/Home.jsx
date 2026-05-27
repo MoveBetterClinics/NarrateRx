@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { FileText, Clock, Loader2, RefreshCw, ChevronRight, Send, BookOpen } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'

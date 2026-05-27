@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
-import { useUser, useAuth } from '@clerk/clerk-react'
+import { useUser, useAuth } from '@clerk/react'
 import {
   ArrowLeft, ArrowRight, Loader2, TrendingUp, Sparkles, Plus,
   ChevronDown, ChevronUp, Star, Check,

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
   ChevronDown, MessageSquare, Eye, RotateCcw, ExternalLink, Quote,

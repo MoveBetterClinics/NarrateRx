@@ -10,7 +10,7 @@ import {
   useUser,
   useOrganizationList,
   useSession,
-} from '@clerk/clerk-react'
+} from '@clerk/react'
 import Layout from '@/components/Layout'
 import Home from '@/pages/Home'
 import { getPendingAnnouncement } from '@/lib/announcements'

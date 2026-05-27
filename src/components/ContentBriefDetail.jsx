@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { X, Loader2, Sparkles, Upload as UploadIcon, Check, Trash2, AlertTriangle, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

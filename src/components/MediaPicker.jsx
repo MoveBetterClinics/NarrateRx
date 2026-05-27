@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { Search, X, Loader2, Image, Video, Upload, Check, Play, Library, Expand, Minimize, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

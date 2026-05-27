@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { ArrowLeft, Phone, PhoneOff, Mic, MicOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'

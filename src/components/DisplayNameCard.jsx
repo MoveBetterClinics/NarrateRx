@@ -12,7 +12,7 @@
 // only mounting this on the owner's own clinician profile (isMyClinicianProfile).
 
 import { useState } from 'react'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'

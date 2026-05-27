@@ -1,4 +1,4 @@
-import { useAuth, useUser } from '@clerk/clerk-react'
+import { useAuth, useUser } from '@clerk/react'
 import { ROLE_ADMIN, ROLE_CLINICIAN, isStaff } from '@/lib/roles'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 

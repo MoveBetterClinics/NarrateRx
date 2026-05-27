@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { Mic, Target, User, X } from 'lucide-react'
 import { useStories, useOnboardingProgress, useCampaigns, useClinicians, useLocations } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/react'
 import {
   ExternalLink,
   AlertCircle,

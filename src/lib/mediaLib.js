@@ -5,7 +5,7 @@
 // Every request to /api/media/* carries a short-lived Clerk JWT in the
 // Authorization header. Server-side requireRole() verifies it and enforces
 // per-method roles. window.Clerk is the official browser handle exposed by
-// @clerk/clerk-react; we read the token off the active session here so each
+// @clerk/react; we read the token off the active session here so each
 // caller doesn't have to thread getToken through props or context.
 
 import { upload } from '@vercel/blob/client'

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { useSearchParams } from 'react-router-dom'
 import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film, ChevronDown, ChevronRight, HardDrive } from 'lucide-react'
 import { Input } from '@/components/ui/input'

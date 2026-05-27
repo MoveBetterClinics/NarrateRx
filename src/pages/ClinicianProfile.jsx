@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import {
   Plus, FileText, Clock, Trash2, ChevronRight, MessageSquare, Loader2, AlertCircle,
   Facebook, Instagram, Globe, Mail, BookOpen, TrendingUp, Star,

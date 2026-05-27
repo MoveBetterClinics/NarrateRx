@@ -7,7 +7,7 @@
 // focus override, voice notes, recipes) live on /clinician/:id. The
 // UserButton dropdown surfaces both with their own labels.
 
-import { UserProfile } from '@clerk/clerk-react'
+import { UserProfile } from '@clerk/react'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'

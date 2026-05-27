@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '@clerk/clerk-react'
+import { useAuth } from '@clerk/react'
 import {
   Loader2, AlertCircle, CheckCircle2, ChevronDown, ChevronRight,
   Trash2, Plus, Star,

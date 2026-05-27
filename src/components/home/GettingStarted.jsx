@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { Sparkles, CheckCircle2, Circle, X, ChevronRight } from 'lucide-react'
 import Icon from '@/components/ui/Icon'
 import { useOnboardingProgress } from '@/lib/queries'
