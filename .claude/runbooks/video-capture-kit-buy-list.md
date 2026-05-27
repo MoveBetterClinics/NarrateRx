@@ -1,103 +1,165 @@
-# Video Capture Kit — Buy List (v1)
+# Video Capture Kit — Buy List (v2)
 
-_Drafted 2026-05-26 for Move Better People. Pending D1 approval. Total budget: $5,000 single-purchase._
+_Updated 2026-05-27. Restructured around two kits + a universal upload page. v1 over-recommended an iPhone purchase that wasn't needed when the clinic already has a camera + browser. This version reflects the production reality: PWA `/capture` is the universal upload, iOS Shortcut is an optional fast path for solo on-the-road clinicians._
 
-## What you're buying
+## Which kit do I need?
 
-A productized, replicable capture kit. Designed to ship as a tenant onboarding artifact later — any clinic can buy this exact list, follow the setup, and start producing broadcast-quality content within 24 hours of unboxing.
+| Your situation | Kit | Hero device | Upload path |
+|---|---|---|---|
+| **Fixed clinic location, shared staff, owns a camera** (Move Better People, most chiro/PT/OT clinics) | **Studio Kit** | Existing camera (or buy one) | PWA `/capture` from any clinic browser |
+| **Solo, on-the-road, mobile practice** (Move Better Equine, mobile vets, ambulatory therapists) | **Mobile Kit** | Your personal iPhone | iOS Shortcut (one tap) — falls back to PWA `/capture` if Shortcut isn't built yet |
+| **Hybrid** (clinic days + house calls) | Both kits | Both | Whichever's at hand |
 
-## Tier 1 — Required for Phase 1 capture to start (Day 5)
+The two kits are **not exclusive** — a Studio-Kit clinic can also use the PWA from a personal phone in a pinch; a Mobile-Kit clinician can drop SD cards into a clinic Mac and use the PWA when they want to.
 
-| # | Item | Model | Where to buy | Price |
-|---|---|---|---|---|
-| 1 | **Hero camera** | Apple iPhone 16 Pro Max 1TB (Natural Titanium) | apple.com or Apple Store | ~$1,499 |
-| 2 | **Wireless audio** | DJI Mic 2 — 2 TX + 1 RX Combo with charging case | dji.com or B&H | ~$349 |
-| 3 | **Handheld B-roll camera** | DJI Osmo Pocket 3 Creator Combo (with mic windscreen + mini tripod) | dji.com or B&H | ~$799 |
-| 4 | **Key light** | Aputure Amaran 200x S (bi-color LED) | bhphotovideo.com or aputure.com | ~$399 |
-| 5 | **Fill / accent light** | Aputure Amaran P60c (RGBWW panel) | bhphotovideo.com or aputure.com | ~$229 |
-| **Tier 1 subtotal** | | | | **$3,275** |
+## Universal upload page (works for both kits)
 
-## Tier 2 — Coverage upgrades (still inside the $5k cap)
+Every tenant gets `/capture` on their NarrateRx subdomain (e.g. `movebetter-people.narraterx.ai/capture`). Works on any device with a browser and a camera or file picker — iOS Safari, Android Chrome, Mac browsers, Chromebook, iPad, anything.
 
-| # | Item | Model | Where to buy | Price |
-|---|---|---|---|---|
-| 6 | **Passive room capture** | Insta360 X5 + Invisible Selfie Stick | insta360.com | ~$549 |
-| 7 | **Main tripod** | Manfrotto Befree Advanced Aluminum (Ball Head) | bhphotovideo.com | ~$199 |
-| 8 | **Flex mount** | Joby GorillaPod 5K Kit | bhphotovideo.com | ~$159 |
-| 9 | **Articulating arms (×2)** | SmallRig 9.5" articulating magic arm with double ball heads | smallrig.com or Amazon | ~$80 (pair) |
-| 10 | **iPhone cage + cold-shoe mount** | SmallRig Pro Mobile Cage for iPhone 16 Pro Max + mounting plate | smallrig.com | ~$129 |
-| 11 | **Storage shuttle** | Samsung T7 Shield 4TB Portable SSD (USB-C, 1050 MB/s) | samsung.com or B&H | ~$249 |
-| 12 | **Softbox for key light** | Aputure Light Dome SE (compact softbox + grid) | bhphotovideo.com | ~$129 |
-| **Tier 2 subtotal** | | | | **$1,494** |
+Two entry points on the page:
+- **Take photo or video** — opens the device's native camera
+- **Pick existing files** — opens Photos / SD card / Downloads
 
-## Tier 3 — Accessories (fills out the $5k budget)
+Save the URL to the home screen on mobile for app-like access. No app to install. Logged-in NarrateRx user is automatically the uploader; no token to manage.
 
-| # | Item | Model | Where to buy | Price |
-|---|---|---|---|---|
-| 13 | **iPhone fast-charge cables (×2)** | Apple USB-C to USB-C 1m, 2m | apple.com | ~$30 |
-| 14 | **Spare batteries / power** | DJI Osmo Pocket 3 spare battery + Anker 737 power bank (24,000 mAh, 140W) | dji.com + anker.com | ~$130 |
-| 15 | **SD / storage cards** | 2× SanDisk Extreme Pro 256GB microSD (UHS-I V30) for Osmo + Insta360 | bhphotovideo.com | ~$60 |
-| 16 | **Cleaning + protection** | Peak Design Field Pouch v2 + lens-cloth set + Pelican-style hardcase for travel | peakdesign.com + Amazon | ~$110 |
-| **Tier 3 subtotal** | | | | **$330** |
+## Studio Kit — fixed-location clinic
 
-## Total
+Total: **~$2,548 for Move Better People** (already own ZV-1F). For a new tenant buying a camera: ~$3,048.
 
-| Tier | Subtotal |
-|---|---|
-| Tier 1 (required) | $3,275 |
-| Tier 2 (coverage) | $1,494 |
-| Tier 3 (accessories) | $330 |
-| **Grand total** | **$5,099** |
+### Camera (pick ONE — skip if already owned)
 
-About $100 over the $5,000 single-purchase cap. Two ways to land at $5k exactly:
-
-| Trim option | Save | Trade-off |
+| Option | Cost | When it fits |
 |---|---|---|
-| Skip the iPhone if Q already owns an iPhone 16 Pro Max 1TB | -$1,499 | Buys back $1,399 to upgrade audio (second DJI Mic 2 transmitter, ~$129), add a 7" Atomos Shinobi field monitor (~$549), or buy a Sony ZV-E10 II for cinematic B-roll (~$1,100) |
-| Skip the SmallRig articulating arms (line 9) | -$80 | Lose one flex-mount option; use tripod + GorillaPod instead |
-| Skip the Aputure Light Dome SE (line 12) | -$129 | Use the Amaran 200x bare-bulb; image looks slightly more clinical but is still usable |
+| **Sony ZV-1F** | ~$500 new / ~$400 used | Vlog-style compact, 1" sensor, 4K, mic input. Fixed 20mm lens. Strong sit-down talking-head + cinematic B-roll. Move Better People already owns one. |
+| Sony ZV-E10 II + 16-50mm kit | ~$1,100 | Step up — interchangeable lens, larger sensor. Worth it if you'll do varied subjects. |
+| Sony A7C II + 28-60mm | ~$2,400 | Pro full-frame, overkill for most clinics. |
+| **Skip a dedicated camera — use clinic-owned iPad or Android tablet** | $329–$649 | iPad mini WiFi 256GB is $649. Decent camera, runs `/capture` PWA, doubles as the upload station. Lower image quality than ZV-1F but **one device** for capture + upload. |
 
-**Recommendation**: skip the Light Dome SE for now (~$129 saved) — get the kit under $5k, add the dome later if soft-key lighting becomes the bottleneck.
+For Move Better People specifically: ZV-1F is already owned, no new camera purchase.
 
-**Final recommended order**: Tier 1 + Tier 2 (without #12) + Tier 3 = **$4,970**.
+### Required tier 1
 
-## Where to buy from
+| Item | Cost | Vendor |
+|---|---|---|
+| **DJI Mic 2 — 2 TX + 1 RX combo** | ~$349 | dji.com or B&H |
+| **Aputure Amaran 200x S** (bi-color LED key light) | ~$399 | B&H |
+| **Aputure Amaran P60c** (RGBWW panel fill) | ~$229 | B&H |
+| **Manfrotto Befree Advanced tripod** | ~$199 | B&H |
+| **Joby GorillaPod 5K Kit** | ~$159 | B&H |
+| **Samsung T7 Shield 4TB SSD** (SD archive shuttle) | ~$249 | B&H |
+
+**Subtotal: $1,584**
+
+### Recommended tier 2
+
+| Item | Cost | Why |
+|---|---|---|
+| **Insta360 X5** | ~$549 | Passive 360 room capture — mount on wall during sessions (with patient consent). Reframe in post. Solves "I forgot to film that." |
+| ZV-1F camera cage + 2 spare NP-BX1 batteries + UHS-II microSD cards + cleaning kit | ~$265 | Camera-specific accessories |
+| Misc cables, SD cards, charging, pouch | ~$150 | |
+
+**Subtotal: $964**
+
+### Don't buy (or defer)
+
+- **iPhone 15/16 Pro Max ($1,499)** — DROPPED from v1. If you have a clinic camera + browser, the iPhone isn't needed. Solo on-the-road tenants use their *personal* iPhone with the Shortcut (Mobile Kit). v1 over-bought this.
+- **DJI Osmo Pocket 3 ($799)** — gimbal handheld for walking shots. Camera EIS handles ~80% of need at this price tier. Reconsider after 60 days if walking-shot stability is a complaint.
+- **SmallRig iPhone cage ($129)** — only if rigging serious mounted accessories.
+
+### Studio Kit total
+
+| Component | Move Better People (owns ZV-1F) | New tenant (buying camera) |
+|---|---|---|
+| Camera | $0 | $500 |
+| Tier 1 required | $1,584 | $1,584 |
+| Tier 2 recommended | $964 | $964 |
+| **Grand total** | **$2,548** | **$3,048** |
+
+Was $4,970 in v1.
+
+---
+
+## Mobile Kit — solo on-the-road clinician
+
+Total: **~$219 single-purchase** (assuming you own an iPhone). For Move Better Equine: ~$219, Whitney already has the iPhone.
+
+### Hardware
+
+| Item | Cost | Notes |
+|---|---|---|
+| **Your iPhone** | Already owned | Hero capture + edit + upload device |
+| **DJI Mic 2 — 1 TX + 1 RX** (compact) | ~$219 | Pocket-sized lavalier for talking-head. iPhone-compatible via USB-C / Lightning. |
+| Optional: Joby GripTight Pro 2 GorillaPod | ~$80 | Solo "talk to camera" tripod on location |
+| Optional: Aputure Amaran AL-MX pocket LED | ~$60 | When natural light is poor |
+
+Mobile Kit grand total: **$219 minimum, ~$360 with both extras**.
+
+### Setup (one-time, ~15 minutes)
+
+The iPhone runs the **iOS Capture Companion Shortcut** — Apple Shortcuts app, free, built-in. See `capture-companion-ios-shortcut.md` in this same runbooks directory for the click-by-click guide.
+
+Once built:
+- Tap the Shortcut from home screen or Share Sheet
+- iPhone camera opens → capture → uploads to your NarrateRx workspace in ~5 seconds
+- Or share an existing Photos library item → "Capture for NarrateRx" → uploads
+
+**Falls back to PWA `/capture` if the Shortcut isn't built yet** — works the same, just two more taps.
+
+---
+
+## Capture Upload Tokens
+
+The iOS Shortcut authenticates with a **Capture Upload Token** — a per-clinician 90-day secret prefixed `cct_…`. To generate one:
+
+1. Sign in to NarrateRx as the clinician (or as a workspace owner viewing the clinician's profile)
+2. Clinician Profile → **Settings** tab → **Capture Companion** section
+3. Tap **Generate Token** — the value is displayed **once**, copy immediately
+4. Paste into the iOS Shortcut as the Bearer header value
+5. Token can be rotated or revoked from the same panel
+
+The PWA `/capture` page does NOT need a token — it uses your existing Clerk login. Token is only for the Shortcut path.
+
+---
+
+## For all tenants: where to buy
 
 | Vendor | Why | Account needed |
 |---|---|---|
-| **B&H Photo** | Best for pro audio + lighting + tripods; tax-free outside NY; ships overnight | Recommended primary vendor — create business account if not already |
-| **Apple** | iPhone (use trade-in + business pricing if eligible) | Q's existing Apple ID |
-| **DJI direct** | Pocket 3, Mic 2; warranty handling is cleaner than third-party | Create DJI account |
-| **Insta360 direct** | X5; bundles + warranty are better than reseller | Create Insta360 account |
-| **SmallRig direct** | Cage + arms; significantly cheaper than Amazon resellers | Create SmallRig account |
+| **B&H Photo** (bhphotovideo.com) | Best for pro audio + lighting + tripods; tax-free outside NY; ships fast | Recommended primary vendor — create a business account |
+| **DJI direct** (dji.com) | Mic 2; cleaner warranty than third-party | DJI account |
+| **Apple** (apple.com) | iPad mini if going that route | Existing Apple ID |
+| **Insta360 direct** (insta360.com) | X5; bundles better than resellers | Insta360 account |
+| **Samsung + Amazon** | T7 Shield SSD; widely available | Existing |
 
-All vendors above ship to commercial / clinic addresses. Use the Move Better clinic shipping address; bill to NarrateRx if separate accounting is desired.
+All vendors ship to commercial / clinic addresses. Use the clinic shipping address; bill to NarrateRx if separate accounting.
 
-## Sensitivity
+### Sensitivity
 
 | Item | Tier |
 |---|---|
-| Vendor accounts (B&H, DJI, Insta360) | Mildly sensitive — store credentials in 1Password under NarrateRx vault |
-| Invoices / receipts | Mildly sensitive — file under NarrateRx ops for expense tracking |
+| Vendor accounts + invoices | Mildly sensitive — store in 1Password under NarrateRx vault |
 | Shipping addresses | Mildly sensitive |
+| Capture Upload Tokens (`cct_…`) | **Sensitive** — anyone with one can upload to that clinician's identity. Rotate immediately if leaked. |
 
-## Delivery expectation
+## Move Better workspace-specific recommendations
 
-- B&H next-business-day overnight: $20–40 per order
-- DJI: 3–5 business days standard, 2-day available
-- Apple in-store pickup if a local store has stock — same-day
-- Insta360 + SmallRig direct: 5–8 business days
+| Workspace | Kit | Hero device | Upload path | Setup status |
+|---|---|---|---|---|
+| **Move Better People** | Studio Kit, no new camera | ZV-1F (already owned) + clinic browser | PWA `/capture` | `video_pipeline_enabled = true` ✓ |
+| **Move Better Equine** | Mobile Kit | Whitney's iPhone | iOS Shortcut (1-tap) | `video_pipeline_enabled = true` ✓, Whitney's token generated ✓ |
+| **Move Better Animal Chiro** | TBD (likely Studio) | TBD | TBD | Pending Whitney's Equine validation |
 
-**Aim**: all items at the clinic by Friday this week so Phase 1 capture starts on schedule (~Day 5).
+## Productizing for external tenants
 
-## What's NOT in this list, by design
+The two-kit shape becomes a one-question wizard for tenant onboarding (Phase 6):
 
-- **Pro mirrorless cameras** (Sony A7S III, BMPCC 6K) — out of budget; iPhone + Osmo Pocket 3 covers 95% of need
-- **Treatment-room wall-mount cameras** — out of budget; passive room capture handled by Insta360 X5 on tripod or wall mount
-- **NAS / on-premise storage** — out of scope; iCloud + Vercel Blob handles the small-kit volume
-- **Lavalier mics from DPA / Sennheiser** — DJI Mic 2 is good enough at this tier and integrates seamlessly with iPhone + Osmo
-- **Drone** — defer; can buy from Tier 3 follow-on budget if exterior/neighborhood footage becomes a priority
+> *"How will you mostly capture content?"*
+> *(a) From a fixed clinic location — Studio Kit*
+> *(b) On the road / mobile practice — Mobile Kit*
 
-## Reorder cadence
+The wizard then surfaces the right runbook + the right setup steps. Both kits land on the same Media Library + visual practice memory infrastructure — they just have different upload entry points.
 
-This list is **shippable to external tenants** once Move Better validates it (target: W4 of the build). When productized, the "Tier 1 only" version ($3,275) becomes the entry SKU; Tier 2 + 3 are optional add-ons.
+## Recent revisions
+
+- **v2 (2026-05-27)**: Restructured around Studio + Mobile kits. Cut the iPhone Pro Max recommendation. Made PWA `/capture` the default universal upload. iOS Shortcut becomes Mobile Kit only. Aligned with Move Better's actual rollout (People = Studio, Equine = Mobile, Animal = TBD).
+- **v1 (2026-05-26)**: Single $4,970 kit centered around iPhone 16 Pro Max. Retired — over-bought, under-flexible.

@@ -4,6 +4,7 @@ import { useUser } from '@clerk/react'
 import {
   Plus, FileText, Clock, Trash2, ChevronRight, MessageSquare, Loader2, AlertCircle,
   Facebook, Instagram, Globe, Mail, BookOpen, TrendingUp, Star,
+  Smartphone, Copy, Check, RotateCw, Sparkles,
 } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'
@@ -32,6 +33,7 @@ import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUserRole } from '@/lib/useUserRole'
 import { fetchClinicianArc, apiFetch } from '@/lib/api'
+import { useAppMutation } from '@/lib/useAppMutation'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { TONES, getVoiceModes } from '@/lib/prompts'
 
@@ -526,6 +528,9 @@ export default function ClinicianProfile() {
           {(isMyClinicianProfile || role === 'admin') && (
             <DefaultToneCard clinician={clinician} />
           )}
+          {(isMyClinicianProfile || role === 'admin') && (
+            <CaptureCompanionCard clinician={clinician} />
+          )}
           <ClinicianCampaignCard
             clinician={clinician}
             canEdit={isMyClinicianProfile || role === 'admin'}
@@ -715,6 +720,229 @@ function DefaultToneCard({ clinician }) {
             >
               Reset
             </button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Capture Companion card ────────────────────────────────────────────────────
+//
+// Manages the per-clinician Capture Upload Token used by the iOS Capture
+// Companion Shortcut. Calls api/capture/token.js (PR #872) — GET reads the
+// current state (without revealing the token value), POST generates/rotates
+// (returns plaintext ONCE), DELETE revokes.
+//
+// The PWA /capture page does NOT use this token — it uses Clerk session auth.
+// Token only matters for the iOS Shortcut path.
+
+function CaptureCompanionCard({ clinician }) {
+  const [tokenState, setTokenState] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [newToken, setNewToken] = useState(null)
+  const [copied, setCopied] = useState(false)
+  const [featureDisabled, setFeatureDisabled] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    apiFetch(`/api/capture/token?clinicianId=${clinician.id}`)
+      .then((data) => {
+        if (cancelled) return
+        setTokenState(data)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        if (e?.status === 403) {
+          setFeatureDisabled(true)
+        } else {
+          setError(e?.message || 'Failed to load token state')
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [clinician.id])
+
+  const generateMutation = useAppMutation({
+    mutationFn: () =>
+      apiFetch(`/api/capture/token?clinicianId=${clinician.id}`, { method: 'POST' }),
+    onSuccess: (data) => {
+      setNewToken(data?.token || null)
+      setTokenState({
+        hasToken: true,
+        expiresAt: data?.expiresAt || null,
+        lastUsedAt: null,
+      })
+      setError(null)
+    },
+    onError: (e) => {
+      if (e?.status === 403) setFeatureDisabled(true)
+      else setError(e?.message || 'Failed to generate token')
+    },
+  })
+
+  const revokeMutation = useAppMutation({
+    mutationFn: () =>
+      apiFetch(`/api/capture/token?clinicianId=${clinician.id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      setTokenState({ hasToken: false, expiresAt: null, lastUsedAt: null })
+      setNewToken(null)
+      setError(null)
+    },
+    onError: (e) => setError(e?.message || 'Failed to revoke token'),
+  })
+
+  async function copyToClipboard() {
+    if (!newToken) return
+    try {
+      await navigator.clipboard.writeText(newToken)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Copy failed — long-press to select instead')
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="py-5">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading Capture Companion…
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (featureDisabled) {
+    return (
+      <Card>
+        <CardContent className="py-5 space-y-2">
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold">Capture Companion</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Not enabled for this workspace yet. Contact your workspace owner if you want the iOS one-tap upload path.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardContent className="py-5 space-y-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold">Capture Companion</p>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            One-tap photo + video upload from your iPhone via an iOS Shortcut. Optional — the{' '}
+            <Link to="/capture" className="text-primary hover:underline">browser capture page</Link>
+            {' '}works for everyone without any setup.
+          </p>
+        </div>
+
+        {newToken && (
+          <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-3 space-y-2">
+            <div className="flex items-start gap-2 text-amber-900">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div className="text-sm font-medium">Token created — copy it now</div>
+            </div>
+            <p className="text-xs text-amber-800">
+              This is the only time you&apos;ll see the full token. Copy it now and paste into the iOS Shortcut. If you lose it, rotate and start over.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs bg-white border border-amber-200 rounded px-2 py-1.5 font-mono break-all">
+                {newToken}
+              </code>
+              <Button size="sm" variant="outline" onClick={copyToClipboard}>
+                {copied
+                  ? <><Check className="h-3.5 w-3.5 mr-1" />Copied</>
+                  : <><Copy className="h-3.5 w-3.5 mr-1" />Copy</>}
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <a
+                href="https://github.com/Move-Better/NarrateRx/blob/main/.claude/runbooks/capture-companion-ios-shortcut.md"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-primary hover:underline"
+              >
+                iOS Shortcut setup guide →
+              </a>
+              <Button size="sm" variant="ghost" onClick={() => setNewToken(null)}>
+                I&apos;ve saved it
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!newToken && tokenState?.hasToken && (
+          <div className="text-sm space-y-1">
+            <div className="text-muted-foreground">
+              Token active — expires{' '}
+              <span className="text-foreground">{tokenState.expiresAt ? new Date(tokenState.expiresAt).toLocaleDateString() : 'unknown'}</span>
+            </div>
+            <div className="text-muted-foreground">
+              Last used:{' '}
+              {tokenState.lastUsedAt
+                ? <span className="text-foreground">{new Date(tokenState.lastUsedAt).toLocaleString()}</span>
+                : <span>never yet (Shortcut not used)</span>}
+            </div>
+          </div>
+        )}
+        {!newToken && tokenState && !tokenState.hasToken && (
+          <div className="text-sm text-muted-foreground">
+            No token. Generate one to set up the iOS Shortcut.
+          </div>
+        )}
+
+        {error && <div className="text-xs text-destructive">{error}</div>}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {!tokenState?.hasToken && (
+            <Button
+              size="sm"
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+            >
+              {generateMutation.isPending
+                ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Generating…</>
+                : <><Sparkles className="h-3.5 w-3.5 mr-1.5" />Generate token</>}
+            </Button>
+          )}
+          {tokenState?.hasToken && !newToken && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending}
+              >
+                {generateMutation.isPending
+                  ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Rotating…</>
+                  : <><RotateCw className="h-3.5 w-3.5 mr-1.5" />Rotate</>}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => revokeMutation.mutate()}
+                disabled={revokeMutation.isPending}
+                className="text-destructive hover:text-destructive"
+              >
+                {revokeMutation.isPending
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : 'Revoke'}
+              </Button>
+            </>
           )}
         </div>
       </CardContent>
