@@ -3,6 +3,7 @@ import { withSentry } from '../_lib/sentry.js'
 import { handleUpload } from '@vercel/blob/client'
 import { waitUntil } from '@vercel/functions'
 import { tagAndPersist } from '../_lib/tagAsset.js'
+import { indexMediaAsset } from '../_lib/visualMemoryIndex.js'
 import sharp from 'sharp'
 import ffmpegStaticPath from 'ffmpeg-static'
 import { segmentAndPersist } from '../_lib/segmentInterview.js'
@@ -387,7 +388,16 @@ async function handler(req, res) {
             // briefs in the content queue.
             waitUntil(
               tagAndPersist(insertedRow, innerScope)
-                .then((tagged) => {
+                .then(async (tagged) => {
+                  // Phase 2 — index into visual_memory_chunks so the clip-pull
+                  // AI can retrieve this asset by topic. Runs after tagging so
+                  // ai_tags + visual_narrative are populated for the embedding
+                  // text. Idempotent (delete-then-insert on source_type+source_id).
+                  await indexMediaAsset({ assetId: insertedRow.id })
+                    .catch((e) => console.error('visualMemoryIndex failed:', e?.message))
+
+                  // Existing interview-video segmenting path. Only runs on
+                  // interview-purpose videos with actual content.
                   if (tagged?.kind !== 'video') return
                   if (tagged?.asset_purpose !== 'interview') return
                   const hasSpeech = tagged?.transcription?.trim()
