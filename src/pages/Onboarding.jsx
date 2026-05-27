@@ -368,7 +368,7 @@ function AuthScreen({ capacity, onSignedIn }) {
 function SignedInPrompt({ onContinue }) {
   const { user } = useUser()
   const { getToken } = useAuth()
-  const [state, setState] = useState({ status: 'loading', workspaces: [] })
+  const [state, setState] = useState({ status: 'loading', workspaces: [], suggested: [] })
 
   useEffect(() => {
     let cancelled = false
@@ -381,11 +381,15 @@ function SignedInPrompt({ onContinue }) {
         if (!r.ok) throw new Error(`status ${r.status}`)
         const data = await r.json()
         if (cancelled) return
-        setState({ status: 'done', workspaces: data.workspaces || [] })
+        setState({
+          status: 'done',
+          workspaces: data.workspaces || [],
+          suggested: data.suggested || [],
+        })
       } catch {
         // On error, fall through to the wizard — better to let them create a
         // new workspace than to strand them.
-        if (!cancelled) setState({ status: 'done', workspaces: [] })
+        if (!cancelled) setState({ status: 'done', workspaces: [], suggested: [] })
       }
     })()
     return () => { cancelled = true }
@@ -401,6 +405,43 @@ function SignedInPrompt({ onContinue }) {
   }
 
   const hasWorkspaces = state.workspaces.length > 0
+  const hasSuggested = state.suggested.length > 0
+
+  // Domain match found but user isn't a member yet: this is the
+  // "alli@movebetter.co signing up while movebetter-people already exists"
+  // path. Show "your team already has a workspace — ask the admin" and do NOT
+  // offer a continue-to-wizard button. Server-side guard in /api/onboarding/claim
+  // also blocks the POST, so a determined user can't bypass this UI.
+  if (hasSuggested && !hasWorkspaces) {
+    return (
+      <div className="space-y-4 text-sm">
+        <p>Signed in as <span className="font-mono text-xs">{user?.primaryEmailAddress?.emailAddress}</span>.</p>
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Your team already has a workspace
+          </p>
+          <div className="space-y-1.5">
+            {state.suggested.map(ws => (
+              <div
+                key={ws.slug}
+                className="flex items-center justify-between gap-3 rounded-md border border-input px-3 py-2 bg-muted/30"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium truncate" title={ws.display_name || ws.slug}>{ws.display_name || ws.slug}</div>
+                  <div className="text-xs text-muted-foreground font-mono truncate">{ws.slug}.narraterx.ai</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+            We can&apos;t put you on this workspace automatically — your team admin needs to invite you. Ask them to add{' '}
+            <span className="font-mono">{user?.primaryEmailAddress?.emailAddress}</span> from their settings, then sign in at the workspace URL above. Stuck?{' '}
+            <a className="underline" href="mailto:support@narraterx.ai">support@narraterx.ai</a>
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 text-sm">
@@ -930,7 +971,8 @@ function ReviewScreen({ form, submitting, submitError, onBack, onSubmit }) {
           {submitError === 'no-channels-selected' && 'Pick at least one channel.'}
           {submitError === 'org-create-failed' && 'Could not create your workspace org — please try again.'}
           {submitError === 'domain-registration-failed' && 'Could not register your subdomain with our hosting provider. Please try again, or email drq@narraterx.ai if it keeps failing.'}
-          {!['slug-taken','founding-spots-full','no-channels-selected','org-create-failed','domain-registration-failed'].includes(submitError) && submitError}
+          {submitError === 'domain-already-claimed' && 'A workspace at this domain already exists. Ask your team admin to invite you, or email support@narraterx.ai.'}
+          {!['slug-taken','founding-spots-full','no-channels-selected','org-create-failed','domain-registration-failed','domain-already-claimed'].includes(submitError) && submitError}
         </div>
       )}
       <div className="flex items-center justify-between pt-2">
