@@ -50,6 +50,7 @@ const PreVisitMessage = lazy(() => import('@/pages/PreVisitMessage'))
 const AuthorMode = lazy(() => import('@/pages/AuthorMode'))
 const Book = lazy(() => import('@/pages/Book'))
 const EditorialTest = lazy(() => import('@/pages/EditorialTest'))
+const Capture = lazy(() => import('@/pages/Capture'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import { UploadProgressProvider, useUploadProgress } from '@/lib/UploadProgressContext'
@@ -446,6 +447,8 @@ function AppRoutes() {
             <Route path="/write" element={guarded(<AuthorMode />)} />
             <Route path="/book"  element={guarded(<Book />)} />
             <Route path="/library" element={guarded(<MediaHub />)} />
+            {/* Universal PWA capture surface — works on any device with a browser + camera. */}
+            <Route path="/capture" element={guarded(<Capture />)} />
             {/* Internal dev surface — Phase 2 editorial pipeline test (search clips + render). */}
             <Route path="/internal/editorial-test" element={guarded(<EditorialTest />)} />
             {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}
