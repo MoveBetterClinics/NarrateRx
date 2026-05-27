@@ -7,15 +7,20 @@
 //   • Lower-third strip with clinician name + workspace name
 //   • Workspace primary color as the accent
 //
-// Sharp + SVG composite pattern. librsvg (Sharp's text renderer) ships
-// with reasonable font fallbacks; we specify 'sans-serif' for portability
-// rather than depending on Titillium Web (which won't be installed on the
-// Vercel function container).
+// Color + opacity resolution order (most specific → least):
+//   1. workspace.colors.primary           — user-set in Brand Kit
+//   2. workspace.brand_style.accent_color — extracted from Brand Book
+//   3. workspace.brand_visual_identity.colorPalette.* — Day 9 Vision analysis
+//   4. Hardcoded DEFAULT_PRIMARY / DEFAULT_ACCENT
 //
-// Video rendering is Phase 2 Day 7b — this module is photo-only for now.
+// Font resolution: see api/_lib/brandFonts.js. The font is embedded into
+// the SVG via @font-face data-URI so librsvg renders text correctly without
+// fontconfig — fixes the garbled-text bug in the video render pipeline
+// (Sharp SVG→PNG path was falling through to a tofu fallback font).
 
 import sharp from 'sharp'
 import { Readable } from 'node:stream'
+import { getBrandFont } from './brandFonts.js'
 
 // Channel specs. Width × height in pixels. Add new channels here.
 export const CHANNEL_SPECS = {
@@ -28,8 +33,33 @@ export const CHANNEL_SPECS = {
   youtube_short_still:  { width: 1080, height: 1920, aspect: '9:16', captionPos: 'top' },
 }
 
-const DEFAULT_PRIMARY = '#1a3a5c'   // navy fallback if workspace.colors is empty
+const DEFAULT_PRIMARY = '#1a3a5c'   // navy fallback
 const DEFAULT_ACCENT  = '#83957C'
+
+/**
+ * Resolve the caption band primary color, accent color, and overlay opacity
+ * for a workspace using the priority chain in the file header comment.
+ * Exported so brandRenderVideo.js stays DRY.
+ */
+export function resolveBrandColors(workspace) {
+  const colors = workspace?.colors || {}
+  const brandStyle = workspace?.brand_style || {}
+  const visual = workspace?.brand_visual_identity || {}
+  const palette = visual.colorPalette || {}
+
+  return {
+    primaryColor: colors.primary
+      || brandStyle.accent_color
+      || palette.foreground
+      || DEFAULT_PRIMARY,
+    accentColor: colors.accent
+      || palette.accent
+      || DEFAULT_ACCENT,
+    captionOpacity: typeof visual.recommendedOverlayOpacity === 'number'
+      ? Math.min(Math.max(visual.recommendedOverlayOpacity, 0.5), 1.0)
+      : 0.88,
+  }
+}
 
 /**
  * Escape a string for safe inclusion as SVG text content.
@@ -64,7 +94,6 @@ function wrapLines(text, maxCharsPerLine, maxLines) {
   }
   if (current && lines.length < maxLines) lines.push(current)
   if (lines.length === maxLines && words.join(' ').length > lines.join(' ').length + 1) {
-    // Trailing ellipsis on the last line
     lines[lines.length - 1] = lines[lines.length - 1].replace(/[.,;:!?\s]+$/, '') + '…'
   }
   return lines
@@ -73,6 +102,12 @@ function wrapLines(text, maxCharsPerLine, maxLines) {
 /**
  * Build the SVG overlay for a given channel.
  * Returns a Buffer suitable for Sharp's `composite()`.
+ *
+ * @param {Object} params
+ * @param {number} params.width / height / captionPos / ...
+ * @param {Buffer} [params.fontBuffer]   — TTF font Buffer (embedded via @font-face data-URI).
+ *                                         If omitted, falls back to font-family: 'sans-serif'.
+ * @param {number} [params.captionOpacity=0.88]
  */
 export function buildBrandOverlaySvg({
   width,
@@ -83,6 +118,8 @@ export function buildBrandOverlaySvg({
   workspaceName,
   primaryColor,
   accentColor,
+  fontBuffer,
+  captionOpacity = 0.88,
 }) {
   // Layout constants — proportional to the smaller dimension so they scale
   // sensibly across 1:1, 9:16, and 16:9.
@@ -92,33 +129,38 @@ export function buildBrandOverlaySvg({
   const lowerThirdHeight = Math.round(baseDim * 0.09)
   const lowerThirdY = height - lowerThirdHeight
 
-  // Caption text wrap. Empirically tuned via Move Better dogfood — at 60-ish
-  // font-size, sans-serif averages ~30-40px per character, so width/font*0.60
-  // (≈ width/36 at 1080w) avoids clipping. Side padding adds margin against
-  // text-anchor="middle" overrun.
   const captionFontSize = Math.round(baseDim * 0.048)
   const captionSidePadding = Math.round(width * 0.05)
   const captionInnerWidth = width - (2 * captionSidePadding)
   const maxCharsPerLine = Math.max(14, Math.round(captionInnerWidth / (captionFontSize * 0.55)))
   const captionLines = wrapLines(captionText, maxCharsPerLine, 3)
 
-  // Lower-third
   const lowerFontSize = Math.round(baseDim * 0.030)
   const lowerLeftText = svgEscape(clinicianName || '')
   const lowerRightText = svgEscape(workspaceName || '')
 
-  // Caption tspans — centered, vertically stacked
   const captionLineHeight = Math.round(captionFontSize * 1.2)
   const captionBlockHeight = captionLines.length * captionLineHeight
   const captionStartY = captionBandY + Math.round((captionBandHeight - captionBlockHeight) / 2) + captionFontSize
+
+  // Font: embed as @font-face data-URI if a TTF buffer was supplied.
+  // This makes the SVG self-contained — librsvg can render text without
+  // depending on fontconfig or system fonts.
+  const fontFamily = fontBuffer ? 'BrandFont' : 'sans-serif'
+  const fontFaceCss = fontBuffer
+    ? `<style>@font-face { font-family: 'BrandFont'; src: url(data:font/ttf;base64,${fontBuffer.toString('base64')}) format('truetype'); }</style>`
+    : ''
+
   const captionTspans = captionLines.map((line, i) => {
     const y = captionStartY + (i * captionLineHeight)
-    return `<text x="${Math.round(width / 2)}" y="${y}" font-size="${captionFontSize}" fill="#FFFFFF" text-anchor="middle" font-family="sans-serif" font-weight="600">${svgEscape(line)}</text>`
+    return `<text x="${Math.round(width / 2)}" y="${y}" font-size="${captionFontSize}" fill="#FFFFFF" text-anchor="middle" font-family="${fontFamily}" font-weight="700">${svgEscape(line)}</text>`
   }).join('\n')
 
   return Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>${fontFaceCss}</defs>
+
   <!-- Caption band -->
-  <rect x="0" y="${captionBandY}" width="${width}" height="${captionBandHeight}" fill="${primaryColor}" fill-opacity="0.88" />
+  <rect x="0" y="${captionBandY}" width="${width}" height="${captionBandHeight}" fill="${primaryColor}" fill-opacity="${captionOpacity}" />
   ${captionLines.length ? captionTspans : ''}
 
   <!-- Accent bar above lower-third -->
@@ -126,21 +168,13 @@ export function buildBrandOverlaySvg({
 
   <!-- Lower-third bar -->
   <rect x="0" y="${lowerThirdY}" width="${width}" height="${lowerThirdHeight}" fill="#000000" fill-opacity="0.78" />
-  <text x="${Math.round(width * 0.05)}" y="${lowerThirdY + Math.round(lowerThirdHeight * 0.62)}" font-size="${lowerFontSize}" fill="#FFFFFF" font-family="sans-serif" font-weight="500">${lowerLeftText}</text>
-  <text x="${Math.round(width * 0.95)}" y="${lowerThirdY + Math.round(lowerThirdHeight * 0.62)}" font-size="${lowerFontSize}" fill="#FFFFFF" font-family="sans-serif" font-weight="400" text-anchor="end">${lowerRightText}</text>
+  <text x="${Math.round(width * 0.05)}" y="${lowerThirdY + Math.round(lowerThirdHeight * 0.62)}" font-size="${lowerFontSize}" fill="#FFFFFF" font-family="${fontFamily}" font-weight="500">${lowerLeftText}</text>
+  <text x="${Math.round(width * 0.95)}" y="${lowerThirdY + Math.round(lowerThirdHeight * 0.62)}" font-size="${lowerFontSize}" fill="#FFFFFF" font-family="${fontFamily}" font-weight="400" text-anchor="end">${lowerRightText}</text>
 </svg>`)
 }
 
 /**
  * Render one channel's worth of a photo asset.
- *
- * @param {Object} params
- * @param {string} params.photoUrl — source photo URL (Vercel Blob etc.)
- * @param {string} params.channel — key in CHANNEL_SPECS
- * @param {string} params.captionText — text shown in the caption band
- * @param {Object} params.workspace — workspace row (used for display_name, colors)
- * @param {string} params.clinicianName — display name for lower-third
- * @returns {Promise<{buffer: Buffer, width: number, height: number, channel: string}>}
  */
 export async function renderPhotoChannel({ photoUrl, channel, captionText, workspace, clinicianName }) {
   const spec = CHANNEL_SPECS[channel]
@@ -167,9 +201,12 @@ export async function renderPhotoChannel({ photoUrl, channel, captionText, works
     .jpeg({ quality: 88 })
     .toBuffer()
 
-  // Build brand overlay SVG.
-  const primaryColor = workspace?.colors?.primary || DEFAULT_PRIMARY
-  const accentColor = workspace?.colors?.accent || DEFAULT_ACCENT
+  // Resolve brand colors + opacity (workspace → brand_style → visual identity → defaults)
+  const { primaryColor, accentColor, captionOpacity } = resolveBrandColors(workspace)
+
+  // Resolve brand font (workspace.brand_style.heading_font → Google Fonts → bundled Inter)
+  const { buffer: fontBuffer } = await getBrandFont(workspace).catch(() => ({ buffer: null }))
+
   const overlaySvg = buildBrandOverlaySvg({
     width: spec.width,
     height: spec.height,
@@ -179,6 +216,8 @@ export async function renderPhotoChannel({ photoUrl, channel, captionText, works
     workspaceName: workspace?.display_name || '',
     primaryColor,
     accentColor,
+    fontBuffer,
+    captionOpacity,
   })
 
   // Composite SVG over the photo.

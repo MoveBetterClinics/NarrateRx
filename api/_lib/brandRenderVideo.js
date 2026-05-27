@@ -25,7 +25,8 @@ import { pipeline } from 'node:stream/promises'
 import { randomUUID } from 'node:crypto'
 import ffmpegPath from 'ffmpeg-static'
 import sharp from 'sharp'
-import { buildBrandOverlaySvg } from './brandRender.js'
+import { buildBrandOverlaySvg, resolveBrandColors } from './brandRender.js'
+import { getBrandFont } from './brandFonts.js'
 import { transcribeToSrt } from './whisper.js'
 
 // Max source video size we'll download. ZV-1F 4K clips can be large; cap at 500MB.
@@ -33,9 +34,6 @@ const MAX_VIDEO_BYTES = 500 * 1024 * 1024
 
 // Threshold above which we extract audio before sending to Whisper (25MB API limit).
 const WHISPER_AUDIO_EXTRACT_THRESHOLD = 20 * 1024 * 1024
-
-const DEFAULT_PRIMARY = '#1a3a5c'
-const DEFAULT_ACCENT  = '#83957C'
 
 /**
  * Channel specs for video rendering.
@@ -147,8 +145,15 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
     }
 
     // ── 3. Build brand overlay PNG via Sharp + SVG ───────────────────────────
-    const primaryColor = workspace?.colors?.primary || DEFAULT_PRIMARY
-    const accentColor  = workspace?.colors?.accent  || DEFAULT_ACCENT
+    // Resolve brand colors + opacity from the priority chain (see brandRender.js header)
+    const { primaryColor, accentColor, captionOpacity } = resolveBrandColors(workspace)
+
+    // Resolve brand font (workspace.brand_style.heading_font → Google Fonts → bundled Inter).
+    // Embedding the font via @font-face data-URI is what fixes the garbled-text bug —
+    // librsvg can't find system fonts in the Vercel function container, so the SVG
+    // must carry its own font.
+    const { buffer: fontBuffer } = await getBrandFont(workspace).catch(() => ({ buffer: null }))
+
     const overlaySvg = buildBrandOverlaySvg({
       width:         spec.width,
       height:        spec.height,
@@ -158,6 +163,8 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
       workspaceName: workspace?.display_name || '',
       primaryColor,
       accentColor,
+      fontBuffer,
+      captionOpacity,
     })
     const overlayPng = await sharp(overlaySvg).png().toBuffer()
     await writeFileP(tmpOverlay, overlayPng)
