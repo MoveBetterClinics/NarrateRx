@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Loader2, Search, Sparkles, Download, ImageIcon, Package } from 'lucide-react'
+import { ArrowLeft, Loader2, Search, Sparkles, Download, ImageIcon, Package, Palette } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -63,7 +63,8 @@ export default function EditorialTest() {
     () => Object.fromEntries(PHOTO_CHANNELS.map((c) => [c.id, c.defaultOn])),
   )
   const [renders, setRenders] = useState([])
-  const [autoPackage, setAutoPackage] = useState(null)  // result of generate-package
+  const [autoPackage, setAutoPackage] = useState(null)    // result of generate-package
+  const [brandIdentity, setBrandIdentity] = useState(null) // result of extract-brand-visual
 
   // Channel list depends on selected clip kind (photo vs video)
   const activeChannels = selectedClip?.kind === 'video' ? VIDEO_CHANNELS : PHOTO_CHANNELS
@@ -157,6 +158,22 @@ export default function EditorialTest() {
     }
     renderMutation.mutate()
   }
+
+  const brandVisualMutation = useAppMutation({
+    mutationFn: () =>
+      apiFetch('/api/workspace/extract-brand-visual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sampleSize: 20 }),
+      }),
+    onSuccess: (data) => {
+      setBrandIdentity(data?.brandVisualIdentity || null)
+      toast(`Brand visual analysis complete — ${data?.sampleCount || 0} photos sampled`)
+    },
+    onError: (err) => {
+      toast.error(err?.message || 'Brand visual analysis failed')
+    },
+  })
 
   const onGeneratePackage = () => {
     if (!query.trim()) {
@@ -434,6 +451,68 @@ export default function EditorialTest() {
           </div>
         </div>
       )}
+
+      {/* ── Section 5: Brand visual identity ───────────────────────────────── */}
+      <Card className="mt-8 border-dashed">
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Palette className="w-4 h-4 text-zinc-600" />
+              <span className="text-sm font-medium text-zinc-700">Brand visual identity</span>
+              <span className="text-xs text-zinc-400">(Day 9 — analyze workspace photos with Claude Vision)</span>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => { setBrandIdentity(null); brandVisualMutation.mutate() }}
+              disabled={brandVisualMutation.isPending}
+            >
+              {brandVisualMutation.isPending
+                ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" /> Analyzing…</>
+                : <><Palette className="w-3 h-3 mr-1.5" /> Analyze photos</>}
+            </Button>
+          </div>
+
+          {brandIdentity && (
+            <div className="text-sm space-y-3">
+              <div className="flex flex-wrap gap-1.5">
+                {(brandIdentity.dominantColors || []).map((hex) => (
+                  <span key={hex} className="inline-flex items-center gap-1.5 rounded border border-zinc-200 px-2 py-1">
+                    <span className="w-4 h-4 rounded-sm border border-zinc-200 inline-block flex-shrink-0" style={{ backgroundColor: hex }} />
+                    <span className="font-mono text-xs">{hex}</span>
+                  </span>
+                ))}
+              </div>
+              {brandIdentity.lightingStyle && (
+                <p className="text-zinc-600 italic text-xs">{brandIdentity.lightingStyle}</p>
+              )}
+              {(brandIdentity.compositionPatterns || []).length > 0 && (
+                <div>
+                  <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Composition</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {brandIdentity.compositionPatterns.map((p) => (
+                      <span key={p} className="text-xs bg-zinc-100 text-zinc-700 rounded px-2 py-0.5">{p}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(brandIdentity.brandPersonality || []).length > 0 && (
+                <div>
+                  <span className="text-xs font-medium text-zinc-500 uppercase tracking-wide">Personality</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {brandIdentity.brandPersonality.map((p) => (
+                      <span key={p} className="text-xs bg-primary/10 text-primary rounded px-2 py-0.5">{p}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-zinc-400">
+                {brandIdentity.sampleCount} photos · overlay opacity {brandIdentity.recommendedOverlayOpacity} · saved to workspace
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
