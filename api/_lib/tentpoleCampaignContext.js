@@ -29,17 +29,40 @@ function formatEventDate(iso) {
 }
 
 /**
+ * Filter campaigns to those that apply to the given clinician.
+ *
+ *   • target_clinician_ids empty/missing → workspace-wide (applies to all)
+ *   • target_clinician_ids includes clinicianId → applies to this clinician
+ *   • non-empty AND missing clinicianId → does NOT apply (a targeted campaign
+ *     can't bind without a target)
+ */
+export function filterCampaignsForClinician(campaigns, clinicianId) {
+  if (!Array.isArray(campaigns)) return []
+  return campaigns.filter((c) => {
+    const targets = Array.isArray(c.target_clinician_ids) ? c.target_clinician_ids : []
+    if (targets.length === 0) return true
+    return clinicianId ? targets.includes(clinicianId) : false
+  })
+}
+
+/**
  * Load the most-relevant currently-active tentpole campaign for a workspace.
  * Returns null when nothing is active.
  *
  * The "most-relevant" pick is the highest-weighted active campaign per the
  * same weighting used by the slate slot allocator — so an event 3 days out
- * wins over an evergreen, etc. This keeps the atom CTAs aligned with whatever
- * the workspace is currently driving toward on the slate.
+ * wins over an evergreen, etc.
+ *
+ * @param {string}      workspaceId
+ * @param {string|null} clinicianId — When present, also requires that the
+ *   campaign apply to this clinician (target_clinician_ids empty or includes
+ *   this id). Lets per-clinician atom prompts (draft.js / regenerate.js) skip
+ *   campaigns that target other clinicians.
  */
-export async function loadCurrentTentpole(workspaceId) {
+export async function loadCurrentTentpole(workspaceId, clinicianId = null) {
   if (!workspaceId) return null
-  const campaigns = await getActiveCampaigns(workspaceId)
+  const all = await getActiveCampaigns(workspaceId)
+  const campaigns = filterCampaignsForClinician(all, clinicianId)
   if (!campaigns.length) return null
   const now = Date.now()
   const ranked = campaigns

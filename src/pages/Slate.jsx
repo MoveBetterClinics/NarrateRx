@@ -183,12 +183,19 @@ export default function Slate() {
 
     // Build the per-slot generation plan. For campaign slots, the topic is
     // the campaign's theme_notes (or name as fallback). For non-campaign
-    // slots, pull from fallbackTopics.
+    // slots, pull from fallbackTopics. When a campaign has
+    // target_clinician_ids, propagate it to generate-package so clip search
+    // scopes to that clinician's library (per-clinician targeting).
     let fallbackCursor = 0
     const plan = slotAssignments.map((campaign) => {
       if (campaign) {
         const topic = campaign.theme_notes || campaign.name
-        return { campaignId: campaign.id, topic, campaign }
+        const targets = Array.isArray(campaign.target_clinician_ids) ? campaign.target_clinician_ids : []
+        // Single target → pass as clinicianId. Multi-target → leave broad
+        // (clip search picks from any of the targets via campaign-level
+        // filtering — refine if/when multi-target campaigns get common).
+        const clinicianId = targets.length === 1 ? targets[0] : null
+        return { campaignId: campaign.id, topic, campaign, clinicianId }
       }
       const topic = fallbackTopics[fallbackCursor++]
       return topic ? { campaignId: null, topic } : null
@@ -206,12 +213,16 @@ export default function Slate() {
     let succeeded = 0
     for (let i = 0; i < plan.length; i++) {
       setGenProgress({ current: i + 1, total: plan.length })
-      const { topic, campaignId } = plan[i]
+      const { topic, campaignId, clinicianId } = plan[i]
       try {
         await apiFetch('/api/editorial/generate-package', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topic, ...(campaignId ? { campaignId } : {}) }),
+          body: JSON.stringify({
+            topic,
+            ...(campaignId ? { campaignId } : {}),
+            ...(clinicianId ? { clinicianId } : {}),
+          }),
         })
         succeeded++
         // Refresh the list after each successful package

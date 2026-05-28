@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
+import { useClinicianSummaries } from '@/lib/queries'
 import { toast } from '@/lib/toast'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -93,6 +94,13 @@ export default function CampaignsSettings() {
   const [campaigns, setCampaigns] = useState(null)
   const [error, setError] = useState(null)
   const [editing, setEditing] = useState(null) // null | 'new' | campaign object
+
+  // Clinician map for rendering target labels on campaign rows.
+  const { data: clinicians = [] } = useClinicianSummaries()
+  const clinicianMap = useMemo(
+    () => Object.fromEntries(clinicians.map((c) => [c.id, c.name])),
+    [clinicians]
+  )
 
   const load = useCallback(async () => {
     setError(null)
@@ -182,6 +190,7 @@ export default function CampaignsSettings() {
               title="Active"
               items={active}
               onEdit={setEditing}
+              clinicianMap={clinicianMap}
             />
           )}
           {upcoming.length > 0 && (
@@ -189,6 +198,7 @@ export default function CampaignsSettings() {
               title="Upcoming"
               items={upcoming}
               onEdit={setEditing}
+              clinicianMap={clinicianMap}
             />
           )}
           {other.length > 0 && (
@@ -197,6 +207,7 @@ export default function CampaignsSettings() {
               items={other}
               onEdit={setEditing}
               muted
+              clinicianMap={clinicianMap}
             />
           )}
         </>
@@ -207,21 +218,33 @@ export default function CampaignsSettings() {
 
 // ─── List + row ──────────────────────────────────────────────────────────────
 
-function CampaignList({ title, items, onEdit, muted }) {
+function CampaignList({ title, items, onEdit, muted, clinicianMap }) {
   return (
     <section className="flex flex-col gap-2">
       <h2 className={`text-2xs font-bold uppercase tracking-widest ${muted ? 'text-muted-foreground/70' : 'text-muted-foreground'}`}>
         {title} <span className="opacity-70">· {items.length}</span>
       </h2>
       <div className="flex flex-col gap-2">
-        {items.map((c) => <CampaignRow key={c.id} campaign={c} onEdit={onEdit} muted={muted} />)}
+        {items.map((c) => (
+          <CampaignRow
+            key={c.id}
+            campaign={c}
+            onEdit={onEdit}
+            muted={muted}
+            clinicianMap={clinicianMap}
+          />
+        ))}
       </div>
     </section>
   )
 }
 
-function CampaignRow({ campaign: c, onEdit, muted }) {
+function CampaignRow({ campaign: c, onEdit, muted, clinicianMap }) {
   const ws = campaignWindowState(c)
+  const targets = Array.isArray(c.target_clinician_ids) ? c.target_clinician_ids : []
+  const targetLabel = targets.length === 0
+    ? 'Workspace-wide'
+    : `Targets: ${targets.map((id) => clinicianMap?.[id] || 'Unknown').join(', ')}`
   return (
     <button
       type="button"
@@ -237,6 +260,13 @@ function CampaignRow({ campaign: c, onEdit, muted }) {
           </span>
           <span className="inline-flex items-center text-3xs font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded">
             {c.content_style || 'clinical'}
+          </span>
+          <span className={`inline-flex items-center text-3xs font-semibold px-2 py-0.5 rounded ${
+            targets.length === 0
+              ? 'text-muted-foreground bg-muted'
+              : 'text-primary bg-primary/10 border border-primary/20'
+          }`}>
+            {targetLabel}
           </span>
         </div>
         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
@@ -271,6 +301,7 @@ function CampaignEditor({ initial, onCancel, onSaved }) {
     cta_url:        initial?.cta_url || '',
     cta_label:      initial?.cta_label || '',
     cta_pitch:      initial?.cta_pitch || '',
+    target_clinician_ids: Array.isArray(initial?.target_clinician_ids) ? initial.target_clinician_ids : [],
   }))
   const [saving, setSaving] = useState(false)
 
@@ -298,7 +329,7 @@ function CampaignEditor({ initial, onCancel, onSaved }) {
         cta_url:       form.cta_url.trim() || null,
         cta_label:     form.cta_label.trim() || null,
         cta_pitch:     form.cta_pitch.trim() || null,
-        target_clinician_ids: initial?.target_clinician_ids || [],
+        target_clinician_ids: form.target_clinician_ids || [],
       }
       const saved = await apiFetch('/api/campaigns/upsert', {
         method: 'POST',
@@ -390,6 +421,11 @@ function CampaignEditor({ initial, onCancel, onSaved }) {
         </div>
       </Field>
 
+      <ClinicianTargetPicker
+        selected={form.target_clinician_ids}
+        onChange={(ids) => set('target_clinician_ids', ids)}
+      />
+
       <div className="border-t border-border pt-4 flex flex-col gap-3">
         <h4 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Call to action (optional)</h4>
         <Field label="URL" hint="Registration page, sign-up link, etc.">
@@ -452,6 +488,75 @@ function Field({ label, hint, children }) {
       {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
       {children}
     </div>
+  )
+}
+
+// Multi-select clinician picker. Empty selection = workspace-wide
+// (the default + most common case — most campaigns apply across all clinicians).
+function ClinicianTargetPicker({ selected, onChange }) {
+  const { data: clinicians = [], isLoading } = useClinicianSummaries()
+  const selectedSet = new Set(selected || [])
+
+  function toggle(id) {
+    const next = new Set(selectedSet)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(Array.from(next))
+  }
+
+  return (
+    <Field
+      label="Target clinicians"
+      hint="Empty = workspace-wide (campaign applies to every clinician's content). Pick specific clinicians to scope this campaign — e.g. Q's running seminar shouldn't bias Whitney's post-partum atoms."
+    >
+      {isLoading ? (
+        <div className="text-xs text-muted-foreground py-2">Loading…</div>
+      ) : clinicians.length === 0 ? (
+        <div className="text-xs text-muted-foreground py-2">No clinicians in this workspace yet.</div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <label
+            className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+              selected.length === 0
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary/40'
+            }`}
+            onClick={(e) => { e.preventDefault(); onChange([]) }}
+          >
+            <input type="checkbox" checked={selected.length === 0} readOnly className="pointer-events-none" />
+            <div className="flex-1">
+              <div className="text-sm font-semibold">Workspace-wide</div>
+              <div className="text-xs text-muted-foreground">Apply to every clinician at this workspace.</div>
+            </div>
+          </label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+            {clinicians.map((c) => (
+              <label
+                key={c.id}
+                className={`flex items-center gap-2 px-2.5 py-2 rounded-md border text-sm cursor-pointer transition-colors ${
+                  selectedSet.has(c.id)
+                    ? 'border-primary bg-primary/5'
+                    : 'border-border hover:border-primary/40'
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSet.has(c.id)}
+                  onChange={() => toggle(c.id)}
+                />
+                <span className="truncate">{c.name}</span>
+              </label>
+            ))}
+          </div>
+          {selected.length > 0 && (
+            <p className="text-2xs text-muted-foreground mt-0.5">
+              Targeting {selected.length} clinician{selected.length !== 1 ? 's' : ''}.
+              Atoms from other clinicians won&apos;t see this campaign&apos;s context.
+            </p>
+          )}
+        </div>
+      )}
+    </Field>
   )
 }
 

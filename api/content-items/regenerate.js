@@ -169,8 +169,8 @@ export default async function handler(req, res) {
       : null
     // Active tentpole campaign flows into derivative content only — see
     // api/content-plan/draft.js for the same pattern. Empty string when
-    // no campaign is active.
-    const activeCampaign = await loadCurrentTentpole(ws.id)
+    // no campaign is active. Clinician scope honors per-clinician targeting.
+    const activeCampaign = await loadCurrentTentpole(ws.id, interview.clinician_id || null)
     const campaignContext = getTentpolePromptContext(activeCampaign, ws)
     const systemPrompt = getAtomSystemPrompt(
       ws,
