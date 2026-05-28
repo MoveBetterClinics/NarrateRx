@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { HelpCircle, X, BookOpen } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Icon from '@/components/ui/Icon'
@@ -48,7 +49,7 @@ export default function PageHelp({ pageKey, variant = 'default' }) {
         <span>Help / How this works</span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
           <div className="bg-background rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-3 border-b shrink-0">
@@ -90,7 +91,8 @@ export default function PageHelp({ pageKey, variant = 'default' }) {
               <Button size="sm" onClick={() => setOpen(false)}>Got it</Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   )
