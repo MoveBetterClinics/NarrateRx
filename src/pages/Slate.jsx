@@ -12,6 +12,7 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import PackageCard from '@/components/slate/PackageCard'
 import CoveragePanel from '@/components/slate/CoveragePanel'
 import ProducerOnboarding from '@/components/slate/ProducerOnboarding'
+import PageHelp from '@/components/PageHelp'
 
 const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
@@ -325,6 +326,7 @@ export default function Slate() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+          <PageHelp pageKey="slate" variant="onGradient" />
           {!generating && (
             <Button
               variant="outline"
