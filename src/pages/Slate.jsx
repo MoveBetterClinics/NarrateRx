@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle } from 'lucide-react'
+import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useClinicianSummaries } from '@/lib/queries'
@@ -12,11 +12,13 @@ import PackageCard from '@/components/slate/PackageCard'
 
 const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
+const TRIAGE_CONFIDENCE_THRESHOLD = 0.65  // packages below this need clinician attention
+const STALE_HOURS = 36  // unaddressed complete packages older than this land in triage
 
 async function fetchPackages() {
-  // Fetch all non-skipped packages ordered newest-first.
-  // The API doesn't support multi-status; we filter skipped client-side.
-  return apiFetch('/api/editorial/packages?limit=50')
+  // Fetch a wider window than the daily slate alone so the Triage tab has
+  // ~last 14 days of context for low-confidence + failed + stale items.
+  return apiFetch('/api/editorial/packages?limit=100')
 }
 
 function todayIso() {
@@ -25,6 +27,28 @@ function todayIso() {
 
 function isTodayPackage(pkg) {
   return (pkg.created_at || '').startsWith(todayIso())
+}
+
+function hoursSince(iso) {
+  if (!iso) return Infinity
+  return (Date.now() - new Date(iso).getTime()) / (60 * 60 * 1000)
+}
+
+/**
+ * Returns a short label if the package belongs in the triage queue, else null.
+ * Priority order: failed > low-confidence > stale.
+ */
+function triageReasonFor(pkg) {
+  if (pkg.status === 'failed') return 'Render failed'
+  if (pkg.status === 'complete') {
+    if (typeof pkg.similarity === 'number' && pkg.similarity < TRIAGE_CONFIDENCE_THRESHOLD) {
+      return 'Low confidence'
+    }
+    if (hoursSince(pkg.created_at) > STALE_HOURS) {
+      return 'Stale — needs decision'
+    }
+  }
+  return null
 }
 
 /**
@@ -49,6 +73,7 @@ export default function Slate() {
     [clinicians]
   )
 
+  const [view, setView] = useState('today')  // 'today' | 'triage'
   const [activeClinicianId, setActiveClinicianId] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 })
@@ -73,22 +98,37 @@ export default function Slate() {
 
   const allPackages = useMemo(() => {
     const pkgs = data?.packages || []
-    // Filter out explicitly skipped packages
-    return pkgs.filter((p) => p.status !== 'skipped')
+    // Filter out explicitly skipped + approved packages from BOTH views
+    return pkgs.filter((p) => p.status !== 'skipped' && p.status !== 'approved')
   }, [data])
 
   const todayPackages = useMemo(() => allPackages.filter(isTodayPackage), [allPackages])
 
-  const filteredPackages = useMemo(() => {
-    const base = todayPackages
-    if (!activeClinicianId) return base
-    return base.filter((p) => p.clinician_id === activeClinicianId)
-  }, [todayPackages, activeClinicianId])
+  // Triage: failed + low-confidence + stale (any age, not just today)
+  const triagePackages = useMemo(() => {
+    return allPackages
+      .filter((p) => triageReasonFor(p) !== null)
+      // Newest-attention items first: failed first (high urgency), then low-confidence, then stale
+      .sort((a, b) => {
+        const order = { 'Render failed': 0, 'Low confidence': 1, 'Stale — needs decision': 2 }
+        const oa = order[triageReasonFor(a)] ?? 99
+        const ob = order[triageReasonFor(b)] ?? 99
+        if (oa !== ob) return oa - ob
+        return new Date(b.created_at) - new Date(a.created_at)
+      })
+  }, [allPackages])
 
-  // Clinicians who appear in today's packages (for filter chips)
+  const basePackages = view === 'triage' ? triagePackages : todayPackages
+
+  const filteredPackages = useMemo(() => {
+    if (!activeClinicianId) return basePackages
+    return basePackages.filter((p) => p.clinician_id === activeClinicianId)
+  }, [basePackages, activeClinicianId])
+
+  // Clinicians who appear in the current view (for filter chips)
   const activeClinicianIds = useMemo(
-    () => [...new Set(todayPackages.map((p) => p.clinician_id).filter(Boolean))],
-    [todayPackages]
+    () => [...new Set(basePackages.map((p) => p.clinician_id).filter(Boolean))],
+    [basePackages]
   )
 
   async function handleGenerate() {
@@ -193,10 +233,12 @@ export default function Slate() {
         <div className="min-w-0">
           <p className="text-2xs font-bold uppercase tracking-widest opacity-85">Story Director</p>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">
-            {"Today's Slate"}
+            {view === 'triage' ? 'Triage Queue' : "Today's Slate"}
           </h1>
           <p className="text-sm opacity-80 mt-0.5">
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+            {view === 'triage'
+              ? `${triagePackages.length} package${triagePackages.length !== 1 ? 's' : ''} need attention`
+              : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
@@ -215,29 +257,65 @@ export default function Slate() {
               )}
             </Button>
           )}
-          <Button
-            size="sm"
-            className="bg-white text-foreground font-semibold hover:bg-slate-100 shadow"
-            onClick={handleGenerate}
-            disabled={generating || isLoading}
-          >
-            {generating ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                {genProgress.total > 0
-                  ? `Generating ${genProgress.current} of ${genProgress.total}…`
-                  : 'Starting…'}
-              </>
-            ) : (
-              <>
-                <Wand2 className="h-4 w-4 mr-1.5" />
-                {todayPackages.filter((p) => p.status === 'complete').length === 0
-                  ? "Generate today’s slate"
-                  : 'Generate more'}
-              </>
-            )}
-          </Button>
+          {view === 'today' && (
+            <Button
+              size="sm"
+              className="bg-white text-foreground font-semibold hover:bg-slate-100 shadow"
+              onClick={handleGenerate}
+              disabled={generating || isLoading}
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                  {genProgress.total > 0
+                    ? `Generating ${genProgress.current} of ${genProgress.total}…`
+                    : 'Starting…'}
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4 mr-1.5" />
+                  {todayPackages.filter((p) => p.status === 'complete').length === 0
+                    ? "Generate today’s slate"
+                    : 'Generate more'}
+                </>
+              )}
+            </Button>
+          )}
         </div>
+      </div>
+
+      {/* View tabs */}
+      <div className="flex items-center gap-1 border-b border-border">
+        <button
+          onClick={() => { setView('today'); setActiveClinicianId(null) }}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+            view === 'today'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Clapperboard className="h-4 w-4 inline-block mr-1.5 -mt-0.5" />
+          Today
+          <span className="ml-2 text-2xs font-bold opacity-70">{todayPackages.length}</span>
+        </button>
+        <button
+          onClick={() => { setView('triage'); setActiveClinicianId(null) }}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+            view === 'triage'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <ListChecks className="h-4 w-4 inline-block mr-1.5 -mt-0.5" />
+          Triage
+          {triagePackages.length > 0 && (
+            <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
+              view === 'triage' ? 'bg-primary text-primary-foreground' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {triagePackages.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Clinician filter chips */}
@@ -270,15 +348,15 @@ export default function Slate() {
         </div>
       )}
 
-      {/* Status strip for in-progress generation */}
-      {hasGeneratingPackages && !generating && (
+      {/* Status strip for in-progress generation (Today view only) */}
+      {view === 'today' && hasGeneratingPackages && !generating && (
         <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5 text-sm text-amber-800">
           <Loader2 className="h-4 w-4 animate-spin text-amber-600 shrink-0" />
           Packages are still rendering — refreshing automatically…
         </div>
       )}
 
-      {/* Package grid */}
+      {/* Package grid / empty / loading */}
       {isLoading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -290,16 +368,29 @@ export default function Slate() {
           <Button size="sm" variant="outline" onClick={() => refetch()}>Retry</Button>
         </div>
       ) : filteredPackages.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-24 gap-4 text-center rounded-xl border-2 border-dashed border-border">
-          <Clapperboard className="h-10 w-10 text-muted-foreground" />
-          <div>
-            <p className="font-semibold text-base">No packages for today yet</p>
-            <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-              Click <strong>{"Generate today's slate"}</strong> to create story packages from your recent
-              media and topic gaps.
-            </p>
+        view === 'triage' ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center rounded-xl border-2 border-dashed border-border">
+            <ListChecks className="h-10 w-10 text-emerald-600" />
+            <div>
+              <p className="font-semibold text-base">Triage queue is empty</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                Nothing needs your attention right now — everything is either approved,
+                skipped, or recently rendered.
+              </p>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center rounded-xl border-2 border-dashed border-border">
+            <Clapperboard className="h-10 w-10 text-muted-foreground" />
+            <div>
+              <p className="font-semibold text-base">No packages for today yet</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                Click <strong>{"Generate today's slate"}</strong> to create story packages from your recent
+                media and topic gaps.
+              </p>
+            </div>
+          </div>
+        )
       ) : (
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
           {filteredPackages.map((pkg) => (
@@ -307,6 +398,7 @@ export default function Slate() {
               key={pkg.id}
               pkg={pkg}
               clinicianName={clinicianMap[pkg.clinician_id]}
+              triageReason={view === 'triage' ? triageReasonFor(pkg) : null}
               onApprove={handleApprove}
               onSkip={handleSkip}
               onUpdate={() => qc.invalidateQueries({ queryKey: ['story-packages'] })}
@@ -315,15 +407,16 @@ export default function Slate() {
         </div>
       )}
 
-      {/* History strip — older packages (not today) */}
-      {allPackages.filter((p) => !isTodayPackage(p) && p.status === 'complete').length > 0 && (
+      {/* History strip — older packages (Today view only, only complete) */}
+      {view === 'today'
+        && allPackages.filter((p) => !isTodayPackage(p) && p.status === 'complete' && !triageReasonFor(p)).length > 0 && (
         <details className="mt-2">
           <summary className="text-sm font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground">
-            Earlier packages ({allPackages.filter((p) => !isTodayPackage(p) && p.status === 'complete').length})
+            Earlier packages ({allPackages.filter((p) => !isTodayPackage(p) && p.status === 'complete' && !triageReasonFor(p)).length})
           </summary>
           <div className="grid gap-4 mt-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
             {allPackages
-              .filter((p) => !isTodayPackage(p) && p.status === 'complete')
+              .filter((p) => !isTodayPackage(p) && p.status === 'complete' && !triageReasonFor(p))
               .map((pkg) => (
                 <PackageCard
                   key={pkg.id}
@@ -331,6 +424,7 @@ export default function Slate() {
                   clinicianName={clinicianMap[pkg.clinician_id]}
                   onApprove={handleApprove}
                   onSkip={handleSkip}
+                  onUpdate={() => qc.invalidateQueries({ queryKey: ['story-packages'] })}
                 />
               ))}
           </div>
