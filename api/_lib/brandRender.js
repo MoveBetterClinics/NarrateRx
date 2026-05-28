@@ -133,7 +133,14 @@ export function buildBrandOverlaySvg({
   const captionSidePadding = Math.round(width * 0.05)
   const captionInnerWidth = width - (2 * captionSidePadding)
   const maxCharsPerLine = Math.max(14, Math.round(captionInnerWidth / (captionFontSize * 0.55)))
-  const captionLines = wrapLines(captionText, maxCharsPerLine, 3)
+  // Cap lines so the block fits inside the band including ascender/descender.
+  // Bottom-band channels (16:9 blog_hero / blog_hero_video) get a tighter cap:
+  // their wider canvas inflates maxCharsPerLine, so 3 lines pack ~180 chars and
+  // visually overflow the band even though baseline math says it fits. Forcing
+  // 2 lines triggers the same ellipsis truncation already used on top-band
+  // channels and keeps text cleanly inside the orange band.
+  const maxLines = captionPos === 'bottom' ? 2 : 3
+  const captionLines = wrapLines(captionText, maxCharsPerLine, maxLines)
 
   const lowerFontSize = Math.round(baseDim * 0.030)
   const lowerLeftText = svgEscape(clinicianName || '')
