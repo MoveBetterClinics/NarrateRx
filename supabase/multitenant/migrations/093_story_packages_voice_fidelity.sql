@@ -1,4 +1,12 @@
--- Migration 092: voice_fidelity_score + breakdown on story_packages
+-- Migration 093: voice_fidelity_score + breakdown on story_packages
+--
+-- Filename note: this migration was originally numbered 092 (PR #902,
+-- merged 2026-05-28 05:58Z). PR #901 (workspaces.role_templates) also
+-- landed at 092 ~30 min earlier on the same day, so this one is renamed
+-- to 093 per the CLAUDE.md ordering rule ("sequential numeric prefixes,
+-- not shared"). The DDL itself was already applied to prod under the
+-- old name via Supabase MCP — this rename is filesystem-cosmetic only,
+-- and the IF NOT EXISTS guards make any re-application a no-op.
 --
 -- V1 of the "Deepen the video build" extension set.
 -- Captions are now the highest-volume text the product emits. The voice

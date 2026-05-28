@@ -84,7 +84,7 @@ Decision 2026-05-27: spend the velocity surplus deepening the video pipeline bef
 
 **Shape of V1:**
 
-1. **Migration 092** — `voice_fidelity_score numeric` + `voice_fidelity_breakdown jsonb` on `story_packages`, with `GRANT … TO service_role`. Partial index on rows that have a score (badge query + gate query both hit this path).
+1. **Migration 093** — `voice_fidelity_score numeric` + `voice_fidelity_breakdown jsonb` on `story_packages`, with `GRANT … TO service_role`. Partial index on rows that have a score (badge query + gate query both hit this path). (Originally numbered 092; collided with PR #901's `workspaces.role_templates` migration that landed the same day, so this one was renamed 092 → 093 per the CLAUDE.md "sequential prefixes" rule.)
 2. **Scorer** (`scripts/voice-fidelity-captions.mjs`) — short-form caption analog of `voice-fidelity-score.mjs`. Same 5 dimensions (voice_fidelity / clinical_texture / redundancy / specificity / brand_fit) so dashboards are comparable, but the evaluator prompt is tuned for the title + caption pair specifically. Writes a CI fixture via `--fixture-out=`.
 3. **Shared helper** (`api/_lib/captionFidelity.js`) — `scoreCaptionFidelity({ packageId, workspaceId, … })`. Called via `waitUntil()` from `generate-package`, `rerender-package`, and `packages/[id]` PATCH so any path that changes `caption_text` triggers a re-score in the background (no added user-facing latency).
 4. **CI gate** (`scripts/verify-caption-fidelity.mjs`, wired into `.github/workflows/pr.yml`) — reads the committed fixture, fails the build if `avg < baseline × (1 - tolerance)`. Credential-free: no live DB / LLM call in CI. Skips with exit 0 if the fixture is missing so first-run / opt-out is unblocked.
