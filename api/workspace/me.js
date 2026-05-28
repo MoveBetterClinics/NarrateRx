@@ -15,6 +15,7 @@ export const config = { runtime: 'nodejs' }
 import { workspaceContext, invalidateWorkspaceCacheById, invalidateWorkspaceCacheBySlug } from '../_lib/workspaceContext.js'
 import { requireRole, requireCapability } from '../_lib/auth.js'
 import { resolveCapabilities, CAP_SETTINGS_EDIT } from '../_lib/capabilities.js'
+import { getActiveCampaigns } from '../_lib/activeCampaigns.js'
 
 // Hard allowlist — only these columns may be patched via this endpoint.
 // slug, clerk_org_id, capabilities, status are developer-owned.
@@ -323,6 +324,17 @@ async function handler(req, res) {
       current_user_capabilities = resolveCapabilities(current_user_tier, workspace)
     }
 
+    // Phase 4 Tentpole PR B: embed currently-active campaigns so the Slate
+    // client can do slot allocation against them without a separate fetch.
+    // Non-fatal on failure — Slate falls back to legacy non-campaign
+    // generation when the field is absent or empty.
+    let active_campaigns = []
+    try {
+      active_campaigns = await getActiveCampaigns(workspace.id)
+    } catch (e) {
+      console.error('[workspace/me] active campaigns fetch failed:', e?.message)
+    }
+
     return res.status(200).json({
       ...workspace,
       locations,
@@ -330,6 +342,7 @@ async function handler(req, res) {
       current_user_tier,
       current_user_capabilities,
       current_user_producer_onboarded_at,
+      active_campaigns,
     })
   }
 

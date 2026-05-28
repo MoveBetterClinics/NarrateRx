@@ -68,8 +68,10 @@ async function sb(path, init = {}) {
  * Generate a compelling 1-2 sentence caption.
  * V6: when practiceChunks are available, injects the clinician's prior
  * framing so the caption echoes their actual voice on this topic.
+ * Phase 4 Tentpole PR B: when campaign is provided, injects the campaign's
+ * theme + content_style so the caption serves the campaign goal.
  */
-async function generateCaption({ topic, clip, workspace, practiceChunks = [] }) {
+async function generateCaption({ topic, clip, workspace, practiceChunks = [], campaign = null }) {
   const toneHint = workspace?.brand_voice?.tone_descriptors?.join(', ') || 'warm, expert'
   const clipContext = [
     clip.visualNarrative ? `Visual: ${clip.visualNarrative}` : '',
@@ -90,6 +92,23 @@ async function generateCaption({ topic, clip, workspace, practiceChunks = [] }) 
   if (priorThinking) {
     systemLines.push(`The practitioner's prior thinking on this topic: ${priorThinking}`)
     systemLines.push('Echo their specific clinical framing naturally — don\'t copy phrases verbatim.')
+  }
+  // Campaign context — tightens the caption to the campaign goal. The
+  // content_style flag changes the register:
+  //   • promotional  — pitch-y, urgency, drives toward event
+  //   • relationship — warm, community, NO clinical talk
+  //   • clinical     — default (no extra instruction)
+  if (campaign) {
+    if (campaign.theme_notes) {
+      systemLines.push(`This caption is part of an active campaign: ${campaign.name}. Campaign theme: ${campaign.theme_notes}`)
+    } else if (campaign.name) {
+      systemLines.push(`This caption is part of an active campaign: ${campaign.name}.`)
+    }
+    if (campaign.content_style === 'promotional') {
+      systemLines.push('Style: promotional. Subtly orient the reader toward an upcoming event — don\'t hard-sell, but make it clear something specific is happening.')
+    } else if (campaign.content_style === 'relationship') {
+      systemLines.push('Style: relationship — warm, community-focused. Do NOT talk about clinical care, assessments, or treatment. Focus on the people, the relationship, the moment.')
+    }
   }
 
   const { text } = await generateText({
@@ -134,6 +153,29 @@ export default async function handler(req, res) {
   let captionText = String(body.captionText || '').trim().slice(0, 500)
   const clinicianId = body.clinicianId ? String(body.clinicianId) : null
   const requestedKind = body.kind && body.kind !== 'any' ? String(body.kind) : null
+  // Phase 4 Tentpole PR B: optional campaign tagging.
+  const campaignId = body.campaignId ? String(body.campaignId) : null
+
+  // Resolve the campaign row up-front so caption gen + status check + insert
+  // all see the same snapshot. Workspace-scoped lookup so a stale or
+  // cross-tenant id can't be injected.
+  let campaign = null
+  if (campaignId) {
+    const cRes = await sb(
+      `campaigns?id=eq.${encodeURIComponent(campaignId)}&workspace_id=eq.${ws.id}` +
+      `&select=id,name,status,theme_notes,content_style,cta_url,cta_label,cta_pitch&limit=1`
+    )
+    if (cRes.ok) {
+      const rows = await cRes.json().catch(() => [])
+      campaign = rows?.[0] || null
+    }
+    if (!campaign) {
+      return res.status(404).json({ error: 'campaign_not_found' })
+    }
+    if (campaign.status !== 'active') {
+      return res.status(409).json({ error: 'campaign_not_active', status: campaign.status })
+    }
+  }
 
   const started = Date.now()
 
@@ -236,6 +278,7 @@ export default async function handler(req, res) {
         clip,
         workspace: ws,
         practiceChunks: ragContext?._practiceChunks || [],
+        campaign,
       })
     } catch (e) {
       console.error('[generate-package] caption gen failed:', e.message)
@@ -262,6 +305,7 @@ export default async function handler(req, res) {
         renders: [],
         status: 'generating',
         rag_context: ragContextForDb,
+        campaign_id: campaign?.id || null,
       }),
     })
     if (!insertRes.ok) {

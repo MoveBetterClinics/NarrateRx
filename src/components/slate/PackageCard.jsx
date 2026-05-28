@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
@@ -68,6 +68,30 @@ function SimilarityBadge({ similarity }) {
     <span className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-3xs font-bold text-white ${color} backdrop-blur-sm`}>
       <Sparkles className="h-2.5 w-2.5" />
       {pct}%
+    </span>
+  )
+}
+
+function CampaignChip({ campaign }) {
+  const styleClass = {
+    promotional:  'bg-amber-50 text-amber-800 border-amber-200',
+    relationship: 'bg-purple-50 text-purple-800 border-purple-200',
+    clinical:     'bg-sky-50 text-sky-800 border-sky-200',
+  }[campaign.content_style] || 'bg-muted text-muted-foreground border-border'
+  const eventInfo = (() => {
+    if (!campaign.event_at) return null
+    const days = Math.round((new Date(campaign.event_at).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+    if (days < 0) return null
+    if (days === 0) return 'today'
+    if (days === 1) return 'tomorrow'
+    if (days <= 60) return `in ${days}d`
+    return null
+  })()
+  return (
+    <span className={`self-start inline-flex items-center gap-1 text-3xs font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${styleClass}`}>
+      <Target className="h-2.5 w-2.5" />
+      {campaign.name}
+      {eventInfo && <span className="opacity-70 font-semibold normal-case">· {eventInfo}</span>}
     </span>
   )
 }
@@ -312,6 +336,7 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
         </div>
       ) : (
         <div className="flex flex-col gap-1.5 p-3 flex-1">
+          {pkg.campaign && <CampaignChip campaign={pkg.campaign} />}
           <h3 className="text-sm font-semibold leading-snug line-clamp-2">{pkg.topic}</h3>
           <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
             {pkg.caption_text}

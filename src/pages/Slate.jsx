@@ -7,6 +7,7 @@ import { useClinicianSummaries } from '@/lib/queries'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
+import { allocateSlots } from '@/lib/campaignAllocation'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import PackageCard from '@/components/slate/PackageCard'
 import CoveragePanel from '@/components/slate/CoveragePanel'
@@ -172,31 +173,52 @@ export default function Slate() {
       return
     }
 
-    const topics = pickTopicGaps(ws, todayTopics, needed)
-    if (topics.length === 0) {
-      toast('No topic gaps found. Add topics in Workspace Settings → Topics.')
+    // Phase 4 Tentpole PR B: allocate slots across active campaigns by
+    // event-proximity weighting. Slots without a campaign fall back to the
+    // legacy topic-gaps generator (this is also the fallback when no
+    // campaigns are active).
+    const activeCampaigns = Array.isArray(ws?.active_campaigns) ? ws.active_campaigns : []
+    const slotAssignments = allocateSlots(activeCampaigns, needed)
+    const fallbackTopics = pickTopicGaps(ws, todayTopics, needed)
+
+    // Build the per-slot generation plan. For campaign slots, the topic is
+    // the campaign's theme_notes (or name as fallback). For non-campaign
+    // slots, pull from fallbackTopics.
+    let fallbackCursor = 0
+    const plan = slotAssignments.map((campaign) => {
+      if (campaign) {
+        const topic = campaign.theme_notes || campaign.name
+        return { campaignId: campaign.id, topic, campaign }
+      }
+      const topic = fallbackTopics[fallbackCursor++]
+      return topic ? { campaignId: null, topic } : null
+    }).filter(Boolean)
+
+    if (plan.length === 0) {
+      toast('No active campaigns and no topic gaps. Add campaigns or topics first.')
       generatingRef.current = false
       setGenerating(false)
       return
     }
 
-    setGenProgress({ current: 0, total: topics.length })
+    setGenProgress({ current: 0, total: plan.length })
 
     let succeeded = 0
-    for (let i = 0; i < topics.length; i++) {
-      setGenProgress({ current: i + 1, total: topics.length })
+    for (let i = 0; i < plan.length; i++) {
+      setGenProgress({ current: i + 1, total: plan.length })
+      const { topic, campaignId } = plan[i]
       try {
         await apiFetch('/api/editorial/generate-package', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topic: topics[i] }),
+          body: JSON.stringify({ topic, ...(campaignId ? { campaignId } : {}) }),
         })
         succeeded++
         // Refresh the list after each successful package
         qc.invalidateQueries({ queryKey: ['story-packages'] })
       } catch (err) {
-        console.error('[Slate] generate-package failed for topic:', topics[i], err)
-        toast.error(`Failed to generate: ${topics[i]}`)
+        console.error('[Slate] generate-package failed for topic:', topic, err)
+        toast.error(`Failed to generate: ${topic.slice(0, 60)}`)
       }
     }
 
