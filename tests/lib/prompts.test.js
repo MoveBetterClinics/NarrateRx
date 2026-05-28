@@ -6,6 +6,7 @@ import {
   getInterviewSystemPrompt,
   getBlogPostSystemPrompt,
   getVoiceAuditSystemPrompt,
+  getThreadDetectionSystemPrompt,
 } from '../../src/lib/prompts.js'
 
 // Minimal workspace fixture — clinical mode (default).
@@ -288,5 +289,47 @@ describe('getVoiceAuditSystemPrompt', () => {
     expect(prompt).toContain('suggestion')
     // Typo guard — the final sentence must read "fidelity", not "fidulity".
     expect(prompt).not.toContain('fidulity')
+  })
+})
+
+describe('getThreadDetectionSystemPrompt', () => {
+  it('names the clinician and the condition, and frames the task as triage', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'lower back pain')
+    expect(prompt).toContain('Dr. Smith')
+    expect(prompt).toContain('lower back pain')
+    expect(prompt).toContain('single blog post')
+  })
+
+  it('biases strongly toward one post (split is the exception)', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'sciatica')
+    expect(prompt).toContain('BIAS STRONGLY TOWARD ONE POST')
+    expect(prompt).toContain('recommended_parts = 1')
+    // Defines what counts as a splittable thread (standalone post).
+    expect(prompt).toContain('standalone')
+  })
+
+  it('asks for a rationale and per-part titles only when splitting', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'knee pain')
+    expect(prompt).toContain('rationale')
+    expect(prompt).toContain('title')
+    // Empty titles when it recommends a single post.
+    expect(prompt).toContain('titles is an empty array')
+  })
+
+  it('practice (We) lane frames output as the clinic team voice', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'plantar fasciitis', { voiceMode: 'practice' })
+    expect(prompt).toContain("clinic's team voice")
+    expect(prompt).not.toContain('first-person voice')
+  })
+
+  it('personal (I) lane frames output as first-person', () => {
+    const prompt = getThreadDetectionSystemPrompt('Michael Quasney', 'why I built NarrateRx', { voiceMode: 'personal' })
+    expect(prompt).toContain('first-person voice')
+    expect(prompt).not.toContain("clinic's team voice")
+  })
+
+  it('defaults to practice lane when voiceMode is omitted', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'rotator cuff')
+    expect(prompt).toContain("clinic's team voice")
   })
 })
