@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+import { applyUtmToUrl } from '../_lib/utm.js'
 export const config = { runtime: 'nodejs' }
 // Website publish endpoint — Node.js runtime.
 //
@@ -129,7 +130,10 @@ async function publishToAstro(res, payload, cred) {
   try { data = await upstream.json() } catch { /* empty */ }
 
   if (upstream.status === 200 && data.success) {
-    return res.status(200).json({ success: true, slug: data.slug, commitUrl: data.commitUrl, postUrl: data.postUrl })
+    const postUrl = (payload.packageId && data.postUrl)
+      ? applyUtmToUrl(data.postUrl, { channel: 'blog', packageId: payload.packageId, campaignSlug: payload.campaignSlug })
+      : data.postUrl
+    return res.status(200).json({ success: true, slug: data.slug, commitUrl: data.commitUrl, postUrl })
   }
   if (upstream.status === 409) {
     return res.status(409).json({ error: 'slug_taken', slug: payload.slug, message: data.message || `The slug "${payload.slug}" is already published. Rename and try again — the website never overwrites.` })
@@ -265,10 +269,13 @@ async function publishToWordPress(res, payload, cred) {
   try { postData = await postRes.json() } catch { /* empty */ }
 
   if (postRes.status === 201 || postRes.status === 200) {
+    const postUrl = (payload.packageId && postData.link)
+      ? applyUtmToUrl(postData.link, { channel: 'blog', packageId: payload.packageId, campaignSlug: payload.campaignSlug })
+      : postData.link
     return res.status(200).json({
       success: true,
       slug:    postData.slug || payload.slug,
-      postUrl: postData.link,
+      postUrl,
       postId:  postData.id,
     })
   }
