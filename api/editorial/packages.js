@@ -64,10 +64,11 @@ export default async function handler(req, res) {
   }
 
   // Build query — embed consent fields from the source asset for the Slate UI.
-  // PostgREST resolves source_asset:media_assets!source_asset_id via the FK
-  // declared in migration 088.
+  // PostgREST auto-resolves the single FK between story_packages and
+  // media_assets (declared in migration 088); we use the alias prefix
+  // (source_asset:) to keep a stable name even if the table is renamed later.
   let query = `story_packages?workspace_id=eq.${ws.id}&order=created_at.desc&limit=${limit}&offset=${offset}`
-  query += `&select=id,topic,caption_text,similarity,channels,renders,status,error_message,created_at,source_asset_id,clinician_id,source_asset:media_assets!source_asset_id(consent_status,consent_notes)`
+  query += `&select=id,topic,caption_text,similarity,channels,renders,status,error_message,created_at,source_asset_id,clinician_id,source_asset:media_assets(consent_status,consent_notes)`
   if (status) query += `&status=eq.${status}`
   if (clinicianId) query += `&clinician_id=eq.${clinicianId}`
 

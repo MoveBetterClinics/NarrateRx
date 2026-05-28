@@ -75,7 +75,7 @@ export default async function handler(req, res) {
   // --- Load package + source asset consent state (must belong to this workspace) ---
   const pkgRes = await sb(
     `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}` +
-    `&select=id,workspace_id,clinician_id,source_asset_id,topic,caption_text,similarity,channels,renders,status,source_asset:media_assets!source_asset_id(consent_status)`
+    `&select=id,workspace_id,clinician_id,source_asset_id,topic,caption_text,similarity,channels,renders,status,source_asset:media_assets(consent_status)`
   )
   if (!pkgRes.ok) return res.status(500).json({ error: 'db_error' })
   const pkgs = await pkgRes.json()
