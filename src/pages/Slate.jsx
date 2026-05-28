@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert, BarChart3, Sparkles } from 'lucide-react'
+import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert, BarChart3, Sparkles, Gauge } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useClinicianSummaries } from '@/lib/queries'
@@ -18,6 +18,10 @@ const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
 const TRIAGE_CONFIDENCE_THRESHOLD = 0.65  // packages below this need clinician attention
 const STALE_HOURS = 36  // unaddressed complete packages older than this land in triage
+// Phase 4 PR 3 — Brand QC threshold. Packages scoring below this on voice fidelity
+// (0-10 scale, matches V1 amber/green boundary in VoiceFidelityBadge) need a producer
+// review before they ship. Excluded if a producer already approved them.
+const BRAND_QC_THRESHOLD = 7.0
 
 async function fetchPackages() {
   // Fetch a wider window than the daily slate alone so the Triage tab has
@@ -77,7 +81,7 @@ export default function Slate() {
     [clinicians]
   )
 
-  const [view, setView] = useState('today')  // 'today' | 'triage' | 'consent'
+  const [view, setView] = useState('today')  // 'today' | 'triage' | 'consent' | 'qc' | 'coverage'
   const [activeClinicianId, setActiveClinicianId] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 })
@@ -144,9 +148,24 @@ export default function Slate() {
     })
   }, [allPackages])
 
+  // Phase 4 PR 3 — Brand QC queue: packages with a voice-fidelity score below
+  // the green/amber boundary. Caption fidelity scores live in the same column
+  // (story_packages.voice_fidelity_score) per V1, so this view surfaces both
+  // long-form drift and caption drift on a single producer-facing list.
+  // Sorted lowest-score-first so the worst drift floats to the top.
+  const qcPackages = useMemo(() => {
+    return allPackages
+      .filter((p) => {
+        const s = p.voice_fidelity_score
+        return typeof s === 'number' && s < BRAND_QC_THRESHOLD
+      })
+      .sort((a, b) => (a.voice_fidelity_score ?? 99) - (b.voice_fidelity_score ?? 99))
+  }, [allPackages])
+
   const basePackages =
     view === 'triage'  ? triagePackages :
     view === 'consent' ? consentPackages :
+    view === 'qc'      ? qcPackages :
                          todayPackages
 
   const filteredPackages = useMemo(() => {
@@ -312,6 +331,7 @@ export default function Slate() {
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">
             {view === 'triage'   ? 'Triage Queue' :
              view === 'consent'  ? 'Consent Queue' :
+             view === 'qc'       ? 'Brand QC' :
              view === 'coverage' ? 'Capture Coverage' :
                                    "Today's Slate"}
           </h1>
@@ -320,9 +340,11 @@ export default function Slate() {
               ? `${triagePackages.length} package${triagePackages.length !== 1 ? 's' : ''} need attention`
               : view === 'consent'
                 ? `${consentPackages.length} package${consentPackages.length !== 1 ? 's' : ''} awaiting consent decision`
-                : view === 'coverage'
-                  ? 'Per-clinician capture activity and topic coverage gaps'
-                  : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                : view === 'qc'
+                  ? `${qcPackages.length} package${qcPackages.length !== 1 ? 's' : ''} below brand voice threshold (lowest fidelity first)`
+                  : view === 'coverage'
+                    ? 'Per-clinician capture activity and topic coverage gaps'
+                    : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
@@ -420,6 +442,24 @@ export default function Slate() {
           )}
         </button>
         <button
+          onClick={() => { setView('qc'); setActiveClinicianId(null) }}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+            view === 'qc'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <Gauge className="h-4 w-4 inline-block mr-1.5 -mt-0.5" />
+          Brand QC
+          {qcPackages.length > 0 && (
+            <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
+              view === 'qc' ? 'bg-primary text-primary-foreground' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {qcPackages.length}
+            </span>
+          )}
+        </button>
+        <button
           onClick={() => { setView('coverage'); setActiveClinicianId(null) }}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
             view === 'coverage'
@@ -506,6 +546,17 @@ export default function Slate() {
               <p className="font-semibold text-base">No packages awaiting consent</p>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                 Flag a package&apos;s source asset for consent review from its card to add it here.
+              </p>
+            </div>
+          </div>
+        ) : view === 'qc' ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center rounded-xl border-2 border-dashed border-border">
+            <Gauge className="h-10 w-10 text-emerald-600" />
+            <div>
+              <p className="font-semibold text-base">Brand voice is on-key</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                No packages are scoring below the {BRAND_QC_THRESHOLD.toFixed(1)} voice-fidelity threshold.
+                Drafts that drift will surface here automatically.
               </p>
             </div>
           </div>
