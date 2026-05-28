@@ -586,16 +586,42 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
+// Voice-fidelity rewrite (2026-05-28): the per-interview audience filter,
+// tone modifier, and fixed section template were driving voice drift. See
+// .claude/design-interview-output-voice-fidelity.md. The audienceSlot,
+// storyTypeSlot, and tone params are accepted but intentionally ignored so
+// callers and tests don't have to change in this PR; a follow-up PR will
+// drop them from the signature.
 export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null, lengthPreset = null, ownHistoryBlock = '') {
   if (isGeneralMode(workspace)) {
     return getGeneralBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset, ownHistoryBlock)
   }
+  void audienceSlot; void storyTypeSlot; void tone
   const isPersonal = voiceMode === 'personal'
-  const audiencePhrase = audienceSlot ? audienceSlot.label : (workspace.region ? `${workspace.region} readers` : 'readers')
-  const storyTypeNote = storyTypeSlot
-    ? `\nPIECE TYPE: ${storyTypeSlot.label}${storyTypeSlot.description ? ` — ${storyTypeSlot.description}` : ''}. Let this shape your format and emphasis — the piece should read as a ${storyTypeSlot.label.toLowerCase()}, not a generic blog post.`
+  const internalLinksBlock = workspace.internal_links_markdown
+    ? `\nINTERNAL LINKS — available if a natural opportunity arises. Use descriptive anchor text (never "click here"). Don't force them; never bend the writing to hit a link count:\n\n${workspace.internal_links_markdown}\n`
     : ''
-  return `You are a content writer for ${workspace.display_name} in ${workspace.location}. Based on the interview transcript below with ${clinicianName} about treating ${condition}, write an engaging, on-brand blog post targeted at ${audiencePhrase}.${storyTypeNote}
+  const externalLinksLine = `\nEXTERNAL LINKS — only if they genuinely support a specific claim ${clinicianName} made (Mayo Clinic, NIH/PubMed, Cleveland Clinic, ACA). Anchor text must be descriptive. Default to no external links rather than forcing one.\n`
+  const bookingLine = workspace.booking_url
+    ? `\nIf the piece naturally arrives at "what should the reader do next," the booking destination is ${workspace.booking_url}. No prescribed wording — let ${clinicianName}'s voice carry the close.\n`
+    : ''
+
+  return `You are a writer turning a recorded interview with ${clinicianName} (a clinician at ${workspace.display_name} in ${workspace.location}) about ${condition} into a long-form post for the ${workspace.display_name} website.
+
+VOICE FIDELITY IS THE ONLY GOAL.
+
+The interview is rambling and conversational. Your job is to ORGANIZE that ramble so a reader can follow it — never to translate it into a different voice.
+
+Hard rules:
+- Lead with ${clinicianName}'s actual phrasing. Quote verbatim wherever the meaning fits.
+- Never paraphrase a sentence ${clinicianName} said into a smoother or more generic version. If a sentence is hard to read as-is, split it at a natural breath point — don't rewrite the words.
+- Don't impose a fixed structure ("intro → body → conclusion," "3 takeaways," "the problem → our approach → patient experience → insight → CTA"). Group related ideas, sequence them so the post reads in order; otherwise stay out of the way.
+- Bridges between ideas must be minimal connective tissue, not new argument. If you find yourself writing a sentence ${clinicianName} didn't, ask whether the reader actually needs it. Usually they don't.
+- Preserve every strong claim or opinion in its original strength. Do not soften, balance, or add hedging. If ${clinicianName} took a strong stance, the post takes that same strong stance.
+- Section headers (if you use any) must be content-specific — what the section is actually about — not generic ("What's Really Going On," "Our Approach," "Conclusion").
+${isPersonal
+  ? `- First-person throughout: "I," "my," "me." End with a signature: "— ${clinicianName}, ${workspace.display_name}".`
+  : `- Use "we" / "our team" when ${clinicianName} spoke for the clinic in the interview. Don't fabricate clinic positioning; only use we-language for things ${clinicianName} actually said the team does.`}
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
@@ -603,59 +629,12 @@ ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}
 
 ${formatPatientContextForPrompt(workspace, prototypeId)}
+${internalLinksBlock}${externalLinksLine}${bookingLine}
+HEADLINE: write one compelling, specific headline. Never include ${clinicianName}'s name in the headline.
 
-LINK BUILDING — this is required, not optional:
+FORMAT: Markdown. Use ## headings only where the content actually shifts thread. No fixed section count.
 
-Internal links — weave these in naturally where the topic fits. Use descriptive anchor text (never "click here"):
-
-${workspace.internal_links_markdown}
-
-External links — add 2–3 to authoritative, non-competing sources where they genuinely support a claim:
-- Mayo Clinic (mayoclinic.org) for condition definitions or prevalence stats
-- NIH / PubMed (pubmed.ncbi.nlm.nih.gov) for research citations
-- Cleveland Clinic (my.clevelandclinic.org) for anatomy or condition explanations
-- American Chiropractic Association (acatoday.org) for chiropractic-specific statistics
-- Only use real, stable URLs you are confident exist — if unsure, link to the domain homepage rather than a specific article
-
-LINKING RULES:
-- Aim for 3–5 internal links and 2–3 external links per post
-- Anchor text must be descriptive and natural — describe what the reader will find, not the URL
-- Never stuff links — each link must genuinely serve the reader
-- Spread links throughout the post, not bunched in one section
-- The CTA section must always link to ${workspace.booking_url} for booking
-
-BLOG POST FORMAT (write in Markdown):
-
-# [Headline: compelling, specific, hopeful — about the condition${isPersonal ? '' : ` and ${workspace.display_name}'s approach`}. Never include the clinician's name in the headline.]
-
-[Hook paragraph: open with ${isPersonal ? 'a moment from my own practice or a patient I remember' : "the patient's lived experience or a relatable question"}. 2–3 sentences that make the reader feel seen.]
-
-## What's Really Going On With ${condition}
-[Explain the condition in plain language from a clinical perspective — what's actually happening in the body and why standard approaches often fall short. Include 1–2 links here: one internal to a related ${workspace.display_name} post, one external to an authoritative source.]
-
-## ${isPersonal ? `My Approach to ${condition}` : `The ${workspace.display_name} Approach to ${condition}`}
-[${isPersonal
-  ? `Describe my specific approach in first person — what makes my method different, what the process looks like in my own work. Concrete and specific to what was shared in the interview.`
-  : `${workspace.display_name}'s specific treatment approach — what makes it different, what the process looks like. Use "we" and "our team." Make it concrete and specific to what was shared in the interview.`}${workspace.signature_system_name ? ` Link to ${workspace.signature_system_name} (${workspace.signature_system_url}) if relevant.` : ''}]
-
-## ${isPersonal ? 'What I See in My Patients' : 'What Our Patients Experience'}
-[${isPersonal
-  ? `Walk through the patient journey from first visit onward in first person — what I do, what changes, realistic timeline. Cite any success stories from the interview (anonymized). Link to a relevant ${workspace.display_name} post if it fits naturally.`
-  : `Walk through the patient journey from first visit onward — what happens, what changes, realistic timeline. Cite any success stories from the interview (anonymized). Use "our patients" language. Link to a relevant ${workspace.display_name} post if it fits naturally.`}]
-
-## The Insight Most People With ${condition} Are Missing
-[${isPersonal
-  ? `The key clinical observation from the interview — in my own voice. This is the moment that makes the post human and builds trust.`
-  : `The key clinical observation from the interview — framed as ${workspace.display_name}'s team perspective. This makes the post human and builds trust. The clinician's name may appear here once naturally if it adds credibility, e.g. "As our clinician ${clinicianName} puts it…"`}]
-
-## ${workspace.cta_heading || 'Ready to Move Better?'}
-[Topic-connected CTA — 3–4 sentences. Open by echoing back the specific condition or insight this post covered — the reader should feel you remembered exactly what they just read (e.g. "If the ${condition} pattern we described sounds familiar…" or "If you've been living with this and nothing has stuck…"). Then name the concrete next step at ${workspace.display_name} — call it a movement assessment or movement screen, not just "an appointment." Link to [${workspace.display_name}](${workspace.booking_url}). No exclamation points, no urgency language — a natural next step, not a hard sell.]
-${isPersonal ? '' : `
----
-*${workspace.display_name} · ${workspace.location}*
-`}
-${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 700–950 words. Write like a human who genuinely cares about helping people move better — not like a content marketing checklist.')}
-${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
+${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 700–950 words, but voice fidelity beats length. If the interview only has 500 words of real material, write 500. Never pad.')}${PROVENANCE_INSTRUCTION}`
 }
 
 /**
@@ -1122,41 +1101,45 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
+// Voice-fidelity rewrite (2026-05-28): see notes on getBlogPostSystemPrompt
+// above. audienceSlot, storyTypeSlot, and tone are accepted but ignored.
 function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset = null, ownHistoryBlock = '') {
+  void audienceSlot; void storyTypeSlot; void tone
   const isPersonal = voiceMode === 'personal'
-  const audiencePhrase = audienceSlot ? audienceSlot.label : 'readers'
-  const storyTypeNote = storyTypeSlot
-    ? `\nPIECE TYPE: ${storyTypeSlot.label}${storyTypeSlot.description ? ` — ${storyTypeSlot.description}` : ''}. Let this shape your format and emphasis.`
-    : ''
   const internalLinks = workspace?.internal_links_markdown
-    ? `\nINTERNAL LINKS — weave these in naturally where the topic fits. Use descriptive anchor text (never "click here"):\n\n${workspace.internal_links_markdown}\n`
+    ? `\nINTERNAL LINKS — available if a natural opportunity arises. Use descriptive anchor text (never "click here"). Don't force them; never bend the writing to hit a link count:\n\n${workspace.internal_links_markdown}\n`
     : ''
   const ctaUrl = workspace?.booking_url || workspace?.website || ''
-  const ctaHeading = workspace?.cta_heading || 'Want to talk?'
-  const ctaSection = ctaUrl
-    ? `\n## ${ctaHeading}\n[Topic-connected CTA — 2–3 sentences. Open by echoing the specific topic or insight this piece covered ("If what we explored about ${topic} resonates…"), then name the concrete next step at ${workspace.display_name}. Link to [${workspace.display_name}](${ctaUrl}). Conversational — should feel like a natural continuation, not a pivot to "book now."\n`
+  const bookingLine = ctaUrl
+    ? `\nIf the piece naturally arrives at "what should the reader do next," the destination is ${ctaUrl}. No prescribed wording — let ${expertName}'s voice carry the close.\n`
     : ''
   const brandVoice = workspace?.brand_voice || "(no brand voice set — match the expert's natural voice from the transcript)"
 
-  return `You are a writer for ${workspace.display_name}. Based on the interview transcript below with ${expertName} about ${topic}, write an engaging long-form piece targeted at ${audiencePhrase}.${storyTypeNote}
+  return `You are a writer turning a recorded interview with ${expertName} at ${workspace.display_name} about ${topic} into a long-form piece for the ${workspace.display_name} website.
+
+VOICE FIDELITY IS THE ONLY GOAL.
+
+The interview is rambling and conversational. Your job is to ORGANIZE that ramble so a reader can follow it — never to translate it into a different voice.
+
+Hard rules:
+- Lead with ${expertName}'s actual phrasing. Quote verbatim wherever the meaning fits.
+- Never paraphrase a sentence ${expertName} said into a smoother or more generic version. If a sentence is hard to read as-is, split it at a natural breath point — don't rewrite the words.
+- Don't impose a fixed structure (intro/body/conclusion, "3 takeaways," listicle sub-headers, "in conclusion" wrap-ups). Group related ideas and sequence them so the post reads in order; otherwise stay out of the way.
+- Bridges between ideas must be minimal connective tissue, not new argument. If you find yourself writing a sentence ${expertName} didn't, ask whether the reader actually needs it. Usually they don't.
+- Preserve every strong claim or opinion in its original strength. Do not soften, balance, or add hedging. If ${expertName} took a strong stance, the post takes that same strong stance.
+- Section headers (if you use any) must be content-specific — what the section is actually about — not generic ("Introduction" / "Conclusion").
+${isPersonal ? `- First-person throughout. Preserve "I" / "my" / "me." End with a signature line: "— ${expertName}, ${workspace.display_name}".` : `- Match ${workspace.display_name}'s brand voice. Use "we" / "our" only where ${expertName} spoke collectively in the interview; otherwise stay in their voice.`}
 
 ${getFramingRuleGeneral(workspace, { voiceMode, expertName })}
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${brandVoice}
-${internalLinks}
-WRITING RULES:
-- Open with a concrete moment from the transcript — a specific scene, not a thesis statement.
-- Earn the thesis in the middle of the piece, not at the top.
-- One clear point of view that a reader could quote back.
-- Preserve the expert's actual phrases and rhythm wherever possible — voice fidelity matters more than polish.
-- No corporate filler, no listicle-style sub-headers, no "in conclusion" wrap-ups.
-- Section headers should be content-specific (what the section is actually about), not generic ("Introduction" / "Conclusion").
-${isPersonal ? `- First-person throughout. Preserve "I" / "my" / "me." End with a signature line: "— ${expertName}, ${workspace.display_name}".` : '- Match the brand voice. Use "we" / "our" if the brand voice is collective; otherwise default to the expert\'s voice.'}
+${internalLinks}${bookingLine}
+HEADLINE: one compelling, specific headline. Never include ${expertName}'s name in the headline.
 
-${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 900–1200 words. Write like a human who has a genuine perspective to share — not like a content marketing checklist.')}
-${ctaSection}
-${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
+FORMAT: Markdown. Use ## headings only where the content actually shifts thread. No fixed section count.
+
+${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 900–1200 words, but voice fidelity beats length. If the interview only has 600 words of real material, write 600. Never pad.')}${PROVENANCE_INSTRUCTION}`
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

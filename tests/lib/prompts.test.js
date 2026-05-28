@@ -149,19 +149,28 @@ describe('getInterviewSystemPrompt — general mode (non-clinical workspaces)', 
 })
 
 describe('getBlogPostSystemPrompt — clinical mode (default)', () => {
-  it('produces a prompt with clinical section headers for default workspaces', () => {
+  it('leads with voice fidelity and offers the booking URL without prescribing CTA wording', () => {
     const ws = clinicalWorkspace()
     const prompt = getBlogPostSystemPrompt(ws, 'Dr. Smith', 'lower back pain')
-    expect(prompt).toContain('What Our Patients Experience')
+    // Voice fidelity is the lead frame
+    expect(prompt).toContain('VOICE FIDELITY IS THE ONLY GOAL')
+    // External link options are listed but framed as opt-in (not mandated counts)
     expect(prompt).toContain('Mayo Clinic')
-    expect(prompt).toContain('Ready to Move Better?')
+    expect(prompt).toContain('Default to no external links rather than forcing one')
+    // Booking URL is available; no prescribed heading or wording
     expect(prompt).toContain(ws.booking_url)
+    expect(prompt).not.toContain('Ready to Move Better?')
+    // Section template is gone
+    expect(prompt).not.toContain('What Our Patients Experience')
+    expect(prompt).not.toContain("What's Really Going On With")
   })
 
-  it('preserves the clinical "treating" framing in the opening line', () => {
+  it('mentions the condition in the opening framing as a clinical interview subject', () => {
     const ws = clinicalWorkspace()
     const prompt = getBlogPostSystemPrompt(ws, 'Dr. Smith', 'lower back pain')
-    expect(prompt).toContain('treating lower back pain')
+    expect(prompt).toContain('about lower back pain')
+    expect(prompt).toContain('Dr. Smith')
+    expect(prompt).toContain('clinician at')
   })
 
   it('produces identical output regardless of whether prompt_mode is unset, null, or "clinical"', () => {
@@ -187,11 +196,11 @@ describe('getBlogPostSystemPrompt — general mode', () => {
     expect(prompt).not.toContain('treating why I built NarrateRx')
   })
 
-  it('includes general writing rules and target length', () => {
+  it('leads with voice fidelity and uses general target length', () => {
     const ws = generalWorkspace()
     const prompt = getBlogPostSystemPrompt(ws, 'Michael Quasney', 'why I built NarrateRx')
-    expect(prompt).toContain('Open with a concrete moment from the transcript')
-    expect(prompt).toContain('voice fidelity matters more than polish')
+    expect(prompt).toContain('VOICE FIDELITY IS THE ONLY GOAL')
+    expect(prompt).toContain('voice fidelity beats length')
     expect(prompt).toContain('900–1200 words')
   })
 
