@@ -38,6 +38,12 @@ export const config = { runtime: 'nodejs' }
 // the Library.
 
 import { marked } from 'marked'
+import { createWriteStream, createReadStream } from 'node:fs'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { getCredential } from '../_lib/getCredential.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import { requireRole } from '../_lib/auth.js'
@@ -295,43 +301,59 @@ async function uploadMedia(wp, sourceUrl, altText, overrideFilename = null) {
   const sourceRes = await fetch(sourceUrl)
   if (!sourceRes.ok) throw new Error(`Could not download image from ${sourceUrl} (${sourceRes.status})`)
   const contentType = sourceRes.headers.get('content-type') || 'application/octet-stream'
-  const bytes = await sourceRes.arrayBuffer()
   const filename = overrideFilename || filenameFromUrl(sourceUrl, contentType)
-  const body = Buffer.from(bytes)
 
-  let uploadRes
-  let lastErrText = ''
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    uploadRes = await wp('/wp/v2/media', {
-      method:  'POST',
-      headers: {
-        'Content-Type':        contentType,
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      },
-      body,
-    })
-    if (uploadRes.ok) break
-    lastErrText = await uploadRes.text().catch(() => '')
-    // Retry once on Cloudflare/origin timeouts and other transient 5xx —
-    // image processing on the WP host frequently exceeds CF's 100s window
-    // on first hit but succeeds on the second when caches are warm.
-    const transient = uploadRes.status >= 500 && uploadRes.status < 600
-    if (!transient || attempt === 2) break
-    await new Promise((r) => setTimeout(r, 2000))
-  }
-  if (!uploadRes.ok) {
-    throw new Error(formatWpUploadError(uploadRes.status, lastErrText, body.length))
-  }
-  const media = await uploadRes.json()
+  // Stream the source to a tmp file, then upload the file by streaming it back.
+  // iPhone HEIC originals can be 30-40MB — arrayBuffer() + Buffer.from() would
+  // materialize the whole image twice in RAM, which OOMs the 1024MB function
+  // under any concurrency. Streaming bounds peak memory to a few MB regardless
+  // of source size.
+  const dir = await mkdtemp(join(tmpdir(), 'wp-media-'))
+  const localPath = join(dir, 'src.bin')
 
-  if (altText) {
-    await wp(`/wp/v2/media/${media.id}`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ alt_text: altText }),
-    }).catch(() => {})
+  try {
+    await pipeline(Readable.fromWeb(sourceRes.body), createWriteStream(localPath))
+    const sizeBytes = (await stat(localPath)).size
+
+    let uploadRes
+    let lastErrText = ''
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      uploadRes = await wp('/wp/v2/media', {
+        method:  'POST',
+        headers: {
+          'Content-Type':        contentType,
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Length':      String(sizeBytes),
+        },
+        // Fresh ReadableStream each attempt — the previous one is consumed.
+        body:    Readable.toWeb(createReadStream(localPath)),
+        duplex:  'half',
+      })
+      if (uploadRes.ok) break
+      lastErrText = await uploadRes.text().catch(() => '')
+      // Retry once on Cloudflare/origin timeouts and other transient 5xx —
+      // image processing on the WP host frequently exceeds CF's 100s window
+      // on first hit but succeeds on the second when caches are warm.
+      const transient = uploadRes.status >= 500 && uploadRes.status < 600
+      if (!transient || attempt === 2) break
+      await new Promise((r) => setTimeout(r, 2000))
+    }
+    if (!uploadRes.ok) {
+      throw new Error(formatWpUploadError(uploadRes.status, lastErrText, sizeBytes))
+    }
+    const media = await uploadRes.json()
+
+    if (altText) {
+      await wp(`/wp/v2/media/${media.id}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ alt_text: altText }),
+      }).catch(() => {})
+    }
+    return { id: media.id, source_url: media.source_url }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
   }
-  return { id: media.id, source_url: media.source_url }
 }
 
 // Thin wrapper used by the inline-image rewrite path — returns the WP-hosted
