@@ -25,14 +25,18 @@ function buildVoicePhrasesBlock(phrases) {
 // present, it overrides the default CTA framing in each per-platform
 // instruction. Blog posts intentionally do NOT consume this — blogs are
 // evergreen and outlast any single campaign window.
+//
+// Voice-fidelity rewrite (2026-05-28): the `tone`, `audienceLabel`, and
+// `storyTypeLabel` parameters were producing voice drift. They're accepted
+// but ignored. The CORE of every atom is a single point — a claim plus the
+// why behind it, in the clinician's voice. The SURFACE (hook, intro, CTA,
+// formatting) flexes per platform. The per-platform `instructions` block
+// below IS the surface; voice fidelity is enforced by the preamble + voice
+// phrase anchors. See .claude/design-interview-output-voice-fidelity.md.
 export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = [], audienceLabel = null, storyTypeLabel = null, campaignContext = '', ownHistoryBlock = '') {
+  void tone; void audienceLabel; void storyTypeLabel
   const firstName = clinicianName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
-  const toneNote = tone === 'smart'
-    ? 'Write in a confident, warm, expert-but-approachable voice. Avoid jargon. Speak to real people.'
-    : tone === 'clinical'
-    ? 'Write in a precise, evidence-informed clinical voice. Accessible but authoritative.'
-    : 'Write in a warm, encouraging, community-first voice. Plain language. No clinical distance.'
 
   // Appended to every Instagram prompt. Instructs the AI to plan a multi-slide
   // carousel with per-slide text blocks. draft.js parses this JSON block as
@@ -214,7 +218,7 @@ ANGLE: Considered clinician-to-clinician share — assume the reader is another 
 ${isPersonal ? `Write in ${firstName}'s first-person professional voice — like sharing a clinical observation with peers.` : `Write as the clinical team. Specific, not promotional.`}
 NO hashtags (Bluesky culture doesn't use them).
 NO link unless it's genuinely the post's purpose — and if so, put it on its own line at the end.
-${toneNote.includes('clinical') ? '' : 'Lean slightly more clinical than the source tone here — this audience can handle precision.'}
+Lean slightly more clinical/precise than the source — this audience can handle technical specificity.
 Output ONLY the post body.`,
     },
 
@@ -244,20 +248,21 @@ Output ONLY the post body (with the CW prefix and alt-text placeholder if applic
 
   const voicePhrasesBlockStr = buildVoicePhrasesBlock(voicePhrases)
 
-  const pieceContext = [
-    audienceLabel ? `Target audience: ${audienceLabel}` : '',
-    storyTypeLabel ? `Piece type: ${storyTypeLabel}` : '',
-  ].filter(Boolean).join(' · ')
+  return `You are turning a real conversation with ${clinicianName || 'the clinician'} about ${condition} into one ${platform} atom for ${workspace.display_name}.
 
-  return `You are a content strategist helping ${workspace.display_name} create platform-specific content drawn from a real conversation with ${clinicianName || 'the clinician'} about ${condition}.${pieceContext ? `\n${pieceContext}.` : ''}
+CORE vs SURFACE — the rule:
+- The CORE of this atom is a single point: a claim plus the why behind it, in ${clinicianName || 'the clinician'}'s actual voice. The core sentences must use their phrasing, not a smoother / more generic version.
+- The SURFACE (hook, intro line, CTA, formatting, hashtags) flexes per platform. Platform-specific punch is fine and expected. The surface wraps the core; it never replaces it.
 
-The conversation transcript is your primary source. Quote ${clinicianName || 'the clinician'}'s actual words where you can and adapt them to the platform's format — that voice is what makes this content recognizably theirs. An editorial summary (the approved long-form post on this topic) is provided as thematic guidance so your piece stays on-message, but the voice, examples, and specifics must come from the conversation itself, not the summary.
+VOICE FIDELITY rules for the core:
+- Quote ${clinicianName || 'the clinician'}'s words from the transcript verbatim where the meaning fits. The conversation is the primary source; the editorial summary (approved long-form post on this topic) is only thematic guidance.
+- Never paraphrase a sentence ${clinicianName || 'the clinician'} said into a smoother version. If a sentence is hard to fit, split it at a natural breath point — don't rewrite the words.
+- Preserve every strong claim or opinion in its original strength. Don't soften, balance, or hedge.
 
-Your job: pick the moment in the conversation that best fits this platform and angle, then write ONE focused piece of content following the exact instructions below. Do NOT include section markers, headers, labels, or meta-commentary. Output ONLY the final content, ready to copy and use.
+Your job: pick the moment in the conversation that best fits this platform and angle, build the core around that moment in their voice, and wrap it in the platform's surface format per the instructions below. Output ONLY the final content — no section markers, headers, labels, or meta-commentary.
 
 PLAIN TEXT ONLY: Do not use markdown formatting — no *asterisks* for emphasis, no **double asterisks** for bold, no --- horizontal rules, no # headers. Social platforms render these as literal characters.
 
 ${instruction}
-
-${toneNote}${brandBlock}${voiceBlock}${voicePhrasesBlockStr}${ownHistoryBlock}${campaignContext ? `\n${campaignContext}\n\nThe CAMPAIGN FOCUS directive above OVERRIDES any default "book a visit" / "link in bio" CTAs in the per-platform instructions. Rewrite the CTA portion of this piece to match the campaign — including the exact URL and button phrasing when provided. Keep platform-specific structural rules (character limits, hashtag counts, overlay format) intact.\n` : ''}`
+${brandBlock}${voiceBlock}${voicePhrasesBlockStr}${ownHistoryBlock}${campaignContext ? `\n${campaignContext}\n\nThe CAMPAIGN FOCUS directive above OVERRIDES any default "book a visit" / "link in bio" CTAs in the per-platform instructions. Rewrite the CTA portion of this piece to match the campaign — including the exact URL and button phrasing when provided. Keep platform-specific structural rules (character limits, hashtag counts, overlay format) intact.\n` : ''}`
 }
