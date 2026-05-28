@@ -3,8 +3,8 @@
 //   steps[] = { key, done, label }
 //
 // POST /api/onboarding/progress
-//   body: { step: 'complete_profile'|'run_first_interview'|'generate_post'|'publish' }
-//   Marks the step done in onboarding_steps_done JSONB. When all 4 steps are
+//   body: { step: 'onboarding_interview'|'run_first_interview'|'approve_draft'|'publish' }
+//   Marks the step done in onboarding_steps_done JSONB. When all steps are
 //   done, also sets onboarding_completed_at = now(). Returns updated progress.
 //
 // Auth: Bearer JWT required. Workspace resolved from Host subdomain.
@@ -19,13 +19,13 @@ import { withSentry } from '../_lib/sentry.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-const STEP_KEYS = ['complete_profile', 'run_first_interview', 'generate_post', 'publish']
+const STEP_KEYS = ['onboarding_interview', 'run_first_interview', 'approve_draft', 'publish']
 
 const STEP_LABELS = {
-  complete_profile:    'Complete your profile',
-  run_first_interview: 'Run your first interview',
-  generate_post:       'Generate a social post',
-  publish:             'Publish to social media',
+  onboarding_interview: 'Complete your voice setup',
+  run_first_interview:  'Run your first interview',
+  approve_draft:        'Approve your first draft',
+  publish:              'Publish your first piece',
 }
 
 function sb(path, init = {}) {
@@ -46,11 +46,11 @@ function sb(path, init = {}) {
 async function detectDoneSteps(ws) {
   const wsId = ws.id
 
-  // complete_profile: display_name is set (non-empty) and at least one workspace field
-  // is customised. We treat a non-empty display_name as sufficient.
-  const profileDone = Boolean(ws.display_name && ws.display_name.trim().length > 0)
+  // onboarding_interview: the founder voice setup interview was completed
+  // (synthesis landing sets onboarding_interview_completed_at on the row)
+  const onboardingInterviewDone = Boolean(ws.onboarding_interview_completed_at)
 
-  // run_first_interview: at least one interview with status=completed
+  // run_first_interview: at least one regular interview with status=completed
   let interviewDone = false
   try {
     const r = await sb(
@@ -62,15 +62,15 @@ async function detectDoneSteps(ws) {
     }
   } catch { /* leave false */ }
 
-  // generate_post: at least one content_item exists
-  let postDone = false
+  // approve_draft: at least one content_item with status=approved
+  let approveDone = false
   try {
     const r = await sb(
-      `content_items?workspace_id=eq.${wsId}&select=id&limit=1`
+      `content_items?workspace_id=eq.${wsId}&status=eq.approved&select=id&limit=1`
     )
     if (r.ok) {
       const rows = await r.json()
-      postDone = Array.isArray(rows) && rows.length > 0
+      approveDone = Array.isArray(rows) && rows.length > 0
     }
   } catch { /* leave false */ }
 
@@ -87,10 +87,10 @@ async function detectDoneSteps(ws) {
   } catch { /* leave false */ }
 
   return {
-    complete_profile:    profileDone,
-    run_first_interview: interviewDone,
-    generate_post:       postDone,
-    publish:             publishDone,
+    onboarding_interview: onboardingInterviewDone,
+    run_first_interview:  interviewDone,
+    approve_draft:        approveDone,
+    publish:              publishDone,
   }
 }
 
