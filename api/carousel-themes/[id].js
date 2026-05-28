@@ -3,8 +3,9 @@
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { requireRole } from '../_lib/auth.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
 import { STAFF_ROLES } from '../_lib/roles.js'
+import { CAP_SETTINGS_EDIT } from '../_lib/capabilities.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -38,6 +39,12 @@ export default async function handler(req, res) {
   const auth = await requireRole(req, STAFF_ROLES, { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
+  // Phase 4 PR1: settings capability gate (carousel themes are workspace settings).
+  const capAuth = await requireCapability(req, ws, [CAP_SETTINGS_EDIT])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
   }
 
   const { searchParams } = new URL(req.url, 'http://localhost')

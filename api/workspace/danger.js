@@ -21,7 +21,8 @@ export const config = { runtime: 'nodejs' }
 //   - transfer (Clerk org ownership swap)
 //   - hard delete (cascade across tables + blob storage + Clerk org)
 
-import { requireRole } from '../_lib/auth.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
+import { CAP_SETTINGS_EDIT } from '../_lib/capabilities.js'
 import { workspaceContext, invalidateWorkspaceCacheById, invalidateWorkspaceCacheBySlug } from '../_lib/workspaceContext.js'
 import { recordAudit, actorFromRequest, ipFromRequest, uaFromRequest } from '../_lib/audit.js'
 
@@ -58,6 +59,13 @@ async function handler(req, res) {
   const auth = await requireRole(req, ['admin'], { orgId: workspace.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
+  // Phase 4 PR1: destructive settings — owner-only de facto via CAP_SETTINGS_EDIT
+  // (producer default template lacks this cap).
+  const capAuth = await requireCapability(req, workspace, [CAP_SETTINGS_EDIT])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
   }
 
   const { action, confirm_slug } = req.body || {}
