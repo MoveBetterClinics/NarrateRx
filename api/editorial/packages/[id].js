@@ -1,11 +1,13 @@
 // PATCH /api/editorial/packages/:id
 //
-// Update a single story package. Currently supports status transitions
-// for the Story Director UI (skip, etc.). Approve → Drafts is handled
-// by POST /api/editorial/approve-package (Phase 3 PR 2).
+// Update a single story package. Supports:
+//   - status transitions (skip)
+//   - caption_text edits (inline edit from Story Slate)
 //
 // Body (PATCH):
-//   { status: 'skipped' | 'complete' }   — currently only skipped is UI-driven
+//   { status?: 'skipped' | 'complete' }
+//   { captionText?: string }   — caption edit; marks renders stale
+//   Both fields may be present simultaneously.
 //
 // Auth: Clerk JWT + workspace org-id + video_pipeline_enabled.
 // Only the owning workspace's packages are accessible.
@@ -57,20 +59,34 @@ export default async function handler(req, res) {
   }
 
   const body = req.body || {}
-  const { status } = body
+  const { status, captionText } = body
 
-  if (!status || !ALLOWED_STATUS_TRANSITIONS.has(status)) {
+  if (status !== undefined && !ALLOWED_STATUS_TRANSITIONS.has(status)) {
     return res.status(400).json({
       error: 'invalid_status',
       allowed: [...ALLOWED_STATUS_TRANSITIONS],
     })
   }
 
+  if (captionText !== undefined && (typeof captionText !== 'string' || captionText.trim().length === 0)) {
+    return res.status(400).json({ error: 'caption_text_empty' })
+  }
+
+  if (status === undefined && captionText === undefined) {
+    return res.status(400).json({ error: 'nothing_to_update' })
+  }
+
+  const patch = { updated_at: new Date().toISOString() }
+  if (status !== undefined) patch.status = status
+  if (captionText !== undefined) {
+    patch.caption_text = captionText.trim().slice(0, 1000)
+  }
+
   const patchRes = await sb(
     `story_packages?id=eq.${id}&workspace_id=eq.${ws.id}`,
     {
       method: 'PATCH',
-      body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
+      body: JSON.stringify(patch),
     }
   )
 

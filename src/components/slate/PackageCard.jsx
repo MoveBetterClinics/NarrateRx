@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
+import { apiFetch } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 const CHANNEL_LABEL = {
   linkedin_feed:         'LI',
@@ -41,16 +44,72 @@ function SimilarityBadge({ similarity }) {
 }
 
 /**
- * @param {{ pkg: object, clinicianName?: string, onApprove: fn, onSkip: fn }}
+ * @param {{ pkg: object, clinicianName?: string, onApprove: fn, onSkip: fn, onUpdate: fn }}
+ * onUpdate(updatedPkg) — called when caption or renders change so parent can refresh.
  */
-export default function PackageCard({ pkg, clinicianName, onApprove, onSkip }) {
-  const [approving, setApproving] = useState(false)
+export default function PackageCard({ pkg, clinicianName, onApprove, onSkip, onUpdate }) {
+  const [approving, setApproving]     = useState(false)
+  const [editing, setEditing]         = useState(false)
+  const [caption, setCaption]         = useState(pkg.caption_text || '')
+  const [saving, setSaving]           = useState(false)   // caption-only save
+  const [rerendering, setRerendering] = useState(false)
 
   const isGenerating = pkg.status === 'generating' || pkg.status === 'pending'
   const isFailed     = pkg.status === 'failed'
   const renders      = Array.isArray(pkg.renders) ? pkg.renders : []
   const previewRender = renders[0]
   const isVideo = previewRender?.blobUrl?.endsWith('.mp4')
+  const captionChanged = caption.trim() !== (pkg.caption_text || '').trim()
+
+  function handleEditOpen() {
+    setCaption(pkg.caption_text || '')
+    setEditing(true)
+  }
+
+  function handleEditCancel() {
+    setCaption(pkg.caption_text || '')
+    setEditing(false)
+  }
+
+  async function handleSaveCaptionOnly() {
+    if (!captionChanged) { setEditing(false); return }
+    setSaving(true)
+    try {
+      const result = await apiFetch(`/api/editorial/packages/${pkg.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ captionText: caption }),
+      })
+      onUpdate?.({ ...pkg, caption_text: caption, ...result?.package })
+      setEditing(false)
+      toast('Caption saved. Renders still show old caption — use Re-render to update visuals.')
+    } catch (err) {
+      toast.error(err?.message || 'Failed to save caption.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRerender() {
+    setRerendering(true)
+    try {
+      const result = await apiFetch('/api/editorial/rerender-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          packageId: pkg.id,
+          captionText: captionChanged ? caption : undefined,
+        }),
+      })
+      onUpdate?.({ ...pkg, ...result?.package, caption_text: result?.captionText ?? pkg.caption_text, renders: result?.renders ?? pkg.renders })
+      setEditing(false)
+      toast('Re-rendered successfully.')
+    } catch (err) {
+      toast.error(err?.message || 'Re-render failed.')
+    } finally {
+      setRerendering(false)
+    }
+  }
 
   async function handleApprove() {
     setApproving(true)
@@ -61,14 +120,19 @@ export default function PackageCard({ pkg, clinicianName, onApprove, onSkip }) {
     }
   }
 
+  // While re-rendering, treat card as generating
+  const showGenerating = isGenerating || rerendering
+
   return (
     <article className="flex flex-col rounded-xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow">
       {/* Thumbnail */}
       <div className="relative aspect-[4/5] bg-muted overflow-hidden">
-        {isGenerating ? (
+        {showGenerating ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-zinc-900/80 text-white">
             <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="text-xs font-medium">Generating…</span>
+            <span className="text-xs font-medium">
+              {rerendering ? 'Re-rendering…' : 'Generating…'}
+            </span>
           </div>
         ) : isFailed ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-destructive/10 text-destructive">
@@ -108,7 +172,7 @@ export default function PackageCard({ pkg, clinicianName, onApprove, onSkip }) {
         )}
 
         {/* Badges overlay */}
-        {!isGenerating && !isFailed && (
+        {!showGenerating && !isFailed && (
           <>
             <div className="absolute top-2 left-2">
               <SimilarityBadge similarity={pkg.similarity} />
@@ -127,23 +191,72 @@ export default function PackageCard({ pkg, clinicianName, onApprove, onSkip }) {
         )}
       </div>
 
-      {/* Body */}
-      <div className="flex flex-col gap-1.5 p-3 flex-1">
-        <h3 className="text-sm font-semibold leading-snug line-clamp-2">{pkg.topic}</h3>
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-          {pkg.caption_text}
-        </p>
-        {(clinicianName || renders.length > 0) && (
-          <p className="text-2xs text-muted-foreground mt-0.5">
-            {clinicianName && <span>{clinicianName}</span>}
-            {clinicianName && renders.length > 0 && <span className="mx-1 opacity-50">·</span>}
-            {renders.length > 0 && <span>{renders.length} channel{renders.length !== 1 ? 's' : ''}</span>}
+      {/* Body — normal view or edit mode */}
+      {editing ? (
+        <div className="flex flex-col gap-2.5 p-3">
+          <p className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Edit caption</p>
+          <Textarea
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            rows={4}
+            maxLength={1000}
+            className="text-xs resize-none"
+            autoFocus
+          />
+          <p className="text-3xs text-muted-foreground">{caption.length}/1000</p>
+          <div className="flex gap-1.5 flex-wrap">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-xs h-8 px-2.5"
+              onClick={handleEditCancel}
+              disabled={saving || rerendering}
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-xs h-8"
+              onClick={handleSaveCaptionOnly}
+              disabled={saving || rerendering}
+            >
+              {saving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              Save caption
+            </Button>
+            <Button
+              size="sm"
+              className="text-xs h-8 flex-1"
+              onClick={handleRerender}
+              disabled={saving || rerendering}
+            >
+              {rerendering ? (
+                <Loader2 className="h-3 w-3 animate-spin mr-1" />
+              ) : (
+                <RefreshCw className="h-3 w-3 mr-1" />
+              )}
+              {captionChanged ? 'Save & Re-render' : 'Re-render'}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5 p-3 flex-1">
+          <h3 className="text-sm font-semibold leading-snug line-clamp-2">{pkg.topic}</h3>
+          <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+            {pkg.caption_text}
           </p>
-        )}
-      </div>
+          {(clinicianName || renders.length > 0) && (
+            <p className="text-2xs text-muted-foreground mt-0.5">
+              {clinicianName && <span>{clinicianName}</span>}
+              {clinicianName && renders.length > 0 && <span className="mx-1 opacity-50">·</span>}
+              {renders.length > 0 && <span>{renders.length} channel{renders.length !== 1 ? 's' : ''}</span>}
+            </p>
+          )}
+        </div>
+      )}
 
-      {/* Actions */}
-      {!isGenerating && !isFailed && (
+      {/* Actions — hidden while editing or generating */}
+      {!editing && !showGenerating && !isFailed && (
         <div className="flex gap-1.5 p-2.5 border-t border-border bg-muted/30">
           <Button
             size="sm"
@@ -157,8 +270,9 @@ export default function PackageCard({ pkg, clinicianName, onApprove, onSkip }) {
             size="sm"
             variant="outline"
             className="flex-1 text-xs h-8"
-            disabled
+            onClick={handleEditOpen}
           >
+            <Pencil className="h-3 w-3 mr-1" />
             Edit
           </Button>
           <Button

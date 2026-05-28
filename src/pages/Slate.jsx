@@ -141,10 +141,19 @@ export default function Slate() {
     }
   }
 
-  // Approve → Drafts is wired in Phase 3 PR 2 (approve-package endpoint).
-  // For now, acknowledge the intent and show a "coming soon" message.
-  async function handleApprove(_pkg) {
-    toast('Approve → Drafts is coming in the next update. Skip or edit for now.')
+  async function handleApprove(pkg) {
+    try {
+      const result = await apiFetch('/api/editorial/approve-package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageId: pkg.id }),
+      })
+      qc.invalidateQueries({ queryKey: ['story-packages'] })
+      const count = result?.platformCount ?? result?.contentItems?.length ?? 0
+      toast(`Staged in Drafts — ${count} platform${count !== 1 ? 's' : ''} ready to distribute.`)
+    } catch (err) {
+      toast.error(err?.message || 'Failed to approve package.')
+    }
   }
 
   async function handleSkip(pkg) {
@@ -300,6 +309,7 @@ export default function Slate() {
               clinicianName={clinicianMap[pkg.clinician_id]}
               onApprove={handleApprove}
               onSkip={handleSkip}
+              onUpdate={() => qc.invalidateQueries({ queryKey: ['story-packages'] })}
             />
           ))}
         </div>
