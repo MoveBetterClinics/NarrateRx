@@ -5,7 +5,7 @@
 //   // Phase 4 Tentpole PR A — time-windowed multi-campaign fields:
 //   start_at?, end_at?, event_at?,            // ISO timestamps; null = no constraint
 //   theme_notes?,                              // freeform what-this-is-about
-//   content_style?,                            // 'clinical' | 'promotional' | 'relationship'
+//   content_style?,                            // 'clinical' | 'promotional' | 'relationship' | 'referral'
 //   cta_url?, cta_label?, cta_pitch?,          // structured CTA fields
 // }
 //   - If id is present → UPDATE (workspace-scoped).
@@ -44,7 +44,9 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
 }
 
 const ALLOWED_STATUS = new Set(['active', 'complete', 'archived'])
-const ALLOWED_CONTENT_STYLE = new Set(['clinical', 'promotional', 'relationship'])
+// All four values must stay in sync with: CampaignsSettings.jsx (UI options),
+// tentpoleCampaignContext.js (switch-case prompt modifier), and tentpolePromptContext.js.
+const ALLOWED_CONTENT_STYLE = new Set(['clinical', 'promotional', 'relationship', 'referral'])
 
 // Coerce body field → ISO timestamp string or null. Accepts:
 //   - undefined → returns 'leave-alone' (the field is omitted from the patch)
