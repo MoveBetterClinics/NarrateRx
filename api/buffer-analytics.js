@@ -14,6 +14,7 @@
 export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from './_lib/workspaceContext.js'
+import { requireRole } from './_lib/auth.js'
 import { getCredential } from './_lib/getCredential.js'
 import { fetchPostStats } from './_lib/bufferPostStats.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -61,6 +62,12 @@ export default async function handler(req, res) {
 
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
+
+  const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
+  if (!auth.ok) {
+    const status = auth.reason === 'no-token' ? 401 : 403
+    return res.status(status).json({ error: auth.reason })
+  }
 
   // Fetch the content item — must belong to this workspace
   const itemRes = await sb(
