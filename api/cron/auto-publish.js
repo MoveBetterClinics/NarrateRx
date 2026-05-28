@@ -110,15 +110,21 @@ async function markContentItemScheduled({ pkg, workspaceId, bufferId }) {
   // Find the GBP content_item created by approve-package for this package.
   const ciRes = await sb(
     `content_items?workspace_id=eq.${workspaceId}` +
-    `&provenance->>'package_id'=eq.${pkg.id}` +
+    `&provenance->>package_id=eq.${pkg.id}` +
     `&platform=eq.gbp` +
     `&status=eq.approved` +
     `&select=id&limit=1`
   )
-  if (!ciRes.ok) return null
+  if (!ciRes.ok) {
+    console.error('[auto-publish] markContentItemScheduled fetch failed:', ciRes.status, 'pkg:', pkg.id)
+    return null
+  }
   const rows = await ciRes.json().catch(() => [])
   const ci = rows?.[0]
-  if (!ci?.id) return null
+  if (!ci?.id) {
+    console.warn('[auto-publish] markContentItemScheduled: 0 rows matched for pkg:', pkg.id, 'workspace:', workspaceId, 'status:', ciRes.status, 'rows:', rows?.length ?? 0)
+    return null
+  }
 
   const now = new Date().toISOString()
   await sb(`content_items?id=eq.${ci.id}&workspace_id=eq.${workspaceId}`, {
