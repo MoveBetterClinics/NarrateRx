@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks } from 'lucide-react'
+import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useClinicianSummaries } from '@/lib/queries'
@@ -73,7 +73,7 @@ export default function Slate() {
     [clinicians]
   )
 
-  const [view, setView] = useState('today')  // 'today' | 'triage'
+  const [view, setView] = useState('today')  // 'today' | 'triage' | 'consent'
   const [activeClinicianId, setActiveClinicianId] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 })
@@ -118,7 +118,18 @@ export default function Slate() {
       })
   }, [allPackages])
 
-  const basePackages = view === 'triage' ? triagePackages : todayPackages
+  // Consent queue: any package whose source asset is pending or revoked.
+  const consentPackages = useMemo(() => {
+    return allPackages.filter((p) => {
+      const status = p.source_asset?.consent_status
+      return status === 'pending' || status === 'revoked'
+    })
+  }, [allPackages])
+
+  const basePackages =
+    view === 'triage'  ? triagePackages :
+    view === 'consent' ? consentPackages :
+                         todayPackages
 
   const filteredPackages = useMemo(() => {
     if (!activeClinicianId) return basePackages
@@ -233,12 +244,16 @@ export default function Slate() {
         <div className="min-w-0">
           <p className="text-2xs font-bold uppercase tracking-widest opacity-85">Story Director</p>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">
-            {view === 'triage' ? 'Triage Queue' : "Today's Slate"}
+            {view === 'triage' ? 'Triage Queue' :
+             view === 'consent' ? 'Consent Queue' :
+                                  "Today's Slate"}
           </h1>
           <p className="text-sm opacity-80 mt-0.5">
             {view === 'triage'
               ? `${triagePackages.length} package${triagePackages.length !== 1 ? 's' : ''} need attention`
-              : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+              : view === 'consent'
+                ? `${consentPackages.length} package${consentPackages.length !== 1 ? 's' : ''} awaiting consent decision`
+                : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
@@ -316,6 +331,24 @@ export default function Slate() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => { setView('consent'); setActiveClinicianId(null) }}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+            view === 'consent'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <ShieldAlert className="h-4 w-4 inline-block mr-1.5 -mt-0.5" />
+          Consent
+          {consentPackages.length > 0 && (
+            <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
+              view === 'consent' ? 'bg-primary text-primary-foreground' : 'bg-amber-100 text-amber-800'
+            }`}>
+              {consentPackages.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Clinician filter chips */}
@@ -376,6 +409,16 @@ export default function Slate() {
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                 Nothing needs your attention right now — everything is either approved,
                 skipped, or recently rendered.
+              </p>
+            </div>
+          </div>
+        ) : view === 'consent' ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center rounded-xl border-2 border-dashed border-border">
+            <ShieldAlert className="h-10 w-10 text-emerald-600" />
+            <div>
+              <p className="font-semibold text-base">No packages awaiting consent</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                Flag a package&apos;s source asset for consent review from its card to add it here.
               </p>
             </div>
           </div>

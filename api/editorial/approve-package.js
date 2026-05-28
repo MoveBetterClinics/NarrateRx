@@ -72,10 +72,10 @@ export default async function handler(req, res) {
   const { packageId } = req.body || {}
   if (!packageId) return res.status(400).json({ error: 'packageId_required' })
 
-  // --- Load package (must belong to this workspace) ---
+  // --- Load package + source asset consent state (must belong to this workspace) ---
   const pkgRes = await sb(
     `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}` +
-    `&select=id,workspace_id,clinician_id,source_asset_id,topic,caption_text,similarity,channels,renders,status`
+    `&select=id,workspace_id,clinician_id,source_asset_id,topic,caption_text,similarity,channels,renders,status,source_asset:media_assets!source_asset_id(consent_status)`
   )
   if (!pkgRes.ok) return res.status(500).json({ error: 'db_error' })
   const pkgs = await pkgRes.json()
@@ -86,6 +86,21 @@ export default async function handler(req, res) {
   }
   if (pkg.status !== 'complete') {
     return res.status(409).json({ error: 'not_complete', message: 'Package must be in complete status before approving.' })
+  }
+
+  // --- Consent gate: block if source asset is flagged pending or revoked ---
+  const consentStatus = pkg.source_asset?.consent_status
+  if (consentStatus === 'pending') {
+    return res.status(409).json({
+      error: 'consent_pending',
+      message: 'Source asset is awaiting consent. Mark consent obtained (or not required) before approving.',
+    })
+  }
+  if (consentStatus === 'revoked') {
+    return res.status(409).json({
+      error: 'consent_revoked',
+      message: 'Source asset consent has been revoked. This package cannot be approved.',
+    })
   }
 
   // --- Resolve clinician name ---

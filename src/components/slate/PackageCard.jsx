@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/lib/toast'
+import ConsentControls from './ConsentControls'
 
 const CHANNEL_LABEL = {
   linkedin_feed:         'LI',
@@ -76,6 +77,8 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
   const previewRender = renders[0]
   const isVideo = previewRender?.blobUrl?.endsWith('.mp4')
   const captionChanged = caption.trim() !== (pkg.caption_text || '').trim()
+  const consentStatus = pkg.source_asset?.consent_status || 'not_required'
+  const consentBlocks = consentStatus === 'pending' || consentStatus === 'revoked'
 
   function handleEditOpen() {
     setCaption(pkg.caption_text || '')
@@ -273,6 +276,15 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
         </div>
       )}
 
+      {/* Consent controls — shown when actions row is visible. */}
+      {!editing && !showGenerating && !isFailed && pkg.source_asset_id && (
+        <ConsentControls
+          sourceAssetId={pkg.source_asset_id}
+          consentStatus={consentStatus}
+          onUpdate={() => onUpdate?.(pkg)}
+        />
+      )}
+
       {/* Actions — hidden while editing or generating */}
       {!editing && !showGenerating && !isFailed && (
         <div className="flex gap-1.5 p-2.5 border-t border-border bg-muted/30">
@@ -295,11 +307,18 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
           </Button>
           <Button
             size="sm"
-            className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
             onClick={handleApprove}
-            disabled={approving}
+            disabled={approving || consentBlocks}
+            title={consentBlocks
+              ? (consentStatus === 'pending'
+                  ? 'Mark consent obtained (or not required) before approving'
+                  : 'Consent revoked — cannot approve')
+              : undefined}
           >
-            {approving ? <Loader2 className="h-3 w-3 animate-spin" /> : (
+            {approving ? <Loader2 className="h-3 w-3 animate-spin" /> : consentBlocks ? (
+              <><ShieldAlert className="h-3 w-3 mr-1" />Blocked</>
+            ) : (
               <><CheckCircle2 className="h-3 w-3 mr-1" />Approve</>
             )}
           </Button>
