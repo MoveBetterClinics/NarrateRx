@@ -1,6 +1,6 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert, BarChart3 } from 'lucide-react'
+import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert, BarChart3, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useClinicianSummaries } from '@/lib/queries'
@@ -10,6 +10,7 @@ import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import PackageCard from '@/components/slate/PackageCard'
 import CoveragePanel from '@/components/slate/CoveragePanel'
+import ProducerOnboarding from '@/components/slate/ProducerOnboarding'
 
 const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
@@ -79,6 +80,20 @@ export default function Slate() {
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 })
   const generatingRef = useRef(false)  // guard against double-fire
+
+  // Producer onboarding modal — auto-fires once when a producer-tier user
+  // visits Slate without having completed onboarding. "Take the tour" link
+  // in the header re-opens it on demand.
+  const isProducer = ws?.current_user_tier === 'producer'
+  const needsOnboarding = isProducer && !ws?.current_user_producer_onboarded_at
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const autoFiredRef = useRef(false)
+  useEffect(() => {
+    if (needsOnboarding && !autoFiredRef.current) {
+      autoFiredRef.current = true
+      setShowOnboarding(true)
+    }
+  }, [needsOnboarding])
 
   const {
     data,
@@ -240,10 +255,26 @@ export default function Slate() {
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Producer onboarding modal */}
+      {showOnboarding && (
+        <ProducerOnboarding onComplete={() => setShowOnboarding(false)} />
+      )}
       {/* Header */}
       <div className="nx-grad-ribbon flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <p className="text-2xs font-bold uppercase tracking-widest opacity-85">Story Director</p>
+          <p className="text-2xs font-bold uppercase tracking-widest opacity-85 flex items-center gap-3">
+            Story Director
+            {isProducer && (
+              <button
+                type="button"
+                onClick={() => setShowOnboarding(true)}
+                className="inline-flex items-center gap-1 text-2xs font-semibold tracking-normal normal-case bg-white/15 hover:bg-white/25 transition-colors px-2 py-0.5 rounded-md"
+              >
+                <Sparkles className="h-3 w-3" />
+                Take the tour
+              </button>
+            )}
+          </p>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">
             {view === 'triage'   ? 'Triage Queue' :
              view === 'consent'  ? 'Consent Queue' :
