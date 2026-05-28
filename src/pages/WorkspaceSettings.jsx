@@ -10,6 +10,8 @@ import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
 import { SaveBar } from '@/components/settings/helpers'
 import { useUserRole } from '@/lib/useUserRole'
+import { usePermission } from '@/lib/usePermission'
+import { CAP_SETTINGS_EDIT } from '@/lib/capabilities'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -75,6 +77,7 @@ export default function WorkspaceSettings() {
   useDocumentTitle('Settings — Workspace')
   const { getToken } = useAuth()
   const { role, isLoading: roleLoading } = useUserRole()
+  const { has } = usePermission()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [ws, setWs]       = useState(undefined)
@@ -154,7 +157,8 @@ export default function WorkspaceSettings() {
 
   if (roleLoading || ws === undefined) return <LoadingState />
 
-  if (role !== 'admin') {
+  // Phase 4 PR 2: capability gate. Producer (no CAP_SETTINGS_EDIT) is bounced.
+  if (role !== 'admin' || !has(CAP_SETTINGS_EDIT)) {
     return <Navigate to="/" replace />
   }
 
