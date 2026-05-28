@@ -142,3 +142,84 @@ export async function requireRole(req, allowedRoles = null, { orgId = null } = {
   req.clerk = { userId, role, orgId: payload.org_id ?? null }
   return { ok: true, user: { id: userId, role }, role, userId, orgId: payload.org_id ?? null }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 4: per-workspace permission_tier gate.
+// ─────────────────────────────────────────────────────────────────────────────
+// requireTier looks up clinicians.permission_tier for the calling user in the
+// given workspace and verifies it's in the allow list. Returns the same
+// {ok, reason, tier, userId} shape as requireRole so callers can use the same
+// pattern: `if (!auth.ok) return res.status(...).json({error: auth.reason})`.
+//
+// IMPORTANT: requireTier does NOT replace requireRole. Callers that already
+// pass requireRole and only need the tier as a defense-in-depth check can
+// call requireTier after. Owners (org admins or internal-plan members) bypass
+// tier gating — they're already trusted across the board.
+//
+// Usage:
+//   const ws = await workspaceContext(req)
+//   const auth = await requireRole(req, ALL_KNOWN_ROLES, { orgId: ws.clerk_org_id })
+//   if (!auth.ok) return res.status(401).json({ error: auth.reason })
+//   const tierAuth = await requireTier(req, ws, [TIER_OWNER, TIER_PRODUCER])
+//   if (!tierAuth.ok) return res.status(403).json({ error: tierAuth.reason })
+
+const SUPABASE_URL_FOR_TIER = process.env.SUPABASE_URL
+const SUPABASE_KEY_FOR_TIER = process.env.SUPABASE_SERVICE_KEY
+
+export async function lookupPermissionTier(userId, workspaceId) {
+  if (!userId || !workspaceId) return null
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL_FOR_TIER}/rest/v1/clinicians?user_id=eq.${encodeURIComponent(userId)}` +
+      `&workspace_id=eq.${encodeURIComponent(workspaceId)}&select=permission_tier&limit=1`,
+      {
+        headers: {
+          apikey: SUPABASE_KEY_FOR_TIER,
+          Authorization: `Bearer ${SUPABASE_KEY_FOR_TIER}`,
+        },
+      }
+    )
+    if (!r.ok) return null
+    const rows = await r.json().catch(() => [])
+    return rows?.[0]?.permission_tier || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Gate a request on the caller's per-workspace permission_tier.
+ * Assumes requireRole has already passed (req.clerk is populated) — falls
+ * back to verifying the JWT inline if not.
+ *
+ * @param {Request} req
+ * @param {{id: string, plan?: string}} workspace
+ * @param {string[]} allowedTiers
+ * @returns {Promise<{ok: boolean, reason?: string, tier?: string, userId?: string}>}
+ */
+export async function requireTier(req, workspace, allowedTiers) {
+  if (!workspace?.id) return { ok: false, reason: 'no-workspace-context' }
+
+  // Resolve userId — prefer the already-validated req.clerk.userId from a
+  // prior requireRole call, otherwise verify the Bearer JWT here.
+  let userId = req.clerk?.userId
+  if (!userId) {
+    const verify = await requireRole(req, null, { orgId: workspace.clerk_org_id })
+    if (!verify.ok) return { ok: false, reason: verify.reason }
+    userId = verify.userId
+  }
+
+  // Internal-plan workspaces and Clerk org admins bypass tier gating —
+  // they're trusted across all surfaces (mirrors the admin bypass in
+  // requireRole). Without this, the org owner gets locked out of producer-
+  // gated routes by default since their clinicians row defaults to 'clinician'.
+  if (workspace.plan === 'internal' || req.clerk?.role === 'admin') {
+    return { ok: true, tier: 'owner', userId, bypassed: true }
+  }
+
+  const tier = await lookupPermissionTier(userId, workspace.id) || 'clinician'
+  if (allowedTiers && allowedTiers.length && !allowedTiers.includes(tier)) {
+    return { ok: false, reason: 'forbidden-tier', tier, userId }
+  }
+  return { ok: true, tier, userId }
+}

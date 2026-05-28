@@ -13,6 +13,7 @@ import {
 } from '@clerk/react'
 import Layout from '@/components/Layout'
 import Home from '@/pages/Home'
+import { usePermissionTier } from '@/lib/usePermissionTier'
 import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
 const CapturePicker = lazy(() => import('@/pages/CapturePicker'))
@@ -399,6 +400,16 @@ function LegacyReviewRedirect() {
   return <Navigate to={`/stories/${itemId}`} replace />
 }
 
+// Phase 4: producers land on /slate, everyone else lands on Home.
+// Wrapped at the / route so the redirect happens at the routing layer,
+// not after Home's data fetches kick off (avoids a flash of Home's
+// gradient ribbon before the redirect fires).
+function HomeOrSlateForProducer() {
+  const { isProducerOnly } = usePermissionTier()
+  if (isProducerOnly) return <Navigate to="/slate" replace />
+  return <Home />
+}
+
 // Routes shared between org-gated and domain-gated modes.
 function AppRoutes() {
   const location = useLocation()
@@ -423,7 +434,7 @@ function AppRoutes() {
       <Layout>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={guarded(<Home />)} />
+            <Route path="/" element={guarded(<HomeOrSlateForProducer />)} />
             <Route path="/new" element={guarded(<CapturePicker />)} />
             <Route path="/new/interview" element={guarded(<NewInterview />)} />
             <Route path="/new/voice-memo" element={guarded(<VoiceMemo />)} />

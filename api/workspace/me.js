@@ -280,7 +280,26 @@ async function handler(req, res) {
       console.error('[workspace/me] primary_logo fetch failed:', e?.message)
     }
 
-    return res.status(200).json({ ...workspace, locations, primary_logo_url })
+    // Phase 4: per-workspace permission_tier for the calling user. Drives the
+    // producer-restricted UX (nav filtering, default landing redirect). Falls
+    // back to null when the user has no clinicians row in this workspace —
+    // the client treats null as "no special restriction" so the existing nav
+    // shows. Non-fatal on failure.
+    let current_user_tier = null
+    try {
+      const ctr = await sb(
+        `clinicians?user_id=eq.${encodeURIComponent(auth.userId)}` +
+        `&workspace_id=eq.${encodeURIComponent(workspace.id)}&select=permission_tier&limit=1`
+      )
+      if (ctr.ok) {
+        const rows = await ctr.json().catch(() => [])
+        current_user_tier = rows?.[0]?.permission_tier || null
+      }
+    } catch (e) {
+      console.error('[workspace/me] tier fetch failed:', e?.message)
+    }
+
+    return res.status(200).json({ ...workspace, locations, primary_logo_url, current_user_tier })
   }
 
   if (req.method === 'PATCH') {

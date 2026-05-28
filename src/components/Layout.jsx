@@ -12,6 +12,7 @@ import { CampaignModeChip } from '@/components/CampaignWidget'
 import { workspace as STATIC_WORKSPACE } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
+import { usePermissionTier } from '@/lib/usePermissionTier'
 import TrialBanner from '@/components/TrialBanner'
 
 const APP_BYLINE = 'Voice-faithful clinical content'
@@ -37,6 +38,7 @@ const NAV_ITEMS = [
 export default function Layout({ children }) {
   const location = useLocation()
   const { role, isStaff } = useUserRole()
+  const { isProducerOnly } = usePermissionTier()
   const [mobileOpen, setMobileOpen] = useState(false)
   const ws = useWorkspace()
   const selfClinicianId = useSelfClinicianId()
@@ -46,7 +48,11 @@ export default function Layout({ children }) {
   // Workspace-dependent nav filtering.
   // hideWhenBookMode: hide this item when ws.book_mode equals the value.
   // showWhen: predicate(ws) — item is only shown when it returns true.
+  // Phase 4: producers see ONLY /slate in the top nav. Other surfaces
+  // (Home, Stories, Library, Pre-Visit, Book, Write) are deliberately
+  // hidden to keep them focused on the operational queue.
   const navItems = NAV_ITEMS.filter((it) => {
+    if (isProducerOnly && it.to !== '/slate') return false
     if (it.hideWhenBookMode && ws?.book_mode === it.hideWhenBookMode) return false
     if (it.showWhen && !it.showWhen(ws)) return false
     return true
@@ -78,18 +84,23 @@ export default function Layout({ children }) {
               <NavLink key={item.to} to={item.to} label={item.label} active={item.match(location.pathname)} icon={item.icon} />
             ))}
           </nav>
-          <div className="hidden md:flex items-center gap-1">
-            <SettingsMenu role={role} isStaff={isStaff} selfClinicianId={selfClinicianId} />
-          </div>
+          {!isProducerOnly && (
+            <div className="hidden md:flex items-center gap-1">
+              <SettingsMenu role={role} isStaff={isStaff} selfClinicianId={selfClinicianId} />
+            </div>
+          )}
 
-          {/* New Interview — primary action, visible on every page */}
-          <Button asChild size="sm">
-            <Link to="/new">
-              <Plus className="h-4 w-4 sm:mr-1.5" />
-              <span className="hidden sm:inline">New Interview</span>
-              <span className="sr-only sm:hidden">New Interview</span>
-            </Link>
-          </Button>
+          {/* New Interview — primary action for clinicians + admins. Hidden
+              for producers since they aren't the ones starting interviews. */}
+          {!isProducerOnly && (
+            <Button asChild size="sm">
+              <Link to="/new">
+                <Plus className="h-4 w-4 sm:mr-1.5" />
+                <span className="hidden sm:inline">New Interview</span>
+                <span className="sr-only sm:hidden">New Interview</span>
+              </Link>
+            </Button>
+          )}
 
           <UserButton afterSignOutUrl="/" userProfileUrl="/account" />
 
@@ -126,28 +137,29 @@ export default function Layout({ children }) {
             ))}
           </div>
           <div className="pt-3 mt-2 border-t space-y-1 overflow-y-auto">
-            {role === 'admin' && (
+            {/* Admin/staff chrome — hidden for producers (Phase 4). */}
+            {!isProducerOnly && role === 'admin' && (
               <DrawerClose asChild>
                 <Link to="/synthesis" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Layers className="h-4 w-4" /> Knowledge synthesis
                 </Link>
               </DrawerClose>
             )}
-            {role === 'admin' && (
+            {!isProducerOnly && role === 'admin' && (
               <DrawerClose asChild>
                 <Link to="/settings/workspace" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Building2 className="h-4 w-4" /> Workspace settings
                 </Link>
               </DrawerClose>
             )}
-            {isStaff && (
+            {!isProducerOnly && isStaff && (
               <DrawerClose asChild>
                 <Link to="/settings/brand-kit" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Palette className="h-4 w-4" /> Brand Kit
                 </Link>
               </DrawerClose>
             )}
-            {selfClinicianId && (
+            {!isProducerOnly && selfClinicianId && (
               <DrawerClose asChild>
                 <Link to={`/clinician/${selfClinicianId}`} className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <UserCircle className="h-4 w-4" /> My clinician profile
@@ -159,14 +171,18 @@ export default function Layout({ children }) {
                 <UserCircle className="h-4 w-4" /> Account &amp; security
               </Link>
             </DrawerClose>
-            <DrawerClose asChild>
-              <Link to="/settings/integrations" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
-                <Settings className="h-4 w-4" /> Integrations
-              </Link>
-            </DrawerClose>
-            <div className="px-3 py-2">
-              <CampaignModeChip />
-            </div>
+            {!isProducerOnly && (
+              <DrawerClose asChild>
+                <Link to="/settings/integrations" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
+                  <Settings className="h-4 w-4" /> Integrations
+                </Link>
+              </DrawerClose>
+            )}
+            {!isProducerOnly && (
+              <div className="px-3 py-2">
+                <CampaignModeChip />
+              </div>
+            )}
           </div>
         </DrawerContent>
       </Drawer>

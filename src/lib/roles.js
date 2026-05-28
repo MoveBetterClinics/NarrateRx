@@ -57,3 +57,32 @@ export function roleLabel(role) {
     default:                   return role
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 4: per-workspace permission tier (mirror of api/_lib/roles.js values).
+// ─────────────────────────────────────────────────────────────────────────────
+// Independent axis from the legacy role above. Coexists — Phase 4 uses tier
+// to drive the producer-restricted UX (nav filtering + default landing) while
+// the existing role gates continue to work unchanged.
+//
+//   owner     — workspace owner; effectively unrestricted
+//   producer  — operational editor; Slate-only nav, no settings/billing/integrations
+//   clinician — default tier; full clinician UX
+//   viewer    — read-only (defined for future use, no consumers yet)
+export const TIER_OWNER     = 'owner'
+export const TIER_PRODUCER  = 'producer'
+export const TIER_CLINICIAN = 'clinician'
+export const TIER_VIEWER    = 'viewer'
+
+export const ALL_KNOWN_TIERS = [TIER_OWNER, TIER_PRODUCER, TIER_CLINICIAN, TIER_VIEWER]
+
+/** @param {string} tier @returns {string} */
+export function tierLabel(tier) {
+  switch (tier) {
+    case TIER_OWNER:     return 'Owner'
+    case TIER_PRODUCER:  return 'Producer'
+    case TIER_CLINICIAN: return 'Clinician'
+    case TIER_VIEWER:    return 'Viewer'
+    default:             return tier || ''
+  }
+}
