@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/lib/toast'
+import ConsentControls from './ConsentControls'
 
 const CHANNEL_LABEL = {
   linkedin_feed:         'LI',
@@ -43,11 +44,27 @@ function SimilarityBadge({ similarity }) {
   )
 }
 
+function TriageBadge({ reason }) {
+  const config = {
+    'Render failed':           { icon: XCircle,        cls: 'bg-destructive/10 text-destructive border-destructive/30' },
+    'Low confidence':          { icon: AlertTriangle,  cls: 'bg-amber-50 text-amber-800 border-amber-200' },
+    'Stale — needs decision':  { icon: Clock,          cls: 'bg-sky-50 text-sky-800 border-sky-200' },
+  }[reason] || { icon: AlertTriangle, cls: 'bg-muted text-muted-foreground border-border' }
+  const Icon = config.icon
+  return (
+    <div className={`flex items-center gap-1.5 px-2.5 py-1.5 border-b text-2xs font-semibold ${config.cls}`}>
+      <Icon className="h-3 w-3 shrink-0" />
+      <span>{reason}</span>
+    </div>
+  )
+}
+
 /**
- * @param {{ pkg: object, clinicianName?: string, onApprove: fn, onSkip: fn, onUpdate: fn }}
+ * @param {{ pkg: object, clinicianName?: string, triageReason?: string|null, onApprove: fn, onSkip: fn, onUpdate: fn }}
  * onUpdate(updatedPkg) — called when caption or renders change so parent can refresh.
+ * triageReason — optional badge text shown above the thumbnail (e.g. "Low confidence").
  */
-export default function PackageCard({ pkg, clinicianName, onApprove, onSkip, onUpdate }) {
+export default function PackageCard({ pkg, clinicianName, triageReason, onApprove, onSkip, onUpdate }) {
   const [approving, setApproving]     = useState(false)
   const [editing, setEditing]         = useState(false)
   const [caption, setCaption]         = useState(pkg.caption_text || '')
@@ -60,6 +77,8 @@ export default function PackageCard({ pkg, clinicianName, onApprove, onSkip, onU
   const previewRender = renders[0]
   const isVideo = previewRender?.blobUrl?.endsWith('.mp4')
   const captionChanged = caption.trim() !== (pkg.caption_text || '').trim()
+  const consentStatus = pkg.source_asset?.consent_status || 'not_required'
+  const consentBlocks = consentStatus === 'pending' || consentStatus === 'revoked'
 
   function handleEditOpen() {
     setCaption(pkg.caption_text || '')
@@ -125,6 +144,8 @@ export default function PackageCard({ pkg, clinicianName, onApprove, onSkip, onU
 
   return (
     <article className="flex flex-col rounded-xl border border-border bg-card overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+      {/* Triage badge (only present when shown in Triage view) */}
+      {triageReason && <TriageBadge reason={triageReason} />}
       {/* Thumbnail */}
       <div className="relative aspect-[4/5] bg-muted overflow-hidden">
         {showGenerating ? (
@@ -255,6 +276,15 @@ export default function PackageCard({ pkg, clinicianName, onApprove, onSkip, onU
         </div>
       )}
 
+      {/* Consent controls — shown when actions row is visible. */}
+      {!editing && !showGenerating && !isFailed && pkg.source_asset_id && (
+        <ConsentControls
+          sourceAssetId={pkg.source_asset_id}
+          consentStatus={consentStatus}
+          onUpdate={() => onUpdate?.(pkg)}
+        />
+      )}
+
       {/* Actions — hidden while editing or generating */}
       {!editing && !showGenerating && !isFailed && (
         <div className="flex gap-1.5 p-2.5 border-t border-border bg-muted/30">
@@ -277,21 +307,53 @@ export default function PackageCard({ pkg, clinicianName, onApprove, onSkip, onU
           </Button>
           <Button
             size="sm"
-            className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
             onClick={handleApprove}
-            disabled={approving}
+            disabled={approving || consentBlocks}
+            title={consentBlocks
+              ? (consentStatus === 'pending'
+                  ? 'Mark consent obtained (or not required) before approving'
+                  : 'Consent revoked — cannot approve')
+              : undefined}
           >
-            {approving ? <Loader2 className="h-3 w-3 animate-spin" /> : (
+            {approving ? <Loader2 className="h-3 w-3 animate-spin" /> : consentBlocks ? (
+              <><ShieldAlert className="h-3 w-3 mr-1" />Blocked</>
+            ) : (
               <><CheckCircle2 className="h-3 w-3 mr-1" />Approve</>
             )}
           </Button>
         </div>
       )}
 
-      {isFailed && pkg.error_message && (
-        <div className="px-3 pb-3">
-          <p className="text-3xs text-destructive truncate">{pkg.error_message}</p>
-        </div>
+      {isFailed && (
+        <>
+          {pkg.error_message && (
+            <div className="px-3 py-2 bg-destructive/5">
+              <p className="text-3xs text-destructive line-clamp-2" title={pkg.error_message}>
+                {pkg.error_message}
+              </p>
+            </div>
+          )}
+          <div className="flex gap-1.5 p-2.5 border-t border-border bg-muted/30">
+            <Button
+              size="sm"
+              variant="outline"
+              className="flex-1 text-xs h-8"
+              onClick={() => onSkip?.(pkg)}
+            >
+              Skip
+            </Button>
+            <Button
+              size="sm"
+              className="flex-1 text-xs h-8"
+              onClick={handleRerender}
+              disabled={rerendering}
+            >
+              {rerendering ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+              Retry render
+            </Button>
+          </div>
+        </>
       )}
     </article>
   )
