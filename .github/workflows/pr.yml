@@ -23,3 +23,9 @@ jobs:
       # installed node_modules — equivalent to what Vercel deploys, since
       # Vercel copies the source files unchanged and traces dependencies.
       - run: npm run verify-bundles
+      # V1 caption voice-fidelity gate. Reads a committed fixture (refreshed
+      # offline via scripts/voice-fidelity-captions.mjs --fixture-out=…) and
+      # fails the build if the average dips more than VOICE_FIDELITY_GATE_PCT
+      # below VOICE_FIDELITY_GATE_BASELINE. Skips (exit 2) when the fixture is
+      # absent, so first-run PRs aren't blocked. Tunable via env.
+      - run: npm run verify-caption-fidelity

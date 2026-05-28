@@ -1,0 +1,147 @@
+{
+  "meta": {
+    "dateStr": "2026-05-28",
+    "scored": 6,
+    "avgScore": 5.97
+  },
+  "scored": [
+    {
+      "packageId": "3e29b709-533f-49cc-b9e8-8159dd0aee98",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
+      "workspaceName": "Move Better",
+      "clinicianId": null,
+      "clinicianName": "unknown clinician",
+      "topic": "zach",
+      "captionText": "I love working with clients like Zach who understand that movement isn't just exercise—it's a way to feel more connected to your body and more confident in your daily life. Watching someone discover what their body is truly capable of never gets old.",
+      "createdAt": "2026-05-28T04:05:32.262308+00:00",
+      "overall": 5.6,
+      "breakdown": {
+        "voice_fidelity": 5,
+        "clinical_texture": 6,
+        "redundancy": 7,
+        "specificity": 4,
+        "brand_fit": 6,
+        "red_flag": "body-confidence platitude lacks clinical grounding",
+        "has_phrases": false,
+        "phrase_count": 0,
+        "scored_at": "2026-05-28T05:50:42.801Z",
+        "model": "anthropic/claude-haiku-4-5"
+      }
+    },
+    {
+      "packageId": "ce9e497f-cff1-462c-8500-aabfd7449f8b",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
+      "workspaceName": "Move Better",
+      "clinicianId": null,
+      "clinicianName": "unknown clinician",
+      "topic": "zach",
+      "captionText": "I love working with clients like Zach who bring genuine enthusiasm to their movement practice—that energy is contagious and makes the healing work so much more effective. When someone shows up with a smile and real commitment, that's when the transformations happen.",
+      "createdAt": "2026-05-28T03:52:23.052655+00:00",
+      "overall": 4.4,
+      "breakdown": {
+        "voice_fidelity": 5,
+        "clinical_texture": 4,
+        "redundancy": 6,
+        "specificity": 2,
+        "brand_fit": 5,
+        "red_flag": "generic wellness platitudes, no clinical credibility or concrete practice detail",
+        "has_phrases": false,
+        "phrase_count": 0,
+        "scored_at": "2026-05-28T05:50:44.136Z",
+        "model": "anthropic/claude-haiku-4-5"
+      }
+    },
+    {
+      "packageId": "3287e5bd-98c4-4d37-83e3-5502df6f2adc",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
+      "workspaceName": "Move Better",
+      "clinicianId": null,
+      "clinicianName": "unknown clinician",
+      "topic": "deadlift hinge mechanics",
+      "captionText": "The hip hinge is where it all starts—when you nail this movement pattern, everything from your deadlift to your daily life becomes more resilient and powerful. Notice how the hips travel backward rather than the knees diving forward; this simple shift completely changes what muscles do the work.",
+      "createdAt": "2026-05-28T03:31:27.384458+00:00",
+      "overall": 7,
+      "breakdown": {
+        "voice_fidelity": 5,
+        "clinical_texture": 7,
+        "redundancy": 8,
+        "specificity": 8,
+        "brand_fit": 7,
+        "red_flag": "slightly generic 'everything becomes more resilient and powerful' phrasing",
+        "has_phrases": false,
+        "phrase_count": 0,
+        "scored_at": "2026-05-28T05:50:45.404Z",
+        "model": "anthropic/claude-haiku-4-5"
+      }
+    },
+    {
+      "packageId": "597083a4-c407-4a48-ac55-1e481abd1677",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
+      "workspaceName": "Move Better",
+      "clinicianId": null,
+      "clinicianName": "unknown clinician",
+      "topic": "deadlift",
+      "captionText": "The deadlift is one of the most honest movements we have—it reveals exactly where your body needs attention and builds resilience from the ground up. When your hinge pattern is solid, everything else in life becomes easier to carry.",
+      "createdAt": "2026-05-28T01:49:49.742143+00:00",
+      "overall": 6.6,
+      "breakdown": {
+        "voice_fidelity": 5,
+        "clinical_texture": 7,
+        "redundancy": 8,
+        "specificity": 6,
+        "brand_fit": 7,
+        "red_flag": "hinge pattern is solid → vague; needs concrete cueing (neutral spine, hip crease, etc.)",
+        "has_phrases": false,
+        "phrase_count": 0,
+        "scored_at": "2026-05-28T05:50:47.511Z",
+        "model": "anthropic/claude-haiku-4-5"
+      }
+    },
+    {
+      "packageId": "48605093-993f-4b1e-9677-79b6e62b6e95",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
+      "workspaceName": "Move Better",
+      "clinicianId": null,
+      "clinicianName": "unknown clinician",
+      "topic": "deadlift",
+      "captionText": "The deadlift teaches us so much about how we move through life—it's a conversation between your body and the ground, revealing patterns of strength and imbalance we didn't even know existed. When done with intention, this one movement becomes both a powerful assessment tool and a gateway to better movement quality.",
+      "createdAt": "2026-05-28T01:45:22.526223+00:00",
+      "overall": 5.6,
+      "breakdown": {
+        "voice_fidelity": 5,
+        "clinical_texture": 6,
+        "redundancy": 7,
+        "specificity": 4,
+        "brand_fit": 6,
+        "red_flag": "metaphor-heavy, lacks concrete clinical anchor (no cue, load, or observable pattern named)",
+        "has_phrases": false,
+        "phrase_count": 0,
+        "scored_at": "2026-05-28T05:50:48.891Z",
+        "model": "anthropic/claude-haiku-4-5"
+      }
+    },
+    {
+      "packageId": "3a7e179a-f79e-47ed-b83e-ea772f9329e1",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
+      "workspaceName": "Move Better",
+      "clinicianId": null,
+      "clinicianName": "unknown clinician",
+      "topic": "deadlift",
+      "captionText": "The deadlift remains one of the most honest movements we can perform—it demands proper mechanics, core stability, and respect for the load. When done well, it's not just building strength, it's teaching your body how to move safely through real-world demands.",
+      "createdAt": "2026-05-27T21:03:31.343622+00:00",
+      "overall": 6.6,
+      "breakdown": {
+        "voice_fidelity": 5,
+        "clinical_texture": 7,
+        "redundancy": 8,
+        "specificity": 6,
+        "brand_fit": 7,
+        "red_flag": "vague on mechanics—no concrete cues or common errors addressed",
+        "has_phrases": false,
+        "phrase_count": 0,
+        "scored_at": "2026-05-28T05:50:50.169Z",
+        "model": "anthropic/claude-haiku-4-5"
+      }
+    }
+  ]
+}

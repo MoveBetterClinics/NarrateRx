@@ -35,12 +35,14 @@ export const config = { runtime: 'nodejs', maxDuration: 300 }
 
 import { generateText } from 'ai'
 import { put as blobPut } from '@vercel/blob'
+import { waitUntil } from '@vercel/functions'
 import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { searchClips } from '../_lib/clipSearch.js'
 import { renderPhotoChannel, CHANNEL_SPECS } from '../_lib/brandRender.js'
 import { renderVideoChannel, VIDEO_CHANNEL_SPECS } from '../_lib/brandRenderVideo.js'
+import { scoreCaptionFidelity } from '../_lib/captionFidelity.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -267,6 +269,25 @@ export default async function handler(req, res) {
   }).catch((e) => {
     console.error('[generate-package] patch failed:', e.message)
   })
+
+  // Background voice-fidelity scoring once the package is complete.
+  // Fire-and-forget via waitUntil so we don't add ~2-4s to the response.
+  // The Slate UI re-fetches packages on focus and will surface the score
+  // when present.
+  if (finalStatus === 'complete') {
+    waitUntil(
+      scoreCaptionFidelity({
+        packageId,
+        workspaceId:   ws.id,
+        workspaceName: ws.display_name,
+        clinicianId:   lookupClinicianId || null,
+        topic,
+        captionText,
+      }).catch((e) => {
+        console.error('[generate-package] caption fidelity scoring failed:', e?.message || e)
+      })
+    )
+  }
 
   const elapsedMs = Date.now() - started
 
