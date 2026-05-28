@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useUserRole } from '@/lib/useUserRole'
+import { usePermission } from '@/lib/usePermission'
+import { CAP_SETTINGS_EDIT } from '@/lib/capabilities'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 // Per-location CRUD lifted from the General tab. The server mirrors the
@@ -20,6 +22,7 @@ export default function LocationsSettings() {
   useDocumentTitle('Settings — Locations')
   const { getToken } = useAuth()
   const { role, isLoading: roleLoading } = useUserRole()
+  const { has } = usePermission()
   const [ws, setWs] = useState(undefined)
 
   useEffect(() => {
@@ -36,7 +39,8 @@ export default function LocationsSettings() {
       </div>
     )
   }
-  if (role !== 'admin') return <Navigate to="/" replace />
+  // Phase 4 PR 2: capability gate. Producer (no CAP_SETTINGS_EDIT) is bounced.
+  if (role !== 'admin' || !has(CAP_SETTINGS_EDIT)) return <Navigate to="/" replace />
   if (!ws) return (
     <div className="py-16 text-center text-sm text-muted-foreground">
       Workspace settings are only available on a <code className="font-mono text-xs">*.narraterx.ai</code> deployment.
