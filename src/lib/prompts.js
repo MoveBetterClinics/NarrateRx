@@ -601,7 +601,11 @@ export function getBlogPostSystemPrompt(workspace, clinicianName, condition, ton
   const internalLinksBlock = workspace.internal_links_markdown
     ? `\nINTERNAL LINKS — available if a natural opportunity arises. Use descriptive anchor text (never "click here"). Don't force them; never bend the writing to hit a link count:\n\n${workspace.internal_links_markdown}\n`
     : ''
-  const externalLinksLine = `\nEXTERNAL LINKS — only if they genuinely support a specific claim ${clinicianName} made (Mayo Clinic, NIH/PubMed, Cleveland Clinic, ACA). Anchor text must be descriptive. Default to no external links rather than forcing one.\n`
+  const externalLinksLine = `\nEXTERNAL LINKS — research citations serve readers and reinforce ${clinicianName}'s credibility. The rule is intent, not count:
+- When the interview topic has clinical research behind it (biomechanics, injury prevention, rehabilitation protocols, pain science, specific conditions) — cite the most authoritative source available. 1–3 citations are expected for evidence-rich topics; don't withhold them.
+- When ${clinicianName} references a specific study, protocol, or clinical finding, find and link the best source (Mayo Clinic, NIH/PubMed, Cleveland Clinic, ACA, professional society guidelines).
+- When the content is personal opinion, clinical philosophy, or a patient anecdote with no clear research anchor — skip external links. Don't manufacture a citation to fill a slot.
+- Anchor text must be descriptive (e.g., "Cleveland Clinic's overview of running and knee pain" — never "click here" or "this study").\n`
   const bookingLine = workspace.booking_url
     ? `\nIf the piece naturally arrives at "what should the reader do next," the booking destination is ${workspace.booking_url}. No prescribed wording — let ${clinicianName}'s voice carry the close.\n`
     : ''

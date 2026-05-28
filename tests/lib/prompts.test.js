@@ -154,9 +154,10 @@ describe('getBlogPostSystemPrompt — clinical mode (default)', () => {
     const prompt = getBlogPostSystemPrompt(ws, 'Dr. Smith', 'lower back pain')
     // Voice fidelity is the lead frame
     expect(prompt).toContain('VOICE FIDELITY IS THE ONLY GOAL')
-    // External link options are listed but framed as opt-in (not mandated counts)
+    // External links: citations expected for research-backed topics; skipped for personal/philosophical content
     expect(prompt).toContain('Mayo Clinic')
-    expect(prompt).toContain('Default to no external links rather than forcing one')
+    expect(prompt).toContain('1–3 citations are expected for evidence-rich topics')
+    expect(prompt).toContain("Don't manufacture a citation to fill a slot")
     // Booking URL is available; no prescribed heading or wording
     expect(prompt).toContain(ws.booking_url)
     expect(prompt).not.toContain('Ready to Move Better?')
