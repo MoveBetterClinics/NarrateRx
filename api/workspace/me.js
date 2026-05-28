@@ -287,14 +287,17 @@ async function handler(req, res) {
     // the client treats null as "no special restriction" so the existing nav
     // shows. Non-fatal on failure.
     let current_user_tier = null
+    let current_user_producer_onboarded_at = null
     try {
       const ctr = await sb(
         `clinicians?user_id=eq.${encodeURIComponent(auth.userId)}` +
-        `&workspace_id=eq.${encodeURIComponent(workspace.id)}&select=permission_tier&limit=1`
+        `&workspace_id=eq.${encodeURIComponent(workspace.id)}` +
+        `&select=permission_tier,producer_onboarded_at&limit=1`
       )
       if (ctr.ok) {
         const rows = await ctr.json().catch(() => [])
         current_user_tier = rows?.[0]?.permission_tier || null
+        current_user_producer_onboarded_at = rows?.[0]?.producer_onboarded_at || null
       }
     } catch (e) {
       console.error('[workspace/me] tier fetch failed:', e?.message)
@@ -326,6 +329,7 @@ async function handler(req, res) {
       primary_logo_url,
       current_user_tier,
       current_user_capabilities,
+      current_user_producer_onboarded_at,
     })
   }
 
