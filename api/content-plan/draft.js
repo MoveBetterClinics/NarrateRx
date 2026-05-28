@@ -123,7 +123,10 @@ export default async function handler(req, res) {
     // null when nothing is active → empty campaignContext → atoms use their
     // default per-platform CTAs. Blog generation does NOT call this; blogs
     // are intentionally evergreen.
-    const activeCampaign = await loadCurrentTentpole(ws.id)
+    // Pass clinician_id so per-clinician-targeted campaigns are honored —
+    // a campaign with non-empty target_clinician_ids only applies to atoms
+    // produced for clinicians on its target list.
+    const activeCampaign = await loadCurrentTentpole(ws.id, interview.clinician_id || null)
     const campaignContext = getTentpolePromptContext(activeCampaign, ws)
 
     // Phase 5 Feature 2 — this clinician's prior thinking block, shared
