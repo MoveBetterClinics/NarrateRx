@@ -47,7 +47,8 @@
     { "path": "/api/cron/refresh-engagement", "schedule": "0 11 * * *" },
     { "path": "/api/cron/sync-author-corpus", "schedule": "0 6 * * 0" },
     { "path": "/api/cron/regenerate-stale-books", "schedule": "0 7 * * *" },
-    { "path": "/api/cron/engagement-digest", "schedule": "0 13 * * 1" }
+    { "path": "/api/cron/engagement-digest", "schedule": "0 13 * * 1" },
+    { "path": "/api/cron/auto-publish", "schedule": "*/10 * * * *" }
   ],
   "functions": {
     "api/media/upload.js": {
