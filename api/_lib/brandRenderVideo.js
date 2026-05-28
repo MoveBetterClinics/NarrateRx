@@ -181,8 +181,11 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
     if (hadSubtitles) {
       // The subtitles filter path must not contain colons (fine — /tmp/vid-sub-uuid.srt has none).
       // force_style overrides: large-ish font, white with black outline, positioned above lower-third.
+      // When the caption band is at the bottom (e.g. blog_hero_video) bump MarginV so the
+      // last subtitle line clears the band — otherwise the bottom subtitle line overlaps it.
+      const marginV = spec.captionPos === 'bottom' ? 220 : 120
       filterComplex.push(
-        `[branded]subtitles=${tmpSrt}:force_style='PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,Bold=1,FontSize=20,Outline=1,Shadow=0,MarginV=120'[vout]`,
+        `[branded]subtitles=${tmpSrt}:force_style='PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,Bold=1,FontSize=20,Outline=1,Shadow=0,MarginV=${marginV}'[vout]`,
       )
       finalOutput = '[vout]'
     }
