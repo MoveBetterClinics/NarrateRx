@@ -14,6 +14,7 @@ export const config = { runtime: 'nodejs' }
 
 import { workspaceContext, invalidateWorkspaceCacheById, invalidateWorkspaceCacheBySlug } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
+import { resolveCapabilities } from '../_lib/capabilities.js'
 
 // Hard allowlist — only these columns may be patched via this endpoint.
 // slug, clerk_org_id, capabilities, status are developer-owned.
@@ -299,7 +300,21 @@ async function handler(req, res) {
       console.error('[workspace/me] tier fetch failed:', e?.message)
     }
 
-    return res.status(200).json({ ...workspace, locations, primary_logo_url, current_user_tier })
+    // Phase 4 PR 2: resolve the user's effective capability set. Owners and
+    // internal-plan org admins get every capability automatically — mirrors
+    // the admin bypass in requireRole + requireTier. Non-admin users get the
+    // resolved template (workspace override OR code default for their tier).
+    const isOrgAdminCaller   = auth.role === 'admin' || workspace?.plan === 'internal'
+    const tierForCapabilities = isOrgAdminCaller ? 'owner' : (current_user_tier || 'clinician')
+    const current_user_capabilities = resolveCapabilities(tierForCapabilities, workspace)
+
+    return res.status(200).json({
+      ...workspace,
+      locations,
+      primary_logo_url,
+      current_user_tier,
+      current_user_capabilities,
+    })
   }
 
   if (req.method === 'PATCH') {

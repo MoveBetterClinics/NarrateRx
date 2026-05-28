@@ -12,7 +12,11 @@ import { CampaignModeChip } from '@/components/CampaignWidget'
 import { workspace as STATIC_WORKSPACE } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useUserRole } from '@/lib/useUserRole'
-import { usePermissionTier } from '@/lib/usePermissionTier'
+import { usePermission } from '@/lib/usePermission'
+import {
+  CAP_SETTINGS_VIEW, CAP_SETTINGS_EDIT, CAP_INTEGRATIONS_CONNECT,
+  CAP_BRAND_KIT_EDIT, CAP_INTERVIEW_START,
+} from '@/lib/capabilities'
 import TrialBanner from '@/components/TrialBanner'
 
 const APP_BYLINE = 'Voice-faithful clinical content'
@@ -20,16 +24,25 @@ const APP_BYLINE = 'Voice-faithful clinical content'
 // Top-level nav. Library is a daily working surface for Publishers (media
 // attach + schedule + publish) and a frequent reference for Clinicians, so
 // it sits in the main bar rather than the settings dropdown.
+// Top-level nav. Each item optionally specifies `requiresCapability` — a
+// capability the user must have for the item to show. Items WITHOUT this
+// field are visible to everyone (the Phase 3 / pre-capability behavior).
+// Phase 4 PR 2: Slate sees-by-default, the rest gated by interview/content
+// capabilities so producers (no interview.start) get a Slate-focused nav.
 const NAV_ITEMS = [
-  { to: '/',           label: 'Home',      match: (p) => p === '/' },
-  { to: '/stories',    label: 'Stories',   match: (p) => p.startsWith('/stories') },
+  { to: '/',           label: 'Home',      match: (p) => p === '/',
+    requiresCapability: CAP_INTERVIEW_START },
+  { to: '/stories',    label: 'Stories',   match: (p) => p.startsWith('/stories'),
+    requiresCapability: CAP_INTERVIEW_START },
   { to: '/library',    label: 'Library',   match: (p) => p.startsWith('/library') },
-  { to: '/pre-visit',  label: 'Pre-Visit', match: (p) => p.startsWith('/pre-visit'), icon: Mic2 },
-  { to: '/book',       label: 'Book',      match: (p) => p.startsWith('/book'),  icon: BookOpen },
+  { to: '/pre-visit',  label: 'Pre-Visit', match: (p) => p.startsWith('/pre-visit'), icon: Mic2,
+    requiresCapability: CAP_INTERVIEW_START },
+  { to: '/book',       label: 'Book',      match: (p) => p.startsWith('/book'),  icon: BookOpen,
+    requiresCapability: CAP_INTERVIEW_START },
   // Hidden for workspaces with book_mode='group' (Move Better-style group books)
   // — see filtering in the component body.
   { to: '/write',      label: 'Write',     match: (p) => p.startsWith('/write'), icon: PenLine,
-    hideWhenBookMode: 'group' },
+    hideWhenBookMode: 'group', requiresCapability: CAP_INTERVIEW_START },
   // Story Director slate — only visible when video pipeline is enabled.
   { to: '/slate',      label: 'Slate',     match: (p) => p.startsWith('/slate'), icon: Clapperboard,
     showWhen: (ws) => ws?.video_pipeline_enabled === true },
@@ -38,7 +51,7 @@ const NAV_ITEMS = [
 export default function Layout({ children }) {
   const location = useLocation()
   const { role, isStaff } = useUserRole()
-  const { isProducerOnly } = usePermissionTier()
+  const { has: hasCapability } = usePermission()
   const [mobileOpen, setMobileOpen] = useState(false)
   const ws = useWorkspace()
   const selfClinicianId = useSelfClinicianId()
@@ -48,11 +61,12 @@ export default function Layout({ children }) {
   // Workspace-dependent nav filtering.
   // hideWhenBookMode: hide this item when ws.book_mode equals the value.
   // showWhen: predicate(ws) — item is only shown when it returns true.
-  // Phase 4: producers see ONLY /slate in the top nav. Other surfaces
-  // (Home, Stories, Library, Pre-Visit, Book, Write) are deliberately
-  // hidden to keep them focused on the operational queue.
+  // requiresCapability: hide unless the user has the named capability.
+  //                     Phase 4 PR 2 swap-in for the previous isProducerOnly
+  //                     blanket check — workspaces that grant their Producer
+  //                     interview.start (e.g. Move Better) now see the full nav.
   const navItems = NAV_ITEMS.filter((it) => {
-    if (isProducerOnly && it.to !== '/slate') return false
+    if (it.requiresCapability && !hasCapability(it.requiresCapability)) return false
     if (it.hideWhenBookMode && ws?.book_mode === it.hideWhenBookMode) return false
     if (it.showWhen && !it.showWhen(ws)) return false
     return true
@@ -84,15 +98,15 @@ export default function Layout({ children }) {
               <NavLink key={item.to} to={item.to} label={item.label} active={item.match(location.pathname)} icon={item.icon} />
             ))}
           </nav>
-          {!isProducerOnly && (
+          {hasCapability(CAP_SETTINGS_VIEW) && (
             <div className="hidden md:flex items-center gap-1">
               <SettingsMenu role={role} isStaff={isStaff} selfClinicianId={selfClinicianId} />
             </div>
           )}
 
-          {/* New Interview — primary action for clinicians + admins. Hidden
-              for producers since they aren't the ones starting interviews. */}
-          {!isProducerOnly && (
+          {/* New Interview — gated on interview.start. Hidden for producers
+              without that capability. */}
+          {hasCapability(CAP_INTERVIEW_START) && (
             <Button asChild size="sm">
               <Link to="/new">
                 <Plus className="h-4 w-4 sm:mr-1.5" />
@@ -137,29 +151,29 @@ export default function Layout({ children }) {
             ))}
           </div>
           <div className="pt-3 mt-2 border-t space-y-1 overflow-y-auto">
-            {/* Admin/staff chrome — hidden for producers (Phase 4). */}
-            {!isProducerOnly && role === 'admin' && (
+            {/* Admin/staff chrome — gated by individual capabilities. */}
+            {role === 'admin' && hasCapability(CAP_SETTINGS_VIEW) && (
               <DrawerClose asChild>
                 <Link to="/synthesis" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Layers className="h-4 w-4" /> Knowledge synthesis
                 </Link>
               </DrawerClose>
             )}
-            {!isProducerOnly && role === 'admin' && (
+            {hasCapability(CAP_SETTINGS_EDIT) && (
               <DrawerClose asChild>
                 <Link to="/settings/workspace" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Building2 className="h-4 w-4" /> Workspace settings
                 </Link>
               </DrawerClose>
             )}
-            {!isProducerOnly && isStaff && (
+            {hasCapability(CAP_BRAND_KIT_EDIT) && (
               <DrawerClose asChild>
                 <Link to="/settings/brand-kit" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Palette className="h-4 w-4" /> Brand Kit
                 </Link>
               </DrawerClose>
             )}
-            {!isProducerOnly && selfClinicianId && (
+            {selfClinicianId && hasCapability(CAP_INTERVIEW_START) && (
               <DrawerClose asChild>
                 <Link to={`/clinician/${selfClinicianId}`} className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <UserCircle className="h-4 w-4" /> My clinician profile
@@ -171,14 +185,14 @@ export default function Layout({ children }) {
                 <UserCircle className="h-4 w-4" /> Account &amp; security
               </Link>
             </DrawerClose>
-            {!isProducerOnly && (
+            {hasCapability(CAP_INTEGRATIONS_CONNECT) && (
               <DrawerClose asChild>
                 <Link to="/settings/integrations" className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <Settings className="h-4 w-4" /> Integrations
                 </Link>
               </DrawerClose>
             )}
-            {!isProducerOnly && (
+            {hasCapability(CAP_INTERVIEW_START) && (
               <div className="px-3 py-2">
                 <CampaignModeChip />
               </div>

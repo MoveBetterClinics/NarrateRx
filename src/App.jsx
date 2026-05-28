@@ -13,7 +13,8 @@ import {
 } from '@clerk/react'
 import Layout from '@/components/Layout'
 import Home from '@/pages/Home'
-import { usePermissionTier } from '@/lib/usePermissionTier'
+import { useCapability } from '@/lib/usePermission'
+import { CAP_INTERVIEW_START } from '@/lib/capabilities'
 import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
 const CapturePicker = lazy(() => import('@/pages/CapturePicker'))
@@ -400,13 +401,13 @@ function LegacyReviewRedirect() {
   return <Navigate to={`/stories/${itemId}`} replace />
 }
 
-// Phase 4: producers land on /slate, everyone else lands on Home.
-// Wrapped at the / route so the redirect happens at the routing layer,
-// not after Home's data fetches kick off (avoids a flash of Home's
-// gradient ribbon before the redirect fires).
+// Phase 4: users without interview.start capability (producers in the default
+// template, viewers, etc.) land on /slate as their home. Users with the
+// capability see Home as before. Wrapped at the / route so the redirect
+// happens at the routing layer, not after Home's data fetches kick off.
 function HomeOrSlateForProducer() {
-  const { isProducerOnly } = usePermissionTier()
-  if (isProducerOnly) return <Navigate to="/slate" replace />
+  const canStartInterview = useCapability(CAP_INTERVIEW_START)
+  if (!canStartInterview) return <Navigate to="/slate" replace />
   return <Home />
 }
 
