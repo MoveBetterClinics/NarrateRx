@@ -11,7 +11,8 @@ export const config = { runtime: 'nodejs' }
 // Plaintext never crosses the wire on read paths — the secret field is
 // write-only. To rotate, the admin re-pastes the value.
 
-import { requireRole } from '../_lib/auth.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
+import { CAP_INTEGRATIONS_CONNECT } from '../_lib/capabilities.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { encryptSecret } from '../_lib/credentialCrypto.js'
 import { listConfiguredServices } from '../_lib/getCredential.js'
@@ -47,6 +48,13 @@ async function handler(req, res) {
   const auth = await requireRole(req, ['admin'], { orgId: workspace.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
+  // Phase 4 PR1: capability gate. Publish credentials are integrations, so
+  // Producer (CAP_INTEGRATIONS_CONNECT in default template) is allowed.
+  const capAuth = await requireCapability(req, workspace, [CAP_INTEGRATIONS_CONNECT])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
   }
 
   if (req.method === 'GET') {
