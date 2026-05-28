@@ -14,9 +14,11 @@
 
 export const config = { runtime: 'nodejs' }
 
+import { waitUntil } from '@vercel/functions'
 import { requireRole } from '../../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../../_lib/roles.js'
 import { workspaceContext } from '../../_lib/workspaceContext.js'
+import { scoreCaptionFidelity } from '../../_lib/captionFidelity.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -99,6 +101,25 @@ export default async function handler(req, res) {
   const updated = await patchRes.json()
   if (!updated?.length) {
     return res.status(404).json({ error: 'package_not_found' })
+  }
+
+  // If the caption changed, re-score in the background. The renders are
+  // now stale visually, but the score reflects topic+caption text which
+  // is what matters for the gate / badge.
+  if (captionText !== undefined) {
+    const row = updated[0]
+    waitUntil(
+      scoreCaptionFidelity({
+        packageId:     row.id,
+        workspaceId:   ws.id,
+        workspaceName: ws.display_name,
+        clinicianId:   row.clinician_id || null,
+        topic:         row.topic,
+        captionText:   row.caption_text,
+      }).catch((e) => {
+        console.error('[packages/[id]] caption fidelity scoring failed:', e?.message || e)
+      })
+    )
   }
 
   return res.status(200).json({ package: updated[0] })

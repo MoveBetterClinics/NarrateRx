@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
@@ -26,6 +26,34 @@ function ChannelChip({ channel }) {
   return (
     <span className="inline-flex items-center justify-center rounded-md bg-white/90 text-3xs font-bold text-zinc-800 w-[26px] h-[22px] shadow-sm">
       {CHANNEL_LABEL[channel] || channel.slice(0, 2).toUpperCase()}
+    </span>
+  )
+}
+
+function VoiceFidelityBadge({ score, breakdown }) {
+  if (score == null) return null
+  const rounded = Math.round(Number(score) * 10) / 10
+  const color =
+    rounded >= 7 ? 'bg-emerald-500/80' :
+    rounded >= 5.5 ? 'bg-amber-500/80' :
+                     'bg-destructive/80'
+  const redFlag = breakdown?.red_flag && breakdown.red_flag !== 'none' ? breakdown.red_flag : null
+  const title = [
+    `Voice fidelity: ${rounded}/10`,
+    breakdown?.voice_fidelity   != null ? `  voice fidelity:   ${breakdown.voice_fidelity}` : '',
+    breakdown?.clinical_texture != null ? `  clinical texture: ${breakdown.clinical_texture}` : '',
+    breakdown?.specificity      != null ? `  specificity:      ${breakdown.specificity}` : '',
+    breakdown?.brand_fit        != null ? `  brand fit:        ${breakdown.brand_fit}` : '',
+    breakdown?.redundancy       != null ? `  redundancy (inv): ${breakdown.redundancy}` : '',
+    redFlag ? `\nRed flag: ${redFlag}` : '',
+  ].filter(Boolean).join('\n')
+  return (
+    <span
+      className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-3xs font-bold text-white ${color} backdrop-blur-sm`}
+      title={title}
+    >
+      <Mic className="h-2.5 w-2.5" />
+      {rounded.toFixed(1)}
     </span>
   )
 }
@@ -195,8 +223,12 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
         {/* Badges overlay */}
         {!showGenerating && !isFailed && (
           <>
-            <div className="absolute top-2 left-2">
+            <div className="absolute top-2 left-2 flex gap-1 flex-wrap">
               <SimilarityBadge similarity={pkg.similarity} />
+              <VoiceFidelityBadge
+                score={pkg.voice_fidelity_score}
+                breakdown={pkg.voice_fidelity_breakdown}
+              />
             </div>
             {renders.length > 0 && (
               <div className="absolute bottom-2 right-2 flex gap-1 flex-wrap justify-end">

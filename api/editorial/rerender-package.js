@@ -24,11 +24,13 @@
 export const config = { runtime: 'nodejs', maxDuration: 300 }
 
 import { put as blobPut } from '@vercel/blob'
+import { waitUntil } from '@vercel/functions'
 import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { renderPhotoChannel, CHANNEL_SPECS } from '../_lib/brandRender.js'
 import { renderVideoChannel, VIDEO_CHANNEL_SPECS } from '../_lib/brandRenderVideo.js'
+import { scoreCaptionFidelity } from '../_lib/captionFidelity.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -179,6 +181,22 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'db_patch_failed', detail: text })
   }
   const updated = await patchRes.json()
+
+  // Background re-score now that the caption text + renders have changed.
+  if (finalStatus === 'complete') {
+    waitUntil(
+      scoreCaptionFidelity({
+        packageId,
+        workspaceId:   ws.id,
+        workspaceName: ws.display_name,
+        clinicianId:   pkg.clinician_id || null,
+        topic:         pkg.topic,
+        captionText:   newCaption,
+      }).catch((e) => {
+        console.error('[rerender-package] caption fidelity scoring failed:', e?.message || e)
+      })
+    )
+  }
 
   return res.status(200).json({
     packageId,
