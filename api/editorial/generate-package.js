@@ -1,7 +1,7 @@
 // POST /api/editorial/generate-package
 //
 // Phase 2 Day 8 of the 30-day video output build.
-// End-to-end story package generator: clip search + auto-caption + render.
+// V6 upgrade: clip search is now framing-aware when ws.rag_fusion_enabled.
 //
 // Body:
 //   {
@@ -13,10 +13,10 @@
 //   }
 //
 // Flow:
-//   1. searchClips(topic) → pick best-matching clip (top-1)
-//   2. If no captionText: Claude-generate one from topic + clip context
+//   1. searchClips(topic) OR fetchFusedRagContext(topic) → pick best-matching clip (top-1)
+//   2. If no captionText: Claude-generate one from topic + clip context + practice framing
 //   3. renderPhotoChannel / renderVideoChannel per channel
-//   4. INSERT story_packages row
+//   4. INSERT story_packages row (with rag_context when fusion ran)
 //   5. Return full package
 //
 // Auth: Clerk JWT + workspace org-id + video_pipeline_enabled.
@@ -40,6 +40,7 @@ import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { searchClips } from '../_lib/clipSearch.js'
+import { fetchFusedRagContext } from '../_lib/ragFusion.js'
 import { renderPhotoChannel, CHANNEL_SPECS } from '../_lib/brandRender.js'
 import { renderVideoChannel, VIDEO_CHANNEL_SPECS } from '../_lib/brandRenderVideo.js'
 import { scoreCaptionFidelity } from '../_lib/captionFidelity.js'
@@ -63,19 +64,37 @@ async function sb(path, init = {}) {
   })
 }
 
-/** Generate a compelling 1-2 sentence caption using Claude. */
-async function generateCaption({ topic, clip, workspace }) {
+/**
+ * Generate a compelling 1-2 sentence caption.
+ * V6: when practiceChunks are available, injects the clinician's prior
+ * framing so the caption echoes their actual voice on this topic.
+ */
+async function generateCaption({ topic, clip, workspace, practiceChunks = [] }) {
   const toneHint = workspace?.brand_voice?.tone_descriptors?.join(', ') || 'warm, expert'
   const clipContext = [
     clip.visualNarrative ? `Visual: ${clip.visualNarrative}` : '',
     clip.aiTags?.length ? `Tags: ${(clip.aiTags || []).join(', ')}` : '',
   ].filter(Boolean).join('. ')
 
+  const priorThinking = practiceChunks
+    .slice(0, 3)
+    .map((c) => String(c.text || '').slice(0, 200).trim())
+    .filter(Boolean)
+    .join(' … ')
+
+  const systemLines = [
+    'You write short, compelling social media captions for a clinical practitioner.',
+    `Tone: ${toneHint}. Write 1-2 sentences only. Do NOT use hashtags. Do NOT include a call to action.`,
+    'Speak from the practitioner\'s perspective as if they\'re sharing something meaningful.',
+  ]
+  if (priorThinking) {
+    systemLines.push(`The practitioner's prior thinking on this topic: ${priorThinking}`)
+    systemLines.push('Echo their specific clinical framing naturally — don\'t copy phrases verbatim.')
+  }
+
   const { text } = await generateText({
     model: 'anthropic/claude-haiku-4-5',
-    system: `You write short, compelling social media captions for a clinical practitioner.
-Tone: ${toneHint}. Write 1-2 sentences only. Do NOT use hashtags. Do NOT include a call to action.
-Speak from the practitioner's perspective as if they're sharing something meaningful.`,
+    system: systemLines.join('\n'),
     messages: [{
       role: 'user',
       content: `Topic: ${topic}
@@ -118,20 +137,62 @@ export default async function handler(req, res) {
 
   const started = Date.now()
 
-  // --- 1. Search clips — pick the best match ────────────────────────────────
-  let clips
-  try {
-    clips = await searchClips({
-      query: topic,
-      workspaceId: ws.id,
-      k: 1,
-      kind: requestedKind,
-      minScore: 0.4,    // slightly lower threshold so we almost always find something
-      clinicianId,
-    })
-  } catch (e) {
-    console.error('[generate-package] clip search failed:', e.message)
-    return res.status(500).json({ error: 'clip_search_failed', detail: e.message })
+  // --- 1. Clip search (V6: framing-aware when flag is on) ───────────────────
+  let clips = []
+  let ragContext = null
+
+  if (ws.rag_fusion_enabled) {
+    try {
+      const fused = await fetchFusedRagContext({
+        topic,
+        workspaceId: ws.id,
+        clinicianIds: clinicianId ? [clinicianId] : [],
+        visualK: 1,
+        visualKind: requestedKind,
+        minVisualScore: 0.4,
+      })
+      clips = fused.visualChunks || []
+      ragContext = {
+        practice_chunks: (fused.practiceChunks || []).map((c) => ({
+          chunk_id: c.source_id + ':' + (c.chunk_index ?? 0),
+          score: c.similarity,
+          text_preview: String(c.text || '').slice(0, 200),
+          source_label: c.source_label,
+        })),
+        visual_chunks: clips.map((c) => ({
+          chunk_id: c.chunkId,
+          score: c.similarity,
+          asset_id: c.assetId,
+          kind: c.kind,
+        })),
+        query_expansion: fused.queryExpansion,
+        fallback_reason: fused.fallbackReason,
+        retrieved_at: new Date().toISOString(),
+        timing: fused.timing,
+      }
+      // Store practice chunks on ragContext so caption generator can use them
+      ragContext._practiceChunks = fused.practiceChunks || []
+    } catch (e) {
+      console.error('[generate-package] fetchFusedRagContext failed, falling back:', e.message)
+      ragContext = { fallback_reason: 'embedding_error', retrieved_at: new Date().toISOString() }
+    }
+  }
+
+  // Fallback: bare clip search when fusion is off or errored
+  if (!clips.length) {
+    try {
+      clips = await searchClips({
+        query: topic,
+        workspaceId: ws.id,
+        k: 1,
+        kind: requestedKind,
+        minScore: 0.4,
+        clinicianId,
+      })
+    } catch (e) {
+      console.error('[generate-package] clip search failed:', e.message)
+      return res.status(500).json({ error: 'clip_search_failed', detail: e.message })
+    }
   }
 
   if (!clips.length) {
@@ -170,18 +231,24 @@ export default async function handler(req, res) {
   // --- 3. Auto-generate caption if not provided ─────────────────────────────
   if (!captionText) {
     try {
-      captionText = await generateCaption({ topic, clip, workspace: ws })
+      captionText = await generateCaption({
+        topic,
+        clip,
+        workspace: ws,
+        practiceChunks: ragContext?._practiceChunks || [],
+      })
     } catch (e) {
       console.error('[generate-package] caption gen failed:', e.message)
-      captionText = topic  // fallback: use the topic itself as the caption
+      captionText = topic
     }
   }
 
   // --- 4. Create story_packages row (status=generating) ────────────────────
-  // This allows callers to poll GET /api/editorial/packages/:id while renders run.
-  // For the synchronous flow below, we update to complete/failed at the end.
   let packageId
   try {
+    const ragContextForDb = ragContext ? { ...ragContext } : null
+    if (ragContextForDb) delete ragContextForDb._practiceChunks  // internal only
+
     const insertRes = await sb('story_packages', {
       method: 'POST',
       body: JSON.stringify({
@@ -194,6 +261,7 @@ export default async function handler(req, res) {
         channels,
         renders: [],
         status: 'generating',
+        rag_context: ragContextForDb,
       }),
     })
     if (!insertRes.ok) {
@@ -270,10 +338,7 @@ export default async function handler(req, res) {
     console.error('[generate-package] patch failed:', e.message)
   })
 
-  // Background voice-fidelity scoring once the package is complete.
-  // Fire-and-forget via waitUntil so we don't add ~2-4s to the response.
-  // The Slate UI re-fetches packages on focus and will surface the score
-  // when present.
+  // Background voice-fidelity scoring — fire-and-forget via waitUntil.
   if (finalStatus === 'complete') {
     waitUntil(
       scoreCaptionFidelity({

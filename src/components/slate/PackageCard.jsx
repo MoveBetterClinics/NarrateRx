@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
@@ -93,11 +93,12 @@ function TriageBadge({ reason }) {
  * triageReason — optional badge text shown above the thumbnail (e.g. "Low confidence").
  */
 export default function PackageCard({ pkg, clinicianName, triageReason, onApprove, onSkip, onUpdate }) {
-  const [approving, setApproving]     = useState(false)
-  const [editing, setEditing]         = useState(false)
-  const [caption, setCaption]         = useState(pkg.caption_text || '')
-  const [saving, setSaving]           = useState(false)   // caption-only save
-  const [rerendering, setRerendering] = useState(false)
+  const [approving, setApproving]           = useState(false)
+  const [editing, setEditing]               = useState(false)
+  const [caption, setCaption]               = useState(pkg.caption_text || '')
+  const [saving, setSaving]                 = useState(false)
+  const [rerendering, setRerendering]       = useState(false)
+  const [refreshingContext, setRefreshingContext] = useState(false)
 
   const isGenerating = pkg.status === 'generating' || pkg.status === 'pending'
   const isFailed     = pkg.status === 'failed'
@@ -164,6 +165,23 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
       await onApprove(pkg)
     } finally {
       setApproving(false)
+    }
+  }
+
+  async function handleRefreshContext() {
+    setRefreshingContext(true)
+    try {
+      const result = await apiFetch('/api/editorial/refresh-context', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageId: pkg.id }),
+      })
+      onUpdate?.({ ...pkg, rag_context: result?.ragContext })
+      toast('Prior thinking refreshed.')
+    } catch (err) {
+      toast.error(err?.message || 'Failed to refresh context.')
+    } finally {
+      setRefreshingContext(false)
     }
   }
 
@@ -305,6 +323,31 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
               {renders.length > 0 && <span>{renders.length} channel{renders.length !== 1 ? 's' : ''}</span>}
             </p>
           )}
+        </div>
+      )}
+
+      {/* RAG context strip — shown when fusion ran and package is complete */}
+      {!editing && !showGenerating && !isFailed && pkg.rag_context?.retrieved_at && (
+        <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-t border-border bg-muted/20">
+          <span className="text-3xs text-muted-foreground truncate">
+            Context {new Date(pkg.rag_context.retrieved_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+            {pkg.rag_context.practice_chunks?.length > 0 && (
+              <> · {pkg.rag_context.practice_chunks.length} prior chunk{pkg.rag_context.practice_chunks.length !== 1 ? 's' : ''}</>
+            )}
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-3xs shrink-0"
+            onClick={handleRefreshContext}
+            disabled={refreshingContext}
+            title="Re-run RAG retrieval to incorporate new interviews and content"
+          >
+            {refreshingContext
+              ? <Loader2 className="h-2.5 w-2.5 animate-spin" />
+              : <Brain className="h-2.5 w-2.5 mr-1" />}
+            {refreshingContext ? '' : 'Re-read prior thinking'}
+          </Button>
         </div>
       )}
 
