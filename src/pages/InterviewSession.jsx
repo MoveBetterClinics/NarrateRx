@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { apiFetch, fetchSimilarInterviews, fetchClinician, fetchClinicianRecentContent, updateInterview, cleanupTranscript, populateContentItemProvenance } from '@/lib/api'
+import { apiFetch, fetchSimilarInterviews, fetchClinician, fetchClinicianRecentContent, updateInterview, cleanupTranscript, populateContentItemProvenance, runVoiceAuditForInterview } from '@/lib/api'
 import { buildOwnHistoryBlock, pickPriorInterviews } from '@/lib/practiceMemory'
 import { extractProvenanceBlock } from '@/lib/provenance'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
@@ -1152,6 +1152,14 @@ export default function InterviewSession() {
       // shows up on next Story Detail fetch.
       populateContentItemProvenance(interviewId, provenanceJson || '', 'blog').catch((err) => {
         console.warn('[interview] provenance population failed:', err?.message)
+      })
+      // Fire-and-forget: run the two-pass voice-fidelity audit (PR 3) on the
+      // new blog content_item. The server scores the draft against the
+      // transcript + voice profile (+ practice memory for We-lane) and stores
+      // voice_fidelity_score + voice_audit. The UI doesn't wait — Story Detail
+      // shows the score/flags on next fetch once it lands.
+      runVoiceAuditForInterview(interviewId, 'blog').catch((err) => {
+        console.warn('[interview] voice audit failed (non-fatal):', err?.message)
       })
       // Stop mic recording + upload audio for voice clone training.
       // Fire-and-forget — resolve() fires before the upload completes so

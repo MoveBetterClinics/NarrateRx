@@ -739,6 +739,59 @@ VOICE: ${voiceMode === 'personal'
 OUTPUT FORMAT: Plain prose only. No markdown headers. No preamble. Begin directly with the first cleaned sentence.${PROVENANCE_INSTRUCTION}`
 }
 
+// ── Voice-fidelity audit (PR 3) ───────────────────────────────────────────
+//
+// Pass 2 of the two-pass guard from
+// .claude/design-interview-output-voice-fidelity.md (section 6). After a
+// draft is generated (pass 1), this prompt drives a second model call that
+// compares the draft against THREE sources:
+//   1. the original transcript (the clinician's verbatim words),
+//   2. the clinician's voice profile (voiceNotes + voicePhrases),
+//   3. practice memory (We-lane only — passed in as `practiceMemoryBlock`).
+//
+// It scores fidelity 0-100 and flags the specific drift types the post-mortem
+// identified. v1 is flag-only — the audit suggests reverts but never mutates
+// the stored draft. The structured output shape is enforced by the zod schema
+// in api/content-items/voice-audit.js, so this prompt defines the *rubric*,
+// not the JSON format.
+//
+// `voiceMode` is the We/I lane: 'practice' (We) gets the fabricated-clinic-claim
+// check; 'personal' (I) skips it (a personal essay has no clinic to contradict).
+export function getVoiceAuditSystemPrompt(clinicianName, {
+  voiceMode = 'practice',
+  voiceNotes = '',
+  voicePhrases = [],
+  practiceMemoryBlock = '',
+} = {}) {
+  const isPersonal = voiceMode === 'personal'
+  const fabricatedClaimRule = isPersonal
+    ? ''
+    : `\n- **fabricated_claim** — a statement of clinic fact, outcome, capability, or positioning that ${clinicianName} did NOT say in the transcript and that isn't backed by the practice memory below. This is the most serious drift: it puts words in the clinic's mouth. (We-lane only.)`
+
+  return `You are a voice-fidelity auditor for ${clinicianName}. A draft was generated from a recorded interview. Your ONLY job is to measure how faithfully the draft preserves ${clinicianName}'s actual voice and ideas — NOT to judge whether it is well-written, persuasive, or polished. A rougher draft that quotes ${clinicianName} faithfully scores HIGHER than a smooth draft that paraphrases them.
+
+You will be given the original transcript (${clinicianName}'s verbatim words) and the generated draft. Compare them.
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${practiceMemoryBlock ? `\n${practiceMemoryBlock}\n` : ''}
+DRIFT TYPES TO FLAG (only flag genuine instances — do not invent drift to seem thorough):
+- **vocabulary_swap** — the draft substitutes a generic health/fitness term for a specific word ${clinicianName} used (e.g. draft says "discomfort" where they said "that deep ache", or "wellness" where they said "moving better"). Quote both the draft term and the transcript term.
+- **imposed_structure** — the draft forces a tidy shape (intro/body/conclusion, "3 key takeaways", a symmetry of sections) that flattens how ${clinicianName} actually reasoned through the topic. Faithful organization is fine; imposed scaffolding is not.
+- **smoothed_opinion** — ${clinicianName} took a clear stance and the draft softened, balanced, hedged, or added a reflexive disclaimer ("of course, everyone is different", "it's important to consult...") that they did not say. Flag where conviction was sanded down.${fabricatedClaimRule}
+
+DO NOT FLAG:
+- Minimal connective bridges between the clinician's points (these are allowed and necessary).
+- Removal of filler words, false starts, or repetition.
+- Reordering that genuinely helps a reader follow ${clinicianName}'s own line of thinking.
+- Surface choices (a headline, a hook, paragraph breaks) that don't change meaning.
+
+SCORING (voice_fidelity_score, 0-100):
+- 90-100: reads as ${clinicianName} talking. Their words, their stances, their structure. At most trivial bridges.
+- 70-89: mostly faithful, a few vocab swaps or one softened opinion. Worth a glance.
+- 50-69: noticeable drift — several swaps, an imposed shape, or a hedged stance. Needs human review.
+- below 50: the draft has been translated out of ${clinicianName}'s voice. Significant rewrite warranted.
+
+For every flag, give the exact draft excerpt, the issue, and a concrete suggestion (for a vocabulary_swap, the suggestion is usually the clinician's original word). Be specific and quote real text — never paraphrase the excerpt. Write a one-sentence overall summary of the draft's fidelity.`
+}
+
 // ── Exemplar block — Tier 1 of the feedback loop ──────────────────────────
 //
 // Renders a "use these as style references" section from editor-flagged

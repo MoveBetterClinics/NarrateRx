@@ -37,6 +37,7 @@ import BufferMetricsRow from './BufferMetricsRow'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
 import MediaAttachmentPanel from './MediaAttachmentPanel'
 import SlideEditor from './SlideEditor'
+import VoiceFidelityBadge from './VoiceFidelityBadge'
 import { extractMarkerSuggestions, markersToOverlay } from './OverlayTextEditor'
 import PostPreview from '@/components/PostPreview'
 function timeAgo(dateStr) {
@@ -275,6 +276,10 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
 
   return (
     <div className="space-y-2">
+      {/* Voice-fidelity audit (PR 3) — blog only. The two-pass guard scores the
+          draft against the transcript + voice profile and flags drift for human
+          review. Renders nothing until the audit lands. */}
+      {piece.platform === 'blog' && <VoiceFidelityBadge piece={piece} />}
       {/* View-mode toggle — always visible; Attributed only when provenance exists.
           Read-aloud (Phase 5 F#3 audio caller) sits on the right; uses this
           piece's clinician_id so the voice clone is auto-resolved server-side. */}
