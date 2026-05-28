@@ -38,6 +38,7 @@ import ContentPlanPanel from '@/components/ContentPlanPanel'
 import MediaAttachmentPanel from './MediaAttachmentPanel'
 import SlideEditor from './SlideEditor'
 import VoiceFidelityBadge from './VoiceFidelityBadge'
+import SplitSuggestionBanner from './SplitSuggestionBanner'
 import { extractMarkerSuggestions, markersToOverlay } from './OverlayTextEditor'
 import PostPreview from '@/components/PostPreview'
 function timeAgo(dateStr) {
@@ -280,6 +281,11 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
           draft against the transcript + voice profile and flags drift for human
           review. Renders nothing until the audit lands. */}
       {piece.platform === 'blog' && <VoiceFidelityBadge piece={piece} />}
+      {/* Multi-piece extract proposal (PR 4) — blog only, non-blocking. Detects
+          when the source interview holds enough distinct threads to justify a
+          split into a linked series and offers it. Renders nothing unless the
+          server recommends >=2 parts and the user hasn't dismissed it. */}
+      {piece.platform === 'blog' && <SplitSuggestionBanner piece={piece} />}
       {/* View-mode toggle — always visible; Attributed only when provenance exists.
           Read-aloud (Phase 5 F#3 audio caller) sits on the right; uses this
           piece's clinician_id so the voice clone is auto-resolved server-side. */}

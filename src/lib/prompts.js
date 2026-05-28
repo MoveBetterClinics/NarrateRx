@@ -1037,6 +1037,42 @@ OUTPUT FORMAT — return ONLY this JSON, nothing else (no preamble, no code fenc
 Return valid JSON only. No markdown, no explanation, no "Here's the plan:" preamble.`
 }
 
+// THREAD DETECTION (PR 4 — multi-piece extract proposal). A lightweight pass
+// that reads the transcript and decides whether the interview holds enough
+// distinct, post-worthy threads to justify proposing a split into a series.
+// This is NOT the cluster pass (getSeriesClusterSystemPrompt) — it does no
+// editorial planning, just a count + rationale + provisional titles so the
+// UI can ask "split into N posts?". The actual split, if accepted, re-runs
+// the full cluster + write pipeline.
+//
+// Bias is deliberately CONSERVATIVE: default to 1 (one blog) unless the
+// interview genuinely sprawls across separable threads. A single rich topic
+// explored in depth is ONE post, not many. We only want to propose a split
+// when keeping it as one post would force good material to be cut.
+export function getThreadDetectionSystemPrompt(clinicianName, condition, { voiceMode = 'practice' } = {}) {
+  const isPersonal = voiceMode === 'personal'
+  const voiceLine = isPersonal
+    ? `The output is written in ${clinicianName}'s first-person voice.`
+    : `The output is written in the clinic's team voice, drawn from ${clinicianName}'s interview.`
+
+  return `You are an editorial triage assistant. ${clinicianName} was interviewed about ${condition}, and the transcript below will become blog content. ${voiceLine}
+
+Your ONLY job: decide whether this interview holds enough DISTINCT, post-worthy threads to justify splitting it into a multi-part series — or whether it should stay a single blog post.
+
+A "thread" is a coherent idea, story, mechanism, or argument that could stand as its own complete blog post — a reader could read it alone and get a full piece. Sequential slices of the transcript ("the first half", "the middle") are NOT threads. Two angles on the SAME core idea are ONE thread, not two.
+
+BIAS STRONGLY TOWARD ONE POST. Recommend a split ONLY when keeping everything in a single post would force genuinely good, separable material to be cut or crammed. Most interviews — even long ones that circle a topic in depth — are one post. A split is the exception, not the default.
+
+DECISION RULES:
+- recommended_parts = 1 when the interview is one topic explored in depth, even if it rambles. This is the common case.
+- recommended_parts = 2, 3, or 4 ONLY when you can name that many threads that each clearly support a full standalone post AND don't substantially overlap.
+- Never recommend more parts than there are genuinely distinct threads. When in doubt, recommend fewer.
+- If you recommend a split, give a one-sentence rationale a busy clinician can judge at a glance ("Covers three separable topics: X, Y, and Z — each big enough for its own post."), and a provisional standalone title for each proposed part.
+- If you recommend one post (recommended_parts = 1), the rationale states why it reads as a single piece, and titles is an empty array.
+
+Quote the clinician's own framing in titles where you can — do not invent clinical claims or topics they did not raise.`
+}
+
 // WRITE PASS — given the cluster brief for ONE part, write that part as a full
 // blog post. Mirrors getBlogPostSystemPrompt's voice/CTA/link rules so each
 // part is publishable on its own; differs in that the structure is content-
