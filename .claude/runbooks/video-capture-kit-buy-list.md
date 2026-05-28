@@ -1,16 +1,16 @@
-# Video Capture Kit — Buy List (v2)
+# Video Capture Kit — Buy List (v3)
 
-_Updated 2026-05-27. Restructured around two kits + a universal upload page. v1 over-recommended an iPhone purchase that wasn't needed when the clinic already has a camera + browser. This version reflects the production reality: PWA `/capture` is the universal upload, iOS Shortcut is an optional fast path for solo on-the-road clinicians._
+_Updated 2026-05-27. v3 retires the iOS Shortcut as the documented setup path — the PWA `/capture` page with iOS "Add to Home Screen" gives the same one-tap experience in 30 seconds vs. a 20-minute Shortcut build. Underlying token endpoint stays available for anyone who wants to build their own automation later._
 
 ## Which kit do I need?
 
 | Your situation | Kit | Hero device | Upload path |
 |---|---|---|---|
 | **Fixed clinic location, shared staff, owns a camera** (Move Better People, most chiro/PT/OT clinics) | **Studio Kit** | Existing camera (or buy one) | PWA `/capture` from any clinic browser |
-| **Solo, on-the-road, mobile practice** (Move Better Equine, mobile vets, ambulatory therapists) | **Mobile Kit** | Your personal iPhone | iOS Shortcut (one tap) — falls back to PWA `/capture` if Shortcut isn't built yet |
+| **Solo, on-the-road, mobile practice** (Move Better Equine, mobile vets, ambulatory therapists) | **Mobile Kit** | Your personal iPhone | PWA `/capture` added to iPhone home screen |
 | **Hybrid** (clinic days + house calls) | Both kits | Both | Whichever's at hand |
 
-The two kits are **not exclusive** — a Studio-Kit clinic can also use the PWA from a personal phone in a pinch; a Mobile-Kit clinician can drop SD cards into a clinic Mac and use the PWA when they want to.
+The two kits are **not exclusive** — a Studio-Kit clinic can also use the PWA from a personal phone in a pinch; a Mobile-Kit clinician can drop SD cards into a clinic Mac and use the same PWA.
 
 ## Universal upload page (works for both kits)
 
@@ -20,7 +20,20 @@ Two entry points on the page:
 - **Take photo or video** — opens the device's native camera
 - **Pick existing files** — opens Photos / SD card / Downloads
 
-Save the URL to the home screen on mobile for app-like access. No app to install. Logged-in NarrateRx user is automatically the uploader; no token to manage.
+### Add to home screen (iPhone — 30 seconds)
+
+1. Open **Safari** on the iPhone
+2. Go to `<workspace-slug>.narraterx.ai/capture` (e.g. `movebetter-equine.narraterx.ai/capture`)
+3. Sign in once with the clinician's NarrateRx account
+4. Tap the **Share** icon (square with arrow up) at the bottom of Safari
+5. Scroll down → tap **Add to Home Screen**
+6. Name it "Capture" (or anything else) → **Add**
+
+Done. A "Capture" icon now sits on the home screen and behaves like a native app: full-screen, tap-and-go camera, upload progress visible. Survives iOS updates because it uses Apple's built-in PWA support — no Shortcut to maintain.
+
+The same Share → Add to Home Screen flow works on **Android Chrome** ("Install app") if a clinician is on Android.
+
+Logged-in NarrateRx user is automatically the uploader; no token to manage.
 
 ## Studio Kit — fixed-location clinic
 
@@ -62,7 +75,7 @@ For Move Better People specifically: ZV-1F is already owned, no new camera purch
 
 ### Don't buy (or defer)
 
-- **iPhone 15/16 Pro Max ($1,499)** — DROPPED from v1. If you have a clinic camera + browser, the iPhone isn't needed. Solo on-the-road tenants use their *personal* iPhone with the Shortcut (Mobile Kit). v1 over-bought this.
+- **iPhone 15/16 Pro Max ($1,499)** — DROPPED. If you have a clinic camera + browser, the iPhone isn't needed. Solo on-the-road tenants use their *personal* iPhone with the PWA (Mobile Kit).
 - **DJI Osmo Pocket 3 ($799)** — gimbal handheld for walking shots. Camera EIS handles ~80% of need at this price tier. Reconsider after 60 days if walking-shot stability is a complaint.
 - **SmallRig iPhone cage ($129)** — only if rigging serious mounted accessories.
 
@@ -74,8 +87,6 @@ For Move Better People specifically: ZV-1F is already owned, no new camera purch
 | Tier 1 required | $1,584 | $1,584 |
 | Tier 2 recommended | $964 | $964 |
 | **Grand total** | **$2,548** | **$3,048** |
-
-Was $4,970 in v1.
 
 ---
 
@@ -94,30 +105,31 @@ Total: **~$219 single-purchase** (assuming you own an iPhone). For Move Better E
 
 Mobile Kit grand total: **$219 minimum, ~$360 with both extras**.
 
-### Setup (one-time, ~15 minutes)
+### Setup (one-time, ~30 seconds)
 
-The iPhone runs the **iOS Capture Companion Shortcut** — Apple Shortcuts app, free, built-in. See `capture-companion-ios-shortcut.md` in this same runbooks directory for the click-by-click guide.
+The iPhone uses the same **PWA `/capture` page** as the Studio Kit — added to the home screen for one-tap access. See "Add to home screen" instructions above.
 
-Once built:
-- Tap the Shortcut from home screen or Share Sheet
+Once added:
+- Tap the Capture icon on the home screen
 - iPhone camera opens → capture → uploads to your NarrateRx workspace in ~5 seconds
-- Or share an existing Photos library item → "Capture for NarrateRx" → uploads
+- Or pick existing files → uploads
 
-**Falls back to PWA `/capture` if the Shortcut isn't built yet** — works the same, just two more taps.
+No Shortcut to build, no token to paste, no iOS-version-specific quirks. The PWA is what you get; this is the documented path going forward.
 
 ---
 
-## Capture Upload Tokens
+## Capture Upload Tokens (advanced / optional)
 
-The iOS Shortcut authenticates with a **Capture Upload Token** — a per-clinician 90-day secret prefixed `cct_…`. To generate one:
+`/capture` PWA uses your existing Clerk login — no token needed. Tokens (`cct_…`) only exist for anyone who wants to build their own automation (custom Shortcut, third-party app, scripted upload) outside the browser session.
+
+To generate a token if you ever need one:
 
 1. Sign in to NarrateRx as the clinician (or as a workspace owner viewing the clinician's profile)
 2. Clinician Profile → **Settings** tab → **Capture Companion** section
 3. Tap **Generate Token** — the value is displayed **once**, copy immediately
-4. Paste into the iOS Shortcut as the Bearer header value
-5. Token can be rotated or revoked from the same panel
+4. Token can be rotated or revoked from the same panel
 
-The PWA `/capture` page does NOT need a token — it uses your existing Clerk login. Token is only for the Shortcut path.
+The endpoint is `POST /api/capture/upload` with header `Authorization: Bearer cct_...` and the binary file body. Treat the token as a **Sensitive** secret; anyone who has one can upload to that clinician's identity.
 
 ---
 
@@ -145,8 +157,8 @@ All vendors ship to commercial / clinic addresses. Use the clinic shipping addre
 
 | Workspace | Kit | Hero device | Upload path | Setup status |
 |---|---|---|---|---|
-| **Move Better People** | Studio Kit, no new camera | ZV-1F (already owned) + clinic browser | PWA `/capture` | `video_pipeline_enabled = true` ✓ |
-| **Move Better Equine** | Mobile Kit | Whitney's iPhone | iOS Shortcut (1-tap) | `video_pipeline_enabled = true` ✓, Whitney's token generated ✓ |
+| **Move Better People** | Studio Kit, no new camera | ZV-1F (already owned) + clinic browser | PWA `/capture` (browser bookmark or home-screen) | `video_pipeline_enabled = true` ✓ |
+| **Move Better Equine** | Mobile Kit | Whitney's iPhone | PWA `/capture` added to home screen | `video_pipeline_enabled = true` ✓ |
 | **Move Better Animal Chiro** | TBD (likely Studio) | TBD | TBD | Pending Whitney's Equine validation |
 
 ## Productizing for external tenants
@@ -161,5 +173,6 @@ The wizard then surfaces the right runbook + the right setup steps. Both kits la
 
 ## Recent revisions
 
-- **v2 (2026-05-27)**: Restructured around Studio + Mobile kits. Cut the iPhone Pro Max recommendation. Made PWA `/capture` the default universal upload. iOS Shortcut becomes Mobile Kit only. Aligned with Move Better's actual rollout (People = Studio, Equine = Mobile, Animal = TBD).
-- **v1 (2026-05-26)**: Single $4,970 kit centered around iPhone 16 Pro Max. Retired — over-bought, under-flexible.
+- **v3 (2026-05-27)**: Retired iOS Shortcut as documented path — PWA "Add to Home Screen" gives identical one-tap UX in 30 seconds vs. a 20-min Shortcut build, and works on Android too. Token endpoint stays available for anyone who wants to build their own automation. Companion runbook `capture-companion-ios-shortcut.md` deleted.
+- **v2 (2026-05-27)**: Restructured around Studio + Mobile kits. Cut iPhone Pro Max recommendation. Made PWA `/capture` the default universal upload.
+- **v1 (2026-05-26)**: Single $4,970 kit centered around iPhone 16 Pro Max. Retired.
