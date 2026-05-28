@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   Settings, Mic2, Radio, Puzzle, Palette, Users, CreditCard, MapPin,
-  Sliders, Stethoscope,
+  Sliders, Stethoscope, Target,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { LoadingState } from '@/components/ui/LoadingState'
@@ -41,6 +41,7 @@ const GROUPS = [
       },
       { to: '/settings/workspace/locations', label: 'Locations',          icon: MapPin },
       { to: '/settings/workspace/channels',  label: 'Output channels',    icon: Radio },
+      { to: '/settings/campaigns',           label: 'Campaigns',          icon: Target },
       { to: '/settings/integrations',        label: 'Integrations',       icon: Puzzle },
       { to: '/settings/brand-kit',           label: 'Brand kit',          icon: Palette },
       { to: '/settings/carousel-themes',     label: 'Carousel themes',    icon: Palette },
