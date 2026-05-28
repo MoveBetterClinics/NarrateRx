@@ -202,9 +202,12 @@ async function handler(req, res) {
         }
         // Revert to trial with 14-day window.
         const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        // Null out customer_id too so a stray late invoice.payment_failed for
+        // this same customer can't re-find the workspace and flip it to past_due.
         await updateWorkspace(workspaceId, {
           plan: 'trial',
           plan_seats: 3,
+          stripe_customer_id: null,
           stripe_subscription_id: null,
           stripe_price_id: null,
           trial_ends_at: trialEndsAt,
@@ -221,15 +224,20 @@ async function handler(req, res) {
         const workspaceId = invoice.subscription_details?.metadata?.workspace_id
           ?? invoice.metadata?.workspace_id
         if (!workspaceId) {
-          // Try to look up workspace by customer ID as fallback.
+          // Try to look up workspace by customer ID as fallback. Skip any
+          // workspace whose stripe_subscription_id is null — that workspace
+          // already cancelled, and a late invoice for the final period must
+          // not relock it into past_due.
           const customerId = invoice.customer
           if (customerId) {
-            const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id&limit=1`)
+            const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&stripe_subscription_id=not.is.null&select=id&limit=1`)
             if (r.ok) {
               const rows = await r.json()
               if (rows[0]?.id) {
                 await updateWorkspace(rows[0].id, { plan: 'past_due' })
                 console.warn(`[billing/webhook] invoice.payment_failed: workspace ${rows[0].id} marked past_due`)
+              } else {
+                console.info(`[billing/webhook] invoice.payment_failed: no active workspace for customer ${customerId} — likely cancelled, ignoring`)
               }
             }
           } else {
