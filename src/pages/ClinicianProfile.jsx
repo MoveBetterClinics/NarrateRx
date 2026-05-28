@@ -7,6 +7,7 @@ import {
   Smartphone, Copy, Check, RotateCw, Sparkles,
 } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
+import EmptyState from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -265,13 +266,16 @@ export default function ClinicianProfile() {
       {activeTab === 'activity' && (
         <div className="px-6 py-6 space-y-8">
           {interviews.length === 0 ? (
-            <div className="text-center py-16">
-              <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground text-sm">No interviews yet for {clinician.name.split(' ')[0]}.</p>
-              <Button asChild size="sm" className="mt-4">
-                <Link to="/new">Start First Interview</Link>
-              </Button>
-            </div>
+            <EmptyState
+              icon={<MessageSquare className="h-5 w-5" />}
+              title={`No interviews yet for ${clinician.name.split(' ')[0]}`}
+              description="Each interview captures a clinician's voice on a topic and generates a story with publish-ready drafts. Start one to build this profile."
+              action={
+                <Button asChild size="sm">
+                  <Link to="/new">Start first interview</Link>
+                </Button>
+              }
+            />
           ) : (
             <>
               {inProgress.length > 0 && (
@@ -513,6 +517,19 @@ export default function ClinicianProfile() {
 
           {/* Light area below hero — existing voice components */}
           <div className="px-6 py-6 space-y-4">
+            {interviews.length === 0 && (
+              <EmptyState
+                size="sm"
+                icon={<MessageSquare className="h-4 w-4" />}
+                title="Voice profile starts with an interview"
+                description={`Run a first interview with ${clinician.name.split(' ')[0]} to begin extracting signature phrases and building their voice model.`}
+                action={
+                  <Button asChild size="sm">
+                    <Link to="/new">Start first interview</Link>
+                  </Button>
+                }
+              />
+            )}
             {isMyClinicianProfile && <VoicePlaybackCard clinician={clinician} />}
             {isMyClinicianProfile && <VoiceCloneCard clinician={clinician} />}
             <VoiceFreshnessCard clinicianId={clinician.id} clinicianName={clinician.name} />

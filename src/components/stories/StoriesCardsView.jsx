@@ -1,5 +1,6 @@
 import { useSearchParams, Link } from 'react-router-dom'
-import { BookOpen, FileText } from 'lucide-react'
+import { BookOpen, Mic } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import StoryCard from './StoryCard'
 import EmptyState from '@/components/EmptyState'
 
@@ -65,20 +66,21 @@ export default function StoriesCardsView({ stories = [], isLoading = false }) {
     }
 
     return (
-      <div className="text-center py-16">
-        <FileText className="mx-auto h-12 w-12 text-gray-300" />
-        <h3 className="mt-4 text-lg font-medium text-gray-900">No stories yet</h3>
-        <p className="mt-2 text-sm text-gray-500 max-w-sm mx-auto">
-          Start by running an interview with one of your clinicians.
-          Bernard will help turn the conversation into social content.
-        </p>
-        <Link
-          to="/new"
-          className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          Start your first interview →
-        </Link>
-      </div>
+      <EmptyState
+        icon={<Mic className="h-5 w-5" />}
+        title="No stories yet"
+        description="Each interview becomes a story — a cluster of publish-ready drafts your team can review and send out. Start one to see your first story here."
+        action={
+          <Button asChild size="sm">
+            <Link to="/new/live-interview">Start an interview</Link>
+          </Button>
+        }
+        secondaryAction={
+          <Button asChild size="sm" variant="outline">
+            <Link to="/new/import">Import existing content</Link>
+          </Button>
+        }
+      />
     )
   }
 
