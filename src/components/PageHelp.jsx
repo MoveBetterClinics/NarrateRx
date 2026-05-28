@@ -103,8 +103,8 @@ function Step({ icon, num, title, children }) {
         {num}
       </div>
       <div className="min-w-0">
-        <div className="flex items-center gap-1.5 font-medium">
-          {icon}
+        <div className="flex items-center gap-1.5 font-medium text-foreground">
+          <span className="text-primary shrink-0">{icon}</span>
           <span>{title}</span>
         </div>
         <p className="text-muted-foreground mt-0.5">{children}</p>
