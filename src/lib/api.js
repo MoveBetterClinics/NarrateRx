@@ -437,6 +437,36 @@ export async function populateContentItemProvenance(interviewId, trailer = '', p
   })
 }
 
+/**
+ * Fire-and-forget the two-pass voice-fidelity audit for an interview's blog
+ * content_item (PR 3). Resolves the content_item the same way provenance does,
+ * then asks the server to score it against the transcript + voice profile
+ * (+ practice memory for We-lane). Returns null on any resolution failure so
+ * callers can `.catch()` and move on without blocking the user.
+ * @param {string} interviewId
+ * @param {string} [platform]
+ * @returns {Promise<unknown>}
+ */
+export async function runVoiceAuditForInterview(interviewId, platform = 'blog') {
+  /** @type {unknown} */
+  let result
+  try {
+    result = await apiFetch(
+      `/api/db/content?interviewId=${encodeURIComponent(interviewId)}&platform=${encodeURIComponent(platform)}&limit=1`
+    )
+  } catch {
+    return null
+  }
+  const rows = /** @type {Array<{ id?: string }>} */ (Array.isArray(result) ? result : [])
+  const contentItemId = rows[0]?.id
+  if (!contentItemId) return null
+  return apiFetch('/api/content-items/voice-audit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentItemId }),
+  })
+}
+
 /** @param {string} itemId @returns {Promise<unknown>} */
 export function listContentItemDrafts(itemId) {
   return apiFetch(`/api/content-item-drafts?itemId=${encodeURIComponent(itemId)}`)

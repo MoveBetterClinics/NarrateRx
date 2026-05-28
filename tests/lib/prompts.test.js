@@ -5,6 +5,7 @@ import {
   getTonesForWorkspace,
   getInterviewSystemPrompt,
   getBlogPostSystemPrompt,
+  getVoiceAuditSystemPrompt,
 } from '../../src/lib/prompts.js'
 
 // Minimal workspace fixture — clinical mode (default).
@@ -224,5 +225,68 @@ describe('getBlogPostSystemPrompt — general mode', () => {
     expect(personal).toContain('PERSONAL VOICE')
     expect(personal).toContain('First-person throughout')
     expect(practice).not.toContain('PERSONAL VOICE')
+  })
+})
+
+describe('getVoiceAuditSystemPrompt', () => {
+  it('names the clinician and frames the pass as fidelity-only (not quality)', () => {
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith')
+    expect(prompt).toContain('Dr. Smith')
+    expect(prompt).toContain('voice-fidelity auditor')
+    // A rougher-but-faithful draft must outscore a smooth-but-paraphrased one.
+    expect(prompt).toContain('scores HIGHER')
+    // The 0-100 score the audit pass writes back to the row.
+    expect(prompt).toContain('voice_fidelity_score')
+  })
+
+  it('practice (We) lane includes all four drift types incl. fabricated_claim', () => {
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith', { voiceMode: 'practice' })
+    expect(prompt).toContain('vocabulary_swap')
+    expect(prompt).toContain('imposed_structure')
+    expect(prompt).toContain('smoothed_opinion')
+    expect(prompt).toContain('fabricated_claim')
+    expect(prompt).toContain('We-lane only')
+  })
+
+  it('defaults to practice lane when voiceMode is omitted', () => {
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith')
+    expect(prompt).toContain('fabricated_claim')
+  })
+
+  it('personal (I) lane omits fabricated_claim entirely', () => {
+    const prompt = getVoiceAuditSystemPrompt('Michael Quasney', { voiceMode: 'personal' })
+    expect(prompt).not.toContain('fabricated_claim')
+    // The other three drift types still apply to personal-voice content.
+    expect(prompt).toContain('vocabulary_swap')
+    expect(prompt).toContain('imposed_structure')
+    expect(prompt).toContain('smoothed_opinion')
+  })
+
+  it('includes the voice-phrases block when phrases are provided', () => {
+    const without = getVoiceAuditSystemPrompt('Dr. Smith', { voicePhrases: [] })
+    // Shape mirrors clinician_voice_phrases rows: [{ phrase }].
+    const withPhrases = getVoiceAuditSystemPrompt('Dr. Smith', {
+      voicePhrases: [{ phrase: 'moving better' }, { phrase: 'that deep ache' }],
+    })
+    expect(withPhrases.length).toBeGreaterThan(without.length)
+    expect(withPhrases).toContain('moving better')
+    expect(withPhrases).toContain('that deep ache')
+  })
+
+  it('includes the practice-memory block verbatim when passed', () => {
+    const block = 'PRACTICE MEMORY:\n- The clinic only treats active adults.'
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith', { practiceMemoryBlock: block })
+    expect(prompt).toContain(block)
+    // Omitting it leaves the block out.
+    const bare = getVoiceAuditSystemPrompt('Dr. Smith')
+    expect(bare).not.toContain('The clinic only treats active adults')
+  })
+
+  it('asks for a one-sentence summary and concrete per-flag suggestions', () => {
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith')
+    expect(prompt).toContain('one-sentence overall summary')
+    expect(prompt).toContain('suggestion')
+    // Typo guard — the final sentence must read "fidelity", not "fidulity".
+    expect(prompt).not.toContain('fidulity')
   })
 })
