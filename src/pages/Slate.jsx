@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert } from 'lucide-react'
+import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert, BarChart3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useClinicianSummaries } from '@/lib/queries'
@@ -9,6 +9,7 @@ import { toast } from '@/lib/toast'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import PackageCard from '@/components/slate/PackageCard'
+import CoveragePanel from '@/components/slate/CoveragePanel'
 
 const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
@@ -244,16 +245,19 @@ export default function Slate() {
         <div className="min-w-0">
           <p className="text-2xs font-bold uppercase tracking-widest opacity-85">Story Director</p>
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">
-            {view === 'triage' ? 'Triage Queue' :
-             view === 'consent' ? 'Consent Queue' :
-                                  "Today's Slate"}
+            {view === 'triage'   ? 'Triage Queue' :
+             view === 'consent'  ? 'Consent Queue' :
+             view === 'coverage' ? 'Capture Coverage' :
+                                   "Today's Slate"}
           </h1>
           <p className="text-sm opacity-80 mt-0.5">
             {view === 'triage'
               ? `${triagePackages.length} package${triagePackages.length !== 1 ? 's' : ''} need attention`
               : view === 'consent'
                 ? `${consentPackages.length} package${consentPackages.length !== 1 ? 's' : ''} awaiting consent decision`
-                : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                : view === 'coverage'
+                  ? 'Per-clinician capture activity and topic coverage gaps'
+                  : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
@@ -349,7 +353,24 @@ export default function Slate() {
             </span>
           )}
         </button>
+        <button
+          onClick={() => { setView('coverage'); setActiveClinicianId(null) }}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+            view === 'coverage'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <BarChart3 className="h-4 w-4 inline-block mr-1.5 -mt-0.5" />
+          Coverage
+        </button>
       </div>
+
+      {/* Coverage view short-circuits — package grid + chips + status strip don't apply. */}
+      {view === 'coverage' ? (
+        <CoveragePanel />
+      ) : (
+      <>
 
       {/* Clinician filter chips */}
       {activeClinicianIds.length > 1 && (
@@ -472,6 +493,9 @@ export default function Slate() {
               ))}
           </div>
         </details>
+      )}
+
+      </>
       )}
     </div>
   )
