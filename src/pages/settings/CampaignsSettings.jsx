@@ -11,6 +11,8 @@ import { apiFetch } from '@/lib/api'
 import { useClinicianSummaries } from '@/lib/queries'
 import { toast } from '@/lib/toast'
 import { useUserRole } from '@/lib/useUserRole'
+import { usePermission } from '@/lib/usePermission'
+import { CAP_CAMPAIGNS_EDIT } from '@/lib/capabilities'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 // Phase 4 Tentpole PR A — Multi-campaign admin surface.
@@ -90,7 +92,8 @@ const TONE_CLASS = {
 
 export default function CampaignsSettings() {
   useDocumentTitle('Settings — Campaigns')
-  const { role, isLoading: roleLoading } = useUserRole()
+  const { isLoading: roleLoading } = useUserRole()
+  const { has } = usePermission()
   const [campaigns, setCampaigns] = useState(null)
   const [error, setError] = useState(null)
   const [editing, setEditing] = useState(null) // null | 'new' | campaign object
@@ -125,7 +128,10 @@ export default function CampaignsSettings() {
   if (roleLoading) {
     return <div className="flex justify-center py-24"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
   }
-  if (role !== 'admin') return <Navigate to="/" replace />
+  // Phase 4 PR 4: capability gate. Producer has CAP_CAMPAIGNS_EDIT by default
+  // template — admins also pass (owner template has all caps). Non-admin
+  // clinicians and viewers are bounced.
+  if (!has(CAP_CAMPAIGNS_EDIT)) return <Navigate to="/" replace />
 
   return (
     <div className="flex flex-col gap-6">
