@@ -194,17 +194,21 @@ export default async function handler(req, res) {
         // genuine user utterance (length-of-speech ≥ 500ms tracked from
         // `input_audio_buffer.speech_started` / `speech_stopped`).
         //
-        // threshold bumped 0.5 → 0.6 (slightly less sensitive to ambient).
-        // silence_duration_ms stays 1200 (rides out mid-sentence thinking).
+        // threshold 0.65 (slightly less sensitive to ambient than 0.6).
+        // silence_duration_ms 2000 — 1200 was too short for natural
+        // mid-thought pauses; smoke after the 2026-05-24 ship had Bernard
+        // interrupting the clinician's thinking gaps. 2000ms rides out the
+        // typical "let me think for a second" pause without making Bernard
+        // feel laggy.
         //
         // interrupt_response stays true so when the user starts speaking
         // mid-Bernard, his in-flight response is cancelled — that's the right
         // duplex behavior.
         turn_detection: {
           type: 'server_vad',
-          threshold: 0.6,
+          threshold: 0.65,
           prefix_padding_ms:   300,
-          silence_duration_ms: 1200,
+          silence_duration_ms: 2000,
           create_response:     false,
           interrupt_response:  true,
         },

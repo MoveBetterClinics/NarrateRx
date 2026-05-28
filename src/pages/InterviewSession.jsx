@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/react'
 import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Check, RefreshCw, Send, Keyboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -138,6 +138,13 @@ export default function InterviewSession() {
   useDocumentTitle('Interview')
   const { clinicianId, interviewId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // wrap=1 is set by PhoneCall (Live Interview) when the user clicks End.
+  // Treated as a strong signal that the call is complete even if the
+  // realtime client's final PATCH to inject COMPLETE_TOKEN failed — without
+  // this, a failed PATCH dumps the user into chat-resume mode and the
+  // interview "starts again" instead of wrapping into blog generation.
+  const wrapHint = searchParams.get('wrap') === '1'
   const { user } = useUser()
   // Track the visual viewport height so the interview wrapper shrinks when
   // the iOS keyboard opens. `100dvh` accounts for the address bar but NOT
@@ -442,7 +449,13 @@ export default function InterviewSession() {
     }
     setMessages(restoredMessages)
 
-    if (restoredMessages.some((m) => m.content?.includes(COMPLETE_TOKEN))) {
+    const hasCompleteToken = restoredMessages.some((m) => m.content?.includes(COMPLETE_TOKEN))
+    // wrapHint covers the realtime-End path where the final PATCH may have
+    // failed before COMPLETE_TOKEN landed. As long as the realtime call
+    // produced at least one assistant turn we treat the conversation as
+    // complete and let the blog-gen effect take over.
+    const wrapFromRealtime = wrapHint && restoredMessages.some((m) => m.role === 'assistant')
+    if (hasCompleteToken || wrapFromRealtime) {
       setInterviewComplete(true)
     }
     if (restoredMessages.length > 0) {
