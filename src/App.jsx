@@ -41,6 +41,7 @@ const BrandKitPreview = lazy(() => import('@/pages/BrandKitPreview'))
 const BrandKitSettings = lazy(() => import('@/pages/BrandKitSettings'))
 const CarouselThemesSettings = lazy(() => import('@/pages/settings/CarouselThemesSettings'))
 const CampaignsSettings = lazy(() => import('@/pages/settings/CampaignsSettings'))
+const AutoPublishSettings = lazy(() => import('@/pages/settings/AutoPublishSettings'))
 import SettingsLayout from '@/components/SettingsLayout'
 const OnboardingBrandKit = lazy(() => import('@/pages/OnboardingBrandKit'))
 const Members = lazy(() => import('@/pages/Members'))
@@ -489,6 +490,7 @@ function AppRoutes() {
               <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />
               <Route path="/settings/carousel-themes" element={guarded(<CarouselThemesSettings />)} />
               <Route path="/settings/campaigns" element={guarded(<CampaignsSettings />)} />
+              <Route path="/settings/workspace/auto-publish" element={guarded(<AutoPublishSettings />)} />
               {/* Clerk-mounted pages use routing="path" so their deep links resolve. */}
               <Route path="/settings/members/*" element={guarded(<Members />)} />
             </Route>

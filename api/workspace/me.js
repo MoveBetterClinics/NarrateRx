@@ -42,6 +42,7 @@ const PATCHABLE_FIELDS = new Set([
   'buffer_use_queue',
   'schedule_prefs',
   'realtime_voice_daily_cap_min',
+  'auto_publish_settings',
 ])
 
 // Platforms recognized in schedule_prefs. Mirrors PLATFORM_SCHEDULE_PREFS in
@@ -107,6 +108,38 @@ function sanitizePublishTopics(value) {
     if (seen.has(t)) continue
     seen.add(t)
     out.push(t)
+  }
+  return out
+}
+
+// Channels that may appear in auto_publish_settings.
+// Only 'gbp' is wired at launch; others are accepted and stored so the UI
+// can surface them as "coming soon" without a future migration.
+const AUTO_PUBLISH_CHANNELS = new Set([
+  'gbp', 'instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'blog',
+])
+const DEFAULT_VOICE_FIDELITY_MIN = 7.0
+const DEFAULT_SIMILARITY_MIN     = 0.65
+
+// Shape: { [channel]: { enabled: bool, voice_fidelity_min?: number, similarity_min?: number } }
+// Returns {} (all-off) on null/empty. Returns null on bad shape.
+function sanitizeAutoPublishSettings(value) {
+  if (value === null || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) {
+    return {}
+  }
+  if (!isPlainObject(value)) return null
+  const out = {}
+  for (const [ch, entry] of Object.entries(value)) {
+    if (!AUTO_PUBLISH_CHANNELS.has(ch)) continue
+    if (!isPlainObject(entry)) return null
+    const enabled = Boolean(entry.enabled)
+    const vfMin = entry.voice_fidelity_min != null
+      ? parseFloat(entry.voice_fidelity_min) : DEFAULT_VOICE_FIDELITY_MIN
+    const simMin = entry.similarity_min != null
+      ? parseFloat(entry.similarity_min) : DEFAULT_SIMILARITY_MIN
+    if (!isFinite(vfMin) || vfMin < 0 || vfMin > 10) return null
+    if (!isFinite(simMin) || simMin < 0 || simMin > 1) return null
+    out[ch] = { enabled, voice_fidelity_min: vfMin, similarity_min: simMin }
   }
   return out
 }
@@ -429,6 +462,14 @@ async function handler(req, res) {
           return res.status(400).json({ error: 'invalid-schedule-prefs' })
         }
         patch.schedule_prefs = cleaned
+        continue
+      }
+      if (key === 'auto_publish_settings') {
+        const cleaned = sanitizeAutoPublishSettings(value)
+        if (cleaned === null) {
+          return res.status(400).json({ error: 'invalid-auto-publish-settings' })
+        }
+        patch.auto_publish_settings = cleaned
         continue
       }
       patch[key] = value
