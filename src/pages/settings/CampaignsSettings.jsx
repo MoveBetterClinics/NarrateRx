@@ -421,7 +421,7 @@ function CampaignEditor({ initial, onCancel, onSaved }) {
         </div>
       </Field>
 
-      <ClinicianTargetPicker
+      <StaffTargetPicker
         selected={form.target_clinician_ids}
         onChange={(ids) => set('target_clinician_ids', ids)}
       />
@@ -491,10 +491,14 @@ function Field({ label, hint, children }) {
   )
 }
 
-// Multi-select clinician picker. Empty selection = workspace-wide
-// (the default + most common case — most campaigns apply across all clinicians).
-function ClinicianTargetPicker({ selected, onChange }) {
-  const { data: clinicians = [], isLoading } = useClinicianSummaries()
+// Multi-select staff picker. Empty selection = workspace-wide
+// (the default + most common case — most campaigns apply across all staff).
+// "Staff" intentionally covers both clinicians AND non-clinical team members
+// who interview (admins, office managers, etc.) per the team-as-talent
+// principle. The underlying field name target_clinician_ids stays for
+// schema continuity; only the UI label changed.
+function StaffTargetPicker({ selected, onChange }) {
+  const { data: staff = [], isLoading } = useClinicianSummaries()
   const selectedSet = new Set(selected || [])
 
   function toggle(id) {
@@ -506,13 +510,13 @@ function ClinicianTargetPicker({ selected, onChange }) {
 
   return (
     <Field
-      label="Target clinicians"
-      hint="Empty = workspace-wide (campaign applies to every clinician's content). Pick specific clinicians to scope this campaign — e.g. Q's running seminar shouldn't bias Whitney's post-partum atoms."
+      label="Target staff"
+      hint="Empty = workspace-wide (campaign applies to every staff member's content). Pick specific staff to scope this campaign — e.g. Q's running seminar shouldn't bias Whitney's post-partum atoms."
     >
       {isLoading ? (
         <div className="text-xs text-muted-foreground py-2">Loading…</div>
-      ) : clinicians.length === 0 ? (
-        <div className="text-xs text-muted-foreground py-2">No clinicians in this workspace yet.</div>
+      ) : staff.length === 0 ? (
+        <div className="text-xs text-muted-foreground py-2">No staff in this workspace yet.</div>
       ) : (
         <div className="flex flex-col gap-1.5">
           <label
@@ -526,32 +530,32 @@ function ClinicianTargetPicker({ selected, onChange }) {
             <input type="checkbox" checked={selected.length === 0} readOnly className="pointer-events-none" />
             <div className="flex-1">
               <div className="text-sm font-semibold">Workspace-wide</div>
-              <div className="text-xs text-muted-foreground">Apply to every clinician at this workspace.</div>
+              <div className="text-xs text-muted-foreground">Apply to every staff member at this workspace.</div>
             </div>
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-            {clinicians.map((c) => (
+            {staff.map((s) => (
               <label
-                key={c.id}
+                key={s.id}
                 className={`flex items-center gap-2 px-2.5 py-2 rounded-md border text-sm cursor-pointer transition-colors ${
-                  selectedSet.has(c.id)
+                  selectedSet.has(s.id)
                     ? 'border-primary bg-primary/5'
                     : 'border-border hover:border-primary/40'
                 }`}
               >
                 <input
                   type="checkbox"
-                  checked={selectedSet.has(c.id)}
-                  onChange={() => toggle(c.id)}
+                  checked={selectedSet.has(s.id)}
+                  onChange={() => toggle(s.id)}
                 />
-                <span className="truncate">{c.name}</span>
+                <span className="truncate">{s.name}</span>
               </label>
             ))}
           </div>
           {selected.length > 0 && (
             <p className="text-2xs text-muted-foreground mt-0.5">
-              Targeting {selected.length} clinician{selected.length !== 1 ? 's' : ''}.
-              Atoms from other clinicians won&apos;t see this campaign&apos;s context.
+              Targeting {selected.length} staff member{selected.length !== 1 ? 's' : ''}.
+              Atoms from other staff won&apos;t see this campaign&apos;s context.
             </p>
           )}
         </div>

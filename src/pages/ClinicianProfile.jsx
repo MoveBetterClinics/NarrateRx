@@ -68,7 +68,7 @@ function phraseStrength(total) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function ClinicianProfile() {
-  useDocumentTitle('Clinician')
+  useDocumentTitle('Staff profile')
   const { clinicianId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
@@ -128,10 +128,10 @@ export default function ClinicianProfile() {
   async function handleDeleteClinician() {
     try {
       await deleteClinicianMut.mutateAsync({ id: clinicianId, userId: user.id })
-      toast.success(`Deleted ${clinician?.name || 'clinician'}`)
+      toast.success(`Deleted ${clinician?.name || 'staff member'}`)
       navigate('/')
     } catch (e) {
-      toast.error('Could not delete clinician', { description: e.message })
+      toast.error('Could not delete staff member', { description: e.message })
     }
   }
 
@@ -268,7 +268,7 @@ export default function ClinicianProfile() {
             <EmptyState
               icon={<MessageSquare className="h-5 w-5" />}
               title={`No interviews yet for ${clinician.name.split(' ')[0]}`}
-              description="Each interview captures a clinician's voice on a topic and generates a story with publish-ready drafts. Start one to build this profile."
+              description="Each interview captures a staff member's voice on a topic and generates a story with publish-ready drafts. Start one to build this profile."
               action={
                 <Button asChild size="sm">
                   <Link to="/new">Start first interview</Link>
@@ -559,7 +559,7 @@ export default function ClinicianProfile() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {deleteTarget?.type === 'clinician' ? 'Delete clinician profile?' : 'Delete interview?'}
+              {deleteTarget?.type === 'clinician' ? 'Delete staff profile?' : 'Delete interview?'}
             </DialogTitle>
             <DialogDescription>
               {deleteTarget?.type === 'clinician'
