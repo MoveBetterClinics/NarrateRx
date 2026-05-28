@@ -17,6 +17,7 @@ import {
   editMediaAsset,
 } from '@/lib/mediaLib'
 import { listContentPieces, createContentPiece, segmentMediaAsset } from '@/lib/contentLib'
+import { useClinicianSummaries } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast, runWithToast } from '@/lib/toast'
 import ContentBriefDetail from './ContentBriefDetail'
@@ -92,6 +93,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [status, setStatus]     = useState(asset.status || 'raw')
   const [assetPurpose, setAssetPurpose] = useState(defaultPurposeFor(asset))
   const [speakerRole, setSpeakerRole] = useState(asset.speaker_role || 'clinician')
+  const [clinicianId, setClinicianId] = useState(asset.clinician_id || '')
   const [aiTags, setAiTags]     = useState(asset.ai_tags || [])
   const [transcription, setTranscription] = useState(asset.transcription || '')
   const [visualNarrative, setVisualNarrative] = useState(asset.visual_narrative || '')
@@ -117,6 +119,13 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [downloadingOriginal, setDownloadingOriginal] = useState(false)
 
   const { canEdit, canArchive, canRestore, canPurge } = useUserRole()
+
+  // Workspace-scoped clinician roster. useClinicianSummaries hits
+  // /api/db/clinicians?view=card which resolves workspace from the Clerk
+  // token — no client-side workspace filtering needed.
+  const { data: clinicianRows = [] } = useClinicianSummaries()
+  const clinicians = Array.isArray(clinicianRows) ? clinicianRows : []
+  const currentClinician = clinicians.find((c) => c.id === (asset.clinician_id || ''))
 
   // Track when polling started for this asset, so we can cap at ~60s even if
   // the pipeline silently errored. Resets on asset.id change via the effect
@@ -175,6 +184,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setStatus(asset.status || 'raw')
     setAssetPurpose(asset.asset_purpose || (asset.kind === 'video' ? 'interview' : 'photo'))
     setSpeakerRole(asset.speaker_role || 'clinician')
+    setClinicianId(asset.clinician_id || '')
     setAiTags(asset.ai_tags || [])
     setTranscription(asset.transcription || '')
     setVisualNarrative(asset.visual_narrative || '')
@@ -252,6 +262,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
         // Server enforces speaker_role=null when purpose != interview, but
         // mirror the rule client-side so the optimistic state stays accurate.
         speakerRole: assetPurpose === 'interview' ? speakerRole : null,
+        clinicianId: clinicianId || null,
       })
       toast.success('Media details saved')
       onChange?.()
@@ -680,6 +691,43 @@ export default function MediaDetail({ asset, onClose, onChange }) {
                   ))}
                 </div>
               </div>
+            </div>
+
+            {/* Attributed clinician — drives the video lower-third, Haiku
+                caption persona, practice memory, and voice-phrase weaving.
+                Unattributed assets fall back to just the workspace name in
+                renders, so flag them prominently. */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Attributed to
+                </label>
+                {!clinicianId && (
+                  <span
+                    className="inline-flex items-center gap-1 text-3xs uppercase tracking-wide font-medium px-2 py-0.5 rounded-full bg-warning/15 text-warning border border-warning/30"
+                    title="No clinician attached — video renders fall back to the workspace name and AI captions can't apply this clinician's voice."
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    Unattributed
+                  </span>
+                )}
+                {clinicianId && currentClinician && (
+                  <span className="text-2xs text-muted-foreground truncate max-w-[60%]" title={currentClinician.name}>
+                    {currentClinician.name}
+                  </span>
+                )}
+              </div>
+              <select
+                value={clinicianId}
+                onChange={(e) => setClinicianId(e.target.value)}
+                disabled={!canEdit}
+                className="text-sm h-8 px-2 rounded-md border border-border bg-background text-foreground w-full sm:max-w-xs"
+              >
+                <option value="">(unattributed)</option>
+                {clinicians.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
             </div>
 
             {assetPurpose === 'interview' && (
