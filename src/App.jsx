@@ -50,6 +50,7 @@ const PreVisitMessage = lazy(() => import('@/pages/PreVisitMessage'))
 const AuthorMode = lazy(() => import('@/pages/AuthorMode'))
 const Book = lazy(() => import('@/pages/Book'))
 const EditorialTest = lazy(() => import('@/pages/EditorialTest'))
+const Slate = lazy(() => import('@/pages/Slate'))
 const Capture = lazy(() => import('@/pages/Capture'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
@@ -449,6 +450,8 @@ function AppRoutes() {
             <Route path="/library" element={guarded(<MediaHub />)} />
             {/* Universal PWA capture surface — works on any device with a browser + camera. */}
             <Route path="/capture" element={guarded(<Capture />)} />
+            {/* Phase 3 Story Director — daily story slate for producers + clinicians. */}
+            <Route path="/slate" element={guarded(<Slate />)} />
             {/* Internal dev surface — Phase 2 editorial pipeline test (search clips + render). */}
             <Route path="/internal/editorial-test" element={guarded(<EditorialTest />)} />
             {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}

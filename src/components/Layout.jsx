@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { UserButton, useAuth, useClerk } from '@clerk/react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
-import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
@@ -29,6 +29,9 @@ const NAV_ITEMS = [
   // — see filtering in the component body.
   { to: '/write',      label: 'Write',     match: (p) => p.startsWith('/write'), icon: PenLine,
     hideWhenBookMode: 'group' },
+  // Story Director slate — only visible when video pipeline is enabled.
+  { to: '/slate',      label: 'Slate',     match: (p) => p.startsWith('/slate'), icon: Clapperboard,
+    showWhen: (ws) => ws?.video_pipeline_enabled === true },
 ]
 
 export default function Layout({ children }) {
@@ -40,10 +43,14 @@ export default function Layout({ children }) {
   const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
   const logoAlt = ws?.display_name || ws?.name || STATIC_WORKSPACE.name
 
-  // Workspace-dependent nav filtering. The Write surface is a single-author
-  // typing environment; in group workspaces (book_mode='group') it's hidden
-  // because contributions come through interviews + voice memos instead.
-  const navItems = NAV_ITEMS.filter((it) => !it.hideWhenBookMode || ws?.book_mode !== it.hideWhenBookMode)
+  // Workspace-dependent nav filtering.
+  // hideWhenBookMode: hide this item when ws.book_mode equals the value.
+  // showWhen: predicate(ws) — item is only shown when it returns true.
+  const navItems = NAV_ITEMS.filter((it) => {
+    if (it.hideWhenBookMode && ws?.book_mode === it.hideWhenBookMode) return false
+    if (it.showWhen && !it.showWhen(ws)) return false
+    return true
+  })
 
   return (
     <div className="min-h-screen bg-background">
