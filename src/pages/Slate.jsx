@@ -309,6 +309,7 @@ export default function Slate() {
               clinicianName={clinicianMap[pkg.clinician_id]}
               onApprove={handleApprove}
               onSkip={handleSkip}
+              onUpdate={() => qc.invalidateQueries({ queryKey: ['story-packages'] })}
             />
           ))}
         </div>
