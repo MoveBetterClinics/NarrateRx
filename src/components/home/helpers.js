@@ -4,20 +4,29 @@
 
 export { getInitials } from '@/lib/utils'
 
-// Personalized greeting. Prefers Clerk firstName, falls back through fullName,
-// email local-part, then workspace app name. Time-of-day suffix is natural.
+// Personalized greeting. Prefers the user's configured display name
+// (unsafeMetadata.display_name, set on the clinician profile — e.g. "Dr. Q"),
+// then falls back through Clerk firstName, fullName, email local-part, and
+// finally the workspace app name. Time-of-day suffix is natural.
+//
+// The display name is used whole, not split to a first token: it's a
+// deliberate identity label ("Dr. Q", "Dr. Quasney") where the leading word
+// is meaningful — splitting "Dr. Q" to "Dr." would be wrong. Only the
+// firstName/fullName fallbacks take the first token.
 export function greetingFor(user, workspace) {
   const fallback = workspace?.app_name || workspace?.appName || 'Welcome'
   if (!user) return fallback
-  const first =
+  const displayName = user.unsafeMetadata?.display_name?.trim()
+  const name =
+    displayName ||
     user.firstName ||
     user.fullName?.split(' ')[0] ||
     user.primaryEmailAddress?.emailAddress?.split('@')[0]
-  if (!first) return fallback
+  if (!name) return fallback
   const hour = new Date().getHours()
   const tod =
     hour < 5 ? 'evening' : hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'
-  return `Good ${tod}, ${first}`
+  return `Good ${tod}, ${name}`
 }
 
 // "brian.smith@example.com" → "Brian Smith"
