@@ -9,7 +9,7 @@ const WELCOME_KEY = 'mediahub:welcomed:v1'
 //   1. First-visit auto-open (page-scoped via localStorage flag)
 //   2. "?" icon next to the page title
 //
-// Open to everyone — clinicians, admin staff, Philip — anyone who lands on
+// Open to everyone — clinicians, admin staff, editors — anyone who lands on
 // the Media page. Content adapts to who they are by emphasising the
 // shared workflow rather than role-gating sections.
 export default function MediaHubHelp() {
@@ -59,11 +59,11 @@ export default function MediaHubHelp() {
               </div>
 
               <p className="text-muted-foreground">
-                The Media Hub is where raw clinic capture and finished edits live together. The system suggests what each clip could become; an editor (typically Philip) takes accepted suggestions to CapCut, brings finished files back, then attaches them to posts in Content Hub.
+                The Media Hub is where raw clinic capture and finished edits live together. The system suggests what each clip could become; your editor takes accepted suggestions into a video editor like CapCut, brings the finished files back, then attaches them to posts in Content Hub.
               </p>
 
               <ol className="space-y-3">
-                <Step icon={<Icon as={Camera} size="md" />} num={1} title="Capture (Philip, in clinic)">
+                <Step icon={<Icon as={Camera} size="md" />} num={1} title="Capture (in clinic)">
                   Film treatment moments, demonstrations, and clinician explanations. Aim for 30–90s segments where something specific is being taught or shown. Patient consent (verbal at minimum, written when published as a piece featuring them) is required for anything that goes public.
                 </Step>
                 <Step icon={<Icon as={Upload} size="md" />} num={2} title="Upload">
@@ -96,7 +96,7 @@ export default function MediaHubHelp() {
               <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-2">
                 <div className="font-medium">For clinicians</div>
                 <p className="text-muted-foreground">
-                  You&apos;ll see this page if you&apos;re curious or want to flag a clip for the team. Browse, search by patient pseudonym or condition, and add a note on a clip if you spot something the team should turn into content. Philip handles the editing side.
+                  You&apos;ll see this page if you&apos;re curious or want to flag a clip for the team. Browse, search by patient pseudonym or condition, and add a note on a clip if you spot something the team should turn into content. Your editor handles the editing side.
                 </p>
               </div>
             </div>

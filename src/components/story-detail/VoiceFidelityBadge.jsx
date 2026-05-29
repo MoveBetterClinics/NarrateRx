@@ -26,8 +26,8 @@ const FLAG_LABELS = {
 function scoreTier(score) {
   if (score >= 90) return { label: 'Faithful', text: 'text-success', bg: 'bg-success/10', border: 'border-success/30', Icon: ShieldCheck }
   if (score >= 70) return { label: 'Mostly faithful', text: 'text-info', bg: 'bg-info/10', border: 'border-info/30', Icon: ShieldCheck }
-  if (score >= 50) return { label: 'Needs review', text: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/30', Icon: AlertTriangle }
-  return { label: 'Voice drift', text: 'text-destructive', bg: 'bg-destructive/10', border: 'border-destructive/30', Icon: AlertTriangle }
+  if (score >= 50) return { label: 'Worth a look', text: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/30', Icon: AlertTriangle }
+  return { label: 'Doesn\'t sound like you', text: 'text-destructive', bg: 'bg-destructive/10', border: 'border-destructive/30', Icon: AlertTriangle }
 }
 
 const SEVERITY_DOT = {
@@ -70,7 +70,7 @@ export default function VoiceFidelityBadge({ piece }) {
         </span>
         {flags.length > 0 && (
           <span className="text-2xs text-muted-foreground">
-            {flags.length} {flags.length === 1 ? 'flag' : 'flags'}
+            {flags.length} {flags.length === 1 ? 'thing to check' : 'things to check'}
           </span>
         )}
         {flags.length > 0 && (
