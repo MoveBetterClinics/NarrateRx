@@ -171,7 +171,7 @@ export default function HomeStats({ stories = [] }) {
           {typeof metrics.voiceMatch === 'number' ? `${metrics.voiceMatch}%` : '—'}
         </div>
         <div className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>
-          {typeof metrics.voiceMatch === 'number' ? 'across your last 20 pieces' : 'no provenance yet'}
+          {typeof metrics.voiceMatch === 'number' ? 'across your last 20 pieces' : 'Run an interview to start tracking'}
         </div>
       </div>
     </div>
