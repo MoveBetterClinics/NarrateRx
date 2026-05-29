@@ -140,7 +140,12 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
         '-t', String(MAX_RENDER_SECONDS),   // input-limit: only pull ~first 60s over HTTP range
         '-i', videoUrl,
         '-vf', 'scale=w=1920:h=1920:force_original_aspect_ratio=decrease:flags=lanczos',
-        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
+        // ultrafast: this proxy is a throwaway intermediate (re-encoded per
+        // channel at crf 23), so spend no CPU on its compression — decoding a
+        // 4K source is the slow part; a 60s 4K downscale at veryfast measured
+        // ~135s, which left no headroom under the 300s budget once channel
+        // renders + Whisper were added.
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26',
         '-c:a', 'aac', '-b:a', '128k',
         '-movflags', '+faststart',
         '-y', tmpInput,
