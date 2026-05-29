@@ -263,7 +263,7 @@ export default async function handler(req, res) {
   let clinicianName = ''
   const lookupClinicianId = clip.clinicianId || clinicianId
   if (lookupClinicianId) {
-    const cRes = await sb(`clinicians?id=eq.${lookupClinicianId}&select=name`)
+    const cRes = await sb(`clinicians?id=eq.${lookupClinicianId}&workspace_id=eq.${ws.id}&select=name`)
     if (cRes.ok) {
       const cRows = await cRes.json()
       clinicianName = cRows?.[0]?.name || ''
@@ -371,7 +371,7 @@ export default async function handler(req, res) {
   const finalStatus = renders.length > 0 ? 'complete' : 'failed'
   const errorMessage = errors.length ? errors.map((e) => `${e.channel}: ${e.error}`).join('; ') : null
 
-  await sb(`story_packages?id=eq.${packageId}`, {
+  await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({
       renders,
