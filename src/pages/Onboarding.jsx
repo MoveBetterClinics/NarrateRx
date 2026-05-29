@@ -17,10 +17,11 @@
 //
 // The component does NOT use the WorkspaceProvider (no workspace exists yet)
 // and does NOT use OrgGate (Clerk Org is created server-side at the claim step).
-// Just <ClerkProvider> + <Show when={isSignedIn}>.
+// Just <ClerkProvider> + a plain isLoaded/isSignedIn conditional (Clerk v6's
+// <Show> is an authorization gate, not a boolean conditional — see AuthScreen).
 
 import { useState, useEffect, useCallback } from 'react'
-import { Show, SignIn, SignUp, useAuth, useUser } from '@clerk/react'
+import { SignIn, SignUp, useAuth, useUser } from '@clerk/react'
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X, Clapperboard, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -322,7 +323,7 @@ function initialAuthMode() {
 }
 
 function AuthScreen({ capacity, onSignedIn }) {
-  const { isSignedIn } = useUser()
+  const { isSignedIn, isLoaded } = useUser()
   const [mode, setMode] = useState(initialAuthMode)
   const remaining = capacity?.remaining
   const showBadge = typeof remaining === 'number' && remaining > 0
@@ -342,7 +343,12 @@ function AuthScreen({ capacity, onSignedIn }) {
           {remaining} founding {remaining === 1 ? 'spot' : 'spots'} left · founding price locked in for life
         </div>
       )}
-      <Show when={!isSignedIn}>
+      {/* Clerk v6's <Show> is an authorization gate, not a boolean conditional —
+          a boolean `when` falls through to the signed-out fallback and renders
+          nothing, so we gate on isLoaded/isSignedIn directly. (PR fixing the
+          onboarding first-screen blank state after the Core 3 upgrade.) */}
+      {!isLoaded ? null : !isSignedIn ? (
+        <>
         {/* "What you'll need" pre-screen so brand-new users don't bail mid-flow.
             Shown only to signed-out users — returning users skip it. */}
         <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1.5">
@@ -375,10 +381,10 @@ function AuthScreen({ capacity, onSignedIn }) {
             ? <SignUp routing="hash" appearance={{ elements: { rootBox: 'mx-auto', card: 'shadow-none border' } }} />
             : <SignIn routing="hash" appearance={{ elements: { rootBox: 'mx-auto', card: 'shadow-none border' } }} />}
         </div>
-      </Show>
-      <Show when={isSignedIn}>
+        </>
+      ) : (
         <SignedInPrompt onContinue={onSignedIn} />
-      </Show>
+      )}
     </Card>
   )
 }
