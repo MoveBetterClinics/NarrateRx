@@ -146,7 +146,7 @@ export default function Home() {
     [stories, isStaff]
   )
 
-  // ── Task bucket 4: Hasn't interviewed in a while ────────────────────────────
+  // ── Task bucket 4: Due for an interview ─────────────────────────────────────
   // Clinicians with 0 interviews OR most recent interview > 30 days ago
   const overdueClinicianItems = useMemo(() => {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
@@ -191,8 +191,8 @@ export default function Home() {
     myStories:    '#7c3aed', // violet
     ready:        '#d97706', // amber  — drafting needed
     review:       '#e36525', // primary orange — your action queue
-    distribute:   '#059669', // emerald
-    overdue:      '#0284c7', // sky
+    distribute:   '#e36525', // primary orange — "act now" publisher surface (was emerald; green read as "done")
+    overdue:      '#64748b', // slate — informational, not an urgent action (was sky-blue; violated brand rule)
   }
 
   return (
@@ -224,13 +224,6 @@ export default function Home() {
           above HomeStats so the founder's first task lands above the fold. */}
       <OnboardingCard />
 
-      {/* Stat row — pulled from useStories, no extra fetch. Wired to real
-          data (interviews this week, drafts awaiting work + piece-platform
-          breakdown, published last-30d + delta, voice-match average across
-          recent pieces' provenance). Hidden when the workspace has no
-          stories yet so the onboarding flow stays focused. */}
-      {stories.length > 0 ? <HomeStats stories={stories} /> : null}
-
       {/* Pre-roll: one section at a time. Priority: resume in-progress >
           coverage gaps (active workspace) > getting started (new workspace). */}
       {resumeInterviews.length > 0 ? (
@@ -246,6 +239,13 @@ export default function Home() {
       ) : (
         <GettingStarted />
       )}
+
+      {/* Stat row — context, not the primary action. Sits below the
+          action-oriented pre-roll so the founder's first glance lands on
+          "what to do next", with performance stats as supporting context.
+          Pulled from useStories, no extra fetch. Hidden when the workspace
+          has no stories yet so onboarding stays focused. */}
+      {stories.length > 0 ? <HomeStats stories={stories} /> : null}
 
       {/* Main content: task buckets left, right rail right */}
       <div className="flex gap-6">
@@ -353,7 +353,7 @@ export default function Home() {
 
           <TaskBucketCard
             id="overdue"
-            title="Hasn't interviewed in a while"
+            title="Due for an interview"
             icon={<Clock className="h-4 w-4" />}
             accent={ACCENT.overdue}
             items={overdueClinicianItems}
