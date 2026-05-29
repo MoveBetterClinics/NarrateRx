@@ -26,8 +26,8 @@ import { generateText } from 'ai'
 import { put as blobPut } from '@vercel/blob'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import { createWriteStream } from 'node:fs'
-import { readFile, unlink } from 'node:fs/promises'
+import { createWriteStream, createReadStream } from 'node:fs'
+import { stat, unlink } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -125,6 +125,7 @@ async function submitRunwayJob({ promptText, ratio = '1280:768', duration = 5 })
  */
 async function pollRunwayTask(taskId) {
   const deadline = Date.now() + POLL_MAX_MS
+  let consecutiveFailures = 0
   while (Date.now() < deadline) {
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
 
@@ -132,9 +133,21 @@ async function pollRunwayTask(taskId) {
       headers: runwayHeaders(),
     })
     if (!res.ok) {
-      console.warn(`[syntheticBroll] poll ${taskId} status=${res.status}`)
+      // Auth/permission failures never recover — bail immediately rather than
+      // burning the full 3-minute poll window on a request that will keep 401ing.
+      if (res.status === 401 || res.status === 403) {
+        throw new Error(`Runway poll auth failed ${res.status} for task ${taskId}`)
+      }
+      // Transient errors (5xx, 429): tolerate a few, then give up so we surface
+      // broll_status='failed' fast instead of timing out.
+      consecutiveFailures += 1
+      console.warn(`[syntheticBroll] poll ${taskId} status=${res.status} (failure ${consecutiveFailures})`)
+      if (consecutiveFailures >= 5) {
+        throw new Error(`Runway poll failed ${consecutiveFailures}x in a row (last status ${res.status})`)
+      }
       continue
     }
+    consecutiveFailures = 0
 
     const data = await res.json()
     if (data.status === 'SUCCEEDED') {
@@ -165,11 +178,15 @@ async function uploadGeneratedVideo({ videoUrl, workspace, clinicianId, topic })
     if (!r.ok) throw new Error(`Runway download failed: ${r.status}`)
     await pipeline(Readable.fromWeb(r.body), createWriteStream(tmpPath))
 
-    const bytes = await readFile(tmpPath)
+    // Read the file size via stat (cheap, metadata-only) rather than buffering
+    // the whole MP4 into RAM with readFile — a >500MB clip would OOM the 1024MB
+    // function. blobPut accepts a Node Readable, so we stream the temp file
+    // straight to Blob; peak memory stays bounded by the stream buffer.
+    const { size: sizeBytes } = await stat(tmpPath)
     const assetId = randomUUID()
     const pathname = `media/raw/${workspace.slug}/synthetic/${assetId}.mp4`
 
-    const blob = await blobPut(pathname, bytes, {
+    const blob = await blobPut(pathname, createReadStream(tmpPath), {
       access: 'public',
       contentType: 'video/mp4',
       addRandomSuffix: false,
@@ -188,7 +205,7 @@ async function uploadGeneratedVideo({ videoUrl, workspace, clinicianId, topic })
         blob_url: blob.url,
         blob_pathname: pathname,
         mime_type: 'video/mp4',
-        size_bytes: bytes.length,
+        size_bytes: sizeBytes,
         filename: `synthetic-${topic.slice(0, 40).replace(/\s+/g, '-')}.mp4`,
         visual_narrative: `AI-generated b-roll for topic: ${topic}`,
         ai_tags: ['ai-generated', 'synthetic-broll'],
