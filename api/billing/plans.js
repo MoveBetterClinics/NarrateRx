@@ -38,7 +38,7 @@ const PLANS = [
   {
     id: 'multi',
     name: 'Multi-location',
-    price: 599,
+    price: 499,
     seats: 999,
     priceId: process.env.STRIPE_PRICE_MULTI || null,
     features: [
