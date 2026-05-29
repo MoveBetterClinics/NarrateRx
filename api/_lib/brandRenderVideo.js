@@ -29,8 +29,14 @@ import { buildBrandOverlaySvg, resolveBrandColors } from './brandRender.js'
 import { getBrandFont, ensureFontconfig } from './brandFonts.js'
 import { transcribeToSrt } from './whisper.js'
 
-// Max source video size we'll download. ZV-1F 4K clips can be large; cap at 500MB.
+// Fast-path threshold: sources at/below this stream to /tmp untouched (the
+// original is preserved for the render). ZV-1F 4K clips can be large.
 const MAX_VIDEO_BYTES = 500 * 1024 * 1024
+// Absolute ingest ceiling. Sources between MAX_VIDEO_BYTES and this are
+// downscaled-on-ingest straight from the URL (the full original never lands on
+// the function's ephemeral /tmp); beyond this we refuse rather than spend
+// minutes transcoding a pathological upload.
+const MAX_INGEST_BYTES = 4 * 1024 * 1024 * 1024 // 4GB
 
 /**
  * Channel specs for video rendering.
@@ -100,18 +106,44 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
   const tmpOutput  = `/tmp/vid-out-${id}.mp4`
 
   try {
-    // ── 1. Stream download source video ─────────────────────────────────────
-    const fetchRes = await fetch(videoUrl)
-    if (!fetchRes.ok) throw new Error(`Source video fetch failed: ${fetchRes.status}`)
-    const contentLength = parseInt(fetchRes.headers.get('content-length') || '0', 10)
-    if (contentLength > MAX_VIDEO_BYTES) {
-      throw new Error(`Source video too large: ${Math.round(contentLength / 1e6)}MB (max ${MAX_VIDEO_BYTES / 1e6}MB)`)
+    // ── 1. Obtain a render-ready source on /tmp ──────────────────────────────
+    // Small sources stream to disk untouched (fast path, unchanged behavior).
+    // Large sources (a clinician's raw 4K footage can be 1-2GB) won't fit
+    // alongside the render output on the function's ephemeral /tmp, so we
+    // transcode-downscale straight from the source URL: ffmpeg reads it over
+    // HTTPS with range requests (no full copy to /tmp, and it can seek to a
+    // trailing moov atom on non-faststart MP4s) and writes a ≤1080p proxy.
+    // Every VIDEO_CHANNEL_SPEC caps at 1080p, so downscaling on ingest costs no
+    // output quality. Found 2026-05-29: a 562MB source hard-failed the render.
+    const headRes = await fetch(videoUrl, { method: 'HEAD' }).catch(() => null)
+    const declaredLen = parseInt(headRes?.headers?.get('content-length') || '0', 10)
+    if (declaredLen > MAX_INGEST_BYTES) {
+      throw new Error(`Source video too large: ${Math.round(declaredLen / 1e6)}MB (max ${MAX_INGEST_BYTES / 1e6}MB)`)
     }
-    await pipeline(Readable.fromWeb(fetchRes.body), createWriteStream(tmpInput))
+
+    if (declaredLen > 0 && declaredLen <= MAX_VIDEO_BYTES) {
+      // Fast path — small enough to keep the original on /tmp.
+      const fetchRes = await fetch(videoUrl)
+      if (!fetchRes.ok) throw new Error(`Source video fetch failed: ${fetchRes.status}`)
+      await pipeline(Readable.fromWeb(fetchRes.body), createWriteStream(tmpInput))
+    } else {
+      // Large or unknown-size source — downscale-on-ingest from the URL so the
+      // full original never materializes on /tmp. ffmpeg fetches via HTTP range.
+      await runFfmpeg([
+        '-i', videoUrl,
+        '-vf', 'scale=w=1920:h=1920:force_original_aspect_ratio=decrease:flags=lanczos',
+        '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
+        '-c:a', 'aac', '-b:a', '128k',
+        '-movflags', '+faststart',
+        '-y', tmpInput,
+      ])
+    }
 
     const { size: actualSize } = await statP(tmpInput)
     if (actualSize > MAX_VIDEO_BYTES) {
-      throw new Error(`Downloaded video too large: ${Math.round(actualSize / 1e6)}MB`)
+      // Even the downscaled proxy overflowed the /tmp headroom (extremely long
+      // source). Bail clearly rather than risk a disk-full render failure.
+      throw new Error(`Source video too large to render: ${Math.round(actualSize / 1e6)}MB after downscale`)
     }
 
     // ── 2. Whisper transcription (best-effort) ───────────────────────────────
