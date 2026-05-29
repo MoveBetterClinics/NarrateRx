@@ -131,6 +131,20 @@ function OrgGate({ clerkOrgId, children }) {
   // returning null forever until manual reload.
   const [stuckLevel, setStuckLevel] = useState(0) // 0=ok, 1=loading-spinner, 2=offer-reload
 
+  // noMatchSettled: have we confirmed "loaded but no membership match" is REAL
+  // rather than a transient empty-list during cross-subdomain hydration? A hard
+  // navigation to a workspace subdomain (e.g. a PWA cold launch on /capture)
+  // can leave useOrganizationList reporting isLoaded:true with an empty
+  // memberships array for a beat before Clerk restores the session — which used
+  // to flash the "No access" card at a user who IS a member. We only treat
+  // no-match as settled after a grace window + one-shot reload (empty list), or
+  // immediately (non-empty list → the user genuinely isn't in this workspace).
+  const [noMatchSettled, setNoMatchSettled] = useState(false)
+  const membershipsEmpty = memberships.length === 0
+  // Provisional = loaded, no match, but the list is still empty (likely
+  // unhydrated). Hold here rather than rendering the dead-end card.
+  const noMatchProvisional = isLoaded && !match && membershipsEmpty && !noMatchSettled
+
   // Retry setActive periodically while !isActive. Clerk's setActive can
   // resolve without actually updating session.lastActiveOrganizationId
   // (especially after a cross-subdomain navigation where the session is
@@ -217,6 +231,43 @@ function OrgGate({ clerkOrgId, children }) {
     }
   }, [isActive, tokenReady])
 
+  // No-match hydration race: when loaded with no match AND an empty membership
+  // list, give Clerk a grace window to finish restoring the session, then
+  // auto-reload once (a fresh load reliably rehydrates the membership list on a
+  // cross-subdomain hard navigation — same escape hatch as the stuck-active
+  // path above). Only after that reload also yields nothing do we mark the
+  // no-match as settled, which surfaces the "No access" card. A non-empty list
+  // with no match skips this entirely (the user genuinely isn't a member).
+  useEffect(() => {
+    if (!noMatchProvisional) return
+    const key = 'narraterx:orggate-nomatch-reloaded'
+    const t = setTimeout(() => {
+      let reloaded = false
+      if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+        try {
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1')
+            console.warn('[OrgGate] loaded with empty memberships and no match within grace; auto-reloading once')
+            window.location.reload()
+            reloaded = true
+          } else {
+            console.error('[OrgGate] still no membership match after auto-reload; surfacing No access')
+          }
+        } catch { /* sessionStorage disabled — fall through to settle */ }
+      }
+      if (!reloaded) setNoMatchSettled(true)
+    }, 2500) // > the 2s active-flip floor; membership-list hydration is a superset
+    return () => clearTimeout(t)
+  }, [noMatchProvisional])
+
+  // Clear the no-match reload guard once a real match appears, so a later
+  // workspace switch in the same tab can auto-recover from this race again.
+  useEffect(() => {
+    if (match && typeof sessionStorage !== 'undefined') {
+      try { sessionStorage.removeItem('narraterx:orggate-nomatch-reloaded') } catch { /* noop */ }
+    }
+  }, [match])
+
   // Once the session says the right org is active, confirm the issued token
   // actually carries that org before letting children fetch any API routes.
   //
@@ -274,8 +325,8 @@ function OrgGate({ clerkOrgId, children }) {
   // Still loading org list, org switch pending, or token hasn't refreshed yet.
   // Returns a loading state instead of blank to avoid the "white screen until
   // manual reload" UX reported 2026-05-25.
-  if (!isLoaded || (match && (!isActive || !tokenReady))) {
-    if (stuckLevel === 0) return null // brief, normal-case — no flash
+  if (!isLoaded || (match && (!isActive || !tokenReady)) || noMatchProvisional) {
+    if (stuckLevel === 0 && !noMatchProvisional) return null // brief, normal-case — no flash
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="max-w-sm text-center space-y-3 p-8">
