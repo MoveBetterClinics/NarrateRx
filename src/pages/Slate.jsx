@@ -439,7 +439,7 @@ export default function Slate() {
           Triage
           {triagePackages.length > 0 && (
             <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
-              view === 'triage' ? 'bg-primary text-primary-foreground' : 'bg-amber-100 text-amber-800'
+              view === 'triage' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
             }`}>
               {triagePackages.length}
             </span>
@@ -457,7 +457,7 @@ export default function Slate() {
           Consent
           {consentPackages.length > 0 && (
             <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
-              view === 'consent' ? 'bg-primary text-primary-foreground' : 'bg-amber-100 text-amber-800'
+              view === 'consent' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
             }`}>
               {consentPackages.length}
             </span>
@@ -475,7 +475,7 @@ export default function Slate() {
           Brand QC
           {qcPackages.length > 0 && (
             <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
-              view === 'qc' ? 'bg-primary text-primary-foreground' : 'bg-amber-100 text-amber-800'
+              view === 'qc' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
             }`}>
               {qcPackages.length}
             </span>

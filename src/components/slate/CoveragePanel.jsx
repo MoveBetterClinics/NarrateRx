@@ -136,7 +136,7 @@ export default function CoveragePanel() {
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Per-clinician panel */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-2">
             <Camera className="h-3.5 w-3.5" />
             Clinician capture activity
@@ -160,7 +160,7 @@ export default function CoveragePanel() {
 
       {/* Per-topic panel */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-2">
             <Lightbulb className="h-3.5 w-3.5" />
             Topic coverage
