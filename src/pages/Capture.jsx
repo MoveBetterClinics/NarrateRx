@@ -11,6 +11,7 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
 import { uploadMedia } from '@/lib/mediaLib'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
+import ShotListCard from '@/components/capture/ShotListCard'
 
 // Universal capture page — PWA. Works on any device with a browser:
 //   • Mobile: "Take photo or video" opens the device's native camera
@@ -83,6 +84,15 @@ export default function Capture() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // V10 shooting director: a tapped directive seeds the capture note with its
+  // intent and opens the camera, so the upload lands tagged with what it's
+  // meant to cover. Video directives bias toward the camera; either way the
+  // clinician can still pick existing files.
+  const handlePickDirective = (d) => {
+    setSharedCaption(d.directive || d.title || d.topic || '')
+    cameraInputRef.current?.click()
+  }
 
   const handleFilesPicked = (event) => {
     const files = Array.from(event.target.files || [])
@@ -199,6 +209,10 @@ export default function Capture() {
           <span className="text-xs font-medium text-primary shrink-0">Install</span>
         </button>
       )}
+
+      {/* Shooting director (V10) — turns coverage gaps into capture directives.
+          Renders nothing when there are no gaps or the feature is disabled. */}
+      {pendingFiles.length === 0 && <ShotListCard onPick={handlePickDirective} />}
 
       {/* Capture entry points — only shown when nothing is queued */}
       {pendingFiles.length === 0 && (
