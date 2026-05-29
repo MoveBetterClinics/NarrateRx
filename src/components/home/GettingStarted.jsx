@@ -8,26 +8,26 @@ import { useOnboardingProgress } from '@/lib/queries'
 const STEPS = [
   {
     key: 'onboarding_interview',
-    label: 'Complete your voice setup',
-    description: 'Run the 5-minute founder interview so NarrateRx learns your practice\'s voice',
+    label: 'Set up your voice (about 5 minutes)',
+    description: 'Answer a few questions out loud so NarrateRx learns how you talk — then everything it writes sounds like you.',
     href: '/onboard/interview',
   },
   {
     key: 'run_first_interview',
-    label: 'Run your first interview',
-    description: 'Capture a clinician\'s perspective on a topic to generate your first story',
+    label: 'Record your first interview',
+    description: 'Talk for about 15 minutes about your work. This one conversation is what becomes a month of content.',
     href: '/new',
   },
   {
     key: 'approve_draft',
-    label: 'Approve your first draft',
-    description: 'Review a generated piece and approve it to move it into your publishing queue',
+    label: 'Review your first draft',
+    description: 'See what NarrateRx wrote from your own words — tweak anything you want, then approve it.',
     href: '/?bucket=review',
   },
   {
     key: 'publish',
-    label: 'Publish your first piece',
-    description: 'Send an approved piece to a connected channel to complete the loop',
+    label: 'Publish your first post',
+    description: 'Send it live to your blog, social, or Google. That\'s the whole loop — done.',
     href: '/stories',
   },
 ]
@@ -83,7 +83,7 @@ export default function GettingStarted() {
 
   return (
     <div className="rounded-2xl border border-[#f3d3b5] bg-gradient-to-b from-white to-[#fefaf7] p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-18px_rgba(227,101,37,0.22)]">
-      <div className="flex items-start justify-between gap-3 mb-4">
+      <div className="flex items-start justify-between gap-3 mb-1">
         <div className="flex items-center gap-2">
           <span
             className="inline-block w-1 h-5 rounded-full shrink-0"
@@ -92,9 +92,6 @@ export default function GettingStarted() {
           />
           <Icon as={Sparkles} size="md" className="text-primary" />
           <h2 className="text-xl font-bold tracking-tight">Getting started</h2>
-          <span className="text-xs text-muted-foreground">
-            · {doneCount} of {items.length} done
-          </span>
         </div>
         <button
           type="button"
@@ -104,6 +101,29 @@ export default function GettingStarted() {
         >
           <Icon as={X} size="md" />
         </button>
+      </div>
+
+      <p className="text-sm text-muted-foreground ml-3 mb-4">
+        {doneCount === 0
+          ? 'Four quick steps to your first post — written in your own voice.'
+          : doneCount === items.length - 1
+            ? 'One step left — publish and you\'ve done the whole loop.'
+            : 'Nice progress. Keep going to your first published post.'}
+      </p>
+
+      {/* Progress bar — the visual "how far am I" signal. */}
+      <div className="ml-3 mb-5" aria-hidden="true">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-2 rounded-full bg-primary/10 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-500 ease-out"
+              style={{ width: `${(doneCount / items.length) * 100}%` }}
+            />
+          </div>
+          <span className="text-xs font-semibold text-primary tabular-nums shrink-0">
+            {doneCount} / {items.length}
+          </span>
+        </div>
       </div>
 
       <ul className="space-y-2">
