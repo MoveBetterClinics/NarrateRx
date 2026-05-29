@@ -454,7 +454,10 @@ export default function InterviewSession() {
     // failed before COMPLETE_TOKEN landed. As long as the realtime call
     // produced at least one assistant turn we treat the conversation as
     // complete and let the blog-gen effect take over.
-    const wrapFromRealtime = wrapHint && restoredMessages.some((m) => m.role === 'assistant')
+    // Gate on from=realtime so a bookmarked or shared URL containing ?wrap=1
+    // can't skip straight to blog generation for non-realtime interviews.
+    const fromRealtime = searchParams.get('from') === 'realtime'
+    const wrapFromRealtime = wrapHint && fromRealtime && restoredMessages.some((m) => m.role === 'assistant')
     if (hasCompleteToken || wrapFromRealtime) {
       setInterviewComplete(true)
     }
