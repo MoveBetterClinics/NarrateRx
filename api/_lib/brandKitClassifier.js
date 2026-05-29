@@ -137,6 +137,24 @@ export function scoreRoleCandidates(asset) {
   if (tok.some((t) => ['cover','banner','header'].includes(t)) && (asset.width || 0) >= 1200)
                                                               out.push({ role: 'social_cover', confidence: 0.84 })
 
+  // Filename fallback for vector / uninferrable assets. SVGs skip sharp
+  // attribute inference (see api/brand-kit/upload.js), so their
+  // shape/background/color_mode stay unknown and every attribute-gated logo
+  // branch above misses — an SVG logo would score 0 for every role and could
+  // never be auto-assigned. Since clinic logos are frequently SVG, surface a
+  // primary_logo candidate when the filename clearly names a logo. Confidence
+  // sits just above the client auto-assign threshold (0.7) but below the
+  // upload-time silent-assign bar (0.75), so the user still confirms it.
+  const attrsUnknown = asset.shape == null
+    && (asset.background == null || asset.background === 'unknown')
+    && (asset.color_mode == null || asset.color_mode === 'unknown')
+  const looksLikeLogo = ['logo', 'primary', 'wordmark', 'symbol', 'emblem', 'glyph'].some((t) => tok.includes(t))
+  const alreadyHasLogoRole = out.some((c) =>
+    ['primary_logo', 'mark_only', 'wordmark_only', 'favicon'].includes(c.role))
+  if (attrsUnknown && looksLikeLogo && !alreadyHasLogoRole) {
+    out.push({ role: 'primary_logo', confidence: 0.72 })
+  }
+
   return out.sort((a, b) => b.confidence - a.confidence).slice(0, 3)
 }
 
