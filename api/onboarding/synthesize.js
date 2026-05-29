@@ -200,9 +200,13 @@ export default async function handler(req, res) {
     }
   }
 
-  // After this point, on any failure we must revert status back to
-  // 'completed' so the user can retry — otherwise the row is stuck in
-  // 'synthesizing' forever.
+  // After the claim and BEFORE the workspace PATCH succeeds, any failure
+  // should revert status to 'completed' so the user can retry safely.
+  // IMPORTANT: do NOT call revertClaim() after the workspace PATCH has
+  // succeeded — the workspace fields are already correct, and reverting
+  // would allow a retry that re-runs the merge, doubling pain_points (the
+  // AI rarely produces byte-identical strings so Set-dedup won't catch it).
+  // The markR failure path intentionally omits revertClaim for this reason.
   const revertClaim = async () => {
     try {
       await sb(
@@ -413,7 +417,10 @@ export default async function handler(req, res) {
       updated_at: new Date().toISOString(),
     }),
   })
-  if (!markR.ok) { await revertClaim(); return dbErr(res, markR, 'Interview update failed') }
+  // Do NOT revertClaim() here — workspace data is already written correctly.
+  // Leaving the interview at 'synthesizing' blocks retry (allowed-statuses
+  // gate requires 'completed'), preventing pain_points from doubling.
+  if (!markR.ok) { return dbErr(res, markR, 'Interview update failed') }
 
   return ok(res, {
     ok: true,
