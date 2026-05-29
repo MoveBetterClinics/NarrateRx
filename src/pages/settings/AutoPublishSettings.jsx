@@ -22,7 +22,7 @@ const CHANNELS = [
   { id: 'blog',      label: 'Blog (website)',         icon: FileText,  status: 'soon' },
 ]
 
-const DEFAULT_VOICE_FIDELITY_MIN = 7.0
+const DEFAULT_VOICE_FIDELITY_MIN = 70
 const DEFAULT_SIMILARITY_MIN     = 0.65
 
 function channelDefaults(existing = {}) {
@@ -169,19 +169,18 @@ export default function AutoPublishSettings() {
                       Min voice fidelity score
                     </Label>
                     <span className="text-xs font-mono tabular-nums">
-                      {ch.voice_fidelity_min.toFixed(1)} / 10
+                      {Math.round(ch.voice_fidelity_min)} / 100
                     </span>
                   </div>
                   <input
-                    type="range" min={5} max={10} step={0.1}
+                    type="range" min={50} max={100} step={1}
                     value={ch.voice_fidelity_min}
                     onChange={(e) => setChannel(id, { voice_fidelity_min: parseFloat(e.target.value) })}
                     className="w-full h-2 rounded-full accent-primary cursor-pointer"
                   />
                   <p className="text-2xs text-muted-foreground">
-                    Default 7.0. Packages below this score are held for manual review.
-                    The V1 baseline average is 5.97 — 7.0 lets through packages that
-                    genuinely sound like the clinician.
+                    Default 70. Packages below this score are held for manual review.
+                    Rubric: 90–100 = on-voice, 70–89 = mostly faithful, 50–69 = noticeable drift.
                   </p>
                 </div>
 

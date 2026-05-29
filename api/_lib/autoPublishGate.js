@@ -11,7 +11,7 @@
 // Returns the set of channels that are both enabled in workspace settings
 // AND cleared by all four signals.
 
-const DEFAULT_VOICE_FIDELITY_MIN = 7.0
+const DEFAULT_VOICE_FIDELITY_MIN = 70
 const DEFAULT_SIMILARITY_MIN     = 0.65
 
 // Channels wired to the auto-publish cron at launch.
