@@ -16,7 +16,8 @@ export const config = { runtime: 'nodejs' }
 import { evaluate } from '../_lib/autoPublishGate.js'
 import { getCredential } from '../_lib/getCredential.js'
 import { prepareMediaForBuffer } from '../_lib/prepareMediaForBuffer.js'
-import { getActiveCampaigns, filterCampaignsForClinician } from '../_lib/tentpoleCampaignContext.js'
+import { filterCampaignsForClinician } from '../_lib/tentpoleCampaignContext.js'
+import { getActiveCampaigns } from '../_lib/activeCampaigns.js'
 
 const SUPABASE_URL  = process.env.SUPABASE_URL
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY
