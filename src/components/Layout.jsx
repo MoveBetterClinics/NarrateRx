@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { UserButton, useAuth, useClerk } from '@clerk/react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
+import { useEnsureSelfClinician } from '@/lib/useEnsureSelfClinician'
 import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -54,6 +55,9 @@ export default function Layout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const ws = useWorkspace()
   const selfClinicianId = useSelfClinicianId()
+  // Provision a Self staff/clinician row on first load for invited talent so
+  // "My staff profile" appears without waiting for their first interview.
+  useEnsureSelfClinician()
   const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
   const logoAlt = ws?.display_name || ws?.name || STATIC_WORKSPACE.name
 

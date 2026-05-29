@@ -20,8 +20,8 @@
 // Just <ClerkProvider> + a plain isLoaded/isSignedIn conditional (Clerk v6's
 // <Show> is an authorization gate, not a boolean conditional — see AuthScreen).
 
-import { useState, useEffect, useCallback } from 'react'
-import { SignIn, SignUp, useAuth, useUser } from '@clerk/react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { SignIn, SignUp, useAuth, useUser, useOrganizationList } from '@clerk/react'
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X, Clapperboard, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -392,32 +392,88 @@ function AuthScreen({ capacity, onSignedIn }) {
 function SignedInPrompt({ onContinue }) {
   const { user } = useUser()
   const { getToken } = useAuth()
+  // Client-side view of the user's org memberships. Clerk hydrates this from the
+  // session immediately, well before the server-side getOrganizationMembershipList
+  // API (used by /api/onboarding/my-workspaces) reflects a just-accepted invite.
+  // We use it to tell "membership hasn't propagated to the server yet" (poll)
+  // apart from "genuinely brand-new user" (go straight to the wizard, no delay).
+  const { isLoaded: orgsLoaded, userMemberships } = useOrganizationList({
+    userMemberships: { infinite: true },
+  })
+  const clientMemberCount = userMemberships?.data?.length ?? 0
   const [state, setState] = useState({ status: 'loading', workspaces: [], suggested: [] })
+  // One-shot guard: the poll runs exactly once per mount. Without it, the
+  // paginated useOrganizationList subscription updating clientMemberCount
+  // mid-poll would re-enter the effect, cancel the in-flight run, and restart
+  // from attempt 0 — extending latency or settling on the wrong state.
+  const startedRef = useRef(false)
 
   useEffect(() => {
+    // Wait until Clerk's client-side membership list has loaded before deciding
+    // anything. Bailing while !orgsLoaded would route a just-invited user (whose
+    // memberships haven't hydrated yet) straight to the wizard. The effect
+    // re-runs when orgsLoaded flips true; startedRef ensures the loop body below
+    // executes only once.
+    if (!orgsLoaded || startedRef.current) return
+    startedRef.current = true
+
+    // Snapshot the client membership count at start — its later mutation must
+    // not affect a poll already in flight.
+    const hasClientMembership = clientMemberCount > 0
     let cancelled = false
+
+    async function fetchOnce() {
+      const token = await getToken()
+      const r = await fetch('/api/onboarding/my-workspaces', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!r.ok) throw new Error(`status ${r.status}`)
+      const data = await r.json()
+      return { workspaces: data.workspaces || [], suggested: data.suggested || [] }
+    }
+
     ;(async () => {
+      // Right after accepting a Clerk org invite, the server's membership list
+      // can lag the client's by a few seconds, so a single check returns zero
+      // workspaces and strands the invited user in the new-tenant wizard. When
+      // the client session shows the user DOES belong to an org but the server
+      // hasn't caught up, poll briefly before falling through. A truly new user
+      // (no client memberships) skips the poll entirely — no added latency.
+      const MAX_ATTEMPTS = 6        // 1 immediate check + up to 5×1s retries ≈ 5s
+      const RETRY_MS = 1000
       try {
-        const token = await getToken()
-        const r = await fetch('/api/onboarding/my-workspaces', {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (!r.ok) throw new Error(`status ${r.status}`)
-        const data = await r.json()
-        if (cancelled) return
-        const workspaces = data.workspaces || []
-        const suggested = data.suggested || []
-        // Invited-user happy path: exactly one workspace membership means we
-        // know where they belong. Skip the click-through entirely — the user
-        // just accepted an org invite and shouldn't have to think about
-        // "your workspace" pickers or "create another workspace" buttons that
-        // historically lured them into the new-tenant wizard.
-        if (workspaces.length === 1) {
-          setState({ status: 'redirecting', workspaces, suggested })
-          window.location.href = workspaces[0].url
-          return
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          const { workspaces, suggested } = await fetchOnce()
+          if (cancelled) return
+
+          // Happy path: exactly one membership means we know where they belong.
+          // Skip the click-through entirely — the user just accepted an org
+          // invite and shouldn't have to think about "your workspace" pickers or
+          // "create another workspace" buttons that historically lured them into
+          // the new-tenant wizard.
+          if (workspaces.length === 1) {
+            setState({ status: 'redirecting', workspaces, suggested })
+            window.location.href = workspaces[0].url
+            return
+          }
+
+          // Multiple memberships, a domain suggestion, or a settled brand-new
+          // user — nothing to wait for; show the appropriate UI.
+          if (workspaces.length > 1 || suggested.length > 0) {
+            setState({ status: 'done', workspaces, suggested })
+            return
+          }
+
+          // workspaces.length === 0. Only keep polling if the client session
+          // says the user belongs to an org the server hasn't surfaced yet.
+          const shouldPoll = hasClientMembership && attempt < MAX_ATTEMPTS - 1
+          if (!shouldPoll) {
+            setState({ status: 'done', workspaces, suggested })
+            return
+          }
+          await new Promise((resolve) => { setTimeout(resolve, RETRY_MS) })
+          if (cancelled) return
         }
-        setState({ status: 'done', workspaces, suggested })
       } catch {
         // On error, fall through to the wizard — better to let them create a
         // new workspace than to strand them.
@@ -425,7 +481,7 @@ function SignedInPrompt({ onContinue }) {
       }
     })()
     return () => { cancelled = true }
-  }, [getToken])
+  }, [getToken, orgsLoaded, clientMemberCount])
 
   if (state.status === 'loading') {
     return (
