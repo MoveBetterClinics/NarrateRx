@@ -247,7 +247,7 @@ async function handler(req, res) {
           // not relock it into past_due.
           const customerId = invoice.customer
           if (customerId) {
-            const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&stripe_subscription_id=not.is.null&select=id&limit=1`)
+            const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&stripe_subscription_id=not.is.null&status=eq.active&select=id&limit=1`)
             if (r.ok) {
               const rows = await r.json()
               if (rows[0]?.id) {
