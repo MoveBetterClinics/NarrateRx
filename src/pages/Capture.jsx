@@ -182,12 +182,12 @@ export default function Capture() {
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-6">
-      <Link to="/" className="inline-flex items-center text-sm text-zinc-600 hover:text-zinc-900 mb-4">
+      <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="w-4 h-4 mr-1" /> Home
       </Link>
 
       <h1 className="text-2xl font-semibold mb-1">Capture</h1>
-      <p className="text-sm text-zinc-600 mb-4">
+      <p className="text-sm text-muted-foreground mb-4">
         Snap a photo or short video, or pick existing files from anywhere. Works on any device with a camera or file browser.
       </p>
 
@@ -220,11 +220,11 @@ export default function Capture() {
           <button
             type="button"
             onClick={() => cameraInputRef.current?.click()}
-            className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border-2 border-zinc-200 hover:border-primary hover:bg-primary/5 transition"
+            className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition"
           >
             <Camera className="w-8 h-8 text-primary" />
             <span className="font-medium">Take photo or video</span>
-            <span className="text-xs text-zinc-500">Opens device camera</span>
+            <span className="text-xs text-muted-foreground">Opens device camera</span>
           </button>
           <input
             ref={cameraInputRef}
@@ -238,11 +238,11 @@ export default function Capture() {
           <button
             type="button"
             onClick={() => filePickerRef.current?.click()}
-            className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border-2 border-zinc-200 hover:border-primary hover:bg-primary/5 transition"
+            className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition"
           >
             <FolderOpen className="w-8 h-8 text-primary" />
             <span className="font-medium">Pick existing files</span>
-            <span className="text-xs text-zinc-500">From Photos, SD card, or downloads</span>
+            <span className="text-xs text-muted-foreground">From Photos, SD card, or downloads</span>
           </button>
           <input
             ref={filePickerRef}
@@ -264,34 +264,34 @@ export default function Capture() {
                 <CardContent className="pt-4 pb-4">
                   <div className="flex gap-3">
                     {(p.file.type || '').startsWith('video') ? (
-                      <video src={p.previewUrl} className="w-20 h-20 object-cover rounded bg-zinc-100 flex-shrink-0" muted playsInline />
+                      <video src={p.previewUrl} className="w-20 h-20 object-cover rounded bg-muted flex-shrink-0" muted playsInline />
                     ) : (
-                      <img src={p.previewUrl} alt="" className="w-20 h-20 object-cover rounded bg-zinc-100 flex-shrink-0" />
+                      <img src={p.previewUrl} alt="" className="w-20 h-20 object-cover rounded bg-muted flex-shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <span className="text-sm font-medium truncate" title={p.file.name}>{p.file.name}</span>
                         <div className="flex-shrink-0">
                           {p.status === 'pending' && (
-                            <button type="button" onClick={() => removePending(idx)} className="text-zinc-400 hover:text-zinc-700" aria-label="Remove">
+                            <button type="button" onClick={() => removePending(idx)} className="text-muted-foreground hover:text-foreground" aria-label="Remove">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                           {p.status === 'uploading' && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
-                          {p.status === 'done' && <Check className="w-4 h-4 text-green-600" />}
-                          {p.status === 'failed' && <AlertCircle className="w-4 h-4 text-red-600" />}
+                          {p.status === 'done' && <Check className="w-4 h-4 text-success" />}
+                          {p.status === 'failed' && <AlertCircle className="w-4 h-4 text-destructive" />}
                         </div>
                       </div>
-                      <div className="text-xs text-zinc-500 mb-1.5">
+                      <div className="text-xs text-muted-foreground mb-1.5">
                         {bytesLabel(p.file.size)} · {p.file.type || 'unknown type'}
                       </div>
                       {p.status === 'uploading' && (
-                        <div className="w-full bg-zinc-100 rounded h-1.5 overflow-hidden">
+                        <div className="w-full bg-muted rounded h-1.5 overflow-hidden">
                           <div className="bg-primary h-1.5 transition-all" style={{ width: `${p.progress}%` }} />
                         </div>
                       )}
                       {p.status === 'failed' && p.error && (
-                        <div className="text-xs text-red-600 mt-1">{p.error}</div>
+                        <div className="text-xs text-destructive mt-1">{p.error}</div>
                       )}
                     </div>
                   </div>
@@ -348,7 +348,7 @@ export default function Capture() {
 
           {/* Add more (always available, even while uploading) */}
           {!allDone && (
-            <div className="mt-3 text-center text-sm text-zinc-500">
+            <div className="mt-3 text-center text-sm text-muted-foreground">
               or{' '}
               <button
                 type="button"
