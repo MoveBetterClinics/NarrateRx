@@ -19,9 +19,9 @@ const REFETCH_INTERVAL_MS = 3000
 const TRIAGE_CONFIDENCE_THRESHOLD = 0.65  // packages below this need clinician attention
 const STALE_HOURS = 36  // unaddressed complete packages older than this land in triage
 // Phase 4 PR 3 — Brand QC threshold. Packages scoring below this on voice fidelity
-// (0-10 scale, matches V1 amber/green boundary in VoiceFidelityBadge) need a producer
+// (0-100 scale; 70 = "mostly faithful" per scorer rubric) need a producer
 // review before they ship. Excluded if a producer already approved them.
-const BRAND_QC_THRESHOLD = 7.0
+const BRAND_QC_THRESHOLD = 70
 
 async function fetchPackages() {
   // Fetch a wider window than the daily slate alone so the Triage tab has
@@ -555,7 +555,7 @@ export default function Slate() {
             <div>
               <p className="font-semibold text-base">Brand voice is on-key</p>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-                No packages are scoring below the {BRAND_QC_THRESHOLD.toFixed(1)} voice-fidelity threshold.
+                No packages are scoring below the {BRAND_QC_THRESHOLD}/100 voice-fidelity threshold.
                 Drafts that drift will surface here automatically.
               </p>
             </div>
