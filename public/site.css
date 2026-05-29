@@ -1196,6 +1196,8 @@ em { font-family: var(--serif); font-style: italic; font-weight: 500; }
   margin-top: 48px;
 }
 @media (max-width: 720px) { .uprice-grid { grid-template-columns: 1fr; } }
+.uprice-grid-3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 900px) { .uprice-grid-3 { grid-template-columns: 1fr; } }
 
 .uprice-card {
   background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg-card-2) 100%);
