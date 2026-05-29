@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Clapperboard, MapPin, Instagram, Facebook, Linkedin, Music2, Youtube, FileText, Info } from 'lucide-react'
+import { Clapperboard, MapPin, Instagram, Facebook, Linkedin, Music2, Youtube, FileText, Info, Zap } from 'lucide-react'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { SaveBar } from '@/components/settings/helpers'
@@ -22,7 +22,7 @@ const CHANNELS = [
   { id: 'blog',      label: 'Blog (website)',         icon: FileText,  status: 'soon' },
 ]
 
-const DEFAULT_VOICE_FIDELITY_MIN = 7   // 1–10 scale to match captionFidelity.js scorer output
+const DEFAULT_VOICE_FIDELITY_MIN = 7.0  // 1–10 scale to match captionFidelity.js scorer output
 const DEFAULT_SIMILARITY_MIN     = 0.65
 
 function channelDefaults(existing = {}) {
@@ -49,12 +49,24 @@ export default function AutoPublishSettings() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
   const [initialSnapshot, setInitialSnapshot] = useState(null)
+  const [history, setHistory] = useState(null)
 
   useEffect(() => {
     if (!ws) return
     const init = buildInitialState(ws.auto_publish_settings)
     setState(init)
     setInitialSnapshot(JSON.stringify(init))
+    // Load audit history: packages auto_published in the last 30 days.
+    apiFetch('/api/editorial/packages?status=approved&limit=50')
+      .then((rows) => {
+        const fired = Array.isArray(rows)
+          ? rows.filter((p) => p.auto_published_at).sort((a, b) =>
+              new Date(b.auto_published_at) - new Date(a.auto_published_at)
+            )
+          : []
+        setHistory(fired)
+      })
+      .catch(() => setHistory([]))
   }, [ws?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const isDirty = state !== null && initialSnapshot !== null && JSON.stringify(state) !== initialSnapshot
@@ -215,6 +227,45 @@ export default function AutoPublishSettings() {
           </Card>
         )
       })}
+
+      {history !== null && (
+        <div className="space-y-3">
+          <div>
+            <h3 className="flex items-center gap-1.5 text-sm font-medium"><Zap className="h-3.5 w-3.5 text-muted-foreground" />Auto-publish history</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Packages dispatched automatically in the last 30 days.
+            </p>
+          </div>
+          {history.length === 0 ? (
+            <p className="text-xs text-muted-foreground py-3">No packages have been auto-published yet.</p>
+          ) : (
+            <div className="divide-y rounded-md border text-xs">
+              {history.map((pkg) => {
+                const state = pkg.auto_publish_state || {}
+                const channels = Array.isArray(state.channels) ? state.channels : []
+                const vf = typeof pkg.voice_fidelity_score === 'number' ? pkg.voice_fidelity_score.toFixed(1) : '—'
+                const sim = typeof pkg.similarity === 'number' ? `${(pkg.similarity * 100).toFixed(0)}%` : '—'
+                const firedAt = pkg.auto_published_at
+                  ? new Date(pkg.auto_published_at).toLocaleString(undefined, {
+                      month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                    })
+                  : '—'
+                return (
+                  <div key={pkg.id} className="flex items-start justify-between gap-3 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{pkg.topic || '(no topic)'}</p>
+                      <p className="text-muted-foreground mt-0.5">
+                        {channels.length > 0 ? channels.join(', ') : 'GBP'} · VF {vf} · sim {sim}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-muted-foreground whitespace-nowrap">{firedAt}</div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       <SaveBar dirty={isDirty} saving={saving} onSave={handleSave} error={error} />
     </div>

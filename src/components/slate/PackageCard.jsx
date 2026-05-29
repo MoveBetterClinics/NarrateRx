@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target, Clapperboard } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target, Zap, Clapperboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
@@ -56,6 +56,38 @@ function VoiceFidelityBadge({ score, breakdown }) {
       {rounded.toFixed(1)}
     </span>
   )
+}
+
+// Shows auto-publish eligibility derived from auto_publish_state on the package.
+// Green = eligible for at least one channel. Amber = held with tooltip reason.
+// Null state (not yet evaluated) shows nothing.
+function AutoPublishBadge({ state }) {
+  if (!state) return null
+  if (state.eligible) {
+    const channels = state.channels?.join(', ') || ''
+    return (
+      <span
+        title={`Auto-publish eligible${channels ? ` (${channels})` : ''}`}
+        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-3xs font-bold text-white bg-emerald-500/90 backdrop-blur-sm"
+      >
+        <Zap className="h-2.5 w-2.5" />
+        Auto
+      </span>
+    )
+  }
+  if (Array.isArray(state.gated_reasons) && state.gated_reasons.length > 0) {
+    const tip = state.gated_reasons.map((r) => r.detail || r.signal).join(' · ')
+    return (
+      <span
+        title={`Held: ${tip}`}
+        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-3xs font-bold text-white bg-amber-500/80 backdrop-blur-sm cursor-help"
+      >
+        <Zap className="h-2.5 w-2.5" />
+        Held
+      </span>
+    )
+  }
+  return null
 }
 
 function SimilarityBadge({ similarity }) {
@@ -288,6 +320,7 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
                 score={pkg.voice_fidelity_score}
                 breakdown={pkg.voice_fidelity_breakdown}
               />
+              <AutoPublishBadge state={pkg.auto_publish_state} />
             </div>
             {renders.length > 0 && (
               <div className="absolute bottom-2 right-2 flex gap-1 flex-wrap justify-end">

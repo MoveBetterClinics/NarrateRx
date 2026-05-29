@@ -118,9 +118,9 @@ function sanitizePublishTopics(value) {
 const AUTO_PUBLISH_CHANNELS = new Set([
   'gbp', 'instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'blog',
 ])
-// voice_fidelity_score is stored 0–100 (scorer rubric: 90–100=on-voice, 70–89=mostly faithful,
-// 50–69=noticeable drift, <50=significant rewrite). Default gate = 70 (let through "mostly faithful").
-const DEFAULT_VOICE_FIDELITY_MIN = 70
+// voice_fidelity_score is stored 1–10 (captionFidelity.js mean of per-dimension scores).
+// Default gate = 7.0 (let through "mostly faithful"). See autoPublishGate.js.
+const DEFAULT_VOICE_FIDELITY_MIN = 7.0
 const DEFAULT_SIMILARITY_MIN     = 0.65
 
 // Shape: { [channel]: { enabled: bool, voice_fidelity_min?: number, similarity_min?: number } }
@@ -139,7 +139,7 @@ function sanitizeAutoPublishSettings(value) {
       ? parseFloat(entry.voice_fidelity_min) : DEFAULT_VOICE_FIDELITY_MIN
     const simMin = entry.similarity_min != null
       ? parseFloat(entry.similarity_min) : DEFAULT_SIMILARITY_MIN
-    if (!isFinite(vfMin) || vfMin < 0 || vfMin > 100) return null
+    if (!isFinite(vfMin) || vfMin < 0 || vfMin > 10) return null
     if (!isFinite(simMin) || simMin < 0 || simMin > 1) return null
     out[ch] = { enabled, voice_fidelity_min: vfMin, similarity_min: simMin }
   }

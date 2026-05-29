@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   // media_assets (declared in migration 088); we use the alias prefix
   // (source_asset:) to keep a stable name even if the table is renamed later.
   let query = `story_packages?workspace_id=eq.${ws.id}&order=created_at.desc&limit=${limit}&offset=${offset}`
-  query += `&select=id,topic,caption_text,similarity,channels,renders,status,error_message,created_at,source_asset_id,clinician_id,campaign_id,voice_fidelity_score,voice_fidelity_breakdown,source_asset:media_assets(consent_status,consent_notes),campaign:campaigns(id,name,content_style,event_at)`
+  query += `&select=id,topic,caption_text,similarity,channels,renders,status,error_message,created_at,source_asset_id,clinician_id,campaign_id,voice_fidelity_score,voice_fidelity_breakdown,auto_publish_state,auto_published_at,source_asset:media_assets(consent_status,consent_notes),campaign:campaigns(id,name,content_style,event_at)`
   if (status) query += `&status=eq.${status}`
   if (clinicianId) query += `&clinician_id=eq.${clinicianId}`
 
