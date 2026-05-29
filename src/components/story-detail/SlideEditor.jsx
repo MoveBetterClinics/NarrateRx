@@ -12,6 +12,7 @@ import {
   renderFreeformSlide,
 } from '@/lib/overlayTemplates'
 import { resolveTheme } from '@/lib/carouselThemes'
+import { ensureRenderedSlides } from '@/lib/renderSlides'
 
 // Role label + chip colors. Mirrors the mockup palette.
 const ROLE_META = {
@@ -506,7 +507,8 @@ export default function SlideEditor({ piece }) {
 
   const dirty = JSON.stringify(slides) !== savedSlidesJson || themeId !== (piece?.carousel_theme_id || null)
   const updateItem = useUpdateContentItem()
-  const saving = updateItem.isPending
+  const [rendering, setRendering] = useState(false)
+  const busy = updateItem.isPending || rendering
 
   function updateSlide(idx, next) {
     const out = slides.slice()
@@ -538,18 +540,48 @@ export default function SlideEditor({ piece }) {
   }
 
   async function handleSave() {
+    const cleaned = slides.map((s) => ({
+      photo_idx: typeof s.photo_idx === 'number' ? s.photo_idx : null,
+      template:  s.template,
+      blocks:    s.blocks.filter((b) => (b.text || '').trim() !== ''),
+    }))
+
+    // Bake each slide (photo + on-screen text) into an image and upload it, so
+    // the overlay actually ships at publish — it previously lived only on the
+    // preview canvas and never reached the post. Re-renders only changed slides.
+    let toPersist = cleaned
+    let renderFailed = false
+    setRendering(true)
     try {
-      const cleaned = slides.map((s) => ({
-        photo_idx: typeof s.photo_idx === 'number' ? s.photo_idx : null,
-        template:  s.template,
-        blocks:    s.blocks.filter((b) => (b.text || '').trim() !== ''),
-      }))
+      const { slides: rendered } = await ensureRenderedSlides({
+        slides:    cleaned,
+        mediaUrls: piece?.media_urls,
+        brandStyle,
+        theme,
+        themeId,
+        pieceId:   piece.id,
+      })
+      toPersist = rendered
+    } catch (e) {
+      // Never lose the user's text on a render/upload hiccup — persist the slide
+      // data anyway. Publish has its own render fallback, and re-saving retries.
+      renderFailed = true
+      console.warn('[SlideEditor] slide render failed, saving text only', e.message)
+    } finally {
+      setRendering(false)
+    }
+
+    try {
       await updateItem.mutateAsync({
         id: piece.id,
-        patch: { slides: cleaned, carousel_theme_id: themeId || null },
+        patch: { slides: toPersist, carousel_theme_id: themeId || null },
       })
       setSavedSlidesJson(JSON.stringify(cleaned))
-      toast.success('Slides saved')
+      if (renderFailed) {
+        toast.error('Saved, but slide images need a retry', { description: 'Text is safe — click Save again to bake the on-screen text into the images.' })
+      } else {
+        toast.success('Slides saved')
+      }
     } catch (e) {
       toast.error('Save failed', { description: e.message })
     }
@@ -572,9 +604,9 @@ export default function SlideEditor({ piece }) {
         </div>
         {dirty && (
           <div className="flex shrink-0 items-center gap-2">
-            <Button size="sm" variant="ghost" onClick={handleReset} disabled={saving}>Reset</Button>
-            <Button size="sm" onClick={handleSave} disabled={saving} loading={saving}>
-              {saving ? 'Saving…' : 'Save'}
+            <Button size="sm" variant="ghost" onClick={handleReset} disabled={busy}>Reset</Button>
+            <Button size="sm" onClick={handleSave} disabled={busy} loading={busy}>
+              {rendering ? 'Rendering…' : updateItem.isPending ? 'Saving…' : 'Save'}
             </Button>
           </div>
         )}

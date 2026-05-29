@@ -27,8 +27,11 @@ import {
   useRegenerateContentItem,
   useRegenerateBlogStreamed,
   useSplitBlogIntoSeries,
+  useCarouselThemes,
   queryKeys,
 } from '@/lib/queries'
+import { resolveTheme } from '@/lib/carouselThemes'
+import { ensureRenderedSlides } from '@/lib/renderSlides'
 import { publishAndTrack, publishBlogToWebsite, sendBlogToBeehiiv, cancelBufferPost } from '@/lib/publish'
 import { suggestScheduleTime, explainPlatformSlot, findScheduleConflict } from '@/lib/scheduleHeuristics'
 import { buildImagesManifest } from '@/lib/publishImageMirror'
@@ -1146,8 +1149,10 @@ function ApprovalPanel({ piece }) {
   const workspace = useWorkspace()
   const skipReview = !!workspace?.skip_review
   const updateStatus = useUpdateContentItemStatus()
+  const updateItem = useUpdateContentItem()
   const addComment = useAddComment(piece.id)
   const qc = useQueryClient()
+  const { data: allThemes = [] } = useCarouselThemes()
 
   const [changeRequestOpen, setChangeRequestOpen] = useState(false)
   const [changeRequestBody, setChangeRequestBody] = useState('')
@@ -1291,13 +1296,46 @@ function ApprovalPanel({ piece }) {
         })
       } else {
         const scheduling = !!effectiveScheduledAt || usingQueue
+
+        // Carousel pieces with per-slide on-screen text must publish the BAKED
+        // slide images (photo + text), not the raw photos. SlideEditor renders
+        // these eagerly on save; this is the fallback for slides saved before
+        // that (or edited without re-saving) so the overlay always ships.
+        let mediaUrls = piece.media_urls || []
+        if (Array.isArray(piece.slides) && piece.slides.length) {
+          const customThemes = allThemes.filter((t) => t.custom)
+          const theme = resolveTheme(piece.carousel_theme_id || null, customThemes)
+          const { slides: renderedSlides, publishMediaUrls, changed } = await runWithToast(
+            ensureRenderedSlides({
+              slides:    piece.slides,
+              mediaUrls: piece.media_urls,
+              brandStyle: workspace?.brand_style || {},
+              theme,
+              themeId:   piece.carousel_theme_id || null,
+              pieceId:   piece.id,
+            }),
+            {
+              loading: 'Rendering on-screen text…',
+              success: 'On-screen text rendered',
+              error: (e) => ({ message: 'Could not render slide text', description: e.message }),
+            },
+          )
+          if (publishMediaUrls.length) mediaUrls = publishMediaUrls
+          // Persist freshly-baked URLs so the next publish reuses them.
+          if (changed) {
+            try {
+              await updateItem.mutateAsync({ id: piece.id, patch: { slides: renderedSlides } })
+            } catch { /* non-fatal: publish proceeds with the rendered URLs in hand */ }
+          }
+        }
+
         const result = await runWithToast(
           publishAndTrack(
             {
               id: piece.id,
               platform: piece.platform,
               content: markdown,
-              mediaUrls: piece.media_urls || [],
+              mediaUrls,
               scheduledAt: effectiveScheduledAt,
               useQueue: usingQueue,
             },
