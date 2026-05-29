@@ -31,7 +31,7 @@ async function handler(req, res) {
   let r
   try {
     r = await fetch(
-      `${SUPABASE_URL}/rest/v1/workspaces?slug=eq.${encodeURIComponent(v.slug)}&select=id&limit=1`,
+      `${SUPABASE_URL}/rest/v1/workspaces?slug=eq.${encodeURIComponent(v.slug)}&status=eq.active&select=id&limit=1`,
       { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
     )
   } catch (e) {

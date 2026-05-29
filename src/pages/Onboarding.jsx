@@ -756,6 +756,11 @@ const VOICE_PLACEHOLDERS = {
 
 function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
   const topics = scanState?.recent_topics || []
+  // Require at least "what you do" — it drives every generated post and the
+  // onboarding interview context. audience_short and brand_voice are strongly
+  // encouraged but skippable (the interview refines them). Without this guard
+  // a tenant can click straight through and get blank-context content.
+  const canContinue = form.clinic_context.trim().length >= 10
   return (
     <Card
       title="Brand voice"
@@ -815,9 +820,14 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
           </p>
         </div>
       )}
+      {!canContinue && form.clinic_context.trim().length > 0 && (
+        <p className="text-2xs text-destructive">
+          Add a bit more detail about what you do (at least 10 characters).
+        </p>
+      )}
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>← Back</Button>
-        <Button onClick={onContinue}>
+        <Button onClick={onContinue} disabled={!canContinue}>
           Continue <ArrowRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
@@ -1198,7 +1208,7 @@ function LaunchingScreen({ redirectUrl }) {
   return (
     <Card
       title="Setting up your workspace…"
-      subtitle="Provisioning your subdomain, creating your org, and wiring up your voice context. New subdomains take about 10–30 seconds for the SSL certificate to issue."
+      subtitle="Provisioning your subdomain and wiring up your voice context. This usually takes 5–15 seconds."
     >
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin text-orange-600" />

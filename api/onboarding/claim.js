@@ -7,7 +7,7 @@ export const config = { runtime: 'nodejs' }
 //   2. Create Clerk Organization with the user as creator (auto-admin)
 //   3. Insert workspaces row referencing the new org id
 //   4. Set the user's publicMetadata.role = 'admin' so requireRole(['admin']) passes
-//   5. Return the redirect URL (https://<slug>.narraterx.ai/settings/workspace)
+//   5. Return the redirect URL (https://<slug>.narraterx.ai/onboard/brand-kit?welcome=1)
 //
 // If step 3 fails after the org is created, we attempt to delete the org so the
 // user can retry. If step 4 fails, we log but proceed — the workspace exists
@@ -166,7 +166,7 @@ async function handler(req, res) {
   // Slug uniqueness pre-check (race-safe: insert below also enforces unique).
   let pre
   try {
-    pre = await sb(`workspaces?slug=eq.${encodeURIComponent(slug)}&select=id&limit=1`)
+    pre = await sb(`workspaces?slug=eq.${encodeURIComponent(slug)}&status=eq.active&select=id&limit=1`)
   } catch (e) {
     console.error('[claim] slug pre-check network:', e?.message)
     return res.status(500).json({ error: 'db-error' })
