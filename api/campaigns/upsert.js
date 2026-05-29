@@ -1,6 +1,13 @@
 // Create or update a campaign. Admin-only.
 //
-// POST body: { id?, name, description?, status?, target_clinician_ids }
+// POST body: {
+//   id?, name, description?, status?, target_clinician_ids,
+//   // Phase 4 Tentpole PR A — time-windowed multi-campaign fields:
+//   start_at?, end_at?, event_at?,            // ISO timestamps; null = no constraint
+//   theme_notes?,                              // freeform what-this-is-about
+//   content_style?,                            // 'clinical' | 'promotional' | 'relationship' | 'referral'
+//   cta_url?, cta_label?, cta_pitch?,          // structured CTA fields
+// }
 //   - If id is present → UPDATE (workspace-scoped).
 //   - Else → INSERT (workspace_id from request context, created_by from auth).
 //
@@ -8,8 +15,9 @@
 
 export const config = { runtime: 'nodejs' }
 
-import { requireRole } from '../_lib/auth.js'
-import { ROLE_ADMIN } from '../_lib/roles.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
+import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
+import { CAP_CAMPAIGNS_EDIT } from '../_lib/capabilities.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 
@@ -36,6 +44,31 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
 }
 
 const ALLOWED_STATUS = new Set(['active', 'complete', 'archived'])
+// All four values must stay in sync with: CampaignsSettings.jsx (UI options),
+// tentpoleCampaignContext.js (switch-case prompt modifier), and tentpolePromptContext.js.
+const ALLOWED_CONTENT_STYLE = new Set(['clinical', 'promotional', 'relationship', 'referral'])
+
+// Coerce body field → ISO timestamp string or null. Accepts:
+//   - undefined → returns 'leave-alone' (the field is omitted from the patch)
+//   - null      → returns null (clears the field)
+//   - ISO/parseable string → returns ISO string
+//   - bad input → returns 'invalid'
+function coerceTimestamp(v) {
+  if (v === undefined) return 'leave-alone'
+  if (v === null || v === '') return null
+  const d = new Date(v)
+  if (Number.isNaN(d.getTime())) return 'invalid'
+  return d.toISOString()
+}
+
+// Coerce body field → trimmed string or null. Same 'leave-alone' sentinel.
+function coerceText(v, max = 5000) {
+  if (v === undefined) return 'leave-alone'
+  if (v === null) return null
+  const s = String(v).trim()
+  if (!s) return null
+  return s.slice(0, max)
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -46,9 +79,16 @@ export default async function handler(req, res) {
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
 
-  const auth = await requireRole(req, [ROLE_ADMIN], { orgId: ws.clerk_org_id })
+  // Phase 4 PR 4: producer-friendly gate. Pass any workspace member through
+  // the JWT/org check, then enforce CAP_CAMPAIGNS_EDIT (producer has it by
+  // default template; clinicians + viewers do not).
+  const auth = await requireRole(req, ALL_KNOWN_ROLES, { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+  const capAuth = await requireCapability(req, ws, [CAP_CAMPAIGNS_EDIT])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
   }
 
   const body = req.body || {}
@@ -67,9 +107,52 @@ export default async function handler(req, res) {
     .map((v) => (v == null ? '' : String(v)))
     .filter((v) => /^[0-9a-f-]{8,}$/i.test(v))
 
+  // Phase 4 Tentpole PR A — multi-campaign fields. Each uses the
+  // 'leave-alone' sentinel so omitting from PATCH body doesn't clobber
+  // existing values, while explicit null clears them.
+  const start_at      = coerceTimestamp(body.start_at)
+  const end_at        = coerceTimestamp(body.end_at)
+  const event_at      = coerceTimestamp(body.event_at)
+  const theme_notes   = coerceText(body.theme_notes, 4000)
+  const cta_url       = coerceText(body.cta_url, 500)
+  const cta_label     = coerceText(body.cta_label, 80)
+  const cta_pitch     = coerceText(body.cta_pitch, 500)
+
+  if (start_at === 'invalid') return res.status(400).json({ error: 'invalid start_at' })
+  if (end_at === 'invalid')   return res.status(400).json({ error: 'invalid end_at' })
+  if (event_at === 'invalid') return res.status(400).json({ error: 'invalid event_at' })
+
+  // Cross-field validation: if both start_at and end_at are concrete strings,
+  // end must come after start. (One being null is fine.)
+  if (typeof start_at === 'string' && typeof end_at === 'string'
+      && new Date(end_at).getTime() <= new Date(start_at).getTime()) {
+    return res.status(400).json({ error: 'end_at must be after start_at' })
+  }
+
+  let content_style = 'leave-alone'
+  if (body.content_style !== undefined) {
+    if (!ALLOWED_CONTENT_STYLE.has(body.content_style)) {
+      return res.status(400).json({ error: 'invalid content_style' })
+    }
+    content_style = body.content_style
+  }
+
+  // Apply each multi-campaign field only when it isn't the 'leave-alone' sentinel.
+  function applyMulti(target) {
+    if (start_at !== 'leave-alone') target.start_at = start_at
+    if (end_at !== 'leave-alone')   target.end_at = end_at
+    if (event_at !== 'leave-alone') target.event_at = event_at
+    if (theme_notes !== 'leave-alone') target.theme_notes = theme_notes
+    if (cta_url !== 'leave-alone')  target.cta_url = cta_url
+    if (cta_label !== 'leave-alone') target.cta_label = cta_label
+    if (cta_pitch !== 'leave-alone') target.cta_pitch = cta_pitch
+    if (content_style !== 'leave-alone') target.content_style = content_style
+  }
+
   if (id) {
     // UPDATE — scoped to this workspace so a stale id can't cross-tenant write.
     const patch = { name, description, status, target_clinician_ids }
+    applyMulti(patch)
     const r = await sb(
       `campaigns?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${ws.id}`,
       { method: 'PATCH', body: JSON.stringify(patch) },
@@ -91,6 +174,7 @@ export default async function handler(req, res) {
     target_clinician_ids,
     created_by: auth.userId || null,
   }
+  applyMulti(row)
   const r = await sb('campaigns', { method: 'POST', body: JSON.stringify(row) })
   if (!r.ok) return dbErr(res, r, 'Insert failed')
   const data = await r.json()

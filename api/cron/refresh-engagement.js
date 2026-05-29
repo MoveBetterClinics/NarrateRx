@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+import { extractPackageShortId } from '../_lib/utm.js'
 export const config = { runtime: 'nodejs' }
 // Tier 2b — daily engagement refresh + auto-flag.
 //
@@ -129,7 +130,7 @@ async function processWorkspace(ws, summary) {
   let refreshed = 0
   for (const item of items) {
     const latestRes = await sb(
-      `engagement_snapshots?content_item_id=eq.${item.id}&order=fetched_at.desc&limit=1&select=fetched_at,stats`
+      `engagement_snapshots?content_item_id=eq.${item.id}&workspace_id=eq.${ws.id}&order=fetched_at.desc&limit=1&select=fetched_at,stats`
     )
     const latestRows = latestRes.ok ? await latestRes.json().catch(() => []) : []
     const latest = latestRows?.[0]
@@ -283,13 +284,19 @@ async function processWorkspaceGA4(ws, summary) {
     const latest = latestRes.ok ? (await latestRes.json().catch(() => []))?.[0] : null
     if (latest && latest.fetched_at > freshCutoff) continue
 
+    // Enrich stats with package attribution extracted from UTM params on the
+    // resolved_url. utm_content=pkg_<short_id> is set by the auto-publish
+    // path at publish time; manual publishes without packageId carry no UTM.
+    const pkgShortId = extractPackageShortId(item.resolved_url)
+    const enrichedStats = pkgShortId ? { ...stats, pkg_short_id: pkgShortId } : stats
+
     const ins = await sb('engagement_snapshots', {
       method: 'POST',
       body: JSON.stringify({
         workspace_id:    ws.id,
         content_item_id: item.id,
         source:          'ga4',
-        stats,
+        stats:           enrichedStats,
       }),
     })
     if (ins.ok) refreshed++

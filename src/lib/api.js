@@ -437,6 +437,36 @@ export async function populateContentItemProvenance(interviewId, trailer = '', p
   })
 }
 
+/**
+ * Fire-and-forget the two-pass voice-fidelity audit for an interview's blog
+ * content_item (PR 3). Resolves the content_item the same way provenance does,
+ * then asks the server to score it against the transcript + voice profile
+ * (+ practice memory for We-lane). Returns null on any resolution failure so
+ * callers can `.catch()` and move on without blocking the user.
+ * @param {string} interviewId
+ * @param {string} [platform]
+ * @returns {Promise<unknown>}
+ */
+export async function runVoiceAuditForInterview(interviewId, platform = 'blog') {
+  /** @type {unknown} */
+  let result
+  try {
+    result = await apiFetch(
+      `/api/db/content?interviewId=${encodeURIComponent(interviewId)}&platform=${encodeURIComponent(platform)}&limit=1`
+    )
+  } catch {
+    return null
+  }
+  const rows = /** @type {Array<{ id?: string }>} */ (Array.isArray(result) ? result : [])
+  const contentItemId = rows[0]?.id
+  if (!contentItemId) return null
+  return apiFetch('/api/content-items/voice-audit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentItemId }),
+  })
+}
+
 /** @param {string} itemId @returns {Promise<unknown>} */
 export function listContentItemDrafts(itemId) {
   return apiFetch(`/api/content-item-drafts?itemId=${encodeURIComponent(itemId)}`)
@@ -597,40 +627,8 @@ function pickStandoutQuote(completedInterviews) {
     : null
 }
 
-// ── Campaign Settings ────────────────────────────────────────────────────────
-
-/** @returns {Promise<unknown>} */
-export function fetchCampaign() {
-  return apiFetch('/api/db/settings')
-}
-
-/** @param {Record<string, unknown>} patch @returns {Promise<unknown>} */
-export function updateCampaign(patch) {
-  return apiFetch('/api/db/settings', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
-}
-
-// Per-clinician campaign override (workspace default is at /api/db/settings).
-// Returns { clinician_id, name, settings | null }. null settings = clinician
-// uses the workspace default; an object means they've overridden.
-/** @param {string} clinicianId @returns {Promise<unknown>} */
-export function fetchClinicianCampaign(clinicianId) {
-  return apiFetch(`/api/clinicians/campaign-settings?clinician_id=${encodeURIComponent(clinicianId)}`)
-}
-
-// settings === null  → clear the override (use workspace default)
-// settings === object → set override (must include mode + optional CTA fields)
-/** @param {string} clinicianId @param {Record<string, unknown> | null} settings @returns {Promise<unknown>} */
-export function updateClinicianCampaign(clinicianId, settings) {
-  const body = settings === null
-    ? { use_default: true }
-    : { settings }
-  return apiFetch(`/api/clinicians/campaign-settings?clinician_id=${encodeURIComponent(clinicianId)}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-}
+// Campaign Settings (singleton clinic_settings.campaign_* + per-clinician
+// JSONB override) were retired in favor of the tentpole campaigns table
+// (api/campaigns/*). Manage campaigns at /settings/campaigns; atom-prompt
+// CTA injection now reads from currently-active tentpole campaigns via
+// api/_lib/tentpoleCampaignContext.js.

@@ -4,7 +4,7 @@
 // loaded-byte history kept in a ref so the context stays small.
 
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { ChevronDown, ChevronUp, X, Loader2, CheckCircle2, AlertCircle, Ban, RotateCw, Play, PauseCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Icon from '@/components/ui/Icon'
 import { useUploadProgress } from '@/lib/UploadProgressContext'
@@ -73,7 +73,7 @@ function useSpeedTracker(uploads) {
 }
 
 export default function UploadTray() {
-  const { uploads, hasActiveUploads, dismissCompleted, dismissRow } = useUploadProgress()
+  const { uploads, hasActiveUploads, dismissCompleted, dismissRow, cancelUpload, retryUpload, resumeUpload } = useUploadProgress()
   const [collapsed, setCollapsed] = useState(false)
   const getSpeed = useSpeedTracker(uploads)
 
@@ -96,7 +96,7 @@ export default function UploadTray() {
     ? `Uploading ${active.length} of ${total} · ${aggregatePct}%`
     : `Uploads (${total})`
 
-  const anyDone = uploads.some((r) => r.status === 'done' || r.status === 'error')
+  const anyDone = uploads.some((r) => r.status === 'done' || r.status === 'error' || r.status === 'canceled')
 
   return (
     <div
@@ -146,8 +146,50 @@ export default function UploadTray() {
                   {r.status === 'indexing'  && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />}
                   {r.status === 'done'      && <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${r.slowIndex ? 'text-warning' : 'text-success'}`} />}
                   {r.status === 'error'     && <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0" />}
+                  {r.status === 'canceled'  && <Ban className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
+                  {r.status === 'paused'    && <PauseCircle className="h-3.5 w-3.5 text-warning shrink-0" />}
                   <span className="truncate flex-1 font-medium" title={r.name}>{r.name}</span>
-                  {(r.status === 'done' || r.status === 'error') && (
+                  {/* Cancel button on rows still in flight. Disabled during
+                      the brief 'indexing' window since at that point the
+                      bytes are already on Vercel and cancel can't unwind. */}
+                  {r.status === 'uploading' && (
+                    <button
+                      type="button"
+                      className="p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      onClick={() => cancelUpload(r.id)}
+                      aria-label={`Cancel upload of ${r.name}`}
+                      title="Cancel upload"
+                    >
+                      <Icon as={X} size="xs" />
+                    </button>
+                  )}
+                  {/* Retry button on canceled/error rows. Uses the File ref
+                      stashed in the context; if the row was previously
+                      dismissed and re-added there's no File ref so the
+                      button is omitted. */}
+                  {(r.status === 'error' || r.status === 'canceled') && (
+                    <button
+                      type="button"
+                      className="p-0.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                      onClick={() => retryUpload(r.id)}
+                      aria-label={`Retry upload of ${r.name}`}
+                      title="Retry upload"
+                    >
+                      <Icon as={RotateCw} size="xs" />
+                    </button>
+                  )}
+                  {r.status === 'paused' && (
+                    <button
+                      type="button"
+                      className="p-0.5 rounded hover:bg-primary/10 text-muted-foreground hover:text-primary"
+                      onClick={() => resumeUpload(r.id)}
+                      aria-label={`Resume upload of ${r.name}`}
+                      title="Resume upload"
+                    >
+                      <Icon as={Play} size="xs" />
+                    </button>
+                  )}
+                  {(r.status === 'done' || r.status === 'error' || r.status === 'canceled' || r.status === 'paused') && (
                     <button
                       type="button"
                       className="p-0.5 rounded hover:bg-muted text-muted-foreground"
@@ -205,6 +247,16 @@ export default function UploadTray() {
                 {r.status === 'error' && (
                   <div className="mt-1 text-2xs text-destructive truncate" title={r.error}>
                     {r.error}
+                  </div>
+                )}
+                {r.status === 'canceled' && (
+                  <div className="mt-1 text-2xs text-muted-foreground">
+                    Canceled. Click ↻ to retry.
+                  </div>
+                )}
+                {r.status === 'paused' && (
+                  <div className="mt-1 text-2xs text-muted-foreground">
+                    Paused — {r.progress || 0}% uploaded. Click ▶ to resume.
                   </div>
                 )}
               </div>

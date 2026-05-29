@@ -34,7 +34,7 @@ export const PLATFORM_META = {
 export const STATUS_META = {
   draft:      { label: 'Draft',      color: 'bg-slate-100 text-slate-700',   icon: FileText },
   in_review:  { label: 'In Review',  color: 'bg-amber-100 text-amber-700',   icon: Clock },
-  approved:   { label: 'Approved',   color: 'bg-blue-100 text-blue-700',     icon: CheckCircle2 },
+  approved:   { label: 'Approved',   color: 'bg-amber-50 text-amber-700',    icon: CheckCircle2 },
   scheduled:  { label: 'Scheduled',  color: 'bg-purple-100 text-purple-700', icon: CalendarDays },
   published:  { label: 'Published',  color: 'bg-green-100 text-green-700',   icon: Send },
   archived:   { label: 'Archived',   color: 'bg-zinc-100 text-zinc-600',     icon: Archive },

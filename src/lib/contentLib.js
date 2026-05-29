@@ -5,7 +5,7 @@
 // Every request carries a short-lived Clerk JWT in the Authorization header.
 // requireRole() on the server-side endpoints verifies it and enforces
 // per-method role rules. window.Clerk is the official browser handle exposed
-// by @clerk/clerk-react.
+// by @clerk/react.
 
 async function getClerkToken() {
   if (typeof window === 'undefined') return null

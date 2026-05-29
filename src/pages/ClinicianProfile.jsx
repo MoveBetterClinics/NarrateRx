@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import {
   Plus, FileText, Clock, Trash2, ChevronRight, MessageSquare, Loader2, AlertCircle,
   Facebook, Instagram, Globe, Mail, BookOpen, TrendingUp, Star,
+  Smartphone, Copy, Check, RotateCw, Sparkles,
 } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
+import EmptyState from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -16,6 +18,7 @@ import {
 import {
   useClinician, useClinicianSummaries, useDeleteClinician, useDeleteInterview,
   useClinicianRecipes, usePatchClinicianRecipe, useDeleteClinicianRecipe,
+  usePatchClinician,
 } from '@/lib/queries'
 import { resolveOwnerName } from '@/components/home/helpers'
 import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOptionsCatalog'
@@ -25,12 +28,12 @@ import VoiceFreshnessCard from '@/components/VoiceFreshnessCard'
 import VoicePlaybackCard from '@/components/VoicePlaybackCard'
 import VoiceCloneCard from '@/components/VoiceCloneCard'
 import { DisplayNameCard } from '@/components/DisplayNameCard'
-import { ClinicianCampaignCard } from '@/components/ClinicianCampaignCard'
 import { formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUserRole } from '@/lib/useUserRole'
 import { fetchClinicianArc, apiFetch } from '@/lib/api'
+import { useAppMutation } from '@/lib/useAppMutation'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { TONES, getVoiceModes } from '@/lib/prompts'
 
@@ -65,7 +68,7 @@ function phraseStrength(total) {
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export default function ClinicianProfile() {
-  useDocumentTitle('Clinician')
+  useDocumentTitle('Staff profile')
   const { clinicianId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
@@ -125,10 +128,10 @@ export default function ClinicianProfile() {
   async function handleDeleteClinician() {
     try {
       await deleteClinicianMut.mutateAsync({ id: clinicianId, userId: user.id })
-      toast.success(`Deleted ${clinician?.name || 'clinician'}`)
+      toast.success(`Deleted ${clinician?.name || 'staff member'}`)
       navigate('/')
     } catch (e) {
-      toast.error('Could not delete clinician', { description: e.message })
+      toast.error('Could not delete staff member', { description: e.message })
     }
   }
 
@@ -262,13 +265,16 @@ export default function ClinicianProfile() {
       {activeTab === 'activity' && (
         <div className="px-6 py-6 space-y-8">
           {interviews.length === 0 ? (
-            <div className="text-center py-16">
-              <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-muted-foreground text-sm">No interviews yet for {clinician.name.split(' ')[0]}.</p>
-              <Button asChild size="sm" className="mt-4">
-                <Link to="/new">Start First Interview</Link>
-              </Button>
-            </div>
+            <EmptyState
+              icon={<MessageSquare className="h-5 w-5" />}
+              title={`No interviews yet for ${clinician.name.split(' ')[0]}`}
+              description="Each interview captures a staff member's voice on a topic and generates a story with publish-ready drafts. Start one to build this profile."
+              action={
+                <Button asChild size="sm">
+                  <Link to="/new">Start first interview</Link>
+                </Button>
+              }
+            />
           ) : (
             <>
               {inProgress.length > 0 && (
@@ -510,6 +516,19 @@ export default function ClinicianProfile() {
 
           {/* Light area below hero — existing voice components */}
           <div className="px-6 py-6 space-y-4">
+            {interviews.length === 0 && (
+              <EmptyState
+                size="sm"
+                icon={<MessageSquare className="h-4 w-4" />}
+                title="Voice profile starts with an interview"
+                description={`Run a first interview with ${clinician.name.split(' ')[0]} to begin extracting signature phrases and building their voice model.`}
+                action={
+                  <Button asChild size="sm">
+                    <Link to="/new">Start first interview</Link>
+                  </Button>
+                }
+              />
+            )}
             {isMyClinicianProfile && <VoicePlaybackCard clinician={clinician} />}
             {isMyClinicianProfile && <VoiceCloneCard clinician={clinician} />}
             <VoiceFreshnessCard clinicianId={clinician.id} clinicianName={clinician.name} />
@@ -522,10 +541,12 @@ export default function ClinicianProfile() {
       {activeTab === 'settings' && (
         <div className="px-6 py-6 space-y-4 max-w-2xl">
           {isMyClinicianProfile && <DisplayNameCard />}
-          <ClinicianCampaignCard
-            clinician={clinician}
-            canEdit={isMyClinicianProfile || role === 'admin'}
-          />
+          {(isMyClinicianProfile || role === 'admin') && (
+            <DefaultToneCard clinician={clinician} />
+          )}
+          {(isMyClinicianProfile || role === 'admin') && (
+            <CaptureCompanionCard clinician={clinician} />
+          )}
           {role === 'admin' && <ClinicianRecipeCard clinician={clinician} />}
         </div>
       )}
@@ -538,7 +559,7 @@ export default function ClinicianProfile() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {deleteTarget?.type === 'clinician' ? 'Delete clinician profile?' : 'Delete interview?'}
+              {deleteTarget?.type === 'clinician' ? 'Delete staff profile?' : 'Delete interview?'}
             </DialogTitle>
             <DialogDescription>
               {deleteTarget?.type === 'clinician'
@@ -640,6 +661,302 @@ function PublishedPostRow({ post }) {
             <ChevronRight className="h-4 w-4" />
           </Link>
         </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Default tone card ─────────────────────────────────────────────────────────
+
+function DefaultToneCard({ clinician }) {
+  const { user } = useUser()
+  const patchClinician = usePatchClinician()
+  const tones = TONES
+  const current = clinician.default_tone || 'smart'
+  const [selected, setSelected] = useState(current)
+  const [saved, setSaved] = useState(false)
+
+  const isDirty = selected !== current
+
+  async function handleSave() {
+    await patchClinician.mutateAsync({ id: clinician.id, patch: { default_tone: selected }, userId: user?.id })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  return (
+    <Card>
+      <CardContent className="py-5 space-y-3">
+        <div>
+          <p className="text-sm font-semibold">Default tone</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Pre-selects this tone whenever you start a new interview, voice memo, or import. Can still be changed per-interview.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {tones.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setSelected(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+                selected === t.id
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border text-muted-foreground hover:text-foreground hover:border-foreground/40'
+              }`}
+            >
+              {t.emoji && <span>{t.emoji}</span>}
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-3 pt-1">
+          <Button
+            size="sm"
+            disabled={!isDirty || patchClinician.isPending}
+            onClick={handleSave}
+          >
+            {patchClinician.isPending ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Saving…</>
+            ) : saved ? (
+              'Saved ✓'
+            ) : (
+              'Save preference'
+            )}
+          </Button>
+          {isDirty && !patchClinician.isPending && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setSelected(current)}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// ── Capture Companion card ────────────────────────────────────────────────────
+//
+// Manages the per-clinician Capture Upload Token used by the iOS Capture
+// Companion Shortcut. Calls api/capture/token.js (PR #872) — GET reads the
+// current state (without revealing the token value), POST generates/rotates
+// (returns plaintext ONCE), DELETE revokes.
+//
+// The PWA /capture page does NOT use this token — it uses Clerk session auth.
+// Token only matters for the iOS Shortcut path.
+
+function CaptureCompanionCard({ clinician }) {
+  const [tokenState, setTokenState] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [newToken, setNewToken] = useState(null)
+  const [copied, setCopied] = useState(false)
+  const [featureDisabled, setFeatureDisabled] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    apiFetch(`/api/capture/token?clinicianId=${clinician.id}`)
+      .then((data) => {
+        if (cancelled) return
+        setTokenState(data)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        if (e?.status === 403) {
+          setFeatureDisabled(true)
+        } else {
+          setError(e?.message || 'Failed to load token state')
+        }
+      })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [clinician.id])
+
+  const generateMutation = useAppMutation({
+    mutationFn: () =>
+      apiFetch(`/api/capture/token?clinicianId=${clinician.id}`, { method: 'POST' }),
+    onSuccess: (data) => {
+      setNewToken(data?.token || null)
+      setTokenState({
+        hasToken: true,
+        expiresAt: data?.expiresAt || null,
+        lastUsedAt: null,
+      })
+      setError(null)
+    },
+    onError: (e) => {
+      if (e?.status === 403) setFeatureDisabled(true)
+      else setError(e?.message || 'Failed to generate token')
+    },
+  })
+
+  const revokeMutation = useAppMutation({
+    mutationFn: () =>
+      apiFetch(`/api/capture/token?clinicianId=${clinician.id}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      setTokenState({ hasToken: false, expiresAt: null, lastUsedAt: null })
+      setNewToken(null)
+      setError(null)
+    },
+    onError: (e) => setError(e?.message || 'Failed to revoke token'),
+  })
+
+  async function copyToClipboard() {
+    if (!newToken) return
+    try {
+      await navigator.clipboard.writeText(newToken)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      toast.error('Copy failed — long-press to select instead')
+    }
+  }
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="py-5">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading Capture Companion…
+          </div>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (featureDisabled) {
+    return (
+      <Card>
+        <CardContent className="py-5 space-y-2">
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold">Capture Companion</p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Not enabled for this workspace yet. Contact your workspace owner if you want the iOS one-tap upload path.
+          </p>
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <Card>
+      <CardContent className="py-5 space-y-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+            <p className="text-sm font-semibold">Capture Companion</p>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            One-tap photo + video upload from your iPhone via an iOS Shortcut. Optional — the{' '}
+            <Link to="/capture" className="text-primary hover:underline">browser capture page</Link>
+            {' '}works for everyone without any setup.
+          </p>
+        </div>
+
+        {newToken && (
+          <div className="rounded-lg border-2 border-amber-300 bg-amber-50 p-3 space-y-2">
+            <div className="flex items-start gap-2 text-amber-900">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <div className="text-sm font-medium">Token created — copy it now</div>
+            </div>
+            <p className="text-xs text-amber-800">
+              This is the only time you&apos;ll see the full token. Copy it now and paste into the iOS Shortcut. If you lose it, rotate and start over.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs bg-white border border-amber-200 rounded px-2 py-1.5 font-mono break-all">
+                {newToken}
+              </code>
+              <Button size="sm" variant="outline" onClick={copyToClipboard}>
+                {copied
+                  ? <><Check className="h-3.5 w-3.5 mr-1" />Copied</>
+                  : <><Copy className="h-3.5 w-3.5 mr-1" />Copy</>}
+              </Button>
+            </div>
+            <div className="flex items-center justify-between gap-2 pt-1">
+              <a
+                href="https://github.com/Move-Better/NarrateRx/blob/main/.claude/runbooks/capture-companion-ios-shortcut.md"
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-primary hover:underline"
+              >
+                iOS Shortcut setup guide →
+              </a>
+              <Button size="sm" variant="ghost" onClick={() => setNewToken(null)}>
+                I&apos;ve saved it
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {!newToken && tokenState?.hasToken && (
+          <div className="text-sm space-y-1">
+            <div className="text-muted-foreground">
+              Token active — expires{' '}
+              <span className="text-foreground">{tokenState.expiresAt ? new Date(tokenState.expiresAt).toLocaleDateString() : 'unknown'}</span>
+            </div>
+            <div className="text-muted-foreground">
+              Last used:{' '}
+              {tokenState.lastUsedAt
+                ? <span className="text-foreground">{new Date(tokenState.lastUsedAt).toLocaleString()}</span>
+                : <span>never yet (Shortcut not used)</span>}
+            </div>
+          </div>
+        )}
+        {!newToken && tokenState && !tokenState.hasToken && (
+          <div className="text-sm text-muted-foreground">
+            No token. Generate one to set up the iOS Shortcut.
+          </div>
+        )}
+
+        {error && <div className="text-xs text-destructive">{error}</div>}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          {!tokenState?.hasToken && (
+            <Button
+              size="sm"
+              onClick={() => generateMutation.mutate()}
+              disabled={generateMutation.isPending}
+            >
+              {generateMutation.isPending
+                ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Generating…</>
+                : <><Sparkles className="h-3.5 w-3.5 mr-1.5" />Generate token</>}
+            </Button>
+          )}
+          {tokenState?.hasToken && !newToken && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => generateMutation.mutate()}
+                disabled={generateMutation.isPending}
+              >
+                {generateMutation.isPending
+                  ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />Rotating…</>
+                  : <><RotateCw className="h-3.5 w-3.5 mr-1.5" />Rotate</>}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => revokeMutation.mutate()}
+                disabled={revokeMutation.isPending}
+                className="text-destructive hover:text-destructive"
+              >
+                {revokeMutation.isPending
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  : 'Revoke'}
+              </Button>
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   )

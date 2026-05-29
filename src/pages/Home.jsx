@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { FileText, Clock, Loader2, RefreshCw, ChevronRight, Send, BookOpen } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'
@@ -19,6 +19,7 @@ import ResumeStrip from '@/components/home/ResumeStrip'
 import PlanNextInterview from '@/components/home/PlanNextInterview'
 import TaskBucketCard from '@/components/home/TaskBucketCard'
 import HomeRightRail from '@/components/home/HomeRightRail'
+import PageHelp from '@/components/PageHelp'
 
 const RESUME_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 const MY_STORIES_LIMIT = 5
@@ -207,6 +208,7 @@ export default function Home() {
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">{greeting}</h1>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <PageHelp pageKey="home" variant="onGradient" />
           <Link
             to="/new"
             className="inline-flex items-center gap-2 bg-white text-foreground font-semibold px-4 py-2 rounded-lg shadow hover:bg-slate-100 text-sm"

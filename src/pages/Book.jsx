@@ -16,7 +16,7 @@
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import ReactMarkdown from 'react-markdown'
-import { BookOpen, RefreshCw, AlertTriangle, Sparkles, Pin, PinOff } from 'lucide-react'
+import { BookOpen, RefreshCw, AlertTriangle, Sparkles, Pin, PinOff, Globe } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useAppMutation } from '@/lib/useAppMutation'
 import { apiFetch } from '@/lib/api'
@@ -45,6 +45,10 @@ function unpinChapter(chapterSlug) {
   return apiFetch(`/api/book/pinned-chapters?chapter_slug=${encodeURIComponent(chapterSlug)}`, {
     method: 'DELETE',
   })
+}
+
+function publishBook() {
+  return apiFetch('/api/book/publish', { method: 'POST' })
 }
 
 // ── Provenance line ──────────────────────────────────────────────────────
@@ -186,6 +190,29 @@ export default function Book() {
     regenMutation.mutate()
   }
 
+  const publishMutation = useAppMutation({
+    mutationFn: publishBook,
+    onSuccess: (data) => {
+      const url = data?.postUrl
+      if (url) {
+        toast.success(
+          <span>
+            Published to{' '}
+            <a href={url} target="_blank" rel="noopener noreferrer" className="underline">
+              {url.replace(/^https?:\/\//, '')}
+            </a>
+          </span>,
+        )
+      } else {
+        toast.success('Book published to site')
+      }
+    },
+    onError: (e) => {
+      const msg = e?.body?.message || e?.body?.error || e?.message || 'Publish failed'
+      toast.error(msg)
+    },
+  })
+
   const isRegenerating = book?.regen_status === 'regenerating' || regenMutation.isPending
   const hasManuscript  = !!(book?.manuscript_md && book.manuscript_md.trim())
   const showError      = book?.regen_status === 'error' && !hasManuscript
@@ -223,6 +250,15 @@ export default function Book() {
             >
               <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isRegenerating ? 'animate-spin' : ''}`} />
               {isRegenerating ? 'Weaving…' : 'Regenerate'}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => publishMutation.mutate()}
+              disabled={isRegenerating || publishMutation.isPending}
+              title="Publish the current manuscript to your site at /book"
+            >
+              <Globe className={`h-3.5 w-3.5 mr-1.5 ${publishMutation.isPending ? 'animate-pulse' : ''}`} />
+              {publishMutation.isPending ? 'Publishing…' : 'Publish to site'}
             </Button>
           </div>
         )}

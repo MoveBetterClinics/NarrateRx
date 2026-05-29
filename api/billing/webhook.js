@@ -19,6 +19,7 @@
 // is disabled via the config export below.
 
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { buildPricePlanMap } from '../_lib/stripePlans.js'
 
 export const config = {
   runtime: 'nodejs',
@@ -28,15 +29,6 @@ export const config = {
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
-
-// Price ID → plan config mapping (from env vars).
-function buildPricePlanMap() {
-  const m = {}
-  if (process.env.STRIPE_PRICE_SOLO)     m[process.env.STRIPE_PRICE_SOLO]     = { plan: 'solo',     seats: 3 }
-  if (process.env.STRIPE_PRICE_PRACTICE) m[process.env.STRIPE_PRICE_PRACTICE] = { plan: 'practice', seats: 10 }
-  if (process.env.STRIPE_PRICE_MULTI)    m[process.env.STRIPE_PRICE_MULTI]    = { plan: 'multi',    seats: 999 }
-  return m
-}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -88,18 +80,29 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
   }
 }
 
-async function updateWorkspace(workspaceId, patch) {
+// Update a workspace. When stripeCustomerId is provided, the PATCH also
+// filters on stripe_customer_id so a forged event with a valid workspace_id
+// but wrong customer cannot modify another workspace's billing state.
+async function updateWorkspace(workspaceId, patch, stripeCustomerId = null) {
+  const customerFilter = stripeCustomerId
+    ? `&stripe_customer_id=eq.${encodeURIComponent(stripeCustomerId)}`
+    : ''
   const r = await sb(
-    `workspaces?id=eq.${encodeURIComponent(workspaceId)}`,
+    `workspaces?id=eq.${encodeURIComponent(workspaceId)}${customerFilter}`,
     {
       method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
+      headers: { Prefer: 'return=representation' },
       body: JSON.stringify(patch),
     },
   )
   if (!r.ok) {
     const text = await r.text().catch(() => '')
     console.error(`[billing/webhook] workspace patch failed (${r.status}):`, text)
+    return false
+  }
+  const rows = await r.json().catch(() => [])
+  if (stripeCustomerId && (!Array.isArray(rows) || rows.length === 0)) {
+    console.error(`[billing/webhook] workspace patch matched 0 rows — customer ID mismatch? workspace=${workspaceId} customer=${stripeCustomerId}`)
     return false
   }
   return true
@@ -174,7 +177,11 @@ async function handler(req, res) {
           plan_seats: planConfig?.seats || 3,
           trial_ends_at: null, // Clear trial on activation
         }
-        await updateWorkspace(workspaceId, patch)
+        // Pass customerId as 3rd arg so updateWorkspace adds a stripe_customer_id
+        // filter — consistent with subscription.updated / invoice.paid paths which
+        // all pass the customer ID to prevent a crafted event from activating an
+        // unrelated workspace. Without this, signature verification is the only guard.
+        await updateWorkspace(workspaceId, patch, customerId || null)
         console.info(`[billing/webhook] activated workspace ${workspaceId} on plan ${patch.plan}`)
         break
       }
@@ -188,12 +195,13 @@ async function handler(req, res) {
         }
         const priceId = sub?.items?.data?.[0]?.price?.id || null
         const planConfig = priceId ? PRICE_PLAN_MAP[priceId] : null
+        const subCustomerId = sub.customer || null
         if (planConfig) {
           await updateWorkspace(workspaceId, {
             stripe_price_id: priceId,
             plan: planConfig.plan,
             plan_seats: planConfig.seats,
-          })
+          }, subCustomerId)
           console.info(`[billing/webhook] updated workspace ${workspaceId} to plan ${planConfig.plan}`)
         } else {
           console.warn(`[billing/webhook] subscription.updated: unknown priceId ${priceId} for workspace ${workspaceId}`)
@@ -208,15 +216,19 @@ async function handler(req, res) {
           console.error('[billing/webhook] customer.subscription.deleted: no workspace_id in metadata')
           break
         }
+        const deletedCustomerId = sub.customer || null
         // Revert to trial with 45-day window.
         const trialEndsAt = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString()
+        // Null out customer_id too so a stray late invoice.payment_failed for
+        // this same customer can't re-find the workspace and flip it to past_due.
         await updateWorkspace(workspaceId, {
           plan: 'trial',
           plan_seats: 3,
+          stripe_customer_id: null,
           stripe_subscription_id: null,
           stripe_price_id: null,
           trial_ends_at: trialEndsAt,
-        })
+        }, deletedCustomerId)
         console.info(`[billing/webhook] workspace ${workspaceId} subscription cancelled — reverted to trial`)
         break
       }
@@ -229,15 +241,20 @@ async function handler(req, res) {
         const workspaceId = invoice.subscription_details?.metadata?.workspace_id
           ?? invoice.metadata?.workspace_id
         if (!workspaceId) {
-          // Try to look up workspace by customer ID as fallback.
+          // Try to look up workspace by customer ID as fallback. Skip any
+          // workspace whose stripe_subscription_id is null — that workspace
+          // already cancelled, and a late invoice for the final period must
+          // not relock it into past_due.
           const customerId = invoice.customer
           if (customerId) {
-            const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id&limit=1`)
+            const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&stripe_subscription_id=not.is.null&status=eq.active&select=id&limit=1`)
             if (r.ok) {
               const rows = await r.json()
               if (rows[0]?.id) {
                 await updateWorkspace(rows[0].id, { plan: 'past_due' })
                 console.warn(`[billing/webhook] invoice.payment_failed: workspace ${rows[0].id} marked past_due`)
+              } else {
+                console.info(`[billing/webhook] invoice.payment_failed: no active workspace for customer ${customerId} — likely cancelled, ignoring`)
               }
             }
           } else {
@@ -254,30 +271,57 @@ async function handler(req, res) {
         // Successful payment after a past_due state (or normal renewal). Restore
         // the plan from the subscription's price ID.
         const invoice = event.data.object
-        const workspaceId = invoice.subscription_details?.metadata?.workspace_id
+        const customerId = invoice.customer || null
+        let workspaceId = invoice.subscription_details?.metadata?.workspace_id
           ?? invoice.metadata?.workspace_id
-        if (!workspaceId) break
+          ?? null
+
+        if (!workspaceId && customerId) {
+          // Fallback: look up by customer id (same pattern as invoice.payment_failed).
+          const r = await sb(`workspaces?stripe_customer_id=eq.${encodeURIComponent(customerId)}&select=id&limit=1`)
+          if (r.ok) {
+            const rows = await r.json()
+            workspaceId = rows[0]?.id || null
+          }
+        }
+
+        if (!workspaceId) {
+          console.error(`[billing/webhook] invoice.paid: could not resolve workspace_id (customer=${customerId})`)
+          break
+        }
 
         const subscriptionId = invoice.subscription
+        let priceId = null
+        let planConfig = null
         if (subscriptionId) {
           try {
             const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
               headers: { Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}` },
             })
             const sub = await subRes.json()
-            const priceId = sub?.items?.data?.[0]?.price?.id || null
-            const planConfig = priceId ? PRICE_PLAN_MAP[priceId] : null
-            if (planConfig) {
-              await updateWorkspace(workspaceId, {
-                plan:       planConfig.plan,
-                plan_seats: planConfig.seats,
-                stripe_price_id: priceId,
-              })
-              console.info(`[billing/webhook] invoice.paid: workspace ${workspaceId} restored to ${planConfig.plan}`)
-            }
+            priceId = sub?.items?.data?.[0]?.price?.id || null
+            planConfig = priceId ? PRICE_PLAN_MAP[priceId] : null
           } catch (e) {
-            console.error('[billing/webhook] invoice.paid: failed to restore plan:', e?.message)
+            console.error('[billing/webhook] invoice.paid: failed to fetch subscription:', e?.message)
           }
+        }
+
+        if (planConfig) {
+          await updateWorkspace(workspaceId, {
+            plan:       planConfig.plan,
+            plan_seats: planConfig.seats,
+            stripe_price_id: priceId,
+          }, customerId)
+          console.info(`[billing/webhook] invoice.paid: workspace ${workspaceId} restored to ${planConfig.plan}`)
+        } else {
+          // Unknown priceId (env-var mismatch, mid-migration price, or a duplicate
+          // subscription). Unblock the workspace at the lowest paid tier rather
+          // than leaving it stuck on past_due, and warn loudly so this is fixed.
+          console.warn(`[billing/webhook] invoice.paid: unknown priceId ${priceId} for workspace ${workspaceId} (customer=${customerId}) — falling back to plan='solo'`)
+          await updateWorkspace(workspaceId, {
+            plan: 'solo',
+            plan_seats: 3,
+          })
         }
         break
       }

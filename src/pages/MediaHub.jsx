@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { useSearchParams } from 'react-router-dom'
 import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film, ChevronDown, ChevronRight, HardDrive } from 'lucide-react'
 import { Input } from '@/components/ui/input'
@@ -697,7 +697,10 @@ export default function MediaHub() {
 
       {/* Results */}
       {error && (
-        <div className="text-sm text-destructive bg-destructive/10 rounded-lg p-3">{error}</div>
+        <div className="text-sm text-destructive bg-destructive/10 rounded-lg p-3 flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={refetchMedia} className="shrink-0">Retry</Button>
+        </div>
       )}
       {loading ? (
         <div className="flex items-center justify-center py-16">

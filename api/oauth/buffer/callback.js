@@ -113,9 +113,11 @@ async function handler(req, res) {
     return redirectTo(res, '/settings/integrations?buffer_error=save_failed')
   }
 
-  // Look up workspace slug to redirect back to the right subdomain
+  // Look up workspace slug to redirect back to the right subdomain.
+  // Also verifies the workspace is still active — a state token for an archived
+  // workspace will find no row here and fall back to the apex redirect.
   const wsRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/workspaces?id=eq.${payload.workspace_id}&select=slug`,
+    `${SUPABASE_URL}/rest/v1/workspaces?id=eq.${payload.workspace_id}&status=eq.active&select=slug`,
     { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } },
   )
   const workspaces = wsRes.ok ? await wsRes.json().catch(() => []) : []

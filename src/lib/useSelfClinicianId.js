@@ -6,7 +6,7 @@
 // "which clinician am I?" lookup. Uses the same useClinicianSummaries cache,
 // so this is free when called alongside other consumers (e.g. Home).
 
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { useClinicianSummaries } from '@/lib/queries'
 
 export function useSelfClinicianId() {

@@ -15,6 +15,7 @@
 // All exports are fire-and-forget — they never throw. Errors log to
 // `[practiceMemoryRag] …` so they surface in `vercel logs`.
 
+import { generateText } from 'ai'
 import { embedTexts } from './embeddings.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -84,6 +85,33 @@ export function chunkContent(text) {
   return out
 }
 
+/**
+ * Extract 2-4 topic tags for a chunk via Haiku. Fails silently — tags are an
+ * optional optimisation for GIN pre-filtering, not required for correctness.
+ */
+async function extractTopicTags(text) {
+  try {
+    const preview = String(text || '').slice(0, 400).trim()
+    if (!preview) return []
+    const { text: raw } = await generateText({
+      model: 'anthropic/claude-haiku-4-5',
+      system: 'You extract topic tags from clinical content. Output only a JSON array of 2-4 lowercase strings. No prose, no markdown, just the array.',
+      messages: [{
+        role: 'user',
+        content: `Extract 2-4 topic tags for this clinical content chunk as a JSON array of lowercase strings.\n\nChunk: ${preview}`,
+      }],
+      maxOutputTokens: 60,
+    })
+    const match = raw.match(/\[[\s\S]*?\]/)
+    if (!match) return []
+    const tags = JSON.parse(match[0])
+    if (!Array.isArray(tags)) return []
+    return tags.filter((t) => typeof t === 'string').slice(0, 4)
+  } catch {
+    return []
+  }
+}
+
 async function upsertChunks(rows) {
   if (rows.length === 0) return { count: 0 }
   // pgvector expects '[v1,v2,...]' string form over PostgREST.
@@ -97,6 +125,7 @@ async function upsertChunks(rows) {
     text:          r.text,
     tokens:        r.tokens,
     embedding:     `[${r.embedding.join(',')}]`,
+    topic_tags:    r.topicTags ?? [],
   }))
   const r = await sb('practice_memory_chunks?on_conflict=source_type,source_id,chunk_index', {
     method: 'POST',
@@ -138,7 +167,10 @@ export async function indexInterviewSummary({ workspaceId, clinicianId, intervie
       ? `Interview on "${topic}"${dateLabel ? ` (${dateLabel})` : ''}`
       : `Interview${dateLabel ? ` (${dateLabel})` : ''}`
 
-    const [embedding] = await embedTexts([text])
+    const [[embedding], topicTags] = await Promise.all([
+      embedTexts([text]),
+      extractTopicTags(text),
+    ])
     if (!embedding) return
 
     await upsertChunks([{
@@ -151,6 +183,7 @@ export async function indexInterviewSummary({ workspaceId, clinicianId, intervie
       text,
       tokens:      approxTokens(text),
       embedding,
+      topicTags,
     }])
     // Summary is always exactly 1 chunk — wipe any stale chunks from a
     // prior shape (defensive; never expected to fire).
@@ -186,7 +219,10 @@ export async function indexContentItem({ workspaceId, contentItemId }) {
     const chunks = chunkContent(body)
     if (chunks.length === 0) return
 
-    const embeddings = await embedTexts(chunks)
+    const [embeddings, allTopicTags] = await Promise.all([
+      embedTexts(chunks),
+      Promise.all(chunks.map(extractTopicTags)),
+    ])
     const dateLabel = row.created_at ? new Date(row.created_at).toISOString().slice(0, 10) : ''
     const platform = row.platform ? row.platform.replace(/_/g, ' ') : 'piece'
     const baseLabel = row.topic
@@ -208,6 +244,7 @@ export async function indexContentItem({ workspaceId, contentItemId }) {
         text,
         tokens:       approxTokens(text),
         embedding,
+        topicTags:    allTopicTags[i] ?? [],
       }
     }).filter(Boolean)
 
@@ -357,7 +394,10 @@ export async function indexInterviewTranscriptFull({
     const chunks = chunkContent(body)
     if (chunks.length === 0) return
 
-    const embeddings = await embedTexts(chunks)
+    const [embeddings, allTopicTags] = await Promise.all([
+      embedTexts(chunks),
+      Promise.all(chunks.map(extractTopicTags)),
+    ])
     const dateLabel = createdAt ? new Date(createdAt).toISOString().slice(0, 10) : ''
     const baseLabel = topic
       ? `Interview transcript: "${topic}"${dateLabel ? ` (${dateLabel})` : ''}`
@@ -378,6 +418,7 @@ export async function indexInterviewTranscriptFull({
         text,
         tokens:       approxTokens(text),
         embedding,
+        topicTags:    allTopicTags[i] ?? [],
       }
     }).filter(Boolean)
 
@@ -410,7 +451,10 @@ async function indexAuthoredProse({
     const chunks = chunkContent(text)
     if (chunks.length === 0) return
 
-    const embeddings = await embedTexts(chunks)
+    const [embeddings, allTopicTags] = await Promise.all([
+      embedTexts(chunks),
+      Promise.all(chunks.map(extractTopicTags)),
+    ])
     const datePart = dateLabel ? new Date(dateLabel).toISOString().slice(0, 10) : ''
     const titleLabel = String(title || '').trim() || 'Untitled'
     const baseLabel = `${kindLabel}: "${titleLabel}"${datePart ? ` (${datePart})` : ''}`
@@ -430,6 +474,7 @@ async function indexAuthoredProse({
         text:         t,
         tokens:       approxTokens(t),
         embedding,
+        topicTags:    allTopicTags[i] ?? [],
       }
     }).filter(Boolean)
 

@@ -24,8 +24,7 @@ import { enforceLimit } from '../_lib/ratelimit.js'
 import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
 import { getContextBlock } from '../_lib/conceptRetrieval.js'
 import { resolveOwnHistoryBlock, buildRagQuery } from '../_lib/practiceMemory.js'
-import { loadActiveCampaign } from '../_lib/campaignSettings.js'
-import { getCampaignPromptContext } from '../../src/lib/campaigns.js'
+import { loadCurrentTentpole, getTentpolePromptContext } from '../_lib/tentpoleCampaignContext.js'
 import { extractProvenanceBlock } from '../../src/lib/provenance.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -168,11 +167,11 @@ export default async function handler(req, res) {
     const storyTypeLabel = interview.story_type
       ? (Array.isArray(ws.story_type_options) ? ws.story_type_options.find(s => s.key === interview.story_type) : null)?.label ?? interview.story_type
       : null
-    // Active campaign (mode + structured CTA) flows into derivative content
-    // only. Per-clinician override wins over workspace default; both fall
-    // back cleanly when missing.
-    const activeCampaign = await loadActiveCampaign(ws.id, interview.clinician_id)
-    const campaignContext = getCampaignPromptContext(activeCampaign, ws)
+    // Active tentpole campaign flows into derivative content only — see
+    // api/content-plan/draft.js for the same pattern. Empty string when
+    // no campaign is active. Clinician scope honors per-clinician targeting.
+    const activeCampaign = await loadCurrentTentpole(ws.id, interview.clinician_id || null)
+    const campaignContext = getTentpolePromptContext(activeCampaign, ws)
     const systemPrompt = getAtomSystemPrompt(
       ws,
       clinicianName,

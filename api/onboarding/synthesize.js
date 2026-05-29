@@ -200,9 +200,13 @@ export default async function handler(req, res) {
     }
   }
 
-  // After this point, on any failure we must revert status back to
-  // 'completed' so the user can retry — otherwise the row is stuck in
-  // 'synthesizing' forever.
+  // After the claim and BEFORE the workspace PATCH succeeds, any failure
+  // should revert status to 'completed' so the user can retry safely.
+  // IMPORTANT: do NOT call revertClaim() after the workspace PATCH has
+  // succeeded — the workspace fields are already correct, and reverting
+  // would allow a retry that re-runs the merge, doubling pain_points (the
+  // AI rarely produces byte-identical strings so Set-dedup won't catch it).
+  // The markR failure path intentionally omits revertClaim for this reason.
   const revertClaim = async () => {
     try {
       await sb(
@@ -413,7 +417,20 @@ export default async function handler(req, res) {
       updated_at: new Date().toISOString(),
     }),
   })
-  if (!markR.ok) { await revertClaim(); return dbErr(res, markR, 'Interview update failed') }
+  if (!markR.ok) {
+    // Do NOT revert here. The workspace write above already succeeded —
+    // brand_voice, patient_context, and topic_suggestions are persisted.
+    // Reverting to 'completed' would enable a retry that re-runs Claude and
+    // re-merges potentially different AI output into the workspace (pain points
+    // are Set-deduped by exact string, but model non-determinism means a second
+    // run can produce slightly different phrasing and create duplicates).
+    //
+    // Leaving the interview in 'synthesizing' is the safer failure mode: an
+    // admin can manually flip it to 'synthesized' in the DB. The workspace is
+    // already correctly updated.
+    console.error(`[onboarding/synthesize] markR failed after workspace write — interview ${id} stuck in synthesizing. Manual DB fix: UPDATE workspace_onboarding_interviews SET status='synthesized' WHERE id='${id}'`)
+    return dbErr(res, markR, 'Workspace context saved but interview status update failed — your voice context is ready. Contact support if this message persists.')
+  }
 
   return ok(res, {
     ok: true,

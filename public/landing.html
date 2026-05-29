@@ -19,6 +19,31 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Source+Serif+4:ital,wght@0,400;0,500;0,600;1,400;1,500;1,600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/site.css" />
   <script defer src="/_vercel/insights/script.js"></script>
+  <script>
+    // Auto-redirect signed-in users to /onboard so the React app can route
+    // them to their workspace subdomain. Catches the post-invitation-signup
+    // flow: Clerk's Account Portal redirects to narraterx.ai/ after sign-up,
+    // and without this check the user sees this marketing page instead of
+    // landing in their workspace. Clerk sets __client_uat (and __session in
+    // some flows) on .narraterx.ai when a session exists. __client_uat=0 means
+    // signed out, any positive integer means signed in. ?stay=1 opts out for
+    // anyone who genuinely wants to view this page while signed in.
+    (function () {
+      try {
+        if (new URLSearchParams(location.search).get('stay') === '1') return
+        var cookies = document.cookie || ''
+        var uatMatch = cookies.match(/(?:^|;\s*)__client_uat=([^;]+)/)
+        var hasSession =
+          (uatMatch && uatMatch[1] !== '0') ||
+          /(?:^|;\s*)__session=/.test(cookies)
+        if (hasSession) {
+          location.replace('/onboard')
+        }
+      } catch (e) {
+        // Cookie API blocked or some other oddity — just render the page.
+      }
+    })()
+  </script>
 </head>
 <body>
 

@@ -6,6 +6,7 @@ export const config = { runtime: 'nodejs' }
 
 import crypto from 'node:crypto'
 import { workspaceContext } from '../../_lib/workspaceContext.js'
+import { requireRole } from '../../_lib/auth.js'
 
 const CLIENT_ID = process.env.BUFFER_CLIENT_ID
 const CLIENT_SECRET = process.env.BUFFER_CLIENT_SECRET
@@ -30,6 +31,15 @@ async function handler(req, res) {
     res.writeHead(404, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: 'no-workspace-context' }))
     return
+  }
+
+  // Auth gate — without this, an unauthenticated visitor could complete Buffer
+  // consent under their own Buffer account and the callback would write that
+  // token onto this workspace, silently routing every subsequent publish
+  // through the attacker's account.
+  const auth = await requireRole(req, ['admin'], { orgId: workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
   const nonce = crypto.randomBytes(16).toString('hex')

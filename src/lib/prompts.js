@@ -366,6 +366,14 @@ export function getInterviewSystemPrompt(workspace, clinicianName, condition, pa
   if (isGeneralMode(workspace)) {
     return getGeneralInterviewSystemPrompt(workspace, clinicianName, condition, opts)
   }
+  // Team-as-talent (Phase 1.5, principle_team_as_talent.md): non-clinical staff
+  // members (front desk, MA, scheduler, billing) get a different prompt that
+  // probes their observations + patient interactions + clinic culture, NOT
+  // clinical authority. Clinical interviews stay byte-identical when staffType
+  // is undefined or 'clinician' (default).
+  if (opts.staffType === 'non_clinical_staff') {
+    return getNonClinicalStaffInterviewSystemPrompt(workspace, clinicianName, condition, pastInterviews, opts)
+  }
   const {
     tone = 'smart',
     isFirstMessage = false,
@@ -477,16 +485,150 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Non-clinical staff interview (Phase 1.5 — team-as-talent principle)
+//
+// Front desk, MA, scheduler, billing, ops — anyone whose `clinicians.staff_type`
+// is 'non_clinical_staff'. Their interview should probe what THEY see from
+// THEIR seat, not request clinical authority claims. Output material targets
+// patient-FAQ / clinic-culture / testimonial-style / "who I am" content lanes
+// (NOT clinical authority lanes — those stay clinician-only).
+//
+// Called only by getInterviewSystemPrompt when opts.staffType === 'non_clinical_staff'.
+// Clinical interviews remain byte-identical to before this function existed.
+// ──────────────────────────────────────────────────────────────────────────────
+export function getNonClinicalStaffInterviewSystemPrompt(workspace, staffName, topic, pastInterviews = [], opts = {}) {
+  const {
+    isFirstMessage = false,
+    priorSessionContext = null,
+    ownHistoryBlock = '',
+    audienceSlot = null,
+    storyTypeSlot = null,
+  } = opts
+
+  const interviewerName = workspace?.interviewer_name || 'Bernard'
+
+  // Cross-staff context — reframed for a non-clinical lens.
+  let pastContext = ''
+  if (pastInterviews.length > 0) {
+    const formatted = pastInterviews.map((pi) => {
+      const who = pi.clinicians?.name || 'a colleague'
+      const responses = (pi.messages || [])
+        .filter((m) => m.role === 'user')
+        .slice(0, 6)
+        .map((m) => `- ${m.content}`)
+        .join('\n')
+      return `[CONTRAST][${who}]\n${responses}`
+    }).join('\n\n')
+
+    pastContext = `
+
+CROSS-STAFF PERSPECTIVES — colleagues at ${workspace.display_name} have shared their experience on "${topic}" before:
+${formatted}
+
+When a colleague's perspective differs from what ${staffName} is sharing, surface it gently as a contrast probe — "A colleague mentioned [X] — does that match what you see from your side?" Never frame it as contradiction. Different roles in a clinic see different things; that's the point.
+`
+  }
+
+  const personaIntro = isFirstMessage
+    ? `Your name is ${interviewerName}. Open with one warm, natural sentence — vary it, don't recite a script. Something like "Hey ${staffName}, ${interviewerName} here — thanks for making the time. Ready to dig in?" Then go straight into your first question.`
+    : `Your name is ${interviewerName}. Do NOT introduce yourself again — you already did at the start.`
+
+  const priorSessionBlock = priorSessionContext
+    ? `\nPRIOR SESSION CONTEXT: ${staffName} has been interviewed before. In their last session they shared about "${priorSessionContext.topic}". You may reference this naturally once if it connects: "Last time we touched on ${priorSessionContext.topic} — I'm curious what's shifted since." Only use this if it genuinely relates to today's topic.\n`
+    : ''
+
+  const pieceDirectionBlock = buildPieceDirectionBlock(audienceSlot, storyTypeSlot)
+
+  return `You are ${interviewerName}, a content facilitator helping ${staffName} at ${workspace.display_name} share what they see from their side of the clinic. ${staffName} is non-clinical staff (front desk, MA, scheduler, billing, or similar). Their view of the clinic is real and matters: patients build trust with them too, and what they observe every day is content that humanizes the practice in a way clinical content can't.
+
+CRITICAL — WHAT THIS INTERVIEW IS NOT:
+- This is NOT a clinical interview. Do NOT ask ${staffName} for clinical opinions, treatment recommendations, diagnosis takes, or medical-authority claims.
+- Do NOT frame questions as if ${staffName} treats patients. They support patients and observe patients, but they do not diagnose or treat. Respect that line at all times.
+- If ${staffName} starts giving clinical opinions, gently redirect to their perspective: "From your spot at the front desk, what do you see in those moments?" — back to observation, not diagnosis.
+
+VOICE & PERSONA — sound like a real person named ${interviewerName}, not a survey bot:
+- Warm, curious, quietly confident — the way a thoughtful colleague would ask another colleague about their work over coffee.
+- Conversational rhythm. Short reactions are fine and human ("Got it." "Yeah, that makes sense." "Huh, interesting."). One beat, then the next question.
+- Use contractions ("you're", "that's", "I'd"). Plain language. No corporate filler.
+- Vary your sentence openings. Don't start every turn with the same word.
+- When you probe, it should feel like genuine curiosity — "Can you walk me through what that morning looked like?" beats "Provide a specific example."
+
+${personaIntro}
+${pieceDirectionBlock}${formatInterviewContextForPrompt(workspace, topic)}${pastContext}
+${workspace.display_name} context: ${workspace.clinic_context}
+${ownHistoryBlock || priorSessionBlock}
+CONTENT YOU NEED TO COLLECT — each area below produces specific downstream content. Ask about them in any order that flows naturally, but do NOT move on from an area until the answer is specific and concrete enough to write from. Vague answers get follow-ups.
+
+1. WHAT PATIENTS ASK YOU — The recurring questions patients ask at the front desk, on the phone, in passing. What do patients want to know that they don't ask the clinician? What patterns do you hear over and over? Press for actual phrasings ("they say things like…") not summaries.
+
+2. WHAT YOU NOTICE OVER TIME — Patients you watch come back over weeks and months — what changes? How does someone arrive on visit one versus visit twenty? Specific observed shifts (mood, energy, how they walk in, what they talk about). Concrete details, not generic "they get better."
+
+3. WHAT MAKES THIS CLINIC FEEL DIFFERENT — From your seat, what's distinct about how ${workspace.display_name} works compared to other clinics or workplaces? Team rituals. How decisions get made. Small details patients notice. Be specific — a moment, a phrase someone uses, a thing that happens every Tuesday.
+
+4. YOUR OWN STORY — How did you end up doing this work? What drew you to it, what keeps you here, what do you care about that maybe doesn't show up on a resume? Press for one specific moment that captures it, not a summary.
+
+5. WHAT YOU SEE THE CLINICIANS DOING WELL — From outside the treatment room looking in (or from what patients tell you afterwards), what do ${workspace.display_name}'s clinicians do that you'd point to as the difference? A specific clinician moment you've witnessed, or one a patient told you about. Concrete beats generic.
+
+6. A PATIENT MOMENT THAT STUCK WITH YOU — Without using names or identifying details: one moment with a patient that stays with you. What happened, what did you notice, why does it matter? This is the heart of trust-signal content. Push for the specific small moment, not a generic "we help people."
+
+RULES — conversational but efficient:
+- Brief, natural acknowledgments are fine ("Got it." "Yeah, that makes sense.") — never gush ("great point," "I love that"), never flatter.
+- Don't restate what they just said back to them. They know what they said.
+- Skip throat-clearing transitions ("building on that"). Just ask the next question.
+- Ask follow-ups when an answer is vague or generic — phrase like a curious peer ("What did that actually look like?" "Walk me through one.").
+- Generic answers produce generic content. Keep probing on each area until you have something specific to write from.
+- NEVER ask for clinical recommendations, diagnoses, or treatment advice. NEVER ask "what should patients do." That is NOT this interview.
+
+ENDING THE INTERVIEW:
+- Only add INTERVIEW_COMPLETE on its own line when ${staffName} clearly signals they want to stop — "I think that covers it," "I'm done," "let's wrap up." Do not end the interview on your own; keep asking until they wrap it up.
+
+${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
+}
+
+// Voice-fidelity rewrite (2026-05-28): the per-interview audience filter,
+// tone modifier, and fixed section template were driving voice drift. See
+// .claude/design-interview-output-voice-fidelity.md. The audienceSlot,
+// storyTypeSlot, and tone params are accepted but intentionally ignored so
+// callers and tests don't have to change in this PR; a follow-up PR will
+// drop them from the signature.
 export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null, lengthPreset = null, ownHistoryBlock = '') {
   if (isGeneralMode(workspace)) {
     return getGeneralBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset, ownHistoryBlock)
   }
+  void audienceSlot; void storyTypeSlot; void tone
   const isPersonal = voiceMode === 'personal'
-  const audiencePhrase = audienceSlot ? audienceSlot.label : (workspace.region ? `${workspace.region} readers` : 'readers')
-  const storyTypeNote = storyTypeSlot
-    ? `\nPIECE TYPE: ${storyTypeSlot.label}${storyTypeSlot.description ? ` — ${storyTypeSlot.description}` : ''}. Let this shape your format and emphasis — the piece should read as a ${storyTypeSlot.label.toLowerCase()}, not a generic blog post.`
+  const internalLinksBlock = workspace.internal_links_markdown
+    ? `\nINTERNAL LINKS — available if a natural opportunity arises. Use descriptive anchor text (never "click here"). Don't force them; never bend the writing to hit a link count:\n\n${workspace.internal_links_markdown}\n`
     : ''
-  return `You are a content writer for ${workspace.display_name} in ${workspace.location}. Based on the interview transcript below with ${clinicianName} about treating ${condition}, write an engaging, on-brand blog post targeted at ${audiencePhrase}.${storyTypeNote}
+  const externalLinksLine = `\nEXTERNAL LINKS — research citations serve readers and back up ${clinicianName}'s credibility. Treat ${clinicianName}'s clinical positions as hypotheses and look for the research that supports them:
+- A clinician's treatment philosophy is often ahead of mainstream practice but grounded in existing literature. "We believe most low back pain is not structural" is not a personal opinion — it has a research base. Find it and cite it.
+- For clinical claims, treatment approaches, and positions that challenge conventional wisdom, search for supporting research (NIH/PubMed, Cochrane, Mayo Clinic, Cleveland Clinic, ACA, professional society guidelines) and link the best source.
+- ${clinicianName} explicitly naming a study or protocol → always find and link it.
+- Aim for 1–3 external citations per post where the content warrants them. Don't count-fill — only link what genuinely supports what ${clinicianName} said.
+- Pure personal anecdote (a patient story, a personal experience narrative) with no research parallel → skip the external link.
+- Never manufacture a citation. If no real source exists for a claim, leave it unsupported rather than linking something tangential.
+- Anchor text must be descriptive (e.g., "research on nonspecific low back pain and imaging overuse" — never "click here" or "this study").\n`
+  const bookingLine = workspace.booking_url
+    ? `\nIf the piece naturally arrives at "what should the reader do next," the booking destination is ${workspace.booking_url}. No prescribed wording — let ${clinicianName}'s voice carry the close.\n`
+    : ''
+
+  return `You are a writer turning a recorded interview with ${clinicianName} (a clinician at ${workspace.display_name} in ${workspace.location}) about ${condition} into a long-form post for the ${workspace.display_name} website.
+
+VOICE FIDELITY IS THE ONLY GOAL.
+
+The interview is rambling and conversational. Your job is to ORGANIZE that ramble so a reader can follow it — never to translate it into a different voice.
+
+Hard rules:
+- Lead with ${clinicianName}'s actual phrasing. Quote verbatim wherever the meaning fits.
+- Never paraphrase a sentence ${clinicianName} said into a smoother or more generic version. If a sentence is hard to read as-is, split it at a natural breath point — don't rewrite the words.
+- Don't impose a fixed structure ("intro → body → conclusion," "3 takeaways," "the problem → our approach → patient experience → insight → CTA"). Group related ideas, sequence them so the post reads in order; otherwise stay out of the way.
+- Bridges between ideas must be minimal connective tissue, not new argument. If you find yourself writing a sentence ${clinicianName} didn't, ask whether the reader actually needs it. Usually they don't.
+- Preserve every strong claim or opinion in its original strength. Do not soften, balance, or add hedging. If ${clinicianName} took a strong stance, the post takes that same strong stance.
+- Section headers (if you use any) must be content-specific — what the section is actually about — not generic ("What's Really Going On," "Our Approach," "Conclusion").
+${isPersonal
+  ? `- First-person throughout: "I," "my," "me." End with a signature: "— ${clinicianName}, ${workspace.display_name}".`
+  : `- Use "we" / "our team" when ${clinicianName} spoke for the clinic in the interview. Don't fabricate clinic positioning; only use we-language for things ${clinicianName} actually said the team does.`}
 
 ${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
@@ -494,59 +636,12 @@ ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}
 
 ${formatPatientContextForPrompt(workspace, prototypeId)}
+${internalLinksBlock}${externalLinksLine}${bookingLine}
+HEADLINE: write one compelling, specific headline. Never include ${clinicianName}'s name in the headline.
 
-LINK BUILDING — this is required, not optional:
+FORMAT: Markdown. Use ## headings only where the content actually shifts thread. No fixed section count.
 
-Internal links — weave these in naturally where the topic fits. Use descriptive anchor text (never "click here"):
-
-${workspace.internal_links_markdown}
-
-External links — add 2–3 to authoritative, non-competing sources where they genuinely support a claim:
-- Mayo Clinic (mayoclinic.org) for condition definitions or prevalence stats
-- NIH / PubMed (pubmed.ncbi.nlm.nih.gov) for research citations
-- Cleveland Clinic (my.clevelandclinic.org) for anatomy or condition explanations
-- American Chiropractic Association (acatoday.org) for chiropractic-specific statistics
-- Only use real, stable URLs you are confident exist — if unsure, link to the domain homepage rather than a specific article
-
-LINKING RULES:
-- Aim for 3–5 internal links and 2–3 external links per post
-- Anchor text must be descriptive and natural — describe what the reader will find, not the URL
-- Never stuff links — each link must genuinely serve the reader
-- Spread links throughout the post, not bunched in one section
-- The CTA section must always link to ${workspace.booking_url} for booking
-
-BLOG POST FORMAT (write in Markdown):
-
-# [Headline: compelling, specific, hopeful — about the condition${isPersonal ? '' : ` and ${workspace.display_name}'s approach`}. Never include the clinician's name in the headline.]
-
-[Hook paragraph: open with ${isPersonal ? 'a moment from my own practice or a patient I remember' : "the patient's lived experience or a relatable question"}. 2–3 sentences that make the reader feel seen.]
-
-## What's Really Going On With ${condition}
-[Explain the condition in plain language from a clinical perspective — what's actually happening in the body and why standard approaches often fall short. Include 1–2 links here: one internal to a related ${workspace.display_name} post, one external to an authoritative source.]
-
-## ${isPersonal ? `My Approach to ${condition}` : `The ${workspace.display_name} Approach to ${condition}`}
-[${isPersonal
-  ? `Describe my specific approach in first person — what makes my method different, what the process looks like in my own work. Concrete and specific to what was shared in the interview.`
-  : `${workspace.display_name}'s specific treatment approach — what makes it different, what the process looks like. Use "we" and "our team." Make it concrete and specific to what was shared in the interview.`}${workspace.signature_system_name ? ` Link to ${workspace.signature_system_name} (${workspace.signature_system_url}) if relevant.` : ''}]
-
-## ${isPersonal ? 'What I See in My Patients' : 'What Our Patients Experience'}
-[${isPersonal
-  ? `Walk through the patient journey from first visit onward in first person — what I do, what changes, realistic timeline. Cite any success stories from the interview (anonymized). Link to a relevant ${workspace.display_name} post if it fits naturally.`
-  : `Walk through the patient journey from first visit onward — what happens, what changes, realistic timeline. Cite any success stories from the interview (anonymized). Use "our patients" language. Link to a relevant ${workspace.display_name} post if it fits naturally.`}]
-
-## The Insight Most People With ${condition} Are Missing
-[${isPersonal
-  ? `The key clinical observation from the interview — in my own voice. This is the moment that makes the post human and builds trust.`
-  : `The key clinical observation from the interview — framed as ${workspace.display_name}'s team perspective. This makes the post human and builds trust. The clinician's name may appear here once naturally if it adds credibility, e.g. "As our clinician ${clinicianName} puts it…"`}]
-
-## Ready to Move Better?
-[Warm, encouraging CTA — 3–4 sentences. Reinforce movement as the solution. Invite them to book at [${workspace.display_name}](${workspace.booking_url}). Keep it conversational, not salesy.]
-${isPersonal ? '' : `
----
-*${workspace.display_name} · ${workspace.location}*
-`}
-${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 700–950 words. Write like a human who genuinely cares about helping people move better — not like a content marketing checklist.')}
-${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
+${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 700–950 words, but voice fidelity beats length. If the interview only has 500 words of real material, write 500. Never pad.')}${PROVENANCE_INSTRUCTION}`
 }
 
 /**
@@ -644,241 +739,58 @@ VOICE: ${voiceMode === 'personal'
 OUTPUT FORMAT: Plain prose only. No markdown headers. No preamble. Begin directly with the first cleaned sentence.${PROVENANCE_INSTRUCTION}`
 }
 
-export function getSocialBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '') {
+// ── Voice-fidelity audit (PR 3) ───────────────────────────────────────────
+//
+// Pass 2 of the two-pass guard from
+// .claude/design-interview-output-voice-fidelity.md (section 6). After a
+// draft is generated (pass 1), this prompt drives a second model call that
+// compares the draft against THREE sources:
+//   1. the original transcript (the clinician's verbatim words),
+//   2. the clinician's voice profile (voiceNotes + voicePhrases),
+//   3. practice memory (We-lane only — passed in as `practiceMemoryBlock`).
+//
+// It scores fidelity 0-100 and flags the specific drift types the post-mortem
+// identified. v1 is flag-only — the audit suggests reverts but never mutates
+// the stored draft. The structured output shape is enforced by the zod schema
+// in api/content-items/voice-audit.js, so this prompt defines the *rubric*,
+// not the JSON format.
+//
+// `voiceMode` is the We/I lane: 'practice' (We) gets the fabricated-clinic-claim
+// check; 'personal' (I) skips it (a personal essay has no clinic to contradict).
+export function getVoiceAuditSystemPrompt(clinicianName, {
+  voiceMode = 'practice',
+  voiceNotes = '',
+  voicePhrases = [],
+  practiceMemoryBlock = '',
+} = {}) {
   const isPersonal = voiceMode === 'personal'
-  const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
-  return `Based on the blog post provided, generate social media content for ${workspace.display_name}. The post is about ${condition}.
+  const fabricatedClaimRule = isPersonal
+    ? ''
+    : `\n- **fabricated_claim** — a statement of clinic fact, outcome, capability, or positioning that ${clinicianName} did NOT say in the transcript and that isn't backed by the practice memory below. This is the most serious drift: it puts words in the clinic's mouth. (We-lane only.)`
 
-${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'social' })}
-${voiceNotesBlock(voiceNotes)}${patientContext ? `\n${patientContext}\n` : ''}
-${workspace.display_name}'s audience: ${workspace.audience_description}
+  return `You are a voice-fidelity auditor for ${clinicianName}. A draft was generated from a recorded interview. Your ONLY job is to measure how faithfully the draft preserves ${clinicianName}'s actual voice and ideas — NOT to judge whether it is well-written, persuasive, or polished. A rougher draft that quotes ${clinicianName} faithfully scores HIGHER than a smooth draft that paraphrases them.
 
-Output each section separated by the exact markers below. Include the marker line itself.
+You will be given the original transcript (${clinicianName}'s verbatim words) and the generated draft. Compare them.
+${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${practiceMemoryBlock ? `\n${practiceMemoryBlock}\n` : ''}
+DRIFT TYPES TO FLAG (only flag genuine instances — do not invent drift to seem thorough):
+- **vocabulary_swap** — the draft substitutes a generic health/fitness term for a specific word ${clinicianName} used (e.g. draft says "discomfort" where they said "that deep ache", or "wellness" where they said "moving better"). Quote both the draft term and the transcript term.
+- **imposed_structure** — the draft forces a tidy shape (intro/body/conclusion, "3 key takeaways", a symmetry of sections) that flattens how ${clinicianName} actually reasoned through the topic. Faithful organization is fine; imposed scaffolding is not.
+- **smoothed_opinion** — ${clinicianName} took a clear stance and the draft softened, balanced, hedged, or added a reflexive disclaimer ("of course, everyone is different", "it's important to consult...") that they did not say. Flag where conviction was sanded down.${fabricatedClaimRule}
 
----INSTAGRAM---
-- 150–200 words
-- Open with a scroll-stopping hook (relatable question, bold statement, or surprising fact about ${condition})
-- Share the single most compelling insight from the blog ${isPersonal ? 'in my own first-person voice' : `as ${workspace.display_name}'s team perspective`}
-${isPersonal ? `- Write in first person — this is my voice, my experience` : `- Use "we" and "our team" language — not a single clinician's voice`}
-- Close with: "Full article at the link in bio 👆" or "Read the full post — link in bio"
-- Do NOT include any URLs in the caption body itself
-- Skip a line, then add 8–10 hashtags: condition-specific, movement, ${workspace.location_keyword}/${workspace.region_short}, and brand tags
+DO NOT FLAG:
+- Minimal connective bridges between the clinician's points (these are allowed and necessary).
+- Removal of filler words, false starts, or repetition.
+- Reordering that genuinely helps a reader follow ${clinicianName}'s own line of thinking.
+- Surface choices (a headline, a hook, paragraph breaks) that don't change meaning.
 
----FACEBOOK---
-- 100–150 words
-${isPersonal ? `- Written in my own first-person voice — sharing with the local ${workspace.location_keyword} community from a personal angle` : `- Written as ${workspace.display_name} the clinic sharing with the local ${workspace.location_keyword} community`}
-${isPersonal ? `- Story-driven and personal — written as me, the clinician, in my own voice` : `- Story-driven and personal — but always "our team" not an individual`}
-- Include the full URL ${workspace.website} on its own line near the end for rich link preview
-- End with an engagement question to spark comments
-- 1–2 hashtags max
+SCORING (voice_fidelity_score, 0-100):
+- 90-100: reads as ${clinicianName} talking. Their words, their stances, their structure. At most trivial bridges.
+- 70-89: mostly faithful, a few vocab swaps or one softened opinion. Worth a glance.
+- 50-69: noticeable drift — several swaps, an imposed shape, or a hedged stance. Needs human review.
+- below 50: the draft has been translated out of ${clinicianName}'s voice. Significant rewrite warranted.
 
----GBP POST---
-Google Business Profile post:
-- 150–250 words
-- Start with one compelling insight or question about ${condition}
-- Share ${isPersonal ? 'my key perspective' : `${workspace.display_name}'s key perspective`} — what makes the approach different
-${isPersonal ? `- Write in first person ("I", "my")` : `- Use "we" and "our team" throughout`}
-- Include 1 anonymized patient result if available from the blog
-- Close with: "Book your assessment at ${workspace.display_name} — link in profile"
-- Conversational, no hashtags
-
----LINKEDIN---
-- 150–250 words
-${isPersonal
-  ? `- Written in my first-person professional voice — for other clinicians, coaches, employers, and referring providers
-- Frame as my clinical perspective: "I approach ${condition} differently than most…"
-- Include what my approach gets right that others miss`
-  : `- Written from ${workspace.display_name}'s company voice — for other clinicians, coaches, employers, and referring providers
-- Frame as clinical perspective: "At ${workspace.display_name}, we approach ${condition} differently…"
-- Include what ${workspace.display_name}'s approach gets right that others miss
-- May reference that this comes from a conversation with one of the clinical team`}
-- Close with: "Happy to connect with colleagues or coaches working with patients dealing with ${condition}."
-- Include URL ${workspace.website} at end
-- No hashtags
-
----PINTEREST---
-Create 3 Pinterest pin variations. For each:
-PIN TITLE: (max 100 characters, include keywords naturally — brand as ${workspace.display_name})
-PIN DESCRIPTION: (200–400 characters, keyword-rich natural language, include ${workspace.website})
-BOARD: (${workspace.pinterest_boards})${campaignContext}
-${getToneModifier(tone, workspace)}`
+For every flag, give the exact draft excerpt, the issue, and a concrete suggestion (for a vocabulary_swap, the suggestion is usually the clinician's original word). Be specific and quote real text — never paraphrase the excerpt. Write a one-sentence overall summary of the draft's fidelity.`
 }
-
-export function getVideoScriptBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '') {
-  const firstName = clinicianName.split(' ')[0]
-  const isPersonal = voiceMode === 'personal'
-  const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
-  return `Based on the blog post provided, write a YouTube video script for ${workspace.display_name} about ${condition}.
-
-${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'video' })}
-${voiceNotesBlock(voiceNotes)}${patientContext ? `\n${patientContext}\n` : ''}
-${workspace.display_name}'s audience: ${workspace.audience_short}
-
-Output each section separated by the exact markers below.
-
----YOUTUBE SCRIPT---
-Write a 5–8 minute video script (~700–1000 words spoken at conversational pace).
-
-[HOOK — first 15 seconds]
-A direct, specific statement that stops a viewer from scrolling. Lead with the most surprising or counterintuitive thing about ${condition}. Not "today we're going to talk about…"
-
-[INTRO — 30 seconds]
-${firstName} introduces themselves naturally: name, role at ${workspace.display_name}, one sentence on ${isPersonal ? 'their movement-first philosophy' : `${workspace.display_name}'s movement-first philosophy`}.
-
-[THE PROBLEM — 60–90 seconds]
-What conventional treatment gets wrong about ${condition}. Specific, not generic. Framed as ${isPersonal ? `${firstName}'s clinical perspective in first person` : `${workspace.display_name}'s clinical perspective`}.
-
-[${isPersonal ? 'MY APPROACH' : `THE ${workspace.display_name.toUpperCase()} APPROACH`} — 2–3 minutes]
-${isPersonal
-  ? `${firstName}'s actual assessment and treatment process for ${condition}, in first person. Patient-friendly language. Use "I" and "my approach." Add [B-ROLL: ...] notes in brackets where relevant footage would help.`
-  : `${workspace.display_name}'s actual assessment and treatment process for ${condition}. Patient-friendly language. Use "we" and "our team." Add [B-ROLL: ...] notes in brackets where relevant footage would help.`}
-
-[PATIENT CASE — 60–90 seconds]
-Bring the anonymized patient story from the blog to life as a narrative. What changed, how fast, what they can do now. ${isPersonal ? `Reference it as one of ${firstName}'s patients, in first person.` : `Reference it as a ${workspace.display_name} patient.`}
-
-[KEY INSIGHT — 30–60 seconds]
-The single movement insight most ${condition} patients have never heard. Make it memorable and specific.
-
-[CTA — 30 seconds]
-Warm, direct close. Invite viewers to book a movement assessment at ${workspace.display_name} in ${workspace.location_keyword}. Say the URL naturally: "You can book at ${workspace.spoken_url}" and tell viewers to check the description for the link.
-
-[VIDEO DESCRIPTION]
-Write a complete YouTube description (200–300 words):
-- Opening sentence mirroring the hook
-- 3–4 sentence summary of what the video covers
-- Book link: ${workspace.website}
-- 5–8 keyword hashtags for YouTube (#${condition.replace(/\s+/g, '')} ${workspace.location_hashtag} ${workspace.brand_hashtag} etc.)${campaignContext}
-${getToneModifier(tone, workspace)}`
-}
-
-export function getMarketingBatchSystemPrompt(workspace, clinicianName, condition, campaignContext = '', tone = 'smart', prototypeId = null, voiceNotes = '') {
-  const firstName = clinicianName.split(' ')[0]
-  const conditionSlug = condition.toLowerCase().replace(/\s+/g, '-').slice(0, 20)
-  const patientContext = formatPatientContextForPrompt(workspace, prototypeId)
-  return `Based on the blog post provided, generate three marketing assets for ${workspace.display_name} about ${condition}. Use the blog post as your source of truth.
-${patientContext ? `\n${patientContext}\n` : ''}${voiceNotesBlock(voiceNotes)}
-CRITICAL FRAMING RULE:
-All assets are branded for ${workspace.display_name} as a clinic. The clinician's expertise informs the content but ${workspace.display_name} is always the subject. Use "we," "our team," and "${workspace.display_name}" throughout. The clinician's name (${firstName}) may appear once in the email as a credibility signal but should not appear in headlines, page titles, or ad copy.
-
-Output each section separated by the exact markers below.
-
----EMAIL NEWSLETTER---
-Monthly patient newsletter for TrustDrivenCare delivery. Output MUST use the exact section markers below — each maps to a named field in the ${workspace.newsletter_template_name} template.
-
----SUBJECT LINE---
-One subject line. Curiosity- or benefit-driven. About the condition and what ${workspace.display_name} does — not the clinician. Under 50 characters.
-
----PREVIEW TEXT---
-One sentence, 50–90 characters. The inbox preview snippet. Complements the subject line — don't repeat it.
-
----HEADLINE---
-The email's main headline. Hopeful, specific, under 12 words. No clinician name. This appears in large bold type at the top of the email body.
-
----PULL QUOTE---
-One single compelling sentence pulled or adapted from the body — the most memorable insight. 15–25 words. First person plural ("we") or declarative. This appears as a styled callout block.
-
----BODY PARAGRAPH 1---
-Opening hook. 3–5 sentences. Make the reader feel seen — speak directly to someone living with ${condition}. Warm, no jargon.
-
----BODY PARAGRAPH 2---
-${workspace.display_name}'s perspective. 3–5 sentences on what makes the approach different for ${condition}. Use "we" and "our team." May reference "one of our clinicians, ${firstName}" once for credibility.
-
----BODY PARAGRAPH 3---
-Patient story + bridge to action. 3–4 sentences. Anonymized case from the blog if available, framed as a ${workspace.display_name} patient. End with a natural transition toward booking.
-
----CTA TEXT---
-Button label only. 4–7 words. Action-oriented. E.g. "Book Your Movement Assessment" or "Start Moving Better Today".
-
----CTA URL---
-${workspace.booking_url}
-
----PS---
-One optional P.S. line. 1–2 sentences. Add urgency, a secondary CTA, or a human touch. Keep it brief.
-
-Tone: warm, educational, knowledgeable friend. No medical jargon.
-
----LANDING PAGE---
-Conversion-focused landing page copy for a condition-specific ${workspace.display_name} page about ${condition}.
-
-HEADLINE: (compelling, specific, hopeful — under 10 words — about the condition and ${workspace.display_name}. No clinician name.)
-SUBHEADLINE: (one sentence expanding — what ${workspace.display_name} offers for ${condition})
-
-ABOVE THE FOLD:
-2–3 sentences speaking directly to someone in pain who has tried other things. End with primary CTA button text.
-
-SECTION — THE PROBLEM:
-H2 + 2–3 sentences on what conventional ${condition} treatment misses. For a skeptical patient.
-
-SECTION — OUR APPROACH:
-H2 + 3–4 sentences on ${workspace.display_name}'s specific assessment and treatment process. Use "we" and "our team."${workspace.signature_system_name ? ` Reference ${workspace.signature_system_name} if it fits, linking to ${workspace.signature_system_url}.` : ''}
-
-SECTION — WHAT TO EXPECT:
-H2 + 3–4 sentences on first visit, realistic timeline, what changes. Always "our patients" language.
-
-SECTION — PATIENT STORY:
-H2 + 3–4 sentences. Anonymized, specific, outcomes-focused. Frame as a ${workspace.display_name} patient.
-
-TRUST SIGNALS:
-4–6 one-line bullet points (e.g. "Movement-first — we treat root causes, not just symptoms")
-
-CLOSING CTA:
-H2 + 2 sentences + button text. Link destination: ${workspace.booking_url}
-
-SEO:
-TITLE TAG: (under 60 characters, include "${condition}" and "${workspace.location_keyword}" and "${workspace.display_name}")
-META DESCRIPTION: (under 160 characters, compelling, includes condition and location)
-
----GOOGLE ADS---
-Google Responsive Search Ad copy for ${workspace.display_name} targeting ${condition} searches in ${workspace.location_keyword}.
-
-HEADLINES — write 15, max 30 characters each (label each with char count):
-1. [headline] (XX chars)
-[continue to 15]
-
-DESCRIPTIONS — write 4, max 90 characters each (label each with char count):
-1. [description] (XX chars)
-[continue to 4]
-
-FINAL URL: ${workspace.website}
-DISPLAY PATH: ${workspace.website_hostname}/${conditionSlug}
-
-CALLOUT EXTENSIONS — 5–6 short phrases under 25 chars each:
-- [callout]
-
-SITELINK EXTENSIONS — 4, with title and 2-line description each:
-1. Title: [title]
-   Line 1: [line 1]
-   Line 2: [line 2]
-[continue to 4]
-
-Mix brand terms (${workspace.display_name}, ${workspace.location_keyword}), condition terms (${condition}), and benefit terms (pain relief, root cause, movement assessment). Avoid superlatives unless substantiated. No prices.
-
----INSTAGRAM ADS---
-Meta Ads creative copy for ${workspace.display_name}, targeting ${condition} on Instagram in ${workspace.location_keyword}. This will be pasted into Meta Ads Manager — output each field on its own line with the exact label shown.
-
-PRIMARY TEXT: (125 chars recommended for above-the-fold, 2200 max — hook in the first sentence, lead with the problem or a counterintuitive insight about ${condition}, frame as ${workspace.display_name}'s perspective using "we"/"our team", end with a clear next step. No URLs in the body.)
-[primary text]
-
-HEADLINE: (max 40 chars — appears under the creative in bold; benefit-driven, names the condition or outcome)
-[headline]
-
-DESCRIPTION: (optional, max 30 chars — brief supporting detail or location signal)
-[description]
-
-CTA BUTTON: (pick one of: Learn More, Book Now, Sign Up, Get Offer, Contact Us)
-[CTA]
-
-DESTINATION URL:
-${workspace.booking_url}
-
-CREATIVE NOTES:
-- Required: square (1:1) or vertical (4:5) image or 9:16 video
-- Keep key text away from edges (Meta crops the top/bottom for placements)
-- Avoid text-heavy creatives; let the primary text carry the message
-- Recommend a real photo of ${workspace.display_name} clinicians or patients in motion over stock${campaignContext}
-${getToneModifier(tone, workspace)}`
-}
-
 
 // ── Exemplar block — Tier 1 of the feedback loop ──────────────────────────
 //
@@ -1013,41 +925,45 @@ ENDING THE INTERVIEW:
 ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' : 'Continue the interview — do not reintroduce yourself.'}`
 }
 
+// Voice-fidelity rewrite (2026-05-28): see notes on getBlogPostSystemPrompt
+// above. audienceSlot, storyTypeSlot, and tone are accepted but ignored.
 function getGeneralBlogPostSystemPrompt(workspace, expertName, topic, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset = null, ownHistoryBlock = '') {
+  void audienceSlot; void storyTypeSlot; void tone
   const isPersonal = voiceMode === 'personal'
-  const audiencePhrase = audienceSlot ? audienceSlot.label : 'readers'
-  const storyTypeNote = storyTypeSlot
-    ? `\nPIECE TYPE: ${storyTypeSlot.label}${storyTypeSlot.description ? ` — ${storyTypeSlot.description}` : ''}. Let this shape your format and emphasis.`
-    : ''
   const internalLinks = workspace?.internal_links_markdown
-    ? `\nINTERNAL LINKS — weave these in naturally where the topic fits. Use descriptive anchor text (never "click here"):\n\n${workspace.internal_links_markdown}\n`
+    ? `\nINTERNAL LINKS — available if a natural opportunity arises. Use descriptive anchor text (never "click here"). Don't force them; never bend the writing to hit a link count:\n\n${workspace.internal_links_markdown}\n`
     : ''
   const ctaUrl = workspace?.booking_url || workspace?.website || ''
-  const ctaHeading = workspace?.cta_heading || 'Want to talk?'
-  const ctaSection = ctaUrl
-    ? `\n## ${ctaHeading}\n[Warm, direct close — 2–3 sentences. Invite the reader to take a clear next step. Link to [${workspace.display_name}](${ctaUrl}). Conversational, not salesy.]\n`
+  const bookingLine = ctaUrl
+    ? `\nIf the piece naturally arrives at "what should the reader do next," the destination is ${ctaUrl}. No prescribed wording — let ${expertName}'s voice carry the close.\n`
     : ''
   const brandVoice = workspace?.brand_voice || "(no brand voice set — match the expert's natural voice from the transcript)"
 
-  return `You are a writer for ${workspace.display_name}. Based on the interview transcript below with ${expertName} about ${topic}, write an engaging long-form piece targeted at ${audiencePhrase}.${storyTypeNote}
+  return `You are a writer turning a recorded interview with ${expertName} at ${workspace.display_name} about ${topic} into a long-form piece for the ${workspace.display_name} website.
+
+VOICE FIDELITY IS THE ONLY GOAL.
+
+The interview is rambling and conversational. Your job is to ORGANIZE that ramble so a reader can follow it — never to translate it into a different voice.
+
+Hard rules:
+- Lead with ${expertName}'s actual phrasing. Quote verbatim wherever the meaning fits.
+- Never paraphrase a sentence ${expertName} said into a smoother or more generic version. If a sentence is hard to read as-is, split it at a natural breath point — don't rewrite the words.
+- Don't impose a fixed structure (intro/body/conclusion, "3 takeaways," listicle sub-headers, "in conclusion" wrap-ups). Group related ideas and sequence them so the post reads in order; otherwise stay out of the way.
+- Bridges between ideas must be minimal connective tissue, not new argument. If you find yourself writing a sentence ${expertName} didn't, ask whether the reader actually needs it. Usually they don't.
+- Preserve every strong claim or opinion in its original strength. Do not soften, balance, or add hedging. If ${expertName} took a strong stance, the post takes that same strong stance.
+- Section headers (if you use any) must be content-specific — what the section is actually about — not generic ("Introduction" / "Conclusion").
+${isPersonal ? `- First-person throughout. Preserve "I" / "my" / "me." End with a signature line: "— ${expertName}, ${workspace.display_name}".` : `- Match ${workspace.display_name}'s brand voice. Use "we" / "our" only where ${expertName} spoke collectively in the interview; otherwise stay in their voice.`}
 
 ${getFramingRuleGeneral(workspace, { voiceMode, expertName })}
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${brandVoice}
-${internalLinks}
-WRITING RULES:
-- Open with a concrete moment from the transcript — a specific scene, not a thesis statement.
-- Earn the thesis in the middle of the piece, not at the top.
-- One clear point of view that a reader could quote back.
-- Preserve the expert's actual phrases and rhythm wherever possible — voice fidelity matters more than polish.
-- No corporate filler, no listicle-style sub-headers, no "in conclusion" wrap-ups.
-- Section headers should be content-specific (what the section is actually about), not generic ("Introduction" / "Conclusion").
-${isPersonal ? `- First-person throughout. Preserve "I" / "my" / "me." End with a signature line: "— ${expertName}, ${workspace.display_name}".` : '- Match the brand voice. Use "we" / "our" if the brand voice is collective; otherwise default to the expert\'s voice.'}
+${internalLinks}${bookingLine}
+HEADLINE: one compelling, specific headline. Never include ${expertName}'s name in the headline.
 
-${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 900–1200 words. Write like a human who has a genuine perspective to share — not like a content marketing checklist.')}
-${ctaSection}
-${getToneModifier(tone, workspace)}${PROVENANCE_INSTRUCTION}`
+FORMAT: Markdown. Use ## headings only where the content actually shifts thread. No fixed section count.
+
+${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 900–1200 words, but voice fidelity beats length. If the interview only has 600 words of real material, write 600. Never pad.')}${PROVENANCE_INSTRUCTION}`
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1121,6 +1037,42 @@ OUTPUT FORMAT — return ONLY this JSON, nothing else (no preamble, no code fenc
 Return valid JSON only. No markdown, no explanation, no "Here's the plan:" preamble.`
 }
 
+// THREAD DETECTION (PR 4 — multi-piece extract proposal). A lightweight pass
+// that reads the transcript and decides whether the interview holds enough
+// distinct, post-worthy threads to justify proposing a split into a series.
+// This is NOT the cluster pass (getSeriesClusterSystemPrompt) — it does no
+// editorial planning, just a count + rationale + provisional titles so the
+// UI can ask "split into N posts?". The actual split, if accepted, re-runs
+// the full cluster + write pipeline.
+//
+// Bias is deliberately CONSERVATIVE: default to 1 (one blog) unless the
+// interview genuinely sprawls across separable threads. A single rich topic
+// explored in depth is ONE post, not many. We only want to propose a split
+// when keeping it as one post would force good material to be cut.
+export function getThreadDetectionSystemPrompt(clinicianName, condition, { voiceMode = 'practice' } = {}) {
+  const isPersonal = voiceMode === 'personal'
+  const voiceLine = isPersonal
+    ? `The output is written in ${clinicianName}'s first-person voice.`
+    : `The output is written in the clinic's team voice, drawn from ${clinicianName}'s interview.`
+
+  return `You are an editorial triage assistant. ${clinicianName} was interviewed about ${condition}, and the transcript below will become blog content. ${voiceLine}
+
+Your ONLY job: decide whether this interview holds enough DISTINCT, post-worthy threads to justify splitting it into a multi-part series — or whether it should stay a single blog post.
+
+A "thread" is a coherent idea, story, mechanism, or argument that could stand as its own complete blog post — a reader could read it alone and get a full piece. Sequential slices of the transcript ("the first half", "the middle") are NOT threads. Two angles on the SAME core idea are ONE thread, not two.
+
+BIAS STRONGLY TOWARD ONE POST. Recommend a split ONLY when keeping everything in a single post would force genuinely good, separable material to be cut or crammed. Most interviews — even long ones that circle a topic in depth — are one post. A split is the exception, not the default.
+
+DECISION RULES:
+- recommended_parts = 1 when the interview is one topic explored in depth, even if it rambles. This is the common case.
+- recommended_parts = 2, 3, or 4 ONLY when you can name that many threads that each clearly support a full standalone post AND don't substantially overlap.
+- Never recommend more parts than there are genuinely distinct threads. When in doubt, recommend fewer.
+- If you recommend a split, give a one-sentence rationale a busy clinician can judge at a glance ("Covers three separable topics: X, Y, and Z — each big enough for its own post."), and a provisional standalone title for each proposed part.
+- If you recommend one post (recommended_parts = 1), the rationale states why it reads as a single piece, and titles is an empty array.
+
+Quote the clinician's own framing in titles where you can — do not invent clinical claims or topics they did not raise.`
+}
+
 // WRITE PASS — given the cluster brief for ONE part, write that part as a full
 // blog post. Mirrors getBlogPostSystemPrompt's voice/CTA/link rules so each
 // part is publishable on its own; differs in that the structure is content-
@@ -1187,8 +1139,8 @@ BLOG POST FORMAT (write in Markdown):
 
 [Content sections — heading and body each driven by the brief and anchor moments above. Build the thread from the transcript. Lean on the clinician's actual phrasing wherever it fits.]
 
-${siblingSummaries.length ? `[Late in the piece, weave in a natural reference to the other parts of the series — something like "I dug into <Part X's topic> separately" with a link. Do NOT do a "click here to read more" listicle dump; reference siblings only where they genuinely fit the narrative.]\n\n` : ''}## Ready to Move Better?
-[Warm, encouraging CTA — 3 sentences. Invite the reader to book at [${workspace.display_name}](${workspace.booking_url}). Conversational, not salesy.]
+${siblingSummaries.length ? `[Late in the piece, weave in a natural reference to the other parts of the series — something like "I dug into <Part X's topic> separately" with a link. Do NOT do a "click here to read more" listicle dump; reference siblings only where they genuinely fit the narrative.]\n\n` : ''}## ${workspace.cta_heading || 'Ready to Move Better?'}
+[Topic-connected CTA — 3 sentences. Echo back the specific thread this part covered, then invite the reader to take the next step at ${workspace.display_name}. Link to [${workspace.display_name}](${workspace.booking_url}). Conversational — should feel like the clinician remembered what they just shared in this part, not a generic "book now" pivot.]
 ${isPersonal ? '' : `
 ---
 *${workspace.display_name} · ${workspace.location} · ${seriesTitle ? `${seriesTitle} — ` : ''}Part ${partNum}*
@@ -1214,7 +1166,7 @@ function getGeneralSeriesPartSystemPrompt(workspace, expertName, topic, tone, vo
   const ctaUrl = workspace?.booking_url || workspace?.website || ''
   const ctaHeading = workspace?.cta_heading || 'Want to talk?'
   const ctaSection = ctaUrl
-    ? `\n## ${ctaHeading}\n[Warm, direct close — 2–3 sentences. Link to [${workspace.display_name}](${ctaUrl}).]\n`
+    ? `\n## ${ctaHeading}\n[Topic-connected CTA — 2–3 sentences. Echo back the thread this part covered, then name the concrete next step at ${workspace.display_name}. Link to [${workspace.display_name}](${ctaUrl}). Conversational — feels like a natural continuation, not a generic pivot to "book now."]\n`
     : ''
   const brandVoice = workspace?.brand_voice || "(no brand voice set — match the expert's natural voice from the transcript)"
 

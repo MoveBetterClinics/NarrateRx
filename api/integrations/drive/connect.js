@@ -1,5 +1,6 @@
 import { withSentry } from '../../_lib/sentry.js'
-import { requireRole } from '../../_lib/auth.js'
+import { requireRole, requireCapability } from '../../_lib/auth.js'
+import { CAP_INTEGRATIONS_CONNECT } from '../../_lib/capabilities.js'
 import { workspaceContext } from '../../_lib/workspaceContext.js'
 import { enforceLimit } from '../../_lib/ratelimit.js'
 import { buildAuthorizationUrl, driveRedirectUri, signOAuthState } from '../../_lib/driveAuth.js'
@@ -30,6 +31,12 @@ async function handler(req, res) {
   const auth = await requireRole(req, ['admin'], { orgId: workspace.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
+  // Phase 4 PR 3: capability gate.
+  const capAuth = await requireCapability(req, workspace, [CAP_INTEGRATIONS_CONNECT])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
   }
 
   if (!(await enforceLimit(req, res, 'generic'))) return

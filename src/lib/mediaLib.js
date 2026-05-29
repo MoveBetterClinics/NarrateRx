@@ -5,11 +5,11 @@
 // Every request to /api/media/* carries a short-lived Clerk JWT in the
 // Authorization header. Server-side requireRole() verifies it and enforces
 // per-method roles. window.Clerk is the official browser handle exposed by
-// @clerk/clerk-react; we read the token off the active session here so each
+// @clerk/react; we read the token off the active session here so each
 // caller doesn't have to thread getToken through props or context.
 
-import { upload } from '@vercel/blob/client'
 import { throwApiError } from '@/lib/apiError'
+import { startResumableUpload } from '@/lib/resumableUpload'
 
 async function getClerkToken() {
   if (typeof window === 'undefined') return null
@@ -267,50 +267,26 @@ export async function uploadMedia(file, meta = {}, options = {}) {
   file = await maybeTranscodeHeic(file)
   options.onTranscodeEnd?.()
 
-  const ext       = (file.name.match(/\.[^.]+$/) || [''])[0]
-  const baseName  = file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase()
-  const stamp     = new Date().toISOString().replace(/[:.]/g, '-')
-  const folder    = meta.parentId ? 'media/edited' : 'media/raw'
-  const pathname  = `${folder}/${stamp}-${baseName}${ext}`
-
-  const token = await getClerkToken()
-
-  const blob = await upload(pathname, file, {
-    access: 'public',  // private blobs require additional plan + signed URL routing
-    handleUploadUrl: '/api/media/upload',
-    contentType: file.type || undefined,
-    // Forward Clerk JWT on the handshake to /api/media/upload. The completion
-    // webhook (Vercel Blob → server) is signature-verified by handleUpload
-    // and doesn't need a user token.
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-    // @vercel/blob exposes determinate progress via onUploadProgress. Event
-    // shape: { loaded, total, percentage }. We forward it directly so the
-    // caller can render an actual progress bar instead of an opaque spinner.
-    onUploadProgress: typeof options.onProgress === 'function'
-      ? (e) => options.onProgress(e)
-      : undefined,
-    clientPayload: JSON.stringify({
-      filename: file.name,
-      createdBy: meta.createdBy || null,
-      patientPseudonym: meta.patientPseudonym || null,
-      condition: meta.condition || null,
-      capturedAt: meta.capturedAt || null,
-      notes: meta.notes || null,
-      assetPurpose: meta.assetPurpose || null,
-      speakerRole: meta.assetPurpose === 'interview' ? (meta.speakerRole || 'clinician') : null,
-      parentId: meta.parentId || null,
-      contentPieceId: meta.contentPieceId || null,
-      // Optional pre-assigned collection. Server verifies scope before
-      // inserting into collection_items.
-      collectionId: meta.collectionId || null,
-      // Optional clinician attribution. Server validates clinician belongs to
-      // the workspace before writing clinician_id on the asset row.
-      clinicianId: meta.clinicianId || null,
-    }),
+  // Resumable multipart flow — see src/lib/resumableUpload.js. The orchestrator
+  // owns the /api/media/multipart/* handshake, IndexedDB persistence (so the
+  // upload survives a tab close / sleep), and the per-part uploadPart loop.
+  // The server's /complete handler runs the same recordUploadedAsset pipeline
+  // the single-shot /api/media/upload onUploadCompleted webhook does, so the
+  // resulting media_assets row is identical regardless of upload path.
+  const result = await startResumableUpload(file, meta, {
+    abortSignal: options.abortSignal,
+    onProgress: typeof options.onProgress === 'function' ? (e) => options.onProgress(e) : undefined,
   })
 
-  // The asset row is created server-side in onUploadCompleted. The Blob URL
-  // is the join key — list will return the new row once Blob fires the
-  // completion webhook. Caller should refetch the list.
-  return blob
+  // Shape-match the legacy @vercel/blob upload() return so existing call sites
+  // (UploadProgressContext, MediaUploader) keep working unchanged. We expose
+  // the persisted-upload id under resumableId so the tray can map back to the
+  // IndexedDB record when needed.
+  return {
+    url: result.url,
+    pathname: result.pathname,
+    contentType: result.contentType,
+    assetId: result.assetId,
+    resumableId: result.id,
+  }
 }

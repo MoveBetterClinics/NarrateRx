@@ -15,11 +15,13 @@
 
 export const config = { runtime: 'nodejs', maxDuration: 30 }
 
+import { waitUntil } from '@vercel/functions'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 import { extractProvenanceBlock } from '../../src/lib/provenance.js'
 import { LENGTH_PRESETS } from '../../src/lib/lengthPresets.js'
+import { auditContentItem } from '../_lib/voiceAudit.js'
 
 const VALID_LENGTH_PRESETS = new Set(LENGTH_PRESETS.map((p) => p.id))
 const VALID_GENERATION_STYLES = new Set(['blog_post', 'minimal_edits'])
@@ -104,6 +106,11 @@ export default async function handler(req, res) {
     approved_at:         null,
     reviewed_by:         null,
     updated_at:          new Date().toISOString(),
+    // The body just changed — the prior voice audit no longer describes it.
+    // Clear it now (so Story Detail doesn't show a stale score) and re-run the
+    // audit fire-and-forget below.
+    voice_fidelity_score: null,
+    voice_audit:          null,
   }
   if (bodyLengthPreset != null) patch.length_preset = bodyLengthPreset
 
@@ -134,6 +141,12 @@ export default async function handler(req, res) {
       headers: { Prefer: 'return=minimal' },
     })
   }
+
+  // Re-audit the redrafted body against the transcript + voice profile. Runs
+  // after the response is sent so the user isn't blocked; the new score lands
+  // on Story Detail within a few seconds. Never throws (auditContentItem
+  // records its own failure markers).
+  waitUntil(auditContentItem(ws, id))
 
   return ok(res, updRows[0] ?? null)
 }

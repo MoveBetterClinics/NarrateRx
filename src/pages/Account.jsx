@@ -7,7 +7,7 @@
 // focus override, voice notes, recipes) live on /clinician/:id. The
 // UserButton dropdown surfaces both with their own labels.
 
-import { UserProfile } from '@clerk/clerk-react'
+import { UserProfile } from '@clerk/react'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -33,7 +33,7 @@ export default function Account() {
             Account &amp; security
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Email, password, multi-factor authentication, and active sessions. Looking for your display name, voice pace, or content focus? Those live on your clinician profile — open it from the avatar menu in the top-right.
+            Email, password, multi-factor authentication, and active sessions. Looking for your display name, voice pace, or content focus? Those live on your staff profile — open it from the avatar menu in the top-right.
           </p>
         </div>
       </div>

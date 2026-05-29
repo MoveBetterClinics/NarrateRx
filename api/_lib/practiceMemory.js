@@ -14,6 +14,7 @@ import { searchPracticeMemory } from './practiceMemoryRag.js'
 // Cap the query text sent to the embedding API. A 90-minute transcript is
 // far more than the semantic signal we need; topic + leading turns are enough.
 const QUERY_MAX_CHARS = 1500
+const CHUNK_PREVIEW_CHARS = 500
 const RAG_TOP_K = 6
 
 /**
@@ -148,6 +149,52 @@ export async function resolveOwnHistoryBlock({ workspaceId, clinicianId, exclude
  * @param {string=} args.excludeInterviewId
  * @returns {Promise<string[]>}
  */
+/**
+ * Topic-scoped YOUR PRIOR THINKING block (V6 RAG hot-tier replacement).
+ *
+ * Instead of injecting the latest N interviews regardless of topic, this
+ * retrieves the top-K practice chunks most relevant to `topic` via vector
+ * search. Produces sharper, smaller prompts. Use behind ws.rag_hot_tier_enabled.
+ *
+ * Falls back to buildOwnHistoryBlock([]) (empty block) when no chunks exist,
+ * so the prompt stays quiet rather than breaking.
+ *
+ * @param {object} args
+ * @param {string}  args.topic
+ * @param {string}  args.workspaceId
+ * @param {string=} args.clinicianId
+ * @param {number}  [args.k=6]
+ * @returns {Promise<string>}
+ */
+export async function buildTopicScopedHistoryBlock({ topic, workspaceId, clinicianId, k = 6 }) {
+  try {
+    if (!workspaceId || !topic) return ''
+    const chunks = await searchPracticeMemory({
+      workspaceId,
+      clinicianId: clinicianId || null,
+      query: String(topic).slice(0, QUERY_MAX_CHARS),
+      topK: k,
+    })
+    if (!chunks.length) return buildOwnHistoryBlock({ clinicianName: 'this clinician' })
+
+    // Format chunks as the RELATED section of the standard block so the
+    // prompt directive and label structure stay identical.
+    return buildOwnHistoryBlock({
+      clinicianName: 'this clinician',
+      priorInterviews: [],
+      priorContent: [],
+      relatedSnippets: chunks.map((c) => ({
+        text: String(c.text || '').slice(0, CHUNK_PREVIEW_CHARS),
+        source_label: c.source_label || 'Earlier',
+        similarity: c.similarity,
+      })),
+    })
+  } catch (e) {
+    console.error(`[practiceMemory] buildTopicScopedHistoryBlock threw: ${e?.message}`)
+    return ''
+  }
+}
+
 export async function resolvePriorCorpusSnippets({ workspaceId, clinicianId, excludeInterviewId }) {
   try {
     if (!workspaceId || !clinicianId) return []

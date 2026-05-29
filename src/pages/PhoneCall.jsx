@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { ArrowLeft, Phone, PhoneOff, Mic, MicOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -288,14 +288,14 @@ export default function PhoneCall() {
       clinicianIdRef.current = clinician.id
 
       // 2. Create the interview row. capture_mode='realtime_voice' marks it
-      //    so analytics can split realtime vs. chat. Defaults match what
-      //    NewInterview ships for a tone='smart' / voice_mode='practice'
-      //    interview — the user can refine after completion if they want.
+      //    so analytics can split realtime vs. chat. Tone uses the clinician's
+      //    saved default (getOrCreateClinician returns default_tone); falls
+      //    back to 'smart' for a brand-new clinician with no preference set.
       const interview = await createInterview({
         clinicianId: clinician.id,
         topic: topic.trim(),
         ownerEmail: user.primaryEmailAddress?.emailAddress,
-        tone: 'smart',
+        tone: clinician.default_tone || 'smart',
         voiceMode: 'practice',
       })
       // Tag capture_mode separately — createInterview's signature doesn't
@@ -338,12 +338,15 @@ export default function PhoneCall() {
         pastInterviews || [],
         null, // prototypeId — none for realtime spike
         {
-          tone: 'smart',
+          tone: clinicianRow?.default_tone || clinician.default_tone || 'smart',
           isFirstMessage: true,
           priorSessionContext,
           conceptBlock:   conceptCtx?.block || '',
           agreementBlock: conceptCtx?.agreementBlock || '',
           gapBlock:       conceptCtx?.gapBlock || '',
+          // Team-as-talent (Phase 1.5): branch to non-clinical staff prompt when applicable.
+          // Default 'clinician' keeps existing behavior byte-identical.
+          staffType:      clinicianRow?.staff_type || clinician?.staff_type || 'clinician',
         },
       )
       // Voice-mode patience override sits ABOVE the standard prompt so the
@@ -881,9 +884,11 @@ export default function PhoneCall() {
       console.warn('[phone-call] final persist failed', e?.message)
     }
     hangUp()
-    // Hand off to InterviewSession — its auto-gen effect detects the
-    // COMPLETE_TOKEN on load and kicks off blog generation.
-    navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime`)
+    // Hand off to InterviewSession. The COMPLETE_TOKEN is already in the
+    // assistant's final message (model emitted it), but pass wrap=1 too as
+    // a safety net — if the final PATCH above failed, wrap=1 still tells
+    // InterviewSession to treat this as a completed realtime call.
+    navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime&wrap=1`)
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -1074,7 +1079,11 @@ export default function PhoneCall() {
     persistP.finally(() => {
       hangUp()
       if (interviewIdRef.current && clinicianIdRef.current) {
-        navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime`)
+        // wrap=1 tells InterviewSession the user clicked End — even if the
+        // PATCH above failed to persist the COMPLETE_TOKEN, InterviewSession
+        // will treat the call as complete and kick off blog generation
+        // instead of falling through to chat-resume mode.
+        navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime&wrap=1`)
       } else {
         navigate('/')
       }
@@ -1252,9 +1261,15 @@ export default function PhoneCall() {
               Bernard will speak first — give him a beat to greet you.
             </div>
           ) : (
-            <div className="space-y-3 max-h-[520px] overflow-y-auto">
-              {turns.map((t, i) => (
-                <div key={i} className="text-sm leading-relaxed">
+            // Reverse-chronological: newest at top, older below. Without this
+            // the user can't see the live turn without scrolling — the
+            // previous chronological-with-scroll layout buried new content
+            // below the card fold during long calls. No internal max-height
+            // so the card just grows; the latest line is always at the top
+            // of the card at its fixed scroll position.
+            <div className="space-y-3">
+              {turns.slice().reverse().map((t, i) => (
+                <div key={turns.length - 1 - i} className="text-sm leading-relaxed">
                   <span className="font-medium mr-2">{t.role === 'user' ? 'You' : 'Bernard'}:</span>
                   <span className={t.partial ? 'text-muted-foreground' : ''}>
                     {/* Hide the literal INTERVIEW_COMPLETE token from the live view —

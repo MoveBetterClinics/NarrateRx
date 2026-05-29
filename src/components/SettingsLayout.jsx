@@ -2,9 +2,10 @@ import { useEffect, useRef } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   Settings, Mic2, Radio, Puzzle, Palette, Users, CreditCard, MapPin,
-  Sliders, Stethoscope,
+  Sliders, Stethoscope, Target, Zap,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
+import { useWorkspace } from '@/lib/WorkspaceContext'
 import { LoadingState } from '@/components/ui/LoadingState'
 
 // Flat list used for the mobile chip rail. Order mirrors the desktop
@@ -31,7 +32,7 @@ const GROUPS = [
     items: [
       { to: '/settings/workspace',           label: 'General',            icon: Settings,   exact: true },
       {
-        label: 'Bernard',
+        label: 'AI Interviewer',
         icon: Mic2,
         children: [
           { to: '/settings/workspace/voice',              label: 'Voice & tone' },
@@ -41,6 +42,7 @@ const GROUPS = [
       },
       { to: '/settings/workspace/locations', label: 'Locations',          icon: MapPin },
       { to: '/settings/workspace/channels',  label: 'Output channels',    icon: Radio },
+      { to: '/settings/campaigns',           label: 'Campaigns',          icon: Target },
       { to: '/settings/integrations',        label: 'Integrations',       icon: Puzzle },
       { to: '/settings/brand-kit',           label: 'Brand kit',          icon: Palette },
       { to: '/settings/carousel-themes',     label: 'Carousel themes',    icon: Palette },
@@ -162,6 +164,7 @@ function MobileNavRail({ visibleItems }) {
 
 export default function SettingsLayout() {
   const { role, isLoading } = useUserRole()
+  const ws = useWorkspace()
 
   // Non-admin users can still reach integrations and account pages, but the
   // workspace-scoped sections gate themselves internally.
@@ -176,10 +179,11 @@ export default function SettingsLayout() {
   const isAdmin = role === 'admin'
   // Mobile rail filters the same way the sidebar groups do — hide
   // workspace/people entries from non-admins.
-  const mobileVisible = MOBILE_NAV.filter((it) => {
+  const autoPublishMobileEntry = ws?.video_pipeline_enabled
+    ? [{ to: '/settings/workspace/auto-publish', label: 'Auto-publish', icon: Zap }]
+    : []
+  const mobileVisible = [...MOBILE_NAV, ...autoPublishMobileEntry].filter((it) => {
     if (!isAdmin) {
-      // Non-admin: only show integrations, brand-kit, billing (the entries
-      // that live under non-workspace groups on desktop).
       return ['/settings/integrations', '/settings/brand-kit', '/settings/workspace/billing'].includes(it.to)
     }
     return true
@@ -207,13 +211,28 @@ export default function SettingsLayout() {
             // accident).
             const workspaceGroup = group.label === 'Workspace' || group.label === 'People'
             if (workspaceGroup && !isAdmin) return null
+
+            // Inject the auto-publish nav item after Campaigns when the
+            // video pipeline is enabled for this workspace.
+            let items = group.items
+            if (group.label === 'Workspace' && ws?.video_pipeline_enabled) {
+              const campaignsIdx = items.findIndex((it) => it.to === '/settings/campaigns')
+              if (campaignsIdx !== -1) {
+                items = [
+                  ...items.slice(0, campaignsIdx + 1),
+                  { to: '/settings/workspace/auto-publish', label: 'Auto-publish', icon: Zap },
+                  ...items.slice(campaignsIdx + 1),
+                ]
+              }
+            }
+
             return (
               <div key={group.label}>
                 <p className="text-3xs font-semibold uppercase tracking-widest text-muted-foreground/60 px-2.5 mb-1">
                   {group.label}
                 </p>
                 <nav className="space-y-0.5">
-                  {group.items.map((item) => (
+                  {items.map((item) => (
                     item.children
                       ? <SidebarSubGroup key={item.label} item={item} />
                       : <SidebarItem key={item.to} item={item} />

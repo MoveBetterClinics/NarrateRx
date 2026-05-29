@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
   ChevronDown, MessageSquare, Eye, RotateCcw, ExternalLink, Quote,
@@ -34,9 +34,12 @@ import { buildImagesManifest } from '@/lib/publishImageMirror'
 import { extractProvenanceBlock } from '@/lib/provenance'
 import { toast, runWithToast } from '@/lib/toast'
 import BufferMetricsRow from './BufferMetricsRow'
+import WinnerToggle from './WinnerToggle'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
 import MediaAttachmentPanel from './MediaAttachmentPanel'
 import SlideEditor from './SlideEditor'
+import VoiceFidelityBadge from './VoiceFidelityBadge'
+import SplitSuggestionBanner from './SplitSuggestionBanner'
 import { extractMarkerSuggestions, markersToOverlay } from './OverlayTextEditor'
 import PostPreview from '@/components/PostPreview'
 function timeAgo(dateStr) {
@@ -74,7 +77,7 @@ const STATUS_TO_STAGE = {
 const STATUS_DOT = {
   draft:     'bg-slate-400',
   in_review: 'bg-amber-400',
-  approved:  'bg-blue-500',
+  approved:  'bg-amber-500',
   scheduled: 'bg-purple-500',
   published: 'bg-green-500',
   archived:  'bg-zinc-400',
@@ -275,6 +278,15 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
 
   return (
     <div className="space-y-2">
+      {/* Voice-fidelity audit (PR 3) — blog only. The two-pass guard scores the
+          draft against the transcript + voice profile and flags drift for human
+          review. Renders nothing until the audit lands. */}
+      {piece.platform === 'blog' && <VoiceFidelityBadge piece={piece} />}
+      {/* Multi-piece extract proposal (PR 4) — blog only, non-blocking. Detects
+          when the source interview holds enough distinct threads to justify a
+          split into a linked series and offers it. Renders nothing unless the
+          server recommends >=2 parts and the user hasn't dismissed it. */}
+      {piece.platform === 'blog' && <SplitSuggestionBanner piece={piece} />}
       {/* View-mode toggle — always visible; Attributed only when provenance exists.
           Read-aloud (Phase 5 F#3 audio caller) sits on the right; uses this
           piece's clinician_id so the voice clone is auto-resolved server-side. */}
@@ -1874,6 +1886,10 @@ export default function AssetsPane({
             {active.status === 'published' && active.buffer_update_id && (
               <BufferMetricsRow contentItemId={active.id} />
             )}
+
+            {/* V5 engagement loop: human "this worked" signal on published pieces.
+                Feeds the Slate's Coverage winners + proven-topic resurfacing. */}
+            {active.status === 'published' && <WinnerToggle piece={active} />}
 
             <ApprovalPanel piece={active} />
           </div>

@@ -3,6 +3,8 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2, CheckCircle2, AlertCircle, Sparkles } from 'lucide-react'
 import PricingCards from '@/components/billing/PricingCards'
 import { useUserRole } from '@/lib/useUserRole'
+import { usePermission } from '@/lib/usePermission'
+import { CAP_BILLING_VIEW } from '@/lib/capabilities'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 
 // Billing tab lifted from WorkspaceSettings. Pure UI — plan changes flow
@@ -15,6 +17,7 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 export default function BillingSettings() {
   useDocumentTitle('Settings — Plan & billing')
   const { role, isLoading: roleLoading } = useUserRole()
+  const { has } = usePermission()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const [ws, setWs] = useState(undefined)
@@ -54,7 +57,9 @@ export default function BillingSettings() {
       </div>
     )
   }
-  if (role !== 'admin') return <Navigate to="/" replace />
+  // Phase 4 PR 2: capability-based redirect. Producer (no CAP_BILLING_VIEW) is
+  // bounced home along with non-staff.
+  if (role !== 'admin' || !has(CAP_BILLING_VIEW)) return <Navigate to="/" replace />
   if (!ws) return (
     <div className="py-16 text-center text-sm text-muted-foreground">
       Workspace settings are only available on a <code className="font-mono text-xs">*.narraterx.ai</code> deployment.

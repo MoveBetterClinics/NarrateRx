@@ -12,8 +12,7 @@ import { enforceLimit } from '../_lib/ratelimit.js'
 import { getAtomSystemPrompt } from '../_lib/atomPrompts.js'
 import { getContextBlock } from '../_lib/conceptRetrieval.js'
 import { resolveOwnHistoryBlock, buildRagQuery } from '../_lib/practiceMemory.js'
-import { loadActiveCampaign } from '../_lib/campaignSettings.js'
-import { getCampaignPromptContext } from '../../src/lib/campaigns.js'
+import { loadCurrentTentpole, getTentpolePromptContext } from '../_lib/tentpoleCampaignContext.js'
 import { extractProvenanceBlock } from '../../src/lib/provenance.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -118,12 +117,17 @@ export default async function handler(req, res) {
       ? (Array.isArray(ws.story_type_options) ? ws.story_type_options.find(s => s.key === interview.story_type) : null)?.label ?? interview.story_type
       : null
 
-    // Active campaign (mode + structured CTA) flows into derivative content
-    // only. Per-clinician override wins over workspace default; both fall
-    // back cleanly when missing. Blog generation does NOT call this — blogs
+    // Active tentpole campaign flows into derivative content only. Picks the
+    // highest-weighted active campaign in this workspace (event proximity
+    // weighting per api/_lib/activeCampaigns.js → campaignWeight). Returns
+    // null when nothing is active → empty campaignContext → atoms use their
+    // default per-platform CTAs. Blog generation does NOT call this; blogs
     // are intentionally evergreen.
-    const activeCampaign = await loadActiveCampaign(ws.id, interview.clinician_id)
-    const campaignContext = getCampaignPromptContext(activeCampaign, ws)
+    // Pass clinician_id so per-clinician-targeted campaigns are honored —
+    // a campaign with non-empty target_clinician_ids only applies to atoms
+    // produced for clinicians on its target list.
+    const activeCampaign = await loadCurrentTentpole(ws.id, interview.clinician_id || null)
+    const campaignContext = getTentpolePromptContext(activeCampaign, ws)
 
     // Phase 5 Feature 2 — this clinician's prior thinking block, shared
     // across the canonical atom call below AND any per-location GBP variant

@@ -13,7 +13,7 @@
 export const CONTENT_STATUS_TOKENS = {
   draft:     { label: 'Draft',               badge: 'bg-slate-100 text-slate-700',    accent: 'border-slate-200'   },
   in_review: { label: 'Needs Review',        badge: 'bg-amber-100 text-amber-700',    accent: 'border-amber-200'   },
-  approved:  { label: 'Ready to Distribute', badge: 'bg-blue-100 text-blue-700',      accent: 'border-blue-300'    },
+  approved:  { label: 'Ready to Distribute', badge: 'bg-amber-50 text-amber-700',     accent: 'border-amber-300'   },
   scheduled: { label: 'Scheduled',           badge: 'bg-purple-100 text-purple-700',  accent: 'border-purple-200'  },
   published: { label: 'Published',           badge: 'bg-emerald-100 text-emerald-700', accent: 'border-emerald-200' },
   failed:    { label: 'Failed',              badge: 'bg-red-100 text-red-700',         accent: 'border-red-200'     },

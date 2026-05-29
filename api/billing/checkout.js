@@ -7,7 +7,9 @@
 
 import { withSentry } from '../_lib/sentry.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { requireRole } from '../_lib/auth.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
+import { CAP_BILLING_EDIT } from '../_lib/capabilities.js'
+import { buildPricePlanMap } from '../_lib/stripePlans.js'
 
 export const config = { runtime: 'nodejs' }
 
@@ -45,13 +47,53 @@ async function handler(req, res) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
+  // Phase 4 PR 3: capability gate. billing.edit covers starting a checkout
+  // (committing to a paid plan) — billing.view alone is read-only and goes
+  // through the portal endpoint.
+  const capAuth = await requireCapability(req, ws, [CAP_BILLING_EDIT])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
+  }
+
   const { priceId } = req.body || {}
   if (!priceId) return res.status(400).json({ error: 'priceId-required' })
 
+  // Allow-list priceId against the same env-driven map the webhook uses to
+  // resolve plan + seats. Without this, an authenticated admin could submit
+  // any Stripe price ID (a 1¢ test price, a different product, or a price
+  // from another account) and the webhook would see no PRICE_PLAN_MAP match,
+  // silently defaulting the workspace to the `solo` plan with 3 seats.
+  const pricePlanMap = buildPricePlanMap()
+  if (!pricePlanMap[priceId]) {
+    return res.status(400).json({ error: 'invalid-price-id' })
+  }
+
   // Build success/cancel URLs from the request host.
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'narraterx.ai'
-  const protocol = process.env.VERCEL_ENV === 'production' ? 'https' : 'https'
+  const protocol = 'https'
   const base = `${protocol}://${host}`
+
+  // Active subscribers must change plans through the billing portal —
+  // a second Checkout Session would create a duplicate subscription, and
+  // the webhook would overwrite stripe_subscription_id leaving the first
+  // one orphaned but still billing. Return the portal URL in the same
+  // { url } shape so the client just redirects.
+  if (ws.stripe_subscription_id && ws.stripe_customer_id) {
+    try {
+      const portal = await stripePost('/billing_portal/sessions', {
+        customer: ws.stripe_customer_id,
+        return_url: `${base}/settings/workspace/billing`,
+      })
+      if (portal.error) {
+        console.error('[billing/checkout] portal redirect error:', portal.error)
+        return res.status(500).json({ error: 'stripe-error', detail: portal.error.message })
+      }
+      return res.status(200).json({ url: portal.url })
+    } catch (e) {
+      console.error('[billing/checkout] portal redirect failed:', e?.message)
+      return res.status(500).json({ error: 'portal-failed' })
+    }
+  }
 
   try {
     const sessionParams = {

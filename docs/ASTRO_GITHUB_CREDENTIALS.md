@@ -4,6 +4,8 @@ For the `movebetter-animals` workspace (and any future workspace publishing to a
 
 At publish time NarrateRx serializes the blog post (slug, title, description, pubDate, markdown, optional heroImage / heroImageAlt / tags / draft / images[]) and `POST`s it as JSON to the webhook URL with `Authorization: Bearer <secret>`. The receiving Astro app validates the bearer, writes a markdown file to its content directory, commits to GitHub, and lets Vercel rebuild. The full receiver contract lives at `docs/api-publish-contract.md` in the `movebetteranimal` repo.
 
+**Book publish (added 2026-05-26)**: the same lane also carries the workspace book, dispatched on a new `kind: 'book'` field in the payload. The receiver writes a single fixed file (`src/pages/book.astro`), overwrites on every publish, and renders at `https://<site>/book`. Full contract: [`docs/BOOK_PUBLISH_CONTRACT.md`](./BOOK_PUBLISH_CONTRACT.md). Receivers that haven't been updated yet return `400` and NarrateRx surfaces it as `receiver_out_of_date` to the admin.
+
 **`images[]` (added 2026-05-15, mirror-on-publish)**: an array of `{ url, alt, filename, mirrorable }` entries pulled from inline `![alt](…)` references in the post markdown. The receiver should, for each entry where `mirrorable: true`, fetch `url`, commit the bytes to `src/assets/blog/<slug>/<filename>` in the same commit as the post markdown, and rewrite the post's `![alt](url)` to point at the repo-relative path. Receivers that ignore the field still render correctly because the original `url` is a public Vercel Blob URL — mirroring just severs the dependency on NarrateRx infra. `heroImage` is **not** included in `images[]`; it's handled separately as frontmatter.
 
 ## The two fields

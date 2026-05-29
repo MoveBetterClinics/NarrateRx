@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { Mic, Target, User, X } from 'lucide-react'
 import { useStories, useOnboardingProgress, useCampaigns, useClinicians, useLocations } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
@@ -15,6 +15,7 @@ import StoriesThemesView from '@/components/stories/StoriesThemesView'
 import CampaignProgressStrip from '@/components/stories/CampaignProgressStrip'
 import StoriesAtAGlance from '@/components/stories/StoriesAtAGlance'
 import UsageGate from '@/components/billing/UsageGate'
+import PageHelp from '@/components/PageHelp'
 
 const PLATFORMS = Object.keys(PLATFORM_META)
 
@@ -141,7 +142,10 @@ export default function Stories() {
               </span>
             ) : null}
           </div>
-          <StoriesViewToggle defaultView={defaultView} />
+          <div className="flex items-center gap-2 shrink-0">
+            <PageHelp pageKey="stories" variant="default" />
+            <StoriesViewToggle defaultView={defaultView} />
+          </div>
         </div>
 
         {/* Filter bar — horizontal scroll on mobile so chips do not wrap

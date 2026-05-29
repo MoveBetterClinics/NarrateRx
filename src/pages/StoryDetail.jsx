@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { AlertCircle, ArrowLeft, ChevronDown, Link as LinkIcon, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -20,6 +20,7 @@ import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
 import { ClinicianChip } from '@/components/ClinicianChip'
 import ReferencesPanel from '@/components/ReferencesPanel'
+import ExcludeFromBookToggle from '@/components/book/ExcludeFromBookToggle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import {
   defaultAudienceSlots,
@@ -355,6 +356,7 @@ export default function StoryDetail() {
             })()}
           </div>
           <div className="flex items-center gap-3 shrink-0">
+            <ExcludeFromBookToggle sourceTable="interviews" sourceId={story.id} variant="header" />
             <TranscriptExport story={story} />
             {user?.id === story.owner_id && (
               <Button

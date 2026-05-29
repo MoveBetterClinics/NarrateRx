@@ -7,7 +7,8 @@
 
 import { withSentry } from '../_lib/sentry.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { requireRole } from '../_lib/auth.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
+import { CAP_BILLING_VIEW } from '../_lib/capabilities.js'
 
 export const config = { runtime: 'nodejs' }
 
@@ -43,6 +44,13 @@ async function handler(req, res) {
   const auth = await requireRole(req, ['admin'], { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
+  // Phase 4 PR 3: capability gate on top of the legacy role gate. Opt-in
+  // per-user (see requireCapability comments).
+  const capAuth = await requireCapability(req, ws, [CAP_BILLING_VIEW])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
   }
 
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'narraterx.ai'

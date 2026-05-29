@@ -10,16 +10,18 @@
 //   3. Voice context — clinic_context, audience_short, brand_voice (pre-filled by scan)
 //   4. Subdomain claim — live availability check
 //   5. Channels — pick at least one (none pre-checked)
-//   6. Review + submit
-//   7. "Setting up your workspace…" loader → redirect to <slug>.narraterx.ai/settings/workspace
+//   6. Capture setup — video capture is on by default; user sets their display
+//      name for content (seeds the founding clinician row at claim time)
+//   7. Review + submit
+//   8. "Setting up your workspace…" loader → redirect to <slug>.narraterx.ai/settings/workspace
 //
 // The component does NOT use the WorkspaceProvider (no workspace exists yet)
 // and does NOT use OrgGate (Clerk Org is created server-side at the claim step).
-// Just <ClerkProvider> + <SignedIn/SignedOut>.
+// Just <ClerkProvider> + <Show when={isSignedIn}>.
 
 import { useState, useEffect, useCallback } from 'react'
-import { SignedIn, SignedOut, SignIn, SignUp, useAuth, useUser } from '@clerk/clerk-react'
-import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X } from 'lucide-react'
+import { Show, SignIn, SignUp, useAuth, useUser } from '@clerk/react'
+import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X, Clapperboard, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,6 +45,11 @@ export default function Onboarding() {
     brand_voice: '',
     slug: '',
     enabled_outputs: [],
+    // capture_name: the founding user's display name for content — seeds the
+    // clinicians row at claim time. Defaults to their Clerk firstName + lastName;
+    // editable in the Capture step. video_pipeline_enabled is always true for
+    // new tenants; the wizard just makes it visible and configurable.
+    capture_name: '',
   })
   const [scanState, setScanState] = useState({ status: 'idle', error: null, sources: [], recent_topics: [], services: [] })
   const [slugCheck, setSlugCheck] = useState({ status: 'idle', available: null, reason: null })
@@ -138,6 +145,15 @@ export default function Onboarding() {
             form={form}
             setForm={setForm}
             onBack={() => setStep('subdomain')}
+            onContinue={() => setStep('capture')}
+          />
+        )}
+
+        {step === 'capture' && (
+          <CaptureScreen
+            form={form}
+            setField={setField}
+            onBack={() => setStep('channels')}
             onContinue={() => setStep('review')}
           />
         )}
@@ -173,6 +189,7 @@ export default function Onboarding() {
                     audience_short: form.audience_short,
                     brand_voice: form.brand_voice,
                     enabled_outputs: form.enabled_outputs,
+                    capture_name: form.capture_name || form.display_name,
                   }),
                 })
                 if (!r.ok) {
@@ -226,10 +243,11 @@ const STEP_LABELS = {
   voice: 'Brand voice',
   subdomain: 'Choose subdomain',
   channels: 'Pick channels',
+  capture: 'Capture setup',
   review: 'Review',
   launching: 'Setting up',
 }
-const VISIBLE_STEPS = ['business', 'voice', 'subdomain', 'channels', 'review']
+const VISIBLE_STEPS = ['business', 'voice', 'subdomain', 'channels', 'capture', 'review']
 
 function ProgressBar({ step }) {
   if (!VISIBLE_STEPS.includes(step)) return null
@@ -324,7 +342,7 @@ function AuthScreen({ capacity, onSignedIn }) {
           {remaining} founding {remaining === 1 ? 'spot' : 'spots'} left · founding price locked in for life
         </div>
       )}
-      <SignedOut>
+      <Show when={!isSignedIn}>
         {/* "What you'll need" pre-screen so brand-new users don't bail mid-flow.
             Shown only to signed-out users — returning users skip it. */}
         <div className="rounded-md border bg-muted/40 p-3 text-xs space-y-1.5">
@@ -340,14 +358,14 @@ function AuthScreen({ capacity, onSignedIn }) {
           <button
             type="button"
             onClick={() => setMode('signup')}
-            className={`px-3 py-1.5 rounded-md ${mode === 'signup' ? 'bg-orange-600 text-white' : 'bg-muted text-muted-foreground'}`}
+            className={`px-3 py-1.5 rounded-md ${mode === 'signup' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
           >
             Sign up
           </button>
           <button
             type="button"
             onClick={() => setMode('signin')}
-            className={`px-3 py-1.5 rounded-md ${mode === 'signin' ? 'bg-orange-600 text-white' : 'bg-muted text-muted-foreground'}`}
+            className={`px-3 py-1.5 rounded-md ${mode === 'signin' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
           >
             I already have an account
           </button>
@@ -357,10 +375,10 @@ function AuthScreen({ capacity, onSignedIn }) {
             ? <SignUp routing="hash" appearance={{ elements: { rootBox: 'mx-auto', card: 'shadow-none border' } }} />
             : <SignIn routing="hash" appearance={{ elements: { rootBox: 'mx-auto', card: 'shadow-none border' } }} />}
         </div>
-      </SignedOut>
-      <SignedIn>
+      </Show>
+      <Show when={isSignedIn}>
         <SignedInPrompt onContinue={onSignedIn} />
-      </SignedIn>
+      </Show>
     </Card>
   )
 }
@@ -368,7 +386,7 @@ function AuthScreen({ capacity, onSignedIn }) {
 function SignedInPrompt({ onContinue }) {
   const { user } = useUser()
   const { getToken } = useAuth()
-  const [state, setState] = useState({ status: 'loading', workspaces: [] })
+  const [state, setState] = useState({ status: 'loading', workspaces: [], suggested: [] })
 
   useEffect(() => {
     let cancelled = false
@@ -381,11 +399,23 @@ function SignedInPrompt({ onContinue }) {
         if (!r.ok) throw new Error(`status ${r.status}`)
         const data = await r.json()
         if (cancelled) return
-        setState({ status: 'done', workspaces: data.workspaces || [] })
+        const workspaces = data.workspaces || []
+        const suggested = data.suggested || []
+        // Invited-user happy path: exactly one workspace membership means we
+        // know where they belong. Skip the click-through entirely — the user
+        // just accepted an org invite and shouldn't have to think about
+        // "your workspace" pickers or "create another workspace" buttons that
+        // historically lured them into the new-tenant wizard.
+        if (workspaces.length === 1) {
+          setState({ status: 'redirecting', workspaces, suggested })
+          window.location.href = workspaces[0].url
+          return
+        }
+        setState({ status: 'done', workspaces, suggested })
       } catch {
         // On error, fall through to the wizard — better to let them create a
         // new workspace than to strand them.
-        if (!cancelled) setState({ status: 'done', workspaces: [] })
+        if (!cancelled) setState({ status: 'done', workspaces: [], suggested: [] })
       }
     })()
     return () => { cancelled = true }
@@ -400,7 +430,54 @@ function SignedInPrompt({ onContinue }) {
     )
   }
 
+  if (state.status === 'redirecting') {
+    const ws = state.workspaces[0]
+    return (
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-4 w-4 animate-spin" />
+        Taking you to {ws?.display_name || ws?.slug || 'your workspace'}…
+      </div>
+    )
+  }
+
   const hasWorkspaces = state.workspaces.length > 0
+  const hasSuggested = state.suggested.length > 0
+
+  // Domain match found but user isn't a member yet: this is the
+  // "alli@movebetter.co signing up while movebetter-people already exists"
+  // path. Show "your team already has a workspace — ask the admin" and do NOT
+  // offer a continue-to-wizard button. Server-side guard in /api/onboarding/claim
+  // also blocks the POST, so a determined user can't bypass this UI.
+  if (hasSuggested && !hasWorkspaces) {
+    return (
+      <div className="space-y-4 text-sm">
+        <p>Signed in as <span className="font-mono text-xs">{user?.primaryEmailAddress?.emailAddress}</span>.</p>
+        <div className="space-y-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">
+            Your team already has a workspace
+          </p>
+          <div className="space-y-1.5">
+            {state.suggested.map(ws => (
+              <div
+                key={ws.slug}
+                className="flex items-center justify-between gap-3 rounded-md border border-input px-3 py-2 bg-muted/30"
+              >
+                <div className="min-w-0">
+                  <div className="font-medium truncate" title={ws.display_name || ws.slug}>{ws.display_name || ws.slug}</div>
+                  <div className="text-xs text-muted-foreground font-mono truncate">{ws.slug}.narraterx.ai</div>
+                </div>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed pt-1">
+            We can&apos;t put you on this workspace automatically — your team admin needs to invite you. Ask them to add{' '}
+            <span className="font-mono">{user?.primaryEmailAddress?.emailAddress}</span> from their settings, then sign in at the workspace URL above. Stuck?{' '}
+            <a className="underline" href="mailto:support@narraterx.ai">support@narraterx.ai</a>
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 text-sm">
@@ -679,6 +756,11 @@ const VOICE_PLACEHOLDERS = {
 
 function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
   const topics = scanState?.recent_topics || []
+  // Require at least "what you do" — it drives every generated post and the
+  // onboarding interview context. audience_short and brand_voice are strongly
+  // encouraged but skippable (the interview refines them). Without this guard
+  // a tenant can click straight through and get blank-context content.
+  const canContinue = form.clinic_context.trim().length >= 10
   return (
     <Card
       title="Brand voice"
@@ -686,9 +768,9 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
     >
       {/* Voice-fidelity promise — sets the right expectation before the user
           touches any fields. Everything generated traces back to these inputs. */}
-      <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 flex items-start gap-3 -mt-1">
+      <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-start gap-3 -mt-1">
         <span className="text-base mt-0.5 shrink-0">🎙</span>
-        <p className="text-xs text-indigo-800 leading-relaxed">
+        <p className="text-xs text-orange-900 leading-relaxed">
           <span className="font-semibold">Voice fidelity is the promise.</span> Everything NarrateRx generates traces back to what your clinicians actually said. These voice inputs make sure every draft sounds like your clinic — not generic AI content. When you review a draft, you&apos;ll see exactly which phrases came from the interview and which the AI filled in.
         </p>
       </div>
@@ -738,9 +820,14 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
           </p>
         </div>
       )}
+      {!canContinue && form.clinic_context.trim().length > 0 && (
+        <p className="text-2xs text-destructive">
+          Add a bit more detail about what you do (at least 10 characters).
+        </p>
+      )}
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>← Back</Button>
-        <Button onClick={onContinue}>
+        <Button onClick={onContinue} disabled={!canContinue}>
           Continue <ArrowRight className="h-4 w-4 ml-1" />
         </Button>
       </div>
@@ -887,7 +974,7 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        Pick at least one. Every channel ships with a clean export, and the social channels can be pushed straight to <strong>Buffer</strong> — connect once and NarrateRx queues posts to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. Other direct integrations (Google Business Profile, website, newsletter) are reserved for the first-party Move Better workspaces in beta.
+        Pick at least one. Every channel ships with a clean export, and the social channels can be pushed straight to <strong>Buffer</strong> — connect once and NarrateRx queues posts to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. Additional direct integrations (Google Business Profile, website, newsletter) are available on Growth and Multi-location plans.
       </p>
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>← Back</Button>
@@ -899,7 +986,78 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
   )
 }
 
-// ── 6. Review ────────────────────────────────────────────────────────────────
+// ── 6. Capture setup ─────────────────────────────────────────────────────────
+
+function CaptureScreen({ form, setField, onBack, onContinue }) {
+  const { user } = useUser()
+
+  // Pre-fill capture_name from Clerk on first render if still empty.
+  useEffect(() => {
+    if (!form.capture_name) {
+      const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+      if (name) setField('capture_name')(name)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold">Your capture companion is ready</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Video capture is included for all workspaces. Add NarrateRx to your iPhone home
+          screen and start capturing clips in seconds — no separate app to install.
+        </p>
+      </div>
+
+      {/* Feature bullets */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {[
+          { icon: Smartphone, label: 'iPhone capture app', body: 'Add to Home Screen via Safari — opens straight to camera.' },
+          { icon: Clapperboard, label: 'Daily story slate', body: 'Your clips become approachable drafts, ready to review each morning.' },
+          { icon: CheckCircle2, label: 'You approve every post', body: 'Nothing publishes without your sign-off. Auto-publish is opt-in per channel.' },
+          { icon: Sparkles, label: 'Voice-faithful by default', body: 'AI keeps your words, your stances, your tone — flags drift before it ships.' },
+        ].map(({ icon: Icon, label, body }) => (
+          <div key={label} className="flex gap-3 rounded-lg border bg-muted/30 p-3">
+            <Icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium leading-snug">{label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{body}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Capture name */}
+      <div className="space-y-1.5">
+        <Label htmlFor="capture-name">Your name in content</Label>
+        <Input
+          id="capture-name"
+          value={form.capture_name}
+          onChange={e => setField('capture_name')(e.target.value)}
+          placeholder="e.g. Dr. Cullen"
+          maxLength={80}
+        />
+        <p className="text-xs text-muted-foreground">
+          How your name appears in captions, social posts, and GBP updates.
+          You can change this later from your staff profile.
+        </p>
+      </div>
+
+      <div className="flex justify-between pt-2">
+        <Button variant="outline" onClick={onBack}>Back</Button>
+        <Button
+          onClick={onContinue}
+          disabled={!form.capture_name.trim()}
+        >
+          Continue <ArrowRight className="ml-1.5 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── 7. Review ────────────────────────────────────────────────────────────────
 
 function ReviewScreen({ form, submitting, submitError, onBack, onSubmit }) {
   const { getToken } = useAuth()
@@ -930,7 +1088,8 @@ function ReviewScreen({ form, submitting, submitError, onBack, onSubmit }) {
           {submitError === 'no-channels-selected' && 'Pick at least one channel.'}
           {submitError === 'org-create-failed' && 'Could not create your workspace org — please try again.'}
           {submitError === 'domain-registration-failed' && 'Could not register your subdomain with our hosting provider. Please try again, or email drq@narraterx.ai if it keeps failing.'}
-          {!['slug-taken','founding-spots-full','no-channels-selected','org-create-failed','domain-registration-failed'].includes(submitError) && submitError}
+          {submitError === 'domain-already-claimed' && 'A workspace at this domain already exists. Ask your team admin to invite you, or email support@narraterx.ai.'}
+          {!['slug-taken','founding-spots-full','no-channels-selected','org-create-failed','domain-registration-failed','domain-already-claimed'].includes(submitError) && submitError}
         </div>
       )}
       <div className="flex items-center justify-between pt-2">
@@ -1024,7 +1183,7 @@ function LaunchingScreen({ redirectUrl }) {
       >
         <div className="text-xs text-destructive flex items-center gap-1">
           <AlertCircle className="h-3.5 w-3.5" />
-          Generation is taking longer than expected — try again or check your connection.
+          Subdomain activation is taking longer than expected — try again or check your connection.
         </div>
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <Button
@@ -1049,7 +1208,7 @@ function LaunchingScreen({ redirectUrl }) {
   return (
     <Card
       title="Setting up your workspace…"
-      subtitle="Provisioning your subdomain, creating your org, and wiring up your voice context. New subdomains take about 10–30 seconds for the SSL certificate to issue."
+      subtitle="Provisioning your subdomain and wiring up your voice context. This usually takes 5–15 seconds."
     >
       <div className="flex items-center gap-3 text-sm text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin text-orange-600" />

@@ -14,7 +14,8 @@ export const config = { runtime: 'nodejs' }
 // workspaces would lose their interpolated values.
 
 import { workspaceContext, invalidateWorkspaceCacheById } from '../_lib/workspaceContext.js'
-import { requireRole } from '../_lib/auth.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
+import { CAP_SETTINGS_EDIT } from '../_lib/capabilities.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -121,6 +122,13 @@ async function handler(req, res) {
   if (!auth.ok) {
     const status = auth.reason === 'forbidden' ? 403 : 401
     return res.status(status).json({ error: auth.reason })
+  }
+
+  // Phase 4 PR1: settings capability gate on writes. Producer (no CAP_SETTINGS_EDIT
+  // by default) is blocked from changing locations.
+  const capAuth = await requireCapability(req, workspace, [CAP_SETTINGS_EDIT])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
   }
 
   if (req.method === 'POST') {

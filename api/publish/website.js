@@ -1,4 +1,5 @@
 import { withSentry } from '../_lib/sentry.js'
+import { applyUtmToUrl } from '../_lib/utm.js'
 export const config = { runtime: 'nodejs' }
 // Website publish endpoint — Node.js runtime.
 //
@@ -37,6 +38,12 @@ export const config = { runtime: 'nodejs' }
 // the Library.
 
 import { marked } from 'marked'
+import { createWriteStream, createReadStream } from 'node:fs'
+import { mkdtemp, rm, stat } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { Readable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import { getCredential } from '../_lib/getCredential.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import { requireRole } from '../_lib/auth.js'
@@ -58,6 +65,7 @@ async function handler(req, res) {
   const auth = await requireRole(req, null, { orgId: scope.workspace.clerk_org_id })
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   const workspaceId = scope?.workspace?.id
+  const workspaceSlug = scope?.workspace?.slug
 
   const wpCred = await getCredential(workspaceId, 'wordpress')
   if (wpCred?.secret && wpCred?.config?.user) {
@@ -68,7 +76,7 @@ async function handler(req, res) {
     (await getCredential(workspaceId, 'astro_github')) ||
     (await getCredential(workspaceId, 'website'))
   if (astroCred?.secret) {
-    return publishToAstro(res, payload, astroCred)
+    return publishToAstro(res, payload, astroCred, workspaceSlug)
   }
 
   return res.status(503).json({
@@ -79,12 +87,20 @@ async function handler(req, res) {
 
 // ── Astro mode ────────────────────────────────────────────────────────────────
 
-async function publishToAstro(res, payload, cred) {
+async function publishToAstro(res, payload, cred, workspaceSlug) {
   const secret = cred.secret
   const url = cred.config?.url
   if (!url) {
     return res.status(503).json({ error: 'not_configured', message: 'Astro+GitHub publish URL is not set in the workspace credential config.' })
   }
+
+  // Normalize topic against the Astro receiver's allowed enum. Without this,
+  // freeform topics fail movebetter.co's content schema. This is Astro-only —
+  // WordPress has its own tag/category system and should receive the raw topic.
+  // (Previously applied in the shared dispatch block, which caused WordPress
+  // posts to lose their topic field when the slug didn't match the Astro enum.)
+  const topicMap = normalizeTopicForReceiver(payload.topic, workspaceSlug)
+  const normalizedTopic = topicMap.normalized ? topicMap.normalized : (topicMap.dropped ? null : payload.topic)
 
   const body = {
     slug:        payload.slug,
@@ -112,7 +128,7 @@ async function publishToAstro(res, payload, cred) {
   // Kebab-case topic slug — used by movebetter.co's blog schema (mapped
   // into `topic` frontmatter on receive). Animal's receiver ignores
   // unknown fields, so this is safe for both tenants.
-  if (typeof payload.topic === 'string' && payload.topic.trim()) body.topic = payload.topic.trim()
+  if (typeof normalizedTopic === 'string' && normalizedTopic.trim()) body.topic = normalizedTopic.trim()
 
   let upstream
   try {
@@ -129,7 +145,10 @@ async function publishToAstro(res, payload, cred) {
   try { data = await upstream.json() } catch { /* empty */ }
 
   if (upstream.status === 200 && data.success) {
-    return res.status(200).json({ success: true, slug: data.slug, commitUrl: data.commitUrl, postUrl: data.postUrl })
+    const postUrl = (payload.packageId && data.postUrl)
+      ? applyUtmToUrl(data.postUrl, { channel: 'blog', packageId: payload.packageId, campaignSlug: payload.campaignSlug })
+      : data.postUrl
+    return res.status(200).json({ success: true, slug: data.slug, commitUrl: data.commitUrl, postUrl })
   }
   if (upstream.status === 409) {
     return res.status(409).json({ error: 'slug_taken', slug: payload.slug, message: data.message || `The slug "${payload.slug}" is already published. Rename and try again — the website never overwrites.` })
@@ -265,10 +284,13 @@ async function publishToWordPress(res, payload, cred) {
   try { postData = await postRes.json() } catch { /* empty */ }
 
   if (postRes.status === 201 || postRes.status === 200) {
+    const postUrl = (payload.packageId && postData.link)
+      ? applyUtmToUrl(postData.link, { channel: 'blog', packageId: payload.packageId, campaignSlug: payload.campaignSlug })
+      : postData.link
     return res.status(200).json({
       success: true,
       slug:    postData.slug || payload.slug,
-      postUrl: postData.link,
+      postUrl,
       postId:  postData.id,
     })
   }
@@ -288,43 +310,59 @@ async function uploadMedia(wp, sourceUrl, altText, overrideFilename = null) {
   const sourceRes = await fetch(sourceUrl)
   if (!sourceRes.ok) throw new Error(`Could not download image from ${sourceUrl} (${sourceRes.status})`)
   const contentType = sourceRes.headers.get('content-type') || 'application/octet-stream'
-  const bytes = await sourceRes.arrayBuffer()
   const filename = overrideFilename || filenameFromUrl(sourceUrl, contentType)
-  const body = Buffer.from(bytes)
 
-  let uploadRes
-  let lastErrText = ''
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    uploadRes = await wp('/wp/v2/media', {
-      method:  'POST',
-      headers: {
-        'Content-Type':        contentType,
-        'Content-Disposition': `attachment; filename="${filename}"`,
-      },
-      body,
-    })
-    if (uploadRes.ok) break
-    lastErrText = await uploadRes.text().catch(() => '')
-    // Retry once on Cloudflare/origin timeouts and other transient 5xx —
-    // image processing on the WP host frequently exceeds CF's 100s window
-    // on first hit but succeeds on the second when caches are warm.
-    const transient = uploadRes.status >= 500 && uploadRes.status < 600
-    if (!transient || attempt === 2) break
-    await new Promise((r) => setTimeout(r, 2000))
-  }
-  if (!uploadRes.ok) {
-    throw new Error(formatWpUploadError(uploadRes.status, lastErrText, body.length))
-  }
-  const media = await uploadRes.json()
+  // Stream the source to a tmp file, then upload the file by streaming it back.
+  // iPhone HEIC originals can be 30-40MB — arrayBuffer() + Buffer.from() would
+  // materialize the whole image twice in RAM, which OOMs the 1024MB function
+  // under any concurrency. Streaming bounds peak memory to a few MB regardless
+  // of source size.
+  const dir = await mkdtemp(join(tmpdir(), 'wp-media-'))
+  const localPath = join(dir, 'src.bin')
 
-  if (altText) {
-    await wp(`/wp/v2/media/${media.id}`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ alt_text: altText }),
-    }).catch(() => {})
+  try {
+    await pipeline(Readable.fromWeb(sourceRes.body), createWriteStream(localPath))
+    const sizeBytes = (await stat(localPath)).size
+
+    let uploadRes
+    let lastErrText = ''
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      uploadRes = await wp('/wp/v2/media', {
+        method:  'POST',
+        headers: {
+          'Content-Type':        contentType,
+          'Content-Disposition': `attachment; filename="${filename}"`,
+          'Content-Length':      String(sizeBytes),
+        },
+        // Fresh ReadableStream each attempt — the previous one is consumed.
+        body:    Readable.toWeb(createReadStream(localPath)),
+        duplex:  'half',
+      })
+      if (uploadRes.ok) break
+      lastErrText = await uploadRes.text().catch(() => '')
+      // Retry once on Cloudflare/origin timeouts and other transient 5xx —
+      // image processing on the WP host frequently exceeds CF's 100s window
+      // on first hit but succeeds on the second when caches are warm.
+      const transient = uploadRes.status >= 500 && uploadRes.status < 600
+      if (!transient || attempt === 2) break
+      await new Promise((r) => setTimeout(r, 2000))
+    }
+    if (!uploadRes.ok) {
+      throw new Error(formatWpUploadError(uploadRes.status, lastErrText, sizeBytes))
+    }
+    const media = await uploadRes.json()
+
+    if (altText) {
+      await wp(`/wp/v2/media/${media.id}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ alt_text: altText }),
+      }).catch(() => {})
+    }
+    return { id: media.id, source_url: media.source_url }
+  } finally {
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
   }
-  return { id: media.id, source_url: media.source_url }
 }
 
 // Thin wrapper used by the inline-image rewrite path — returns the WP-hosted
@@ -372,6 +410,70 @@ async function resolveTags(wp, names) {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+// Per-receiver topic enums + alias maps. Only workspaces with a
+// receiver that enforces a fixed topic taxonomy need an entry here;
+// every other workspace gets {} (no normalization) and the receiver
+// either accepts arbitrary topics (animals) or ignores the field.
+//
+// `enum`: the exact list the receiver's content schema accepts.
+// `aliases`: known kebab-cased values NarrateRx might generate from a
+//   freeform workspace topic, mapped to the closest enum slug. Keep
+//   this targeted — broad string-similarity matching is a footgun.
+//   Anything not in `enum` or `aliases` falls through to "general".
+const RECEIVER_TOPIC_RULES = {
+  'movebetter-people': {
+    enum: new Set([
+      'breathing', 'bracing', 'hinging', 'assessment', 'pain-science',
+      'chronic-pain', 'low-back-pain', 'neck-pain', 'knee-pain',
+      'postpartum', 'injury-recovery', 'surgery-alternatives', 'recovery',
+      'movement-mechanics', 'strength-training', 'running', 'nutrition',
+      'mindset', 'healthcare-system', 'general',
+    ]),
+    aliases: {
+      'knee-pain-with-running':        'knee-pain',
+      'running-knee-pain':             'knee-pain',
+      'knee-injury':                   'knee-pain',
+      'lower-back-pain':               'low-back-pain',
+      'lower-back':                    'low-back-pain',
+      'low-back':                      'low-back-pain',
+      'back-pain':                     'low-back-pain',
+      'neck':                          'neck-pain',
+      'pelvic-floor':                  'postpartum',
+      'postnatal':                     'postpartum',
+      'rehab':                         'injury-recovery',
+      'rehabilitation':                'injury-recovery',
+      'recovery-rehab':                'recovery',
+      'movement':                      'movement-mechanics',
+      'mechanics':                     'movement-mechanics',
+      'strength':                      'strength-training',
+      'training':                      'strength-training',
+      'run':                           'running',
+      'jogging':                       'running',
+      'mental-health':                 'mindset',
+      'healthcare':                    'healthcare-system',
+      'insurance':                     'healthcare-system',
+    },
+  },
+}
+
+function normalizeTopicForReceiver(rawTopic, workspaceSlug) {
+  if (typeof rawTopic !== 'string' || !rawTopic.trim()) return { normalized: null, dropped: false }
+  const rules = RECEIVER_TOPIC_RULES[workspaceSlug]
+  if (!rules) return { normalized: null, dropped: false }
+
+  const slug = rawTopic.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  if (!slug) return { normalized: null, dropped: false }
+  if (rules.enum.has(slug)) return { normalized: slug, dropped: false }
+  if (rules.aliases[slug] && rules.enum.has(rules.aliases[slug])) {
+    return { normalized: rules.aliases[slug], dropped: false }
+  }
+  // Unknown — let the receiver's `.catch('general')` handle final
+  // fallback. Dropping the field keeps the build green without
+  // hard-coding 'general' on our end (so if the receiver enum drifts,
+  // we don't fight it).
+  return { normalized: null, dropped: true }
+}
 
 function wpRestRoot(url) {
   const idx = url.indexOf('/wp-json/')

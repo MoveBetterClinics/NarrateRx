@@ -140,13 +140,17 @@ export default async function handler(req, res) {
   // ── Find or create Self-clinician ─────────────────────────────────────────
   const wsFilter = `workspace_id=eq.${ws.id}`
   let clinicianId
+  let defaultTone = 'smart'
 
   const clinRes = await sb(
-    `clinicians?${wsFilter}&user_id=eq.${encodeURIComponent(auth.userId)}&select=id&limit=1`
+    `clinicians?${wsFilter}&user_id=eq.${encodeURIComponent(auth.userId)}&select=id,default_tone&limit=1`
   )
   if (clinRes.ok) {
     const rows = await clinRes.json()
-    if (rows.length) clinicianId = rows[0].id
+    if (rows.length) {
+      clinicianId = rows[0].id
+      defaultTone = rows[0].default_tone || 'smart'
+    }
   }
 
   if (!clinicianId) {
@@ -202,7 +206,7 @@ export default async function handler(req, res) {
       capture_mode:     'text_import',
       source_audio_url: cleanUrl,   // repurposed as source_url for provenance
       messages:         [{ role: 'user', content: extractedText }],
-      tone:             'smart',
+      tone:             defaultTone,
       voice_mode:       'personal',
       generation_style: 'blog_post',
     }),

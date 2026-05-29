@@ -1,33 +1,33 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useUser } from '@clerk/clerk-react'
+import { useUser } from '@clerk/react'
 import { Sparkles, CheckCircle2, Circle, X, ChevronRight } from 'lucide-react'
 import Icon from '@/components/ui/Icon'
 import { useOnboardingProgress } from '@/lib/queries'
 
 const STEPS = [
   {
-    key: 'complete_profile',
-    label: 'Complete your profile',
-    description: 'Add your practice name and specialty',
-    href: '/settings/workspace',
+    key: 'onboarding_interview',
+    label: 'Complete your voice setup',
+    description: 'Run the 5-minute founder interview so NarrateRx learns your practice\'s voice',
+    href: '/onboard/interview',
   },
   {
     key: 'run_first_interview',
     label: 'Run your first interview',
-    description: 'Capture a clinician story',
+    description: 'Capture a clinician\'s perspective on a topic to generate your first story',
     href: '/new',
   },
   {
-    key: 'generate_post',
-    label: 'Generate a social post',
-    description: 'Turn the interview into content',
-    href: '/stories',
+    key: 'approve_draft',
+    label: 'Approve your first draft',
+    description: 'Review a generated piece and approve it to move it into your publishing queue',
+    href: '/?bucket=review',
   },
   {
     key: 'publish',
-    label: 'Publish to social media',
-    description: 'Push your first post to Buffer',
+    label: 'Publish your first piece',
+    description: 'Send an approved piece to a connected channel to complete the loop',
     href: '/stories',
   },
 ]

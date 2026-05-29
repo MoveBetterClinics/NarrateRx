@@ -34,7 +34,13 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-const CAMPAIGN_FIELDS = 'id,name,description,status,target_clinician_ids,created_at,updated_at'
+const CAMPAIGN_FIELDS = [
+  'id', 'name', 'description', 'status', 'target_clinician_ids',
+  // Phase 4 Tentpole PR A — multi-campaign fields.
+  'start_at', 'end_at', 'event_at', 'theme_notes', 'content_style',
+  'cta_url', 'cta_label', 'cta_pitch',
+  'created_at', 'updated_at',
+].join(',')
 
 export default async function handler(req, res) {
   if (req.method !== 'GET') {

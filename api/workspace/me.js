@@ -13,7 +13,9 @@ export const config = { runtime: 'nodejs' }
 // 404 when no resolvable workspace (apex, www, preview URL, unknown subdomain).
 
 import { workspaceContext, invalidateWorkspaceCacheById, invalidateWorkspaceCacheBySlug } from '../_lib/workspaceContext.js'
-import { requireRole } from '../_lib/auth.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
+import { resolveCapabilities, CAP_SETTINGS_EDIT } from '../_lib/capabilities.js'
+import { getActiveCampaigns } from '../_lib/activeCampaigns.js'
 
 // Hard allowlist — only these columns may be patched via this endpoint.
 // slug, clerk_org_id, capabilities, status are developer-owned.
@@ -40,6 +42,7 @@ const PATCHABLE_FIELDS = new Set([
   'buffer_use_queue',
   'schedule_prefs',
   'realtime_voice_daily_cap_min',
+  'auto_publish_settings',
 ])
 
 // Platforms recognized in schedule_prefs. Mirrors PLATFORM_SCHEDULE_PREFS in
@@ -105,6 +108,40 @@ function sanitizePublishTopics(value) {
     if (seen.has(t)) continue
     seen.add(t)
     out.push(t)
+  }
+  return out
+}
+
+// Channels that may appear in auto_publish_settings.
+// Only 'gbp' is wired at launch; others are accepted and stored so the UI
+// can surface them as "coming soon" without a future migration.
+const AUTO_PUBLISH_CHANNELS = new Set([
+  'gbp', 'instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'blog',
+])
+// voice_fidelity_score is stored 0–100 (scorer rubric: 90–100=on-voice, 70–89=mostly faithful,
+// 50–69=noticeable drift, <50=significant rewrite). Default gate = 70 (let through "mostly faithful").
+const DEFAULT_VOICE_FIDELITY_MIN = 70
+const DEFAULT_SIMILARITY_MIN     = 0.65
+
+// Shape: { [channel]: { enabled: bool, voice_fidelity_min?: number, similarity_min?: number } }
+// Returns {} (all-off) on null/empty. Returns null on bad shape.
+function sanitizeAutoPublishSettings(value) {
+  if (value === null || (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0)) {
+    return {}
+  }
+  if (!isPlainObject(value)) return null
+  const out = {}
+  for (const [ch, entry] of Object.entries(value)) {
+    if (!AUTO_PUBLISH_CHANNELS.has(ch)) continue
+    if (!isPlainObject(entry)) return null
+    const enabled = Boolean(entry.enabled)
+    const vfMin = entry.voice_fidelity_min != null
+      ? parseFloat(entry.voice_fidelity_min) : DEFAULT_VOICE_FIDELITY_MIN
+    const simMin = entry.similarity_min != null
+      ? parseFloat(entry.similarity_min) : DEFAULT_SIMILARITY_MIN
+    if (!isFinite(vfMin) || vfMin < 0 || vfMin > 100) return null
+    if (!isFinite(simMin) || simMin < 0 || simMin > 1) return null
+    out[ch] = { enabled, voice_fidelity_min: vfMin, similarity_min: simMin }
   }
   return out
 }
@@ -228,6 +265,11 @@ async function handler(req, res) {
       // — without it, the recovery path silently skips and the user is
       // stranded on a "wrong-org" error screen).
       return res.status(200).json({
+        // Discriminator the SPA uses to tell this apart from a sparse full row.
+        // If the client sees this true while Clerk reports a signed-in session
+        // bound to this workspace's org, it forces a token-refresh refetch —
+        // the slim response means the server didn't see a matching JWT.
+        slim_branding:    true,
         id:               workspace.id,
         slug:             workspace.slug,
         clerk_org_id:     workspace.clerk_org_id,
@@ -275,7 +317,68 @@ async function handler(req, res) {
       console.error('[workspace/me] primary_logo fetch failed:', e?.message)
     }
 
-    return res.status(200).json({ ...workspace, locations, primary_logo_url })
+    // Phase 4: per-workspace permission_tier for the calling user. Drives the
+    // producer-restricted UX (nav filtering, default landing redirect). Falls
+    // back to null when the user has no clinicians row in this workspace —
+    // the client treats null as "no special restriction" so the existing nav
+    // shows. Non-fatal on failure.
+    let current_user_tier = null
+    let current_user_producer_onboarded_at = null
+    try {
+      const ctr = await sb(
+        `clinicians?user_id=eq.${encodeURIComponent(auth.userId)}` +
+        `&workspace_id=eq.${encodeURIComponent(workspace.id)}` +
+        `&select=permission_tier,producer_onboarded_at&limit=1`
+      )
+      if (ctr.ok) {
+        const rows = await ctr.json().catch(() => [])
+        current_user_tier = rows?.[0]?.permission_tier || null
+        current_user_producer_onboarded_at = rows?.[0]?.producer_onboarded_at || null
+      }
+    } catch (e) {
+      console.error('[workspace/me] tier fetch failed:', e?.message)
+    }
+
+    // Phase 4 PR 3: resolve the user's effective capability set. Matches the
+    // opt-in-per-user model used by requireCapability server-side:
+    //   • Clerk org admins (isOrgAdmin === true) ALWAYS get the owner template.
+    //   • Users with NO explicit permission_tier set fall back to legacy —
+    //     full owner caps when requireRole resolved them to admin (covers the
+    //     internal-plan bypass case so Move Better members keep working as
+    //     today). Non-admins with no tier get the 'clinician' default template.
+    //   • Users with an explicit tier are resolved against the workspace's
+    //     role_templates (or code defaults).
+    let current_user_capabilities
+    if (auth.isOrgAdmin) {
+      current_user_capabilities = resolveCapabilities('owner', workspace)
+    } else if (!current_user_tier) {
+      current_user_capabilities = auth.role === 'admin'
+        ? resolveCapabilities('owner', workspace)
+        : resolveCapabilities('clinician', workspace)
+    } else {
+      current_user_capabilities = resolveCapabilities(current_user_tier, workspace)
+    }
+
+    // Phase 4 Tentpole PR B: embed currently-active campaigns so the Slate
+    // client can do slot allocation against them without a separate fetch.
+    // Non-fatal on failure — Slate falls back to legacy non-campaign
+    // generation when the field is absent or empty.
+    let active_campaigns = []
+    try {
+      active_campaigns = await getActiveCampaigns(workspace.id)
+    } catch (e) {
+      console.error('[workspace/me] active campaigns fetch failed:', e?.message)
+    }
+
+    return res.status(200).json({
+      ...workspace,
+      locations,
+      primary_logo_url,
+      current_user_tier,
+      current_user_capabilities,
+      current_user_producer_onboarded_at,
+      active_campaigns,
+    })
   }
 
   if (req.method === 'PATCH') {
@@ -286,6 +389,12 @@ async function handler(req, res) {
     if (!auth.ok) {
       const status = auth.reason === 'forbidden' ? 403 : 401
       return res.status(status).json({ error: auth.reason })
+    }
+
+    // Phase 4 PR 3: capability gate on settings edits.
+    const capAuth = await requireCapability(req, workspace, [CAP_SETTINGS_EDIT])
+    if (!capAuth.ok) {
+      return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
     }
 
     const body = req.body || {}
@@ -355,6 +464,14 @@ async function handler(req, res) {
           return res.status(400).json({ error: 'invalid-schedule-prefs' })
         }
         patch.schedule_prefs = cleaned
+        continue
+      }
+      if (key === 'auto_publish_settings') {
+        const cleaned = sanitizeAutoPublishSettings(value)
+        if (cleaned === null) {
+          return res.status(400).json({ error: 'invalid-auto-publish-settings' })
+        }
+        patch.auto_publish_settings = cleaned
         continue
       }
       patch[key] = value

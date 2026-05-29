@@ -10,9 +10,11 @@ import {
   useUser,
   useOrganizationList,
   useSession,
-} from '@clerk/clerk-react'
+} from '@clerk/react'
 import Layout from '@/components/Layout'
 import Home from '@/pages/Home'
+import { useCapability } from '@/lib/usePermission'
+import { CAP_INTERVIEW_START } from '@/lib/capabilities'
 import { getPendingAnnouncement } from '@/lib/announcements'
 const Welcome = lazy(() => import('@/pages/Welcome'))
 const CapturePicker = lazy(() => import('@/pages/CapturePicker'))
@@ -38,6 +40,8 @@ const BillingSettings = lazy(() => import('@/pages/settings/BillingSettings'))
 const BrandKitPreview = lazy(() => import('@/pages/BrandKitPreview'))
 const BrandKitSettings = lazy(() => import('@/pages/BrandKitSettings'))
 const CarouselThemesSettings = lazy(() => import('@/pages/settings/CarouselThemesSettings'))
+const CampaignsSettings = lazy(() => import('@/pages/settings/CampaignsSettings'))
+const AutoPublishSettings = lazy(() => import('@/pages/settings/AutoPublishSettings'))
 import SettingsLayout from '@/components/SettingsLayout'
 const OnboardingBrandKit = lazy(() => import('@/pages/OnboardingBrandKit'))
 const Members = lazy(() => import('@/pages/Members'))
@@ -49,6 +53,9 @@ const Synthesis = lazy(() => import('@/pages/Synthesis'))
 const PreVisitMessage = lazy(() => import('@/pages/PreVisitMessage'))
 const AuthorMode = lazy(() => import('@/pages/AuthorMode'))
 const Book = lazy(() => import('@/pages/Book'))
+const EditorialTest = lazy(() => import('@/pages/EditorialTest'))
+const Slate = lazy(() => import('@/pages/Slate'))
+const Capture = lazy(() => import('@/pages/Capture'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
 import { UploadProgressProvider, useUploadProgress } from '@/lib/UploadProgressContext'
@@ -123,6 +130,20 @@ function OrgGate({ clerkOrgId, children }) {
   // session and the original one-shot effect never retried, leaving OrgGate
   // returning null forever until manual reload.
   const [stuckLevel, setStuckLevel] = useState(0) // 0=ok, 1=loading-spinner, 2=offer-reload
+
+  // noMatchSettled: have we confirmed "loaded but no membership match" is REAL
+  // rather than a transient empty-list during cross-subdomain hydration? A hard
+  // navigation to a workspace subdomain (e.g. a PWA cold launch on /capture)
+  // can leave useOrganizationList reporting isLoaded:true with an empty
+  // memberships array for a beat before Clerk restores the session — which used
+  // to flash the "No access" card at a user who IS a member. We only treat
+  // no-match as settled after a grace window + one-shot reload (empty list), or
+  // immediately (non-empty list → the user genuinely isn't in this workspace).
+  const [noMatchSettled, setNoMatchSettled] = useState(false)
+  const membershipsEmpty = memberships.length === 0
+  // Provisional = loaded, no match, but the list is still empty (likely
+  // unhydrated). Hold here rather than rendering the dead-end card.
+  const noMatchProvisional = isLoaded && !match && membershipsEmpty && !noMatchSettled
 
   // Retry setActive periodically while !isActive. Clerk's setActive can
   // resolve without actually updating session.lastActiveOrganizationId
@@ -210,6 +231,43 @@ function OrgGate({ clerkOrgId, children }) {
     }
   }, [isActive, tokenReady])
 
+  // No-match hydration race: when loaded with no match AND an empty membership
+  // list, give Clerk a grace window to finish restoring the session, then
+  // auto-reload once (a fresh load reliably rehydrates the membership list on a
+  // cross-subdomain hard navigation — same escape hatch as the stuck-active
+  // path above). Only after that reload also yields nothing do we mark the
+  // no-match as settled, which surfaces the "No access" card. A non-empty list
+  // with no match skips this entirely (the user genuinely isn't a member).
+  useEffect(() => {
+    if (!noMatchProvisional) return
+    const key = 'narraterx:orggate-nomatch-reloaded'
+    const t = setTimeout(() => {
+      let reloaded = false
+      if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+        try {
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, '1')
+            console.warn('[OrgGate] loaded with empty memberships and no match within grace; auto-reloading once')
+            window.location.reload()
+            reloaded = true
+          } else {
+            console.error('[OrgGate] still no membership match after auto-reload; surfacing No access')
+          }
+        } catch { /* sessionStorage disabled — fall through to settle */ }
+      }
+      if (!reloaded) setNoMatchSettled(true)
+    }, 2500) // > the 2s active-flip floor; membership-list hydration is a superset
+    return () => clearTimeout(t)
+  }, [noMatchProvisional])
+
+  // Clear the no-match reload guard once a real match appears, so a later
+  // workspace switch in the same tab can auto-recover from this race again.
+  useEffect(() => {
+    if (match && typeof sessionStorage !== 'undefined') {
+      try { sessionStorage.removeItem('narraterx:orggate-nomatch-reloaded') } catch { /* noop */ }
+    }
+  }, [match])
+
   // Once the session says the right org is active, confirm the issued token
   // actually carries that org before letting children fetch any API routes.
   //
@@ -267,8 +325,8 @@ function OrgGate({ clerkOrgId, children }) {
   // Still loading org list, org switch pending, or token hasn't refreshed yet.
   // Returns a loading state instead of blank to avoid the "white screen until
   // manual reload" UX reported 2026-05-25.
-  if (!isLoaded || (match && (!isActive || !tokenReady))) {
-    if (stuckLevel === 0) return null // brief, normal-case — no flash
+  if (!isLoaded || (match && (!isActive || !tokenReady)) || noMatchProvisional) {
+    if (stuckLevel === 0 && !noMatchProvisional) return null // brief, normal-case — no flash
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="max-w-sm text-center space-y-3 p-8">
@@ -396,6 +454,16 @@ function LegacyReviewRedirect() {
   return <Navigate to={`/stories/${itemId}`} replace />
 }
 
+// Phase 4: users without interview.start capability (producers in the default
+// template, viewers, etc.) land on /slate as their home. Users with the
+// capability see Home as before. Wrapped at the / route so the redirect
+// happens at the routing layer, not after Home's data fetches kick off.
+function HomeOrSlateForProducer() {
+  const canStartInterview = useCapability(CAP_INTERVIEW_START)
+  if (!canStartInterview) return <Navigate to="/slate" replace />
+  return <Home />
+}
+
 // Routes shared between org-gated and domain-gated modes.
 function AppRoutes() {
   const location = useLocation()
@@ -420,7 +488,7 @@ function AppRoutes() {
       <Layout>
         <Suspense fallback={null}>
           <Routes>
-            <Route path="/" element={guarded(<Home />)} />
+            <Route path="/" element={guarded(<HomeOrSlateForProducer />)} />
             <Route path="/new" element={guarded(<CapturePicker />)} />
             <Route path="/new/interview" element={guarded(<NewInterview />)} />
             <Route path="/new/voice-memo" element={guarded(<VoiceMemo />)} />
@@ -445,6 +513,12 @@ function AppRoutes() {
             <Route path="/write" element={guarded(<AuthorMode />)} />
             <Route path="/book"  element={guarded(<Book />)} />
             <Route path="/library" element={guarded(<MediaHub />)} />
+            {/* Universal PWA capture surface — works on any device with a browser + camera. */}
+            <Route path="/capture" element={guarded(<Capture />)} />
+            {/* Phase 3 Story Director — daily story slate for producers + clinicians. */}
+            <Route path="/slate" element={guarded(<Slate />)} />
+            {/* Internal dev surface — Phase 2 editorial pipeline test (search clips + render). */}
+            <Route path="/internal/editorial-test" element={guarded(<EditorialTest />)} />
             {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}
             <Route path="/review/:itemId" element={<LegacyReviewRedirect />} />
             <Route path="/review-queue" element={<Navigate to="/?bucket=review" replace />} />
@@ -466,6 +540,8 @@ function AppRoutes() {
               <Route path="/settings/brand-kit" element={guarded(<BrandKitSettings />)} />
               <Route path="/settings/brand-kit-preview" element={guarded(<BrandKitPreview />)} />
               <Route path="/settings/carousel-themes" element={guarded(<CarouselThemesSettings />)} />
+              <Route path="/settings/campaigns" element={guarded(<CampaignsSettings />)} />
+              <Route path="/settings/workspace/auto-publish" element={guarded(<AutoPublishSettings />)} />
               {/* Clerk-mounted pages use routing="path" so their deep links resolve. */}
               <Route path="/settings/members/*" element={guarded(<Members />)} />
             </Route>
