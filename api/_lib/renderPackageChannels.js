@@ -56,11 +56,14 @@ function sb(path, init = {}) {
  * @param {string}   [p.filename]    — source filename (for the render blob path)
  * @param {string}   [p.topic]       — for caption-fidelity scoring
  * @param {string}   [p.clinicianId] — for caption-fidelity scoring
+ * @param {number}   [p.startSec]    — clip start offset (multi-clip v1; video only). Default 0.
+ * @param {number}   [p.durationSec] — clip length, clamped to MAX_RENDER_SECONDS. Default full cap.
  * @returns {Promise<{finalStatus: string, renders: object[], errors: object[]}>}
  */
 export async function renderAndPatchPackage({
   workspace, packageId, sourceUrl, sourceAssetId, kind,
   channels, captionText, clinicianName, filename, topic, clinicianId,
+  startSec, durationSec,
 }) {
   const ws = workspace
   const isVideo = kind === 'video'
@@ -78,8 +81,12 @@ export async function renderAndPatchPackage({
           if (!VIDEO_CHANNEL_SPECS[channel]) { errors.push({ channel, error: 'unknown_channel' }); continue }
           const { buffer, width, height, hadSubtitles } = await renderVideoChannel({
             videoUrl: sourceUrl, channel, captionText, workspace: ws, clinicianName,
+            startSec, durationSec,
           })
-          const pathname = `media/renders/${ws.slug}/${sourceAssetId}/${channel}-${safeFilename}.mp4`
+          // Key by packageId, not just sourceAssetId — multi-clip v1 renders
+          // several packages (segments) from ONE source asset; keying by source
+          // alone would make every segment's render clobber the previous one.
+          const pathname = `media/renders/${ws.slug}/${sourceAssetId}/${packageId}/${channel}-${safeFilename}.mp4`
           const blob = await blobPut(pathname, buffer, {
             access: 'public', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true,
           })
@@ -89,7 +96,7 @@ export async function renderAndPatchPackage({
           const { buffer, width, height } = await renderPhotoChannel({
             photoUrl: sourceUrl, channel, captionText, workspace: ws, clinicianName,
           })
-          const pathname = `media/renders/${ws.slug}/${sourceAssetId}/${channel}-${safeFilename}.jpg`
+          const pathname = `media/renders/${ws.slug}/${sourceAssetId}/${packageId}/${channel}-${safeFilename}.jpg`
           const blob = await blobPut(pathname, buffer, {
             access: 'public', contentType: 'image/jpeg', addRandomSuffix: false, allowOverwrite: true,
           })

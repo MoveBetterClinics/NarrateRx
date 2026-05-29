@@ -96,11 +96,20 @@ function runFfmpeg(args) {
  * @param {string} params.captionText   — text shown in the caption band (optional marketing headline)
  * @param {Object} params.workspace     — workspace row (display_name, colors)
  * @param {string} params.clinicianName — display name for lower-third
+ * @param {number} [params.startSec]    — clip start offset in the source (multi-clip v1). Default 0.
+ * @param {number} [params.durationSec] — clip length in seconds; clamped to MAX_RENDER_SECONDS. Default MAX_RENDER_SECONDS.
  * @returns {Promise<{buffer: Buffer, width: number, height: number, channel: string, hadSubtitles: boolean}>}
  */
-export async function renderVideoChannel({ videoUrl, channel, captionText, workspace, clinicianName }) {
+export async function renderVideoChannel({ videoUrl, channel, captionText, workspace, clinicianName, startSec, durationSec }) {
   const spec = VIDEO_CHANNEL_SPECS[channel]
   if (!spec) throw new Error(`Unknown video channel: ${channel}`)
+
+  // Clip window (multi-clip v1). For a single-clip render both default to the
+  // legacy behavior: start at 0, render the first MAX_RENDER_SECONDS. For a
+  // proposed segment, startSec/durationSec carve one ≤60s moment out of a long
+  // source via ffmpeg input seeking.
+  const clipStart = Math.max(0, Number(startSec) || 0)
+  const clipDur = Math.min(Math.max(1, Number(durationSec) || MAX_RENDER_SECONDS), MAX_RENDER_SECONDS)
 
   // Initialise fontconfig before any Sharp SVG work. No-op after first call.
   await ensureFontconfig()
@@ -128,6 +137,12 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
       throw new Error(`Source video too large: ${Math.round(declaredLen / 1e6)}MB (max ${MAX_INGEST_BYTES / 1e6}MB)`)
     }
 
+    // Where the clip window starts WITHIN tmpInput. The large-source path
+    // pulls only the window (proxy already starts at 0), so downstream seeks
+    // from 0; the fast path keeps the full original, so downstream seeks to
+    // clipStart.
+    let downstreamStart = clipStart
+
     if (declaredLen > 0 && declaredLen <= MAX_VIDEO_BYTES) {
       // Fast path — small enough to keep the original on /tmp.
       const fetchRes = await fetch(videoUrl)
@@ -135,9 +150,13 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
       await pipeline(Readable.fromWeb(fetchRes.body), createWriteStream(tmpInput))
     } else {
       // Large or unknown-size source — downscale-on-ingest from the URL so the
-      // full original never materializes on /tmp. ffmpeg fetches via HTTP range.
-      await runFfmpeg([
-        '-t', String(MAX_RENDER_SECONDS),   // input-limit: only pull ~first 60s over HTTP range
+      // full original never materializes on /tmp. ffmpeg fetches via HTTP range
+      // and (for a segment) input-seeks to the clip window, pulling only the
+      // ≤60s slice rather than the whole source.
+      const ingestArgs = []
+      if (clipStart > 0) ingestArgs.push('-ss', String(clipStart))  // input seek → fetch only the window
+      ingestArgs.push(
+        '-t', String(clipDur),              // input-limit: only pull the clip window over HTTP range
         '-i', videoUrl,
         '-vf', 'scale=w=1920:h=1920:force_original_aspect_ratio=decrease:flags=lanczos',
         // ultrafast: this proxy is a throwaway intermediate (re-encoded per
@@ -149,7 +168,10 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
         '-c:a', 'aac', '-b:a', '128k',
         '-movflags', '+faststart',
         '-y', tmpInput,
-      ])
+      )
+      await runFfmpeg(ingestArgs)
+      // The proxy now contains only the clip window starting at 0.
+      downstreamStart = 0
     }
 
     const { size: actualSize } = await statP(tmpInput)
@@ -165,16 +187,19 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
     // smaller to upload, and works for any input size.
     let hadSubtitles = false
     try {
-      await runFfmpeg([
+      const audioArgs = []
+      if (downstreamStart > 0) audioArgs.push('-ss', String(downstreamStart))
+      audioArgs.push(
         '-i', tmpInput,
         '-vn',                          // no video
         '-acodec', 'libmp3lame',
         '-ar', '16000',                 // 16kHz — Whisper-optimal sample rate
         '-ac', '1',                     // mono
         '-b:a', '32k',
-        '-t', String(MAX_RENDER_SECONDS),  // only transcribe the rendered window
+        '-t', String(clipDur),          // only transcribe the rendered clip window
         '-y', tmpAudio,
-      ])
+      )
+      await runFfmpeg(audioArgs)
 
       const srt = await transcribeToSrt(tmpAudio)
       if (srt && srt.trim()) {
@@ -237,7 +262,13 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
     }
 
     // ── 5. Run ffmpeg ────────────────────────────────────────────────────────
-    const ffmpegArgs = [
+    // Input-seek to the clip window on input 0 (the video). The overlay PNG
+    // (input 1) is a static image, unaffected by the seek. The subtitle SRT was
+    // built from audio extracted at the same offset, so its timestamps (which
+    // start at 0) align with the seeked input.
+    const ffmpegArgs = []
+    if (downstreamStart > 0) ffmpegArgs.push('-ss', String(downstreamStart))
+    ffmpegArgs.push(
       '-i', tmpInput,
       '-i', tmpOverlay,
       '-filter_complex', filterComplex.join(';'),
@@ -250,10 +281,10 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
       '-c:a', 'aac',
       '-b:a', '128k',
       '-movflags', '+faststart',         // moov atom at start for streaming
-      '-t', String(MAX_RENDER_SECONDS),  // cap clip length; bounds render time vs the 300s budget
+      '-t', String(clipDur),             // cap clip length; bounds render time vs the 300s budget
       '-y',                              // overwrite if exists
       tmpOutput,
-    ]
+    )
 
     await runFfmpeg(ffmpegArgs)
 
