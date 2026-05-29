@@ -112,7 +112,10 @@ export default function Slate() {
     queryFn: fetchPackages,
     refetchInterval: (q) => {
       const pkgs = q.state.data?.packages || []
-      const anyPending = pkgs.some((p) => p.status === 'generating' || p.status === 'pending')
+      // pending_broll = waiting for Runway AI b-roll to finish generating
+      const anyPending = pkgs.some((p) =>
+        p.status === 'generating' || p.status === 'pending' || p.status === 'pending_broll'
+      )
       return anyPending ? REFETCH_INTERVAL_MS : false
     },
     refetchOnWindowFocus: false,
