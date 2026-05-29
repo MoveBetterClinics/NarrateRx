@@ -110,7 +110,7 @@ async function resolveTarget(req) {
     return { ok: false, status: 403, reason: 'forbidden' }
   }
 
-  return { ok: true, clinician }
+  return { ok: true, clinician, ws }
 }
 
 export default async function handler(req, res) {
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
 
   const t = await resolveTarget(req)
   if (!t.ok) return res.status(t.status).json({ error: t.reason })
-  const clinician = t.clinician
+  const { clinician, ws } = t
 
   if (req.method === 'GET') {
     return res.status(200).json({
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const r = await sb(`clinicians?id=eq.${clinician.id}`, {
+    const r = await sb(`clinicians?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
         capture_upload_token: null,
@@ -148,7 +148,7 @@ export default async function handler(req, res) {
   const token = newToken()
   const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
-  const r = await sb(`clinicians?id=eq.${clinician.id}`, {
+  const r = await sb(`clinicians?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({
       capture_upload_token: token,

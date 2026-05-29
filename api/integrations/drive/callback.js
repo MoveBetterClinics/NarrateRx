@@ -6,6 +6,7 @@ import {
   persistDriveCredential,
   verifyOAuthState,
 } from '../../_lib/driveAuth.js'
+import { workspaceById } from '../../_lib/workspaceContext.js'
 
 // GET /api/integrations/drive/callback?code=…&state=…
 //
@@ -90,6 +91,16 @@ async function handler(req, res) {
   }
 
   const accountEmail = await fetchAccountEmail(tokens.access_token)
+
+  // Verify the workspace is still active before writing the credential.
+  // The state token was issued against an active workspace; it could have been
+  // archived in the ~10 minute OAuth window. workspaceById returns null for
+  // non-active workspaces.
+  const ws = await workspaceById(parsed.workspaceId)
+  if (!ws) {
+    console.error('[drive/callback] workspace not found or inactive:', parsed.workspaceId)
+    return renderApexError(res, 'Your workspace could not be found. It may have been archived. Contact support if this is unexpected.')
+  }
 
   try {
     await persistDriveCredential({
