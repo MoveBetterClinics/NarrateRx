@@ -217,8 +217,8 @@ async function handler(req, res) {
           break
         }
         const deletedCustomerId = sub.customer || null
-        // Revert to trial with 14-day window.
-        const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
+        // Revert to trial with 45-day window.
+        const trialEndsAt = new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString()
         // Null out customer_id too so a stray late invoice.payment_failed for
         // this same customer can't re-find the workspace and flip it to past_due.
         await updateWorkspace(workspaceId, {
