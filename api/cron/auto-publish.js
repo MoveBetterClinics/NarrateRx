@@ -16,6 +16,8 @@ export const config = { runtime: 'nodejs' }
 import { evaluate } from '../_lib/autoPublishGate.js'
 import { getCredential } from '../_lib/getCredential.js'
 import { prepareMediaForBuffer } from '../_lib/prepareMediaForBuffer.js'
+import { filterCampaignsForClinician } from '../_lib/tentpoleCampaignContext.js'
+import { getActiveCampaigns } from '../_lib/activeCampaigns.js'
 
 const SUPABASE_URL  = process.env.SUPABASE_URL
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY
@@ -150,7 +152,7 @@ async function processWorkspace(ws, summary) {
     `story_packages?workspace_id=eq.${ws.id}` +
     `&status=eq.approved` +
     `&auto_published_at=is.null` +
-    `&select=id,workspace_id,source_asset_id,topic,caption_text,similarity,voice_fidelity_score,channels,renders,qc_flags,source_asset:media_assets(consent_status,qc_flags)` +
+    `&select=id,workspace_id,clinician_id,source_asset_id,topic,caption_text,similarity,voice_fidelity_score,channels,renders,qc_flags,source_asset:media_assets(consent_status,qc_flags)` +
     `&order=updated_at.asc` +
     `&limit=${BATCH_SIZE}`
   )
@@ -174,11 +176,25 @@ async function processWorkspace(ws, summary) {
   // Resolve GBP location channels once (same for all packages).
   const gbpChannels = settings.gbp?.enabled ? await resolveGbpChannelIds(ws.id) : []
 
+  // Load active campaigns once — used to enforce target_clinician_ids per package.
+  const activeCampaigns = await getActiveCampaigns(ws.id).catch(() => [])
+
   const dispatched = []
   const held = []
   const now = new Date().toISOString()
 
   for (const pkg of packages) {
+    // Campaign targeting gate: if active campaigns exist and none apply to this
+    // clinician (i.e. all campaigns have target restrictions that exclude them),
+    // hold the package rather than publishing under the wrong campaign window.
+    if (activeCampaigns.length > 0) {
+      const campaignsForClinician = filterCampaignsForClinician(activeCampaigns, pkg.clinician_id)
+      if (campaignsForClinician.length === 0) {
+        held.push({ id: pkg.id, reasons: [{ signal: 'campaign_targeting', detail: 'No active campaigns target this clinician' }] })
+        continue
+      }
+    }
+
     const result = evaluate({ pkg, workspace: ws })
 
     // Write evaluation state back to the package row (so Slate badge is live).
