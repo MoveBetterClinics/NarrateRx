@@ -55,7 +55,7 @@ import { fetchReferences, createReference, updateReference, deleteReference } fr
 import { buildStories, deriveStoryStage } from './stories'
 
 export const queryKeys = {
-  clinicians: {
+  staff: {
     all:    ['staff'],
     list:   () => ['staff', 'list'],
     card:   () => ['staff', 'card'],  // slim view=card shape; populated by useStories
