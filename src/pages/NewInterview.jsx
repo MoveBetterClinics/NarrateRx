@@ -17,10 +17,6 @@ import { useClinicians, useClinicianRecipes, useCreateClinicianRecipe } from '@/
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
-import {
-  defaultAudienceSlots, defaultStoryTypeSlots,
-  resolveAudienceSlot, resolveStoryTypeSlot,
-} from '@/lib/interviewOptionsCatalog'
 import { CLEANUP_LEVELS, getCleanupLevel, DEFAULT_CLEANUP_LEVEL } from '@/lib/cleanupLevels'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
@@ -54,8 +50,6 @@ export default function NewInterview() {
   const [voiceMode, setVoiceMode] = useState('practice')
   const [prototype, setPrototype] = useState(null)
   const [locationId, setLocationId] = useState(null)
-  const [audience, setAudience] = useState(null)
-  const [storyType, setStoryType] = useState(null)
   const [cleanupLevel, setCleanupLevel] = useState(DEFAULT_CLEANUP_LEVEL)
 
   // Recipe state — selectedRecipeId tracks which saved recipe is "active";
@@ -73,15 +67,6 @@ export default function NewInterview() {
     if (name && !clinicianName) setClinicianName(name)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.unsafeMetadata?.display_name, user?.fullName])
-
-  // Workspace-curated audience / story type slots, with catalog fallback so
-  // even fresh workspaces show pickers.
-  const audienceOptions = Array.isArray(workspace?.audience_options) && workspace.audience_options.length > 0
-    ? workspace.audience_options
-    : defaultAudienceSlots()
-  const storyTypeOptions = Array.isArray(workspace?.story_type_options) && workspace.story_type_options.length > 0
-    ? workspace.story_type_options
-    : defaultStoryTypeSlots()
 
   const activeLocations = Array.isArray(workspace?.locations)
     ? workspace.locations.filter(l => l.status === 'active')
@@ -102,13 +87,13 @@ export default function NewInterview() {
 
   const { data: recipes = [], isLoading: recipesLoading } = useClinicianRecipes(resolvedClinician?.id)
 
-  // Apply a recipe to all five levers + clear the "drift from recipe" flag
-  // by setting selectedRecipeId. Sticky: levers stay until the user either
-  // picks another recipe or edits something in Tune.
+  // Apply a recipe's levers + clear the "drift from recipe" flag by setting
+  // selectedRecipeId. Sticky: levers stay until the user either picks another
+  // recipe or edits something in Tune. (audience / story_type were removed in
+  // the voice-fidelity overhaul — legacy recipes may still carry them, but we
+  // no longer apply them.)
   function applyRecipe(recipe) {
     setSelectedRecipeId(recipe.id)
-    if (recipe.audience)      setAudience(recipe.audience)
-    if (recipe.story_type)    setStoryType(recipe.story_type)
     if (recipe.tone)          setTone(recipe.tone)
     if (recipe.voice_mode)    setVoiceMode(recipe.voice_mode)
     if (recipe.cleanup_level) setCleanupLevel(recipe.cleanup_level)
@@ -187,8 +172,6 @@ export default function NewInterview() {
         voiceMode,
         prototypeId: prototype,
         locationId,
-        audience,
-        storyType,
         cleanupLevel,
         topicBacklogId: searchParams.get('topicBacklogId') || undefined,
       })
@@ -249,10 +232,8 @@ export default function NewInterview() {
   }
 
   // Active levers — for the pill row. Resolves keys to displayable slots
-  // (emoji + label) from workspace/catalog/builtin lists.
-  const audienceSlot   = resolveAudienceSlot(audience, audienceOptions)
-  const storyTypeSlot  = resolveStoryTypeSlot(storyType, storyTypeOptions)
-  const voiceModeSlot  = VOICE_MODES.find((v) => v.id === voiceMode)
+  // (emoji + label). Voice mode is shown as a prominent picker above, so it's
+  // not duplicated in the pill row.
   const toneSlot       = TONES.find((t) => t.id === tone)
   const cleanupSlot    = getCleanupLevel(cleanupLevel)
 
@@ -289,7 +270,7 @@ export default function NewInterview() {
         <CardContent className="space-y-4">
           {/* Clinician */}
           <div className="space-y-1.5">
-            <Label htmlFor="clinician">Clinician</Label>
+            <Label htmlFor="clinician">Staff member</Label>
             <Input
               id="clinician"
               placeholder="e.g. Dr. Quasney"
@@ -336,6 +317,20 @@ export default function NewInterview() {
             )}
           </div>
 
+          {/* Whose voice — the one lane decision that shapes every output.
+              Always visible (not buried in Tune): "We" (clinic) vs "I"
+              (personal). Set once here at interview start. */}
+          <div className="space-y-1.5">
+            <Label className="text-sm">Whose voice is this interview in?</Label>
+            <SimpleSlotPicker
+              label=""
+              options={VOICE_MODES}
+              value={voiceMode}
+              onChange={(v) => { setVoiceMode(v); markDrift() }}
+              idKey="id"
+            />
+          </div>
+
           {/* Recipe dropdown — only when this clinician has saved recipes */}
           {recipes.length > 0 && (
             <RecipeDropdown
@@ -347,9 +342,6 @@ export default function NewInterview() {
 
           {/* Active levers pill row + Tune toggle */}
           <ActiveLeversRow
-            audienceSlot={audienceSlot}
-            storyTypeSlot={storyTypeSlot}
-            voiceModeSlot={voiceModeSlot}
             toneSlot={toneSlot}
             cleanupSlot={cleanupSlot}
             tuneOpen={tuneOpen}
@@ -369,25 +361,6 @@ export default function NewInterview() {
           {/* Tune drawer — individual lever pickers */}
           {tuneOpen && (
             <div data-tune-section className="space-y-4 border-t pt-4 scroll-mt-20">
-              <InterviewSlotPicker
-                label="Who is this piece for?"
-                options={audienceOptions}
-                value={audience}
-                onChange={(v) => { setAudience(v); markDrift() }}
-              />
-              <InterviewSlotPicker
-                label="What kind of piece?"
-                options={storyTypeOptions}
-                value={storyType}
-                onChange={(v) => { setStoryType(v); markDrift() }}
-              />
-              <SimpleSlotPicker
-                label="Voice"
-                options={VOICE_MODES}
-                value={voiceMode}
-                onChange={(v) => { setVoiceMode(v); markDrift() }}
-                idKey="id"
-              />
               <SimpleSlotPicker
                 label="Tone"
                 options={TONES}
@@ -517,7 +490,7 @@ export default function NewInterview() {
         open={saveRecipeOpen}
         onClose={() => setSaveRecipeOpen(false)}
         clinician={resolvedClinician}
-        levers={{ audience, story_type: storyType, tone, voice_mode: voiceMode, cleanup_level: cleanupLevel }}
+        levers={{ tone, voice_mode: voiceMode, cleanup_level: cleanupLevel }}
         existingRecipeCount={recipes.length}
         onSaved={(recipe) => {
           setSaveRecipeOpen(false)
@@ -581,13 +554,10 @@ function RecipeDropdown({ recipes, selectedId, onSelect }) {
 // ── Active levers pill row ─────────────────────────────────────────────────
 
 function ActiveLeversRow({
-  audienceSlot, storyTypeSlot, voiceModeSlot, toneSlot, cleanupSlot,
+  toneSlot, cleanupSlot,
   tuneOpen, onTuneToggle, canSaveRecipe, onSaveRecipe,
 }) {
   const pills = [
-    audienceSlot   && { key: 'a', emoji: audienceSlot.emoji,   label: audienceSlot.label },
-    storyTypeSlot  && { key: 's', emoji: storyTypeSlot.emoji,  label: storyTypeSlot.label },
-    voiceModeSlot  && { key: 'v', emoji: voiceModeSlot.emoji,  label: voiceModeSlot.label },
     toneSlot       && { key: 't', emoji: toneSlot.emoji,       label: toneSlot.label },
     cleanupSlot    && { key: 'c', emoji: cleanupSlot.emoji,    label: cleanupSlot.label },
   ].filter(Boolean)
@@ -653,8 +623,6 @@ function SaveRecipeDialog({ open, onClose, clinician, levers, existingRecipeCoun
         name: name.trim(),
         emoji: emoji.trim() || '⭐',
         is_default: isDefault,
-        audience:      levers.audience      ?? null,
-        story_type:    levers.story_type    ?? null,
         tone:          levers.tone          ?? null,
         voice_mode:    levers.voice_mode    ?? null,
         cleanup_level: levers.cleanup_level ?? null,
@@ -718,53 +686,13 @@ function SaveRecipeDialog({ open, onClose, clinician, levers, existingRecipeCoun
 
 // ── Generic slot pickers used in the Tune drawer ───────────────────────────
 
-function InterviewSlotPicker({ label, options, value, onChange }) {
-  return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between">
-        <Label className="text-sm">{label}</Label>
-        {value && (
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            Clear
-          </button>
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {options.map((opt) => (
-          <button
-            key={opt.key}
-            type="button"
-            onClick={() => onChange(value === opt.key ? null : opt.key)}
-            className={`flex items-start gap-2 rounded-lg border p-2.5 text-left transition-all ${
-              value === opt.key
-                ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                : 'border-input hover:border-primary/40 hover:bg-accent/30'
-            }`}
-          >
-            <span className="text-base shrink-0 mt-0.5">{opt.emoji}</span>
-            <div className="min-w-0">
-              <p className="text-xs font-semibold leading-tight">{opt.label}</p>
-              {opt.description && (
-                <p className="text-2xs text-muted-foreground mt-0.5 leading-tight">{opt.description}</p>
-              )}
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // Used for fixed-id option lists (TONES, VOICE_MODES, CLEANUP_LEVELS, prototypes)
-// where the option's identifier lives on a known key (default 'id').
+// where the option's identifier lives on a known key (default 'id'). Pass an
+// empty `label` to render without a heading (caller supplies its own).
 function SimpleSlotPicker({ label, options, value, onChange, idKey = 'id' }) {
   return (
     <div className="space-y-2">
-      <Label className="text-sm">{label}</Label>
+      {label ? <Label className="text-sm">{label}</Label> : null}
       <div className="grid grid-cols-2 gap-2">
         {options.map((opt) => (
           <button

@@ -1,0 +1,29 @@
+{
+  "name": "NarrateRx",
+  "short_name": "NarrateRx",
+  "description": "Capture clinic moments. Your next patient is already watching.",
+  "start_url": "/capture",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#1c4d37",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/narraterx-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["medical", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Capture",
+      "short_name": "Capture",
+      "description": "Upload a photo or video",
+      "url": "/capture",
+      "icons": [{ "src": "/narraterx-icon.svg", "sizes": "any" }]
+    }
+  ]
+}

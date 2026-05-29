@@ -86,9 +86,12 @@ export default function CaptureReview() {
 
       // Voice-memo path — synthesize a blog post from the transcript.
       // Resolve workspace overlay (location-level overrides, if any).
-      const overlaidWorkspace = interview?.location_id
-        ? applyLocationOverlay(ws, interview.location_id)
-        : ws
+      // applyLocationOverlay needs the location ROW, not the id — looking up
+      // the row from ws.locations is what InterviewSession does (line 608).
+      const interviewLocation = interview?.location_id
+        ? (ws?.locations || []).find(l => l.id === interview.location_id)
+        : null
+      const overlaidWorkspace = interviewLocation ? applyLocationOverlay(ws, interviewLocation) : ws
 
       // Voice phrases + practice-memory history for this clinician.
       // Best-effort across the board — a failure on any of these must not

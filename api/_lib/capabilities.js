@@ -45,6 +45,11 @@ export const CAP_CONTENT_PUBLISH         = 'content.publish'
 export const CAP_SLATE_GENERATE = 'slate.generate'
 export const CAP_SLATE_APPROVE  = 'slate.approve'
 
+// Tentpole planner (Phase 4 PR 4) — campaign window management. Granted to
+// producer by default so the operator can plan themed content blocks without
+// needing settings.edit (which would unlock the whole workspace admin surface).
+export const CAP_CAMPAIGNS_EDIT = 'campaigns.edit'
+
 export const ALL_CAPABILITIES = [
   CAP_SETTINGS_VIEW,
   CAP_SETTINGS_EDIT,
@@ -59,6 +64,7 @@ export const ALL_CAPABILITIES = [
   CAP_CONTENT_PUBLISH,
   CAP_SLATE_GENERATE,
   CAP_SLATE_APPROVE,
+  CAP_CAMPAIGNS_EDIT,
 ]
 
 // ─── Default templates ───────────────────────────────────────────────────────
@@ -82,6 +88,7 @@ export const DEFAULT_TEMPLATES = Object.freeze({
       CAP_CONTENT_PUBLISH,
       CAP_INTEGRATIONS_CONNECT,
       CAP_BRAND_KIT_EDIT,
+      CAP_CAMPAIGNS_EDIT,
     ],
   },
   clinician: {

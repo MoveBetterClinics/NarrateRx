@@ -111,7 +111,7 @@ export default async function handler(req, res) {
 
   let clinicianName = ''
   if (asset.clinician_id) {
-    const cRes = await sb(`clinicians?id=eq.${asset.clinician_id}&select=name`)
+    const cRes = await sb(`clinicians?id=eq.${asset.clinician_id}&workspace_id=eq.${ws.id}&select=name`)
     if (cRes.ok) {
       const cRows = await cRes.json()
       clinicianName = cRows?.[0]?.name || ''

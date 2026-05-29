@@ -8,17 +8,42 @@
 
 const PRIORITY_RANK = { high: 3, medium: 2, low: 1 }
 
-export function getSuggestedTopics(workspace, existingTopics = [], selectedPrototypeId = null) {
+/**
+ * Rank a workspace's configured topic suggestions for the Slate / coverage views.
+ *
+ * V5 (engagement loop): `provenTopics` is an optional array of topic-title
+ * strings whose past published content was flagged `performed_well` (the
+ * audience responded). Within the same coverage/priority tier, proven topics
+ * float up so the daily slate resurfaces formats the audience has rewarded.
+ * Defaults to `[]` — a no-op — so existing callers are unaffected.
+ */
+export function getSuggestedTopics(workspace, existingTopics = [], selectedPrototypeId = null, provenTopics = []) {
   const list = Array.isArray(workspace?.topic_suggestions) ? workspace.topic_suggestions : []
   if (list.length === 0) return []
 
   const normalized = (existingTopics || []).map((t) => String(t).toLowerCase())
+  const provenSet = new Set((provenTopics || []).map((t) => String(t).toLowerCase()).filter(Boolean))
 
   function coverageCount(suggestion) {
     const keywords = Array.isArray(suggestion.keywords) ? suggestion.keywords : []
     return normalized.filter((t) =>
       keywords.some((k) => t.includes(String(k).toLowerCase()))
     ).length
+  }
+
+  // A suggestion is "proven" if its own title performed well, or any proven
+  // topic title overlaps one of its keyword aliases (same fuzzy match the
+  // coverage rollup uses to attribute packages to a suggestion).
+  function isProven(suggestion) {
+    if (provenSet.size === 0) return false
+    const title = String(suggestion.topic || '').toLowerCase()
+    if (provenSet.has(title)) return true
+    const keywords = Array.isArray(suggestion.keywords) ? suggestion.keywords.map((k) => String(k).toLowerCase()) : []
+    if (!keywords.length) return false
+    for (const proven of provenSet) {
+      if (keywords.some((k) => proven.includes(k))) return true
+    }
+    return false
   }
 
   const filtered = selectedPrototypeId
@@ -32,11 +57,14 @@ export function getSuggestedTopics(workspace, existingTopics = [], selectedProto
   return filtered.map((s) => ({
     ...s,
     interviewCount: coverageCount(s),
+    proven: isProven(s),
   })).sort((a, b) => {
     if (a.interviewCount === 0 && b.interviewCount > 0) return -1
     if (a.interviewCount > 0 && b.interviewCount === 0) return 1
     const pd = (PRIORITY_RANK[b.priority] || 0) - (PRIORITY_RANK[a.priority] || 0)
     if (pd !== 0) return pd
+    // V5: within the same gap/priority tier, proven topics resurface first.
+    if (a.proven !== b.proven) return a.proven ? -1 : 1
     return a.interviewCount - b.interviewCount
   })
 }

@@ -884,9 +884,11 @@ export default function PhoneCall() {
       console.warn('[phone-call] final persist failed', e?.message)
     }
     hangUp()
-    // Hand off to InterviewSession — its auto-gen effect detects the
-    // COMPLETE_TOKEN on load and kicks off blog generation.
-    navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime`)
+    // Hand off to InterviewSession. The COMPLETE_TOKEN is already in the
+    // assistant's final message (model emitted it), but pass wrap=1 too as
+    // a safety net — if the final PATCH above failed, wrap=1 still tells
+    // InterviewSession to treat this as a completed realtime call.
+    navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime&wrap=1`)
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -1077,7 +1079,11 @@ export default function PhoneCall() {
     persistP.finally(() => {
       hangUp()
       if (interviewIdRef.current && clinicianIdRef.current) {
-        navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime`)
+        // wrap=1 tells InterviewSession the user clicked End — even if the
+        // PATCH above failed to persist the COMPLETE_TOKEN, InterviewSession
+        // will treat the call as complete and kick off blog generation
+        // instead of falling through to chat-resume mode.
+        navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime&wrap=1`)
       } else {
         navigate('/')
       }
@@ -1255,9 +1261,15 @@ export default function PhoneCall() {
               Bernard will speak first — give him a beat to greet you.
             </div>
           ) : (
-            <div className="space-y-3 max-h-[520px] overflow-y-auto">
-              {turns.map((t, i) => (
-                <div key={i} className="text-sm leading-relaxed">
+            // Reverse-chronological: newest at top, older below. Without this
+            // the user can't see the live turn without scrolling — the
+            // previous chronological-with-scroll layout buried new content
+            // below the card fold during long calls. No internal max-height
+            // so the card just grows; the latest line is always at the top
+            // of the card at its fixed scroll position.
+            <div className="space-y-3">
+              {turns.slice().reverse().map((t, i) => (
+                <div key={turns.length - 1 - i} className="text-sm leading-relaxed">
                   <span className="font-medium mr-2">{t.role === 'user' ? 'You' : 'Bernard'}:</span>
                   <span className={t.partial ? 'text-muted-foreground' : ''}>
                     {/* Hide the literal INTERVIEW_COMPLETE token from the live view —

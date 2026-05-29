@@ -697,7 +697,10 @@ export default function MediaHub() {
 
       {/* Results */}
       {error && (
-        <div className="text-sm text-destructive bg-destructive/10 rounded-lg p-3">{error}</div>
+        <div className="text-sm text-destructive bg-destructive/10 rounded-lg p-3 flex items-center justify-between gap-3">
+          <span>{error}</span>
+          <Button size="sm" variant="outline" onClick={refetchMedia} className="shrink-0">Retry</Button>
+        </div>
       )}
       {loading ? (
         <div className="flex items-center justify-center py-16">

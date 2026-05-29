@@ -15,9 +15,15 @@
 //
 // Response 200:
 //   {
-//     clinicians: [{ id, name, asset_count, asset_count_14d, last_capture_at }],
-//     topics:     [{ topic, priority, package_count }],
+//     clinicians: [{ id, name, asset_count, asset_count_14d, last_capture_at, winner_count }],
+//     topics:     [{ topic, priority, package_count, winner_count }],
 //   }
+//
+// V5 (engagement loop): `winner_count` is the number of published content_items
+// flagged `performed_well` (the audience responded) attributed to that topic /
+// clinician. The flag is set by a human "winner" toggle in the story-detail view
+// and, when GA4/Buffer metrics flow, auto-set by the refresh-engagement cron.
+// Surfacing it here lets the story director double down on what's working.
 
 export const config = { runtime: 'nodejs' }
 
@@ -82,9 +88,23 @@ export default async function handler(req, res) {
   if (!packagesRes.ok) return res.status(500).json({ error: 'db_error_packages' })
   const packages = await packagesRes.json()
 
+  // 4. Published winners (performed_well) for the engagement loop. Non-fatal:
+  //    if this read fails we still return coverage with zero winners rather
+  //    than 500 the whole dashboard.
+  const winnersRes = await sb(
+    `content_items?workspace_id=eq.${ws.id}&status=eq.published&performed_well=eq.true&archived_at=is.null&select=topic,clinician_id`
+  )
+  const winners = winnersRes.ok ? await winnersRes.json() : []
+
   // --- Per-clinician rollup ---
   const byClinician = new Map()
-  for (const c of clinicians) byClinician.set(c.id, { id: c.id, name: c.name, asset_count: 0, asset_count_14d: 0, last_capture_at: null })
+  for (const c of clinicians) byClinician.set(c.id, { id: c.id, name: c.name, asset_count: 0, asset_count_14d: 0, last_capture_at: null, winner_count: 0 })
+
+  for (const w of winners) {
+    if (!w.clinician_id) continue
+    const bucket = byClinician.get(w.clinician_id)
+    if (bucket) bucket.winner_count++
+  }
 
   for (const a of assets) {
     if (!a.clinician_id) continue
@@ -107,22 +127,35 @@ export default async function handler(req, res) {
     topicCounts.set(t, (topicCounts.get(t) || 0) + 1)
   }
 
+  // Winners bucketed by raw topic string (same keying as topicCounts).
+  const winnerCounts = new Map()
+  for (const w of winners) {
+    const t = (w.topic || '').trim().toLowerCase()
+    if (!t) continue
+    winnerCounts.set(t, (winnerCounts.get(t) || 0) + 1)
+  }
+
+  // Attribute a count map to a suggestion via exact title + keyword match.
+  const attribute = (countMap, baseKey, keywords) => {
+    let count = countMap.get(baseKey) || 0
+    if (keywords.length) {
+      for (const [key, n] of countMap) {
+        if (key === baseKey) continue   // already counted
+        if (keywords.some((k) => key.includes(k))) count += n
+      }
+    }
+    return count
+  }
+
   // Resolve coverage by topic-title match + keyword match against package topics.
   const topics = topicSuggestions.map((s) => {
     const baseKey = String(s.topic || '').toLowerCase()
-    let count = topicCounts.get(baseKey) || 0
-    // Also count partial keyword matches so loosely-aligned packages register.
     const keywords = Array.isArray(s.keywords) ? s.keywords.map((k) => String(k).toLowerCase()) : []
-    if (keywords.length) {
-      for (const [topicKey, n] of topicCounts) {
-        if (topicKey === baseKey) continue   // already counted
-        if (keywords.some((k) => topicKey.includes(k))) count += n
-      }
-    }
     return {
       topic:         s.topic,
       priority:      s.priority || 'medium',
-      package_count: count,
+      package_count: attribute(topicCounts, baseKey, keywords),
+      winner_count:  attribute(winnerCounts, baseKey, keywords),
     }
   })
 

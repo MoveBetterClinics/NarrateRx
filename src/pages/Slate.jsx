@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert, BarChart3, Sparkles } from 'lucide-react'
+import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert, BarChart3, Sparkles, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useClinicianSummaries } from '@/lib/queries'
@@ -12,11 +12,16 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import PackageCard from '@/components/slate/PackageCard'
 import CoveragePanel from '@/components/slate/CoveragePanel'
 import ProducerOnboarding from '@/components/slate/ProducerOnboarding'
+import PageHelp from '@/components/PageHelp'
 
 const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
 const TRIAGE_CONFIDENCE_THRESHOLD = 0.65  // packages below this need clinician attention
 const STALE_HOURS = 36  // unaddressed complete packages older than this land in triage
+// Phase 4 PR 3 — Brand QC threshold. Packages scoring below this on voice fidelity
+// (0-100 scale; 70 = "mostly faithful" per scorer rubric) need a producer
+// review before they ship. Excluded if a producer already approved them.
+const BRAND_QC_THRESHOLD = 70
 
 async function fetchPackages() {
   // Fetch a wider window than the daily slate alone so the Triage tab has
@@ -58,8 +63,11 @@ function triageReasonFor(pkg) {
  * Pick topic gaps: suggestions not yet covered by a today package.
  * Returns topic strings, up to `count`.
  */
-function pickTopicGaps(workspace, todayTopics, count) {
-  const ranked = getSuggestedTopics(workspace, [], null)
+function pickTopicGaps(workspace, todayTopics, count, provenTopics = []) {
+  // V5: provenTopics (topics whose past published content was flagged a winner)
+  // float up within their gap/priority tier so the daily slate resurfaces
+  // formats the audience has rewarded. Empty array = neutral ranking.
+  const ranked = getSuggestedTopics(workspace, [], null, provenTopics)
   const used = new Set(todayTopics.map((t) => t.toLowerCase()))
   const gaps = ranked.filter((s) => !used.has(s.topic.toLowerCase()))
   return gaps.slice(0, count).map((s) => s.topic)
@@ -76,7 +84,23 @@ export default function Slate() {
     [clinicians]
   )
 
-  const [view, setView] = useState('today')  // 'today' | 'triage' | 'consent'
+  // V5 engagement loop: pull the same coverage rollup the Coverage tab uses so
+  // the daily generator can bias toward "proven" topics — those whose past
+  // published content was flagged a winner (performed_well). Shares the query
+  // cache with CoveragePanel via the identical key. Failure is non-fatal: an
+  // empty proven list just yields neutral topic ranking.
+  const { data: coverage } = useQuery({
+    queryKey: ['editorial-coverage'],
+    queryFn: () => apiFetch('/api/editorial/coverage'),
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  })
+  const provenTopics = useMemo(
+    () => (coverage?.topics || []).filter((t) => t.winner_count > 0).map((t) => t.topic),
+    [coverage]
+  )
+
+  const [view, setView] = useState('today')  // 'today' | 'triage' | 'consent' | 'qc' | 'coverage'
   const [activeClinicianId, setActiveClinicianId] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 })
@@ -107,7 +131,10 @@ export default function Slate() {
     queryFn: fetchPackages,
     refetchInterval: (q) => {
       const pkgs = q.state.data?.packages || []
-      const anyPending = pkgs.some((p) => p.status === 'generating' || p.status === 'pending')
+      // pending_broll = waiting for Runway AI b-roll to finish generating
+      const anyPending = pkgs.some((p) =>
+        p.status === 'generating' || p.status === 'pending' || p.status === 'pending_broll'
+      )
       return anyPending ? REFETCH_INTERVAL_MS : false
     },
     refetchOnWindowFocus: false,
@@ -143,9 +170,24 @@ export default function Slate() {
     })
   }, [allPackages])
 
+  // Phase 4 PR 3 — Brand QC queue: packages with a voice-fidelity score below
+  // the green/amber boundary. Caption fidelity scores live in the same column
+  // (story_packages.voice_fidelity_score) per V1, so this view surfaces both
+  // long-form drift and caption drift on a single producer-facing list.
+  // Sorted lowest-score-first so the worst drift floats to the top.
+  const qcPackages = useMemo(() => {
+    return allPackages
+      .filter((p) => {
+        const s = p.voice_fidelity_score
+        return typeof s === 'number' && s < BRAND_QC_THRESHOLD
+      })
+      .sort((a, b) => (a.voice_fidelity_score ?? 99) - (b.voice_fidelity_score ?? 99))
+  }, [allPackages])
+
   const basePackages =
     view === 'triage'  ? triagePackages :
     view === 'consent' ? consentPackages :
+    view === 'qc'      ? qcPackages :
                          todayPackages
 
   const filteredPackages = useMemo(() => {
@@ -179,16 +221,23 @@ export default function Slate() {
     // campaigns are active).
     const activeCampaigns = Array.isArray(ws?.active_campaigns) ? ws.active_campaigns : []
     const slotAssignments = allocateSlots(activeCampaigns, needed)
-    const fallbackTopics = pickTopicGaps(ws, todayTopics, needed)
+    const fallbackTopics = pickTopicGaps(ws, todayTopics, needed, provenTopics)
 
     // Build the per-slot generation plan. For campaign slots, the topic is
     // the campaign's theme_notes (or name as fallback). For non-campaign
-    // slots, pull from fallbackTopics.
+    // slots, pull from fallbackTopics. When a campaign has
+    // target_clinician_ids, propagate it to generate-package so clip search
+    // scopes to that clinician's library (per-clinician targeting).
     let fallbackCursor = 0
     const plan = slotAssignments.map((campaign) => {
       if (campaign) {
         const topic = campaign.theme_notes || campaign.name
-        return { campaignId: campaign.id, topic, campaign }
+        const targets = Array.isArray(campaign.target_clinician_ids) ? campaign.target_clinician_ids : []
+        // Single target → pass as clinicianId. Multi-target → leave broad
+        // (clip search picks from any of the targets via campaign-level
+        // filtering — refine if/when multi-target campaigns get common).
+        const clinicianId = targets.length === 1 ? targets[0] : null
+        return { campaignId: campaign.id, topic, campaign, clinicianId }
       }
       const topic = fallbackTopics[fallbackCursor++]
       return topic ? { campaignId: null, topic } : null
@@ -206,12 +255,16 @@ export default function Slate() {
     let succeeded = 0
     for (let i = 0; i < plan.length; i++) {
       setGenProgress({ current: i + 1, total: plan.length })
-      const { topic, campaignId } = plan[i]
+      const { topic, campaignId, clinicianId } = plan[i]
       try {
         await apiFetch('/api/editorial/generate-package', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ topic, ...(campaignId ? { campaignId } : {}) }),
+          body: JSON.stringify({
+            topic,
+            ...(campaignId ? { campaignId } : {}),
+            ...(clinicianId ? { clinicianId } : {}),
+          }),
         })
         succeeded++
         // Refresh the list after each successful package
@@ -269,8 +322,13 @@ export default function Slate() {
         <p className="font-semibold text-lg">Story Slate is coming soon</p>
         <p className="text-sm text-muted-foreground max-w-sm">
           {"The video pipeline isn't enabled for this workspace yet."}
-          {" Contact your workspace admin to turn it on."}
         </p>
+        <a
+          href="/settings/workspace"
+          className="text-sm text-primary underline underline-offset-2 hover:opacity-80"
+        >
+          Open workspace settings to enable it
+        </a>
       </div>
     )
   }
@@ -300,6 +358,7 @@ export default function Slate() {
           <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight leading-tight">
             {view === 'triage'   ? 'Triage Queue' :
              view === 'consent'  ? 'Consent Queue' :
+             view === 'qc'       ? 'Brand QC' :
              view === 'coverage' ? 'Capture Coverage' :
                                    "Today's Slate"}
           </h1>
@@ -308,12 +367,15 @@ export default function Slate() {
               ? `${triagePackages.length} package${triagePackages.length !== 1 ? 's' : ''} need attention`
               : view === 'consent'
                 ? `${consentPackages.length} package${consentPackages.length !== 1 ? 's' : ''} awaiting consent decision`
-                : view === 'coverage'
-                  ? 'Per-clinician capture activity and topic coverage gaps'
-                  : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                : view === 'qc'
+                  ? `${qcPackages.length} package${qcPackages.length !== 1 ? 's' : ''} below brand voice threshold (lowest fidelity first)`
+                  : view === 'coverage'
+                    ? 'Per-clinician capture activity and topic coverage gaps'
+                    : new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+          <PageHelp pageKey="slate" variant="onGradient" />
           {!generating && (
             <Button
               variant="outline"
@@ -382,7 +444,7 @@ export default function Slate() {
           Triage
           {triagePackages.length > 0 && (
             <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
-              view === 'triage' ? 'bg-primary text-primary-foreground' : 'bg-amber-100 text-amber-800'
+              view === 'triage' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
             }`}>
               {triagePackages.length}
             </span>
@@ -400,9 +462,27 @@ export default function Slate() {
           Consent
           {consentPackages.length > 0 && (
             <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
-              view === 'consent' ? 'bg-primary text-primary-foreground' : 'bg-amber-100 text-amber-800'
+              view === 'consent' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
             }`}>
               {consentPackages.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => { setView('qc'); setActiveClinicianId(null) }}
+          className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+            view === 'qc'
+              ? 'border-primary text-primary'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4 inline-block mr-1.5 -mt-0.5" />
+          Brand QC
+          {qcPackages.length > 0 && (
+            <span className={`ml-2 text-2xs font-bold px-1.5 py-0.5 rounded-full ${
+              view === 'qc' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+            }`}>
+              {qcPackages.length}
             </span>
           )}
         </button>
@@ -437,7 +517,7 @@ export default function Slate() {
                 : 'border-border text-muted-foreground hover:border-primary/40'
             }`}
           >
-            All clinicians
+            All staff
           </button>
           {activeClinicianIds.map((cid) => (
             <button
@@ -493,6 +573,17 @@ export default function Slate() {
               <p className="font-semibold text-base">No packages awaiting consent</p>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                 Flag a package&apos;s source asset for consent review from its card to add it here.
+              </p>
+            </div>
+          </div>
+        ) : view === 'qc' ? (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center rounded-xl border-2 border-dashed border-border">
+            <ShieldCheck className="h-10 w-10 text-emerald-600" />
+            <div>
+              <p className="font-semibold text-base">Brand voice is on-key</p>
+              <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+                No packages are scoring below the {BRAND_QC_THRESHOLD}/100 voice-fidelity threshold.
+                Drafts that drift will surface here automatically.
               </p>
             </div>
           </div>

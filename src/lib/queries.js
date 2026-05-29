@@ -70,6 +70,7 @@ export const queryKeys = {
     list:     (filters = {}) => ['contentItems', 'list', filters],
     detail:   (id) => ['contentItems', 'detail', id],
     keystone: (ivId) => ['contentItems', 'keystone', ivId],
+    splitSuggestion: (id) => ['contentItems', 'splitSuggestion', id],
   },
   contentPlan: {
     all:              ['contentPlan'],
@@ -330,6 +331,9 @@ export function useUpdateContentItem() {
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
+      // V5: a winner toggle changes performed_well, which the Slate's Coverage
+      // tab rolls up into per-topic / per-clinician winner counts.
+      qc.invalidateQueries({ queryKey: ['editorial-coverage'] })
     },
   })
 }
@@ -772,6 +776,40 @@ export function useSplitBlogIntoSeries() {
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentPlan.all })
     },
+  })
+}
+
+// Multi-piece extract detection (PR 4). Asks the server whether a blog piece's
+// source interview holds enough distinct threads to PROPOSE a split. Read-only
+// — the result drives the optional "split into N posts?" banner on Story
+// Detail; accepting it calls useSplitBlogIntoSeries with the recommended count.
+//
+// Gated to eligible pieces only (blog, not already a series, splittable status,
+// has a source interview) so we never spend an AI call where a split is
+// impossible. staleTime is long — the recommendation only changes if the
+// transcript changes, which it doesn't post-interview.
+const SPLITTABLE_STATUSES = new Set(['draft', 'in_review', 'approved'])
+
+export function useSplitSuggestion(piece) {
+  const eligible = !!piece
+    && piece.platform === 'blog'
+    && !piece.series_id
+    && !!piece.interview_id
+    && SPLITTABLE_STATUSES.has(piece.status)
+
+  return useQuery({
+    queryKey: queryKeys.contentItems.splitSuggestion(piece?.id),
+    queryFn: () =>
+      apiFetch('/api/content-items/suggest-split', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: piece.id }),
+      }).catch(() => null),
+    enabled: eligible,
+    staleTime: 1000 * 60 * 30,
+    gcTime: 1000 * 60 * 60,
+    refetchOnWindowFocus: false,
+    retry: false,
   })
 }
 

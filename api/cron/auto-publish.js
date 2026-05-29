@@ -16,6 +16,8 @@ export const config = { runtime: 'nodejs' }
 import { evaluate } from '../_lib/autoPublishGate.js'
 import { getCredential } from '../_lib/getCredential.js'
 import { prepareMediaForBuffer } from '../_lib/prepareMediaForBuffer.js'
+import { filterCampaignsForClinician } from '../_lib/tentpoleCampaignContext.js'
+import { getActiveCampaigns } from '../_lib/activeCampaigns.js'
 
 const SUPABASE_URL  = process.env.SUPABASE_URL
 const SUPABASE_KEY  = process.env.SUPABASE_SERVICE_KEY
@@ -110,15 +112,21 @@ async function markContentItemScheduled({ pkg, workspaceId, bufferId }) {
   // Find the GBP content_item created by approve-package for this package.
   const ciRes = await sb(
     `content_items?workspace_id=eq.${workspaceId}` +
-    `&provenance->>'package_id'=eq.${pkg.id}` +
+    `&provenance->>package_id=eq.${pkg.id}` +
     `&platform=eq.gbp` +
     `&status=eq.approved` +
     `&select=id&limit=1`
   )
-  if (!ciRes.ok) return null
+  if (!ciRes.ok) {
+    console.error('[auto-publish] markContentItemScheduled fetch failed:', ciRes.status, 'pkg:', pkg.id)
+    return null
+  }
   const rows = await ciRes.json().catch(() => [])
   const ci = rows?.[0]
-  if (!ci?.id) return null
+  if (!ci?.id) {
+    console.warn('[auto-publish] markContentItemScheduled: 0 rows matched for pkg:', pkg.id, 'workspace:', workspaceId, 'status:', ciRes.status, 'rows:', rows?.length ?? 0)
+    return null
+  }
 
   const now = new Date().toISOString()
   await sb(`content_items?id=eq.${ci.id}&workspace_id=eq.${workspaceId}`, {
@@ -127,7 +135,9 @@ async function markContentItemScheduled({ pkg, workspaceId, bufferId }) {
       status:           'scheduled',
       buffer_update_id: bufferId,
       auto_published:   true,
-      approved_at:      now,
+      // Do NOT write approved_at here — it's set by the human editorial
+      // approve flow in approve-package.js and must not be overwritten
+      // with the cron dispatch time (breaks time-since-approval analytics).
       notes:            `Auto-published by cron at ${now}`,
     }),
   })
@@ -144,7 +154,7 @@ async function processWorkspace(ws, summary) {
     `story_packages?workspace_id=eq.${ws.id}` +
     `&status=eq.approved` +
     `&auto_published_at=is.null` +
-    `&select=id,workspace_id,source_asset_id,topic,caption_text,similarity,voice_fidelity_score,channels,renders,qc_flags,source_asset:media_assets(consent_status,qc_flags)` +
+    `&select=id,workspace_id,clinician_id,source_asset_id,topic,caption_text,similarity,voice_fidelity_score,channels,renders,qc_flags,source_asset:media_assets(consent_status,qc_flags)` +
     `&order=updated_at.asc` +
     `&limit=${BATCH_SIZE}`
   )
@@ -168,11 +178,25 @@ async function processWorkspace(ws, summary) {
   // Resolve GBP location channels once (same for all packages).
   const gbpChannels = settings.gbp?.enabled ? await resolveGbpChannelIds(ws.id) : []
 
+  // Load active campaigns once — used to enforce target_clinician_ids per package.
+  const activeCampaigns = await getActiveCampaigns(ws.id).catch(() => [])
+
   const dispatched = []
   const held = []
   const now = new Date().toISOString()
 
   for (const pkg of packages) {
+    // Campaign targeting gate: if active campaigns exist and none apply to this
+    // clinician (i.e. all campaigns have target restrictions that exclude them),
+    // hold the package rather than publishing under the wrong campaign window.
+    if (activeCampaigns.length > 0) {
+      const campaignsForClinician = filterCampaignsForClinician(activeCampaigns, pkg.clinician_id)
+      if (campaignsForClinician.length === 0) {
+        held.push({ id: pkg.id, reasons: [{ signal: 'campaign_targeting', detail: 'No active campaigns target this clinician' }] })
+        continue
+      }
+    }
+
     const result = evaluate({ pkg, workspace: ws })
 
     // Write evaluation state back to the package row (so Slate badge is live).
@@ -194,7 +218,29 @@ async function processWorkspace(ws, summary) {
       continue
     }
 
+    // Atomically claim the package before dispatching. Vercel cron runs can
+    // overlap if a previous run hangs (e.g. slow Buffer API), and two runs
+    // reading the same auto_published_at=is.null package would each dispatch —
+    // double-posting to the customer's Google Business Profile. The PATCH is
+    // filtered on auto_published_at=is.null, so only one run wins the claim;
+    // a losing run gets 0 rows back and skips. The claim is released below if
+    // nothing actually dispatches, so a transient failure retries next run.
+    const claimRes = await sb(
+      `story_packages?id=eq.${pkg.id}&workspace_id=eq.${ws.id}&auto_published_at=is.null`,
+      {
+        method: 'PATCH',
+        headers: { Prefer: 'return=representation' },
+        body: JSON.stringify({ auto_published_at: now }),
+      }
+    )
+    const claimed = claimRes.ok ? await claimRes.json().catch(() => []) : []
+    if (!Array.isArray(claimed) || claimed.length === 0) {
+      // Another concurrent run already claimed this package — skip silently.
+      continue
+    }
+
     // Dispatch each eligible channel.
+    let dispatchedAny = false
     for (const channel of result.channels) {
       if (channel === 'gbp') {
         if (gbpChannels.length === 0) {
@@ -232,7 +278,18 @@ async function processWorkspace(ws, summary) {
         }).catch((e) => console.error('[auto-publish] auto_published_at patch failed:', e?.message))
 
         dispatched.push({ id: pkg.id, channel, bufferId: dispatch.bufferId, ciId })
+        dispatchedAny = true
       }
+    }
+
+    // We claimed the package (set auto_published_at) but nothing actually
+    // dispatched — release the claim so a future run can retry it. Without this
+    // a transient Buffer failure would permanently strand the package.
+    if (!dispatchedAny) {
+      await sb(`story_packages?id=eq.${pkg.id}&workspace_id=eq.${ws.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ auto_published_at: null }),
+      }).catch((e) => console.error('[auto-publish] claim release failed:', e?.message))
     }
   }
 

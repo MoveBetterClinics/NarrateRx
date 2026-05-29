@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { Camera, Loader2, AlertCircle, TrendingDown, CheckCircle2, Clock, Lightbulb } from 'lucide-react'
+import { Camera, Loader2, AlertCircle, TrendingDown, CheckCircle2, Clock, Lightbulb, Trophy } from 'lucide-react'
 import { apiFetch } from '@/lib/api'
 
 const RECENT_DAYS = 14
@@ -41,6 +41,15 @@ function ClinicianRow({ c }) {
           Last capture: {lastLabel}
         </p>
       </div>
+      {c.winner_count > 0 && (
+        <span
+          className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-success/10 text-success border border-success/30 inline-flex items-center gap-1 shrink-0"
+          title={`${c.winner_count} published piece${c.winner_count !== 1 ? 's' : ''} the audience responded to`}
+        >
+          <Trophy className="h-3 w-3" />
+          {c.winner_count}
+        </span>
+      )}
       <div className="text-right shrink-0">
         <p className="text-lg font-bold tabular-nums leading-none">{c.asset_count}</p>
         <p className="text-2xs text-muted-foreground mt-1">
@@ -72,6 +81,15 @@ function TopicRow({ t }) {
             : <> · No packages yet</>}
         </p>
       </div>
+      {t.winner_count > 0 && (
+        <span
+          className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-success/10 text-success border border-success/30 inline-flex items-center gap-1 shrink-0"
+          title={`${t.winner_count} published piece${t.winner_count !== 1 ? 's' : ''} on this topic the audience responded to`}
+        >
+          <Trophy className="h-3 w-3" />
+          {t.winner_count}
+        </span>
+      )}
     </div>
   )
 }
@@ -118,7 +136,7 @@ export default function CoveragePanel() {
     <div className="grid gap-6 lg:grid-cols-2">
       {/* Per-clinician panel */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-2">
             <Camera className="h-3.5 w-3.5" />
             Clinician capture activity
@@ -142,7 +160,7 @@ export default function CoveragePanel() {
 
       {/* Per-topic panel */}
       <section className="flex flex-col gap-3">
-        <div className="flex items-baseline justify-between">
+        <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-2">
             <Lightbulb className="h-3.5 w-3.5" />
             Topic coverage

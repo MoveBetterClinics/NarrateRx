@@ -70,7 +70,7 @@ async function handler(req, res) {
 
   // Build success/cancel URLs from the request host.
   const host = req.headers['x-forwarded-host'] || req.headers.host || 'narraterx.ai'
-  const protocol = process.env.VERCEL_ENV === 'production' ? 'https' : 'https'
+  const protocol = 'https'
   const base = `${protocol}://${host}`
 
   // Active subscribers must change plans through the billing portal —

@@ -37,8 +37,11 @@ export async function getActiveCampaigns(workspaceId) {
   const nowIso = new Date().toISOString()
   // PostgREST OR filter: (start_at IS NULL OR start_at <= now)
   //                   AND (end_at IS NULL OR end_at >= now)
-  const startFilter = `or=(start_at.is.null,start_at.lte.${nowIso})`
-  const endFilter   = `or=(end_at.is.null,end_at.gte.${nowIso})`
+  // encodeURIComponent is required: colons in ISO timestamps (e.g. 2026-05-28T12:00:00.000Z)
+  // are ambiguous inside PostgREST or() groups and can produce wrong slates silently.
+  const nowEnc = encodeURIComponent(nowIso)
+  const startFilter = `or=(start_at.is.null,start_at.lte.${nowEnc})`
+  const endFilter   = `or=(end_at.is.null,end_at.gte.${nowEnc})`
   const path = `campaigns?workspace_id=eq.${encodeURIComponent(workspaceId)}` +
                `&status=eq.active` +
                `&${startFilter}` +

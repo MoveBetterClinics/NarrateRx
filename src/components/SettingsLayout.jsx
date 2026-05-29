@@ -32,7 +32,7 @@ const GROUPS = [
     items: [
       { to: '/settings/workspace',           label: 'General',            icon: Settings,   exact: true },
       {
-        label: 'Bernard',
+        label: 'AI Interviewer',
         icon: Mic2,
         children: [
           { to: '/settings/workspace/voice',              label: 'Voice & tone' },

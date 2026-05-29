@@ -118,6 +118,8 @@ function sanitizePublishTopics(value) {
 const AUTO_PUBLISH_CHANNELS = new Set([
   'gbp', 'instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'blog',
 ])
+// voice_fidelity_score is stored 1–10 (captionFidelity.js mean of per-dimension scores).
+// Default gate = 7.0 (let through "mostly faithful"). See autoPublishGate.js.
 const DEFAULT_VOICE_FIDELITY_MIN = 7.0
 const DEFAULT_SIMILARITY_MIN     = 0.65
 

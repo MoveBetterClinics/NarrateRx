@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Camera, FolderOpen, Loader2, Upload, X, Check,
-  Image as ImageIcon, AlertCircle,
+  Image as ImageIcon, AlertCircle, Smartphone,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
 import { uploadMedia } from '@/lib/mediaLib'
 import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
+import ShotListCard from '@/components/capture/ShotListCard'
 
 // Universal capture page — PWA. Works on any device with a browser:
 //   • Mobile: "Take photo or video" opens the device's native camera
@@ -51,6 +52,29 @@ export default function Capture() {
   const [sharedCaption, setSharedCaption] = useState('')
   const [isUploading, setIsUploading] = useState(false)
 
+  // PWA install prompt — captured from the browser's beforeinstallprompt event.
+  // Only fires when the app is not already installed and the browser supports PWA.
+  // null = event hasn't fired (already installed, or browser doesn't support).
+  const [installPrompt, setInstallPrompt] = useState(null)
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault() // prevent the mini-infobar on Chrome Android
+      setInstallPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstall = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') {
+      setInstallPrompt(null) // banner gone once accepted
+    }
+  }
+
   // Cleanup object URLs on unmount to avoid leaks.
   useEffect(() => {
     return () => {
@@ -60,6 +84,15 @@ export default function Capture() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // V10 shooting director: a tapped directive seeds the capture note with its
+  // intent and opens the camera, so the upload lands tagged with what it's
+  // meant to cover. Video directives bias toward the camera; either way the
+  // clinician can still pick existing files.
+  const handlePickDirective = (d) => {
+    setSharedCaption(d.directive || d.title || d.topic || '')
+    cameraInputRef.current?.click()
+  }
 
   const handleFilesPicked = (event) => {
     const files = Array.from(event.target.files || [])
@@ -149,14 +182,37 @@ export default function Capture() {
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-6">
-      <Link to="/" className="inline-flex items-center text-sm text-zinc-600 hover:text-zinc-900 mb-4">
+      <Link to="/" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground mb-4">
         <ArrowLeft className="w-4 h-4 mr-1" /> Home
       </Link>
 
       <h1 className="text-2xl font-semibold mb-1">Capture</h1>
-      <p className="text-sm text-zinc-600 mb-6">
+      <p className="text-sm text-muted-foreground mb-4">
         Snap a photo or short video, or pick existing files from anywhere. Works on any device with a camera or file browser.
       </p>
+
+      {/* Add-to-Home-Screen install prompt — only visible when the browser fires
+          beforeinstallprompt (Chrome/Edge on Android, Chrome on desktop).
+          Hidden on iOS Safari (use Share → Add to Home Screen instead) and when
+          already installed as a PWA. */}
+      {installPrompt && (
+        <button
+          type="button"
+          onClick={handleInstall}
+          className="w-full flex items-center gap-3 px-4 py-3 mb-6 rounded-lg border border-primary/30 bg-primary/5 text-left hover:bg-primary/10 transition"
+        >
+          <Smartphone className="w-5 h-5 text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary">Add to Home Screen</p>
+            <p className="text-xs text-primary/70">One tap to capture — no browser chrome, no sign-in wait</p>
+          </div>
+          <span className="text-xs font-medium text-primary shrink-0">Install</span>
+        </button>
+      )}
+
+      {/* Shooting director (V10) — turns coverage gaps into capture directives.
+          Renders nothing when there are no gaps or the feature is disabled. */}
+      {pendingFiles.length === 0 && <ShotListCard onPick={handlePickDirective} />}
 
       {/* Capture entry points — only shown when nothing is queued */}
       {pendingFiles.length === 0 && (
@@ -164,11 +220,11 @@ export default function Capture() {
           <button
             type="button"
             onClick={() => cameraInputRef.current?.click()}
-            className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border-2 border-zinc-200 hover:border-primary hover:bg-primary/5 transition"
+            className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition"
           >
             <Camera className="w-8 h-8 text-primary" />
             <span className="font-medium">Take photo or video</span>
-            <span className="text-xs text-zinc-500">Opens device camera</span>
+            <span className="text-xs text-muted-foreground">Opens device camera</span>
           </button>
           <input
             ref={cameraInputRef}
@@ -182,11 +238,11 @@ export default function Capture() {
           <button
             type="button"
             onClick={() => filePickerRef.current?.click()}
-            className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border-2 border-zinc-200 hover:border-primary hover:bg-primary/5 transition"
+            className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition"
           >
             <FolderOpen className="w-8 h-8 text-primary" />
             <span className="font-medium">Pick existing files</span>
-            <span className="text-xs text-zinc-500">From Photos, SD card, or downloads</span>
+            <span className="text-xs text-muted-foreground">From Photos, SD card, or downloads</span>
           </button>
           <input
             ref={filePickerRef}
@@ -208,34 +264,34 @@ export default function Capture() {
                 <CardContent className="pt-4 pb-4">
                   <div className="flex gap-3">
                     {(p.file.type || '').startsWith('video') ? (
-                      <video src={p.previewUrl} className="w-20 h-20 object-cover rounded bg-zinc-100 flex-shrink-0" muted playsInline />
+                      <video src={p.previewUrl} className="w-20 h-20 object-cover rounded bg-muted flex-shrink-0" muted playsInline />
                     ) : (
-                      <img src={p.previewUrl} alt="" className="w-20 h-20 object-cover rounded bg-zinc-100 flex-shrink-0" />
+                      <img src={p.previewUrl} alt="" className="w-20 h-20 object-cover rounded bg-muted flex-shrink-0" />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <span className="text-sm font-medium truncate" title={p.file.name}>{p.file.name}</span>
                         <div className="flex-shrink-0">
                           {p.status === 'pending' && (
-                            <button type="button" onClick={() => removePending(idx)} className="text-zinc-400 hover:text-zinc-700" aria-label="Remove">
+                            <button type="button" onClick={() => removePending(idx)} className="text-muted-foreground hover:text-foreground" aria-label="Remove">
                               <X className="w-4 h-4" />
                             </button>
                           )}
                           {p.status === 'uploading' && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
-                          {p.status === 'done' && <Check className="w-4 h-4 text-green-600" />}
-                          {p.status === 'failed' && <AlertCircle className="w-4 h-4 text-red-600" />}
+                          {p.status === 'done' && <Check className="w-4 h-4 text-success" />}
+                          {p.status === 'failed' && <AlertCircle className="w-4 h-4 text-destructive" />}
                         </div>
                       </div>
-                      <div className="text-xs text-zinc-500 mb-1.5">
+                      <div className="text-xs text-muted-foreground mb-1.5">
                         {bytesLabel(p.file.size)} · {p.file.type || 'unknown type'}
                       </div>
                       {p.status === 'uploading' && (
-                        <div className="w-full bg-zinc-100 rounded h-1.5 overflow-hidden">
+                        <div className="w-full bg-muted rounded h-1.5 overflow-hidden">
                           <div className="bg-primary h-1.5 transition-all" style={{ width: `${p.progress}%` }} />
                         </div>
                       )}
                       {p.status === 'failed' && p.error && (
-                        <div className="text-xs text-red-600 mt-1">{p.error}</div>
+                        <div className="text-xs text-destructive mt-1">{p.error}</div>
                       )}
                     </div>
                   </div>
@@ -292,7 +348,7 @@ export default function Capture() {
 
           {/* Add more (always available, even while uploading) */}
           {!allDone && (
-            <div className="mt-3 text-center text-sm text-zinc-500">
+            <div className="mt-3 text-center text-sm text-muted-foreground">
               or{' '}
               <button
                 type="button"

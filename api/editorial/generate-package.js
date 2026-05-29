@@ -44,6 +44,7 @@ import { fetchFusedRagContext } from '../_lib/ragFusion.js'
 import { renderPhotoChannel, CHANNEL_SPECS } from '../_lib/brandRender.js'
 import { renderVideoChannel, VIDEO_CHANNEL_SPECS } from '../_lib/brandRenderVideo.js'
 import { scoreCaptionFidelity } from '../_lib/captionFidelity.js'
+import { generateSyntheticBroll, runwayConfigured } from '../_lib/syntheticBroll.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -238,9 +239,106 @@ export default async function handler(req, res) {
   }
 
   if (!clips.length) {
-    return res.status(409).json({
-      error: 'no_matching_clips',
-      message: 'No visually relevant clips found for this topic. Upload more media first.',
+    // V3 synthetic b-roll fallback — when no real clips match the topic, generate
+    // footage via Runway Gen-3 Alpha Turbo instead of returning 409.
+    // Requires RUNWAY_API_KEY to be configured. Without it, fall through to 409.
+    if (!runwayConfigured()) {
+      return res.status(409).json({
+        error: 'no_matching_clips',
+        message: 'No visually relevant clips found for this topic. Upload more media first.',
+      })
+    }
+
+    // Determine channels ahead of time (video-only — Runway produces video).
+    const brollChannels = (Array.isArray(body.channels) && body.channels.length)
+      ? body.channels.map(String).filter((c) => VIDEO_CHANNEL_SPECS[c])
+      : DEFAULT_VIDEO_CHANNELS
+
+    if (!brollChannels.length) {
+      return res.status(409).json({
+        error: 'no_matching_clips',
+        message: 'No visually relevant clips found and no valid video channels requested.',
+      })
+    }
+
+    // Auto-generate caption now (will be used by the background render).
+    if (!captionText) {
+      try {
+        captionText = await generateCaption({ topic, clip: {}, workspace: ws, practiceChunks: [], campaign })
+      } catch {
+        captionText = topic
+      }
+    }
+
+    // Create package row immediately so the Slate card appears with a spinner.
+    let brollPackageId
+    try {
+      const insRes = await sb('story_packages', {
+        method: 'POST',
+        body: JSON.stringify({
+          workspace_id:  ws.id,
+          clinician_id:  clinicianId || null,
+          source_asset_id: null,
+          topic,
+          caption_text:  captionText,
+          similarity:    null,
+          channels:      brollChannels,
+          renders:       [],
+          status:        'pending_broll',
+          broll_status:  'generating',
+          broll_model:   'gen3a_turbo',
+          rag_context:   ragContext ? { ...ragContext, _practiceChunks: undefined } : null,
+          campaign_id:   campaign?.id || null,
+        }),
+      })
+      if (!insRes.ok) {
+        const errText = await insRes.text().catch(() => '')
+        console.error('[generate-package] broll package insert failed:', insRes.status, errText)
+        return res.status(500).json({ error: 'db_insert_failed' })
+      }
+      const inserted = await insRes.json()
+      brollPackageId = inserted?.[0]?.id
+      if (!brollPackageId) return res.status(500).json({ error: 'insert_no_id' })
+    } catch (e) {
+      return res.status(500).json({ error: 'db_error', detail: e.message })
+    }
+
+    // Resolve clinician name for render overlays (best-effort).
+    let brollClinicianName = ''
+    if (clinicianId) {
+      const cRes = await sb(`clinicians?id=eq.${clinicianId}&workspace_id=eq.${ws.id}&select=name`)
+      if (cRes.ok) {
+        const cRows = await cRes.json()
+        brollClinicianName = cRows?.[0]?.name || ''
+      }
+    }
+
+    // Fire-and-forget: generate → render → patch package. Runs within
+    // the Vercel function's waitUntil budget (up to 300s). The Slate
+    // polls packages with broll_status='generating' every few seconds.
+    waitUntil(
+      generateSyntheticBroll({
+        packageId:     brollPackageId,
+        topic,
+        captionText,
+        workspace:     ws,
+        clinicianId:   clinicianId || null,
+        channels:      brollChannels,
+        clinicianName: brollClinicianName,
+      })
+    )
+
+    return res.status(202).json({
+      packageId:    brollPackageId,
+      topic,
+      captionText,
+      clinicianName: brollClinicianName,
+      status:       'pending_broll',
+      broll_status: 'generating',
+      broll_model:  'gen3a_turbo',
+      channels:     brollChannels,
+      renders:      [],
+      elapsedMs:    Date.now() - started,
     })
   }
 
@@ -263,7 +361,7 @@ export default async function handler(req, res) {
   let clinicianName = ''
   const lookupClinicianId = clip.clinicianId || clinicianId
   if (lookupClinicianId) {
-    const cRes = await sb(`clinicians?id=eq.${lookupClinicianId}&select=name`)
+    const cRes = await sb(`clinicians?id=eq.${lookupClinicianId}&workspace_id=eq.${ws.id}&select=name`)
     if (cRes.ok) {
       const cRows = await cRes.json()
       clinicianName = cRows?.[0]?.name || ''
@@ -371,7 +469,7 @@ export default async function handler(req, res) {
   const finalStatus = renders.length > 0 ? 'complete' : 'failed'
   const errorMessage = errors.length ? errors.map((e) => `${e.channel}: ${e.error}`).join('; ') : null
 
-  await sb(`story_packages?id=eq.${packageId}`, {
+  await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({
       renders,

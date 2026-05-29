@@ -150,6 +150,10 @@ export default function OnboardingInterview() {
   // ── Bootstrap — fetch existing or create new interview row ───────────────
   useEffect(() => {
     if (!workspace?.id || !user?.id || seededRef.current) return
+    // Set synchronously before any await so concurrent effect firings (caused
+    // by Clerk re-rendering user/founderName during session hydration) don't
+    // both pass the seededRef guard and race to POST a second interview row.
+    seededRef.current = true
 
     let cancelled = false
     ;(async () => {
@@ -163,7 +167,6 @@ export default function OnboardingInterview() {
           })
         }
         if (cancelled) return
-        seededRef.current = true
         setInterview(row)
         setMessages(Array.isArray(row?.messages) ? row.messages : [])
         if (row?.status === 'completed' || row?.status === 'synthesized') {
@@ -182,7 +185,12 @@ export default function OnboardingInterview() {
           setMicCheckPassed(true)
         }
       } catch (e) {
-        if (!cancelled) setError(e?.message || 'Failed to start interview')
+        if (!cancelled) {
+          // Reset the guard on failure so a full page reload can retry.
+          // We don't reset on cancel (unmount) — the effect already fired.
+          seededRef.current = false
+          setError(e?.message || 'Failed to start interview')
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }

@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useUser } from '@clerk/react'
 import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Check, RefreshCw, Send, Keyboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { apiFetch, fetchSimilarInterviews, fetchClinician, fetchClinicianRecentContent, updateInterview, cleanupTranscript, populateContentItemProvenance } from '@/lib/api'
+import { apiFetch, fetchSimilarInterviews, fetchClinician, fetchClinicianRecentContent, updateInterview, cleanupTranscript, populateContentItemProvenance, runVoiceAuditForInterview } from '@/lib/api'
 import { buildOwnHistoryBlock, pickPriorInterviews } from '@/lib/practiceMemory'
 import { extractProvenanceBlock } from '@/lib/provenance'
 import { useClinician, useInterview, queryKeys } from '@/lib/queries'
@@ -138,6 +138,13 @@ export default function InterviewSession() {
   useDocumentTitle('Interview')
   const { clinicianId, interviewId } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  // wrap=1 is set by PhoneCall (Live Interview) when the user clicks End.
+  // Treated as a strong signal that the call is complete even if the
+  // realtime client's final PATCH to inject COMPLETE_TOKEN failed — without
+  // this, a failed PATCH dumps the user into chat-resume mode and the
+  // interview "starts again" instead of wrapping into blog generation.
+  const wrapHint = searchParams.get('wrap') === '1'
   const { user } = useUser()
   // Track the visual viewport height so the interview wrapper shrinks when
   // the iOS keyboard opens. `100dvh` accounts for the address bar but NOT
@@ -442,7 +449,16 @@ export default function InterviewSession() {
     }
     setMessages(restoredMessages)
 
-    if (restoredMessages.some((m) => m.content?.includes(COMPLETE_TOKEN))) {
+    const hasCompleteToken = restoredMessages.some((m) => m.content?.includes(COMPLETE_TOKEN))
+    // wrapHint covers the realtime-End path where the final PATCH may have
+    // failed before COMPLETE_TOKEN landed. As long as the realtime call
+    // produced at least one assistant turn we treat the conversation as
+    // complete and let the blog-gen effect take over.
+    // Gate on from=realtime so a bookmarked or shared URL containing ?wrap=1
+    // can't skip straight to blog generation for non-realtime interviews.
+    const fromRealtime = searchParams.get('from') === 'realtime'
+    const wrapFromRealtime = wrapHint && fromRealtime && restoredMessages.some((m) => m.role === 'assistant')
+    if (hasCompleteToken || wrapFromRealtime) {
       setInterviewComplete(true)
     }
     if (restoredMessages.length > 0) {
@@ -1140,6 +1156,22 @@ export default function InterviewSession() {
       populateContentItemProvenance(interviewId, provenanceJson || '', 'blog').catch((err) => {
         console.warn('[interview] provenance population failed:', err?.message)
       })
+      // Fire-and-forget: run the two-pass voice-fidelity audit (PR 3) on the
+      // new blog content_item. The server scores the draft against the
+      // transcript + voice profile (+ practice memory for We-lane) and stores
+      // voice_fidelity_score + voice_audit. The UI doesn't wait — Story Detail
+      // shows the score/flags on next fetch once it lands.
+      runVoiceAuditForInterview(interviewId, 'blog').catch((err) => {
+        // 401 here means Clerk session expired mid-interview. The auto-publish
+        // gate treats voice_fidelity_score=null as "unscored — hold" so the
+        // package won't ship without a score. User can re-trigger from Story Detail.
+        const status = err?.status ?? err?.statusCode
+        if (status === 401) {
+          console.warn('[interview] voice audit skipped — session expired (401); package will hold until rescored')
+        } else {
+          console.warn('[interview] voice audit failed (non-fatal):', err?.message)
+        }
+      })
       // Stop mic recording + upload audio for voice clone training.
       // Fire-and-forget — resolve() fires before the upload completes so
       // we don't block the navigation. Any upload failure is silent.
@@ -1317,7 +1349,7 @@ export default function InterviewSession() {
           </span>
         )}
         {interviewComplete
-          ? <Badge variant="secondary" className="text-xs">Interview Complete</Badge>
+          ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" />Interview complete</span>
           : isOwner && (
             // Desktop header keeps the action buttons. On mobile they live
             // in the bottom dock so they're within thumb reach next to the
@@ -1601,17 +1633,23 @@ export default function InterviewSession() {
             </button>
 
             {/* Mobile-only Finish — labeled button, right of the mic */}
-            <Button
-              onClick={() => setInterviewComplete(true)}
-              disabled={!canFinish}
-              title={canFinish ? undefined : finishHelper}
-              aria-label={canFinish ? 'Finish interview' : finishHelper}
-              className="md:hidden gap-1.5 min-h-[44px] shrink-0"
-              size="sm"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Finish
-            </Button>
+            <div className="md:hidden flex flex-col items-center gap-1">
+              <Button
+                onClick={() => setInterviewComplete(true)}
+                disabled={!canFinish}
+                aria-label={canFinish ? 'Finish interview' : finishHelper}
+                className="gap-1.5 min-h-[44px] shrink-0"
+                size="sm"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Finish
+              </Button>
+              {!canFinish && (
+                <span className="text-2xs text-muted-foreground text-center leading-tight px-1">
+                  {finishHelper}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}

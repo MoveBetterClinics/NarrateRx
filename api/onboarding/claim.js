@@ -7,7 +7,7 @@ export const config = { runtime: 'nodejs' }
 //   2. Create Clerk Organization with the user as creator (auto-admin)
 //   3. Insert workspaces row referencing the new org id
 //   4. Set the user's publicMetadata.role = 'admin' so requireRole(['admin']) passes
-//   5. Return the redirect URL (https://<slug>.narraterx.ai/settings/workspace)
+//   5. Return the redirect URL (https://<slug>.narraterx.ai/onboard/brand-kit?welcome=1)
 //
 // If step 3 fails after the org is created, we attempt to delete the org so the
 // user can retry. If step 4 fails, we log but proceed — the workspace exists
@@ -166,7 +166,7 @@ async function handler(req, res) {
   // Slug uniqueness pre-check (race-safe: insert below also enforces unique).
   let pre
   try {
-    pre = await sb(`workspaces?slug=eq.${encodeURIComponent(slug)}&select=id&limit=1`)
+    pre = await sb(`workspaces?slug=eq.${encodeURIComponent(slug)}&status=eq.active&select=id&limit=1`)
   } catch (e) {
     console.error('[claim] slug pre-check network:', e?.message)
     return res.status(500).json({ error: 'db-error' })
@@ -182,6 +182,9 @@ async function handler(req, res) {
   const clinic_context   = sanitizeStr(body.clinic_context, 4000)
   const audience_short   = sanitizeStr(body.audience_short, 400)
   const brand_voice      = sanitizeStr(body.brand_voice, 4000)
+  // capture_name — the founding clinician's display name for the Capture Companion.
+  // Falls back to display_name so the seed row is never blank.
+  const capture_name     = sanitizeStr(body.capture_name, 80) || display_name
   let website_hostname = null
   if (website) {
     try { website_hostname = new URL(website).hostname } catch { /* noop */ }
@@ -286,6 +289,7 @@ async function handler(req, res) {
     brand_voice,
     capabilities: {},
     enabled_outputs,
+    video_pipeline_enabled: true,
     clerk_org_id: org.id,
     is_founding: true,
     created_by_clerk_user_id: userId,
@@ -350,6 +354,19 @@ async function handler(req, res) {
       console.error('[claim] workspace_locations insert error:', e?.message)
     }
   }
+
+  // 3b. Seed founding clinician row. Fire-and-forget — failure here doesn't block
+  // the onboarding flow; the Capture Companion can create the row lazily on first
+  // upload. Tied to the Clerk user_id so the capture endpoint can look them up.
+  sb('clinicians', {
+    method: 'POST',
+    body: JSON.stringify({
+      workspace_id: row.id,
+      name: capture_name,
+      user_id: userId,
+      created_by_id: userId,
+    }),
+  }).catch(e => console.error('[claim] clinician seed failed:', e?.message))
 
   // 3.5. Register <slug>.narraterx.ai as a domain on the shared narraterx Vercel
   // project so per-domain cert issuance kicks off. Hard-fail with full rollback

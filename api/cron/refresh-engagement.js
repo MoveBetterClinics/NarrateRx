@@ -130,7 +130,7 @@ async function processWorkspace(ws, summary) {
   let refreshed = 0
   for (const item of items) {
     const latestRes = await sb(
-      `engagement_snapshots?content_item_id=eq.${item.id}&order=fetched_at.desc&limit=1&select=fetched_at,stats`
+      `engagement_snapshots?content_item_id=eq.${item.id}&workspace_id=eq.${ws.id}&order=fetched_at.desc&limit=1&select=fetched_at,stats`
     )
     const latestRows = latestRes.ok ? await latestRes.json().catch(() => []) : []
     const latest = latestRows?.[0]

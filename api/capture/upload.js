@@ -105,9 +105,11 @@ async function authByCaptureToken(token) {
     if (Date.now() > exp) return null
   }
 
-  // Check workspace has video_pipeline_enabled
+  // Check workspace exists, is active, and has video_pipeline_enabled.
+  // status=eq.active guard ensures archived workspaces can't receive uploads
+  // from still-valid capture tokens.
   const wr = await sb(
-    `workspaces?id=eq.${clinician.workspace_id}&select=id,slug,video_pipeline_enabled`,
+    `workspaces?id=eq.${clinician.workspace_id}&status=eq.active&select=id,slug,video_pipeline_enabled`,
   )
   if (!wr.ok) return null
   const wsRows = await wr.json()

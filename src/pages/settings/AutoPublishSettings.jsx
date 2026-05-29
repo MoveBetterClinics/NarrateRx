@@ -22,7 +22,7 @@ const CHANNELS = [
   { id: 'blog',      label: 'Blog (website)',         icon: FileText,  status: 'soon' },
 ]
 
-const DEFAULT_VOICE_FIDELITY_MIN = 7.0
+const DEFAULT_VOICE_FIDELITY_MIN = 7.0  // 1–10 scale to match captionFidelity.js scorer output
 const DEFAULT_SIMILARITY_MIN     = 0.65
 
 function channelDefaults(existing = {}) {
@@ -185,15 +185,17 @@ export default function AutoPublishSettings() {
                     </span>
                   </div>
                   <input
-                    type="range" min={5} max={10} step={0.1}
+                    type="range" min={5} max={10} step={0.5}
                     value={ch.voice_fidelity_min}
                     onChange={(e) => setChannel(id, { voice_fidelity_min: parseFloat(e.target.value) })}
                     className="w-full h-2 rounded-full accent-primary cursor-pointer"
                   />
+                  <div className="flex justify-between text-2xs text-muted-foreground/60 mt-0.5">
+                    <span>Permissive</span><span>Default (7)</span><span>Strict</span>
+                  </div>
                   <p className="text-2xs text-muted-foreground">
-                    Default 7.0. Packages below this score are held for manual review.
-                    The V1 baseline average is 5.97 — 7.0 lets through packages that
-                    genuinely sound like the clinician.
+                    Default 7.0 (out of 10). Packages below this score are held for manual review.
+                    Rubric: 9–10 = on-voice, 7–8 = mostly faithful, 5–6 = noticeable drift.
                   </p>
                 </div>
 
@@ -212,6 +214,9 @@ export default function AutoPublishSettings() {
                     onChange={(e) => setChannel(id, { similarity_min: parseFloat(e.target.value) })}
                     className="w-full h-2 rounded-full accent-primary cursor-pointer"
                   />
+                  <div className="flex justify-between text-2xs text-muted-foreground/60 mt-0.5">
+                    <span>Permissive</span><span>Default</span><span>Strict</span>
+                  </div>
                   <p className="text-2xs text-muted-foreground">
                     Default 65%. Ensures the visual matches the claim before publishing
                     without manual review.

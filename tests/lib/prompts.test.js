@@ -5,6 +5,8 @@ import {
   getTonesForWorkspace,
   getInterviewSystemPrompt,
   getBlogPostSystemPrompt,
+  getVoiceAuditSystemPrompt,
+  getThreadDetectionSystemPrompt,
 } from '../../src/lib/prompts.js'
 
 // Minimal workspace fixture — clinical mode (default).
@@ -149,19 +151,29 @@ describe('getInterviewSystemPrompt — general mode (non-clinical workspaces)', 
 })
 
 describe('getBlogPostSystemPrompt — clinical mode (default)', () => {
-  it('produces a prompt with clinical section headers for default workspaces', () => {
+  it('leads with voice fidelity and offers the booking URL without prescribing CTA wording', () => {
     const ws = clinicalWorkspace()
     const prompt = getBlogPostSystemPrompt(ws, 'Dr. Smith', 'lower back pain')
-    expect(prompt).toContain('What Our Patients Experience')
+    // Voice fidelity is the lead frame
+    expect(prompt).toContain('VOICE FIDELITY IS THE ONLY GOAL')
+    // External links: clinician philosophy treated as a hypothesis to find research for
     expect(prompt).toContain('Mayo Clinic')
-    expect(prompt).toContain('Ready to Move Better?')
+    expect(prompt).toContain('Treat')
+    expect(prompt).toContain('Never manufacture a citation. If no real source exists')
+    // Booking URL is available; no prescribed heading or wording
     expect(prompt).toContain(ws.booking_url)
+    expect(prompt).not.toContain('Ready to Move Better?')
+    // Section template is gone
+    expect(prompt).not.toContain('What Our Patients Experience')
+    expect(prompt).not.toContain("What's Really Going On With")
   })
 
-  it('preserves the clinical "treating" framing in the opening line', () => {
+  it('mentions the condition in the opening framing as a clinical interview subject', () => {
     const ws = clinicalWorkspace()
     const prompt = getBlogPostSystemPrompt(ws, 'Dr. Smith', 'lower back pain')
-    expect(prompt).toContain('treating lower back pain')
+    expect(prompt).toContain('about lower back pain')
+    expect(prompt).toContain('Dr. Smith')
+    expect(prompt).toContain('clinician at')
   })
 
   it('produces identical output regardless of whether prompt_mode is unset, null, or "clinical"', () => {
@@ -187,11 +199,11 @@ describe('getBlogPostSystemPrompt — general mode', () => {
     expect(prompt).not.toContain('treating why I built NarrateRx')
   })
 
-  it('includes general writing rules and target length', () => {
+  it('leads with voice fidelity and uses general target length', () => {
     const ws = generalWorkspace()
     const prompt = getBlogPostSystemPrompt(ws, 'Michael Quasney', 'why I built NarrateRx')
-    expect(prompt).toContain('Open with a concrete moment from the transcript')
-    expect(prompt).toContain('voice fidelity matters more than polish')
+    expect(prompt).toContain('VOICE FIDELITY IS THE ONLY GOAL')
+    expect(prompt).toContain('voice fidelity beats length')
     expect(prompt).toContain('900–1200 words')
   })
 
@@ -214,5 +226,110 @@ describe('getBlogPostSystemPrompt — general mode', () => {
     expect(personal).toContain('PERSONAL VOICE')
     expect(personal).toContain('First-person throughout')
     expect(practice).not.toContain('PERSONAL VOICE')
+  })
+})
+
+describe('getVoiceAuditSystemPrompt', () => {
+  it('names the clinician and frames the pass as fidelity-only (not quality)', () => {
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith')
+    expect(prompt).toContain('Dr. Smith')
+    expect(prompt).toContain('voice-fidelity auditor')
+    // A rougher-but-faithful draft must outscore a smooth-but-paraphrased one.
+    expect(prompt).toContain('scores HIGHER')
+    // The 0-100 score the audit pass writes back to the row.
+    expect(prompt).toContain('voice_fidelity_score')
+  })
+
+  it('practice (We) lane includes all four drift types incl. fabricated_claim', () => {
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith', { voiceMode: 'practice' })
+    expect(prompt).toContain('vocabulary_swap')
+    expect(prompt).toContain('imposed_structure')
+    expect(prompt).toContain('smoothed_opinion')
+    expect(prompt).toContain('fabricated_claim')
+    expect(prompt).toContain('We-lane only')
+  })
+
+  it('defaults to practice lane when voiceMode is omitted', () => {
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith')
+    expect(prompt).toContain('fabricated_claim')
+  })
+
+  it('personal (I) lane omits fabricated_claim entirely', () => {
+    const prompt = getVoiceAuditSystemPrompt('Michael Quasney', { voiceMode: 'personal' })
+    expect(prompt).not.toContain('fabricated_claim')
+    // The other three drift types still apply to personal-voice content.
+    expect(prompt).toContain('vocabulary_swap')
+    expect(prompt).toContain('imposed_structure')
+    expect(prompt).toContain('smoothed_opinion')
+  })
+
+  it('includes the voice-phrases block when phrases are provided', () => {
+    const without = getVoiceAuditSystemPrompt('Dr. Smith', { voicePhrases: [] })
+    // Shape mirrors clinician_voice_phrases rows: [{ phrase }].
+    const withPhrases = getVoiceAuditSystemPrompt('Dr. Smith', {
+      voicePhrases: [{ phrase: 'moving better' }, { phrase: 'that deep ache' }],
+    })
+    expect(withPhrases.length).toBeGreaterThan(without.length)
+    expect(withPhrases).toContain('moving better')
+    expect(withPhrases).toContain('that deep ache')
+  })
+
+  it('includes the practice-memory block verbatim when passed', () => {
+    const block = 'PRACTICE MEMORY:\n- The clinic only treats active adults.'
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith', { practiceMemoryBlock: block })
+    expect(prompt).toContain(block)
+    // Omitting it leaves the block out.
+    const bare = getVoiceAuditSystemPrompt('Dr. Smith')
+    expect(bare).not.toContain('The clinic only treats active adults')
+  })
+
+  it('asks for a one-sentence summary and concrete per-flag suggestions', () => {
+    const prompt = getVoiceAuditSystemPrompt('Dr. Smith')
+    expect(prompt).toContain('one-sentence overall summary')
+    expect(prompt).toContain('suggestion')
+    // Typo guard — the final sentence must read "fidelity", not "fidulity".
+    expect(prompt).not.toContain('fidulity')
+  })
+})
+
+describe('getThreadDetectionSystemPrompt', () => {
+  it('names the clinician and the condition, and frames the task as triage', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'lower back pain')
+    expect(prompt).toContain('Dr. Smith')
+    expect(prompt).toContain('lower back pain')
+    expect(prompt).toContain('single blog post')
+  })
+
+  it('biases strongly toward one post (split is the exception)', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'sciatica')
+    expect(prompt).toContain('BIAS STRONGLY TOWARD ONE POST')
+    expect(prompt).toContain('recommended_parts = 1')
+    // Defines what counts as a splittable thread (standalone post).
+    expect(prompt).toContain('standalone')
+  })
+
+  it('asks for a rationale and per-part titles only when splitting', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'knee pain')
+    expect(prompt).toContain('rationale')
+    expect(prompt).toContain('title')
+    // Empty titles when it recommends a single post.
+    expect(prompt).toContain('titles is an empty array')
+  })
+
+  it('practice (We) lane frames output as the clinic team voice', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'plantar fasciitis', { voiceMode: 'practice' })
+    expect(prompt).toContain("clinic's team voice")
+    expect(prompt).not.toContain('first-person voice')
+  })
+
+  it('personal (I) lane frames output as first-person', () => {
+    const prompt = getThreadDetectionSystemPrompt('Michael Quasney', 'why I built NarrateRx', { voiceMode: 'personal' })
+    expect(prompt).toContain('first-person voice')
+    expect(prompt).not.toContain("clinic's team voice")
+  })
+
+  it('defaults to practice lane when voiceMode is omitted', () => {
+    const prompt = getThreadDetectionSystemPrompt('Dr. Smith', 'rotator cuff')
+    expect(prompt).toContain("clinic's team voice")
   })
 })

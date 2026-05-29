@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   }
 
   const now = new Date().toISOString()
-  const patchRes = await sb(`clinicians?id=eq.${clinician.id}`, {
+  const patchRes = await sb(`clinicians?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({ producer_onboarded_at: now }),
   })

@@ -5,7 +5,7 @@
 //   // Phase 4 Tentpole PR A — time-windowed multi-campaign fields:
 //   start_at?, end_at?, event_at?,            // ISO timestamps; null = no constraint
 //   theme_notes?,                              // freeform what-this-is-about
-//   content_style?,                            // 'clinical' | 'promotional' | 'relationship'
+//   content_style?,                            // 'clinical' | 'promotional' | 'relationship' | 'referral'
 //   cta_url?, cta_label?, cta_pitch?,          // structured CTA fields
 // }
 //   - If id is present → UPDATE (workspace-scoped).
@@ -15,8 +15,9 @@
 
 export const config = { runtime: 'nodejs' }
 
-import { requireRole } from '../_lib/auth.js'
-import { ROLE_ADMIN } from '../_lib/roles.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
+import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
+import { CAP_CAMPAIGNS_EDIT } from '../_lib/capabilities.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 
@@ -43,7 +44,9 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
 }
 
 const ALLOWED_STATUS = new Set(['active', 'complete', 'archived'])
-const ALLOWED_CONTENT_STYLE = new Set(['clinical', 'promotional', 'relationship'])
+// All four values must stay in sync with: CampaignsSettings.jsx (UI options),
+// tentpoleCampaignContext.js (switch-case prompt modifier), and tentpolePromptContext.js.
+const ALLOWED_CONTENT_STYLE = new Set(['clinical', 'promotional', 'relationship', 'referral'])
 
 // Coerce body field → ISO timestamp string or null. Accepts:
 //   - undefined → returns 'leave-alone' (the field is omitted from the patch)
@@ -76,9 +79,16 @@ export default async function handler(req, res) {
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
 
-  const auth = await requireRole(req, [ROLE_ADMIN], { orgId: ws.clerk_org_id })
+  // Phase 4 PR 4: producer-friendly gate. Pass any workspace member through
+  // the JWT/org check, then enforce CAP_CAMPAIGNS_EDIT (producer has it by
+  // default template; clinicians + viewers do not).
+  const auth = await requireRole(req, ALL_KNOWN_ROLES, { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+  const capAuth = await requireCapability(req, ws, [CAP_CAMPAIGNS_EDIT])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
   }
 
   const body = req.body || {}
