@@ -270,7 +270,7 @@ export default function NewInterview() {
         <CardContent className="space-y-4">
           {/* Clinician */}
           <div className="space-y-1.5">
-            <Label htmlFor="clinician">Clinician</Label>
+            <Label htmlFor="clinician">Staff member</Label>
             <Input
               id="clinician"
               placeholder="e.g. Dr. Quasney"

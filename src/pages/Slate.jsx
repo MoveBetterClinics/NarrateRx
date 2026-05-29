@@ -490,7 +490,7 @@ export default function Slate() {
                 : 'border-border text-muted-foreground hover:border-primary/40'
             }`}
           >
-            All clinicians
+            All staff
           </button>
           {activeClinicianIds.map((cid) => (
             <button
