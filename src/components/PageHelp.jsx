@@ -7,29 +7,36 @@ import { HELP_CONTENT } from '@/lib/helpContent'
 
 // Generic per-page Help affordance. Content comes from helpContent.jsx keyed
 // by `pageKey`. Two ways to surface, matching the original MediaHubHelp:
-//   1. First-visit auto-open (page-scoped via localStorage flag)
-//   2. A "?" chip next to the page title
+//   1. First-visit auto-open — fires once per browser session (sessionStorage),
+//      so a new user navigating Home → Slate → Stories doesn't get three
+//      stacked modals. Subsequent page visits in the same session skip auto-open.
+//   2. A "?" chip next to the page title (always available for on-demand access)
 //
 // variant:
 //   'default'    — primary-tinted chip, for light page headers (e.g. Stories)
 //   'onGradient' — white translucent chip, for the nx-grad-ribbon gradient
 //                  header used on Home and Slate
+const SESSION_WELCOMED_KEY = 'pagehelp:session:welcomed'
+
 export default function PageHelp({ pageKey, variant = 'default' }) {
   const [open, setOpen] = useState(false)
   const content = HELP_CONTENT[pageKey]
-  const welcomeKey = `pagehelp:${pageKey}:welcomed:v1`
+  const pageSeenKey = `pagehelp:${pageKey}:welcomed:v1`
 
-  // First-visit auto-open.
+  // First-visit auto-open — session-scoped so only the first page in a new
+  // session auto-opens. The chip remains available on every page for on-demand access.
   useEffect(() => {
     if (!content) return
     try {
-      const seen = localStorage.getItem(welcomeKey)
-      if (!seen) {
+      const sessionWelcomed = sessionStorage.getItem(SESSION_WELCOMED_KEY)
+      const pageSeen = localStorage.getItem(pageSeenKey)
+      if (!sessionWelcomed && !pageSeen) {
         setOpen(true)
-        localStorage.setItem(welcomeKey, new Date().toISOString())
+        sessionStorage.setItem(SESSION_WELCOMED_KEY, '1')
+        localStorage.setItem(pageSeenKey, new Date().toISOString())
       }
     } catch { /* empty */ }
-  }, [content, welcomeKey])
+  }, [content, pageSeenKey])
 
   if (!content) return null
 
