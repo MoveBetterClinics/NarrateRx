@@ -1804,43 +1804,219 @@ em { font-family: var(--serif); font-style: italic; font-weight: 500; }
 }
 .udemo-lede { color: var(--ink-soft); font-size: 16px; margin: 0; line-height: 1.6; }
 
-/* Typing cursor while the answer is being "spoken". */
-.upreview-pane .a.is-typing::after {
+/* ============================================================
+   DEMO WIDGET — real-app look
+   Overrides the dark-green .upreview styles for any widget that
+   carries [data-demo]. Looks like a macOS screen recording of the
+   actual NarrateRx app: light OS chrome + the real app palette
+   (cool-paper bg, white cards, slate borders, orange brand).
+   ============================================================ */
+
+/* Drop the marketing-site glow/shadow box; give it a neutral lift. */
+.upreview[data-demo] {
+  background: none;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+.upreview[data-demo]::after { display: none; }
+
+/* macOS-style window chrome — light grey titlebar, traffic lights */
+.upreview[data-demo] .upreview-window {
+  background: #f7f8fb;          /* app --background */
+  border-radius: 12px;
+  border: 1px solid #d1d9e6;    /* app --border (slate-200) */
+  overflow: hidden;
+  box-shadow:
+    0 0 0 1px rgba(0,0,0,0.06),
+    0 8px 24px -4px rgba(0,0,0,0.14),
+    0 32px 80px -20px rgba(0,0,0,0.18);
+}
+
+/* Titlebar: light grey, real macOS traffic-light colours */
+.upreview[data-demo] .upreview-bar {
+  background: #e8eaed;
+  border-bottom: 1px solid #d1d9e6;
+  padding: 11px 16px;
+}
+.upreview[data-demo] .upreview-bar .dots span {
+  width: 12px; height: 12px;
+  border-radius: 50%;
+  border: none;
+  background: #d1d5db; /* neutral until hover — keeps it calm */
+}
+.upreview[data-demo] .upreview-bar .dots span:nth-child(1) { background: #fe5f57; }
+.upreview[data-demo] .upreview-bar .dots span:nth-child(2) { background: #febc2e; }
+.upreview[data-demo] .upreview-bar .dots span:nth-child(3) { background: #28c840; }
+.upreview[data-demo] .upreview-bar .urlbar {
+  background: #fff;
+  border: 1px solid #d1d9e6;
+  border-radius: 6px;
+  color: #6b7280;      /* slate-500 */
+  font-size: 12.5px;
+}
+.upreview[data-demo] .upreview-bar .urlbar .path { color: #e36525; } /* app orange */
+
+/* Body: white divider between the two panes */
+.upreview[data-demo] .upreview-body {
+  background: #d1d9e6; /* divider colour */
+  min-height: 340px;
+}
+.upreview[data-demo] .upreview-pane {
+  background: #ffffff;  /* white card, like the real app */
+  padding: 24px 24px 20px;
+}
+
+/* Left pane — interview question */
+.upreview[data-demo] .upreview-pane .h {
+  color: #e36525;       /* orange primary */
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin: 0 0 14px;
+}
+.upreview[data-demo] .upreview-pane .q {
+  font-family: var(--serif);
+  font-size: 17px;
+  font-style: italic;
+  font-weight: 500;
+  color: #111827;       /* near-black, app --foreground */
+  line-height: 1.45;
+  margin: 0 0 16px;
+}
+
+/* Answer bubble: muted slate bg, real app "bg-muted" look */
+.upreview[data-demo] .upreview-pane .a {
+  font-size: 14px;
+  color: #374151;       /* slate-700 */
+  background: #f3f4f6;  /* slate-100 / app --muted */
+  border: 1px solid #e5e7eb;
+  border-radius: 12px 12px 12px 4px;   /* chat bubble shape */
+  padding: 14px 16px;
+  line-height: 1.65;
+  position: relative;
+  min-height: 96px;
+}
+/* "You" label replaced by a tiny avatar-style dot */
+.upreview[data-demo] .upreview-pane .a::before {
+  content: 'You';
+  position: absolute;
+  top: -10px; left: 14px;
+  background: #e36525;
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.upreview[data-demo] .upreview-pane .a:empty::after { content: '\00a0'; }
+
+/* Right pane — generated output */
+.upreview[data-demo] .upreview-tabs { margin-bottom: 14px; }
+.upreview[data-demo] .upreview-tabs span {
+  font-size: 12.5px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  color: #6b7280;
+  font-weight: 500;
+}
+.upreview[data-demo] .upreview-tabs span.is-on {
+  background: #e36525;
+  color: #fff;
+  border-color: #e36525;
+  font-weight: 600;
+}
+.upreview[data-demo] .upreview-tabs span[data-tab] {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.upreview[data-demo] .upreview-tabs span[data-tab]:hover:not(.is-on) {
+  border-color: #e36525;
+  color: #374151;
+}
+.upreview[data-demo] .upreview-tabs span[data-tab]:focus-visible {
+  outline: 2px solid #e36525;
+  outline-offset: 2px;
+}
+
+.upreview[data-demo] .upreview-pane .out {
+  font-size: 14px;
+  color: #111827;
+  line-height: 1.65;
+  background: #f9fafb;    /* slightly off-white card */
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  min-height: 150px;
+}
+.upreview[data-demo] .upreview-pane .out .head {
+  font-weight: 700;
+  font-size: 15px;
+  margin-bottom: 6px;
+  display: block;
+  color: #111827;
+}
+.upreview[data-demo] .upreview-pane .out .meta {
+  font-size: 11px;
+  color: #9ca3af;         /* slate-400 */
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  font-weight: 600;
+  display: block;
+}
+.upreview[data-demo] .upreview-pane .out .chip {
+  background: rgba(227,101,37,0.12);
+  color: #c2410c;          /* orange-700 */
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Typing cursor */
+.upreview[data-demo] .upreview-pane .a.is-typing::after {
   content: '';
   display: inline-block;
   width: 2px; height: 1.05em;
   margin-left: 2px;
   vertical-align: -2px;
-  background: var(--coral);
+  background: #e36525;
   animation: udemoBlink 0.9s steps(1) infinite;
 }
 @keyframes udemoBlink { 50% { opacity: 0; } }
 
-/* Empty answer box keeps its height so the layout doesn't jump. */
-.upreview-pane .a { min-height: 96px; }
-.upreview-pane .a:empty::after { content: '\00a0'; }
-
-/* Output fades in when (re)generated or when a channel is switched. */
-.upreview-pane .out { min-height: 150px; }
-.upreview-pane .out.is-in { animation: udemoFade 0.4s ease both; }
+/* Output fade-in */
+.upreview[data-demo] .upreview-pane .out.is-in { animation: udemoFade 0.4s ease both; }
 @keyframes udemoFade {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
 }
 
-/* Make the channel tabs read as clickable. */
-.upreview-tabs span[data-tab] { cursor: pointer; transition: all 0.15s ease; }
-.upreview-tabs span[data-tab]:hover:not(.is-on) { border-color: var(--coral); color: var(--ink); }
-.upreview-tabs span[data-tab]:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+/* Status label inherits app colours */
+.upreview[data-demo] [data-demo-status] {
+  color: #e36525;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin: 0 0 14px;
+}
 
+/* Controls strip below the window */
 .udemo-controls {
   display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  margin-top: 16px; padding: 0 6px;
+  margin-top: 14px; padding: 0 4px;
 }
 .udemo-note { color: var(--grey); font-size: 13px; }
+
 @media (prefers-reduced-motion: reduce) {
-  .upreview-pane .a.is-typing::after { display: none; }
-  .upreview-pane .out.is-in { animation: none; }
+  .upreview[data-demo] .upreview-pane .a.is-typing::after { display: none; }
+  .upreview[data-demo] .upreview-pane .out.is-in { animation: none; }
 }
 
 /* ---- Three simple steps ---- */
