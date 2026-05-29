@@ -21,6 +21,7 @@ import { useClinicianSummaries } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
 import { toast, runWithToast } from '@/lib/toast'
 import ContentBriefDetail from './ContentBriefDetail'
+import ClipFinder from './ClipFinder'
 import CollectionPicker from './CollectionPicker'
 import MediaEditModal from './MediaEditModal'
 import MediaVideoPlayer from './MediaVideoPlayer'
@@ -822,6 +823,11 @@ export default function MediaDetail({ asset, onClose, onChange }) {
 
             {/* Collections — editorial groupings (campaigns, series, etc.) */}
             <CollectionPicker assetId={asset.id} onChange={() => onChange?.()} />
+
+            {/* Multi-clip: turn one long source into several standalone clips */}
+            {asset.kind === 'video' && (
+              <ClipFinder asset={a} canEdit={canEdit} />
+            )}
 
             {/* Edit briefs */}
             {asset.kind === 'video' && (
