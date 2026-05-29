@@ -65,6 +65,19 @@ async function handler(req, res) {
   const auth = await requireRole(req, null, { orgId: scope.workspace.clerk_org_id })
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   const workspaceId = scope?.workspace?.id
+  const workspaceSlug = scope?.workspace?.slug
+
+  // Normalize topic against the receiving site's allowed enum BEFORE
+  // dispatch. Without this, a freeform workspace topic ("Knee pain with
+  // running") was kebab-cased client-side ("knee-pain-with-running") and
+  // sent straight through, which then failed movebetter.co's Astro
+  // content schema and bricked the build. The receiver now has a
+  // `.catch('general')` safety net (see Move-Better/Movebetterco PR #57),
+  // but the upstream map is what gives the post a *meaningful* topic
+  // (knee-pain) instead of dumping every drifted value to "general".
+  const topicMap = normalizeTopicForReceiver(payload.topic, workspaceSlug)
+  if (topicMap.normalized) payload.topic = topicMap.normalized
+  else if (topicMap.dropped) delete payload.topic
 
   const wpCred = await getCredential(workspaceId, 'wordpress')
   if (wpCred?.secret && wpCred?.config?.user) {
@@ -401,6 +414,70 @@ async function resolveTags(wp, names) {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+
+// Per-receiver topic enums + alias maps. Only workspaces with a
+// receiver that enforces a fixed topic taxonomy need an entry here;
+// every other workspace gets {} (no normalization) and the receiver
+// either accepts arbitrary topics (animals) or ignores the field.
+//
+// `enum`: the exact list the receiver's content schema accepts.
+// `aliases`: known kebab-cased values NarrateRx might generate from a
+//   freeform workspace topic, mapped to the closest enum slug. Keep
+//   this targeted — broad string-similarity matching is a footgun.
+//   Anything not in `enum` or `aliases` falls through to "general".
+const RECEIVER_TOPIC_RULES = {
+  'movebetter-people': {
+    enum: new Set([
+      'breathing', 'bracing', 'hinging', 'assessment', 'pain-science',
+      'chronic-pain', 'low-back-pain', 'neck-pain', 'knee-pain',
+      'postpartum', 'injury-recovery', 'surgery-alternatives', 'recovery',
+      'movement-mechanics', 'strength-training', 'running', 'nutrition',
+      'mindset', 'healthcare-system', 'general',
+    ]),
+    aliases: {
+      'knee-pain-with-running':        'knee-pain',
+      'running-knee-pain':             'knee-pain',
+      'knee-injury':                   'knee-pain',
+      'lower-back-pain':               'low-back-pain',
+      'lower-back':                    'low-back-pain',
+      'low-back':                      'low-back-pain',
+      'back-pain':                     'low-back-pain',
+      'neck':                          'neck-pain',
+      'pelvic-floor':                  'postpartum',
+      'postnatal':                     'postpartum',
+      'rehab':                         'injury-recovery',
+      'rehabilitation':                'injury-recovery',
+      'recovery-rehab':                'recovery',
+      'movement':                      'movement-mechanics',
+      'mechanics':                     'movement-mechanics',
+      'strength':                      'strength-training',
+      'training':                      'strength-training',
+      'run':                           'running',
+      'jogging':                       'running',
+      'mental-health':                 'mindset',
+      'healthcare':                    'healthcare-system',
+      'insurance':                     'healthcare-system',
+    },
+  },
+}
+
+function normalizeTopicForReceiver(rawTopic, workspaceSlug) {
+  if (typeof rawTopic !== 'string' || !rawTopic.trim()) return { normalized: null, dropped: false }
+  const rules = RECEIVER_TOPIC_RULES[workspaceSlug]
+  if (!rules) return { normalized: null, dropped: false }
+
+  const slug = rawTopic.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  if (!slug) return { normalized: null, dropped: false }
+  if (rules.enum.has(slug)) return { normalized: slug, dropped: false }
+  if (rules.aliases[slug] && rules.enum.has(rules.aliases[slug])) {
+    return { normalized: rules.aliases[slug], dropped: false }
+  }
+  // Unknown — let the receiver's `.catch('general')` handle final
+  // fallback. Dropping the field keeps the build green without
+  // hard-coding 'general' on our end (so if the receiver enum drifts,
+  // we don't fight it).
+  return { normalized: null, dropped: true }
+}
 
 function wpRestRoot(url) {
   const idx = url.indexOf('/wp-json/')
