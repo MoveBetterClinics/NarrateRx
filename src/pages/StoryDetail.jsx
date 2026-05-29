@@ -179,6 +179,19 @@ function EditableTitle({ value, canEdit, disabled, onSave }) {
  *
  * Accessed via /stories/:storyId where storyId is the interview UUID.
  */
+// Map a delete failure to a human-readable message. The 409 path already
+// returns a friendly sentence from the API; this guards the other statuses
+// so no raw code/stack leaks into the confirm dialog.
+function friendlyDeleteError(err) {
+  if (err?.status === 409) {
+    return err?.message || 'This story has published content. Archive or unpublish those pieces before deleting.'
+  }
+  if (err?.status === 403) return 'You don’t have permission to delete this story.'
+  if (err?.status === 401) return 'Your session expired — reload the page and try again.'
+  if (err?.status === 404) return 'This story no longer exists — it may have already been deleted.'
+  return 'Couldn’t delete this story. Please try again, or contact support if it keeps failing.'
+}
+
 export default function StoryDetail() {
   const { storyId } = useParams()
   const navigate = useNavigate()
@@ -218,8 +231,8 @@ export default function StoryDetail() {
       navigate('/stories')
     } catch (e) {
       // The DELETE handler returns 409 if the interview has published content
-      // items — surface that inline so the user understands why.
-      setDeleteError(e?.message || 'Delete failed')
+      // items — map machine codes to plain English instead of leaking them.
+      setDeleteError(friendlyDeleteError(e))
     }
   }
 

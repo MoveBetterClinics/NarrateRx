@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   Settings, Mic2, Radio, Puzzle, Palette, Users, CreditCard, MapPin,
-  Sliders, Stethoscope, Target, Zap,
+  Sliders, Stethoscope, Target, Zap, LayoutGrid,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -21,7 +21,7 @@ const MOBILE_NAV = [
   { to: '/settings/workspace/channels',           label: 'Output channels',    icon: Radio },
   { to: '/settings/integrations',                 label: 'Integrations',       icon: Puzzle },
   { to: '/settings/brand-kit',                    label: 'Brand kit',          icon: Palette },
-  { to: '/settings/carousel-themes',              label: 'Carousel themes',    icon: Palette },
+  { to: '/settings/carousel-themes',              label: 'Carousel themes',    icon: LayoutGrid },
   { to: '/settings/members',                      label: 'Members & roles',    icon: Users },
   { to: '/settings/workspace/billing',            label: 'Plan & billing',     icon: CreditCard },
 ]
@@ -45,7 +45,7 @@ const GROUPS = [
       { to: '/settings/campaigns',           label: 'Campaigns',          icon: Target },
       { to: '/settings/integrations',        label: 'Integrations',       icon: Puzzle },
       { to: '/settings/brand-kit',           label: 'Brand kit',          icon: Palette },
-      { to: '/settings/carousel-themes',     label: 'Carousel themes',    icon: Palette },
+      { to: '/settings/carousel-themes',     label: 'Carousel themes',    icon: LayoutGrid },
     ],
   },
   {
