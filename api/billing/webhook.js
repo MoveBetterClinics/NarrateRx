@@ -177,7 +177,11 @@ async function handler(req, res) {
           plan_seats: planConfig?.seats || 3,
           trial_ends_at: null, // Clear trial on activation
         }
-        await updateWorkspace(workspaceId, patch)
+        // Pass customerId as 3rd arg so updateWorkspace adds a stripe_customer_id
+        // filter — consistent with subscription.updated / invoice.paid paths which
+        // all pass the customer ID to prevent a crafted event from activating an
+        // unrelated workspace. Without this, signature verification is the only guard.
+        await updateWorkspace(workspaceId, patch, customerId || null)
         console.info(`[billing/webhook] activated workspace ${workspaceId} on plan ${patch.plan}`)
         break
       }

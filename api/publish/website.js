@@ -67,18 +67,6 @@ async function handler(req, res) {
   const workspaceId = scope?.workspace?.id
   const workspaceSlug = scope?.workspace?.slug
 
-  // Normalize topic against the receiving site's allowed enum BEFORE
-  // dispatch. Without this, a freeform workspace topic ("Knee pain with
-  // running") was kebab-cased client-side ("knee-pain-with-running") and
-  // sent straight through, which then failed movebetter.co's Astro
-  // content schema and bricked the build. The receiver now has a
-  // `.catch('general')` safety net (see Move-Better/Movebetterco PR #57),
-  // but the upstream map is what gives the post a *meaningful* topic
-  // (knee-pain) instead of dumping every drifted value to "general".
-  const topicMap = normalizeTopicForReceiver(payload.topic, workspaceSlug)
-  if (topicMap.normalized) payload.topic = topicMap.normalized
-  else if (topicMap.dropped) delete payload.topic
-
   const wpCred = await getCredential(workspaceId, 'wordpress')
   if (wpCred?.secret && wpCred?.config?.user) {
     return publishToWordPress(res, payload, wpCred)
@@ -88,7 +76,7 @@ async function handler(req, res) {
     (await getCredential(workspaceId, 'astro_github')) ||
     (await getCredential(workspaceId, 'website'))
   if (astroCred?.secret) {
-    return publishToAstro(res, payload, astroCred)
+    return publishToAstro(res, payload, astroCred, workspaceSlug)
   }
 
   return res.status(503).json({
@@ -99,12 +87,20 @@ async function handler(req, res) {
 
 // ── Astro mode ────────────────────────────────────────────────────────────────
 
-async function publishToAstro(res, payload, cred) {
+async function publishToAstro(res, payload, cred, workspaceSlug) {
   const secret = cred.secret
   const url = cred.config?.url
   if (!url) {
     return res.status(503).json({ error: 'not_configured', message: 'Astro+GitHub publish URL is not set in the workspace credential config.' })
   }
+
+  // Normalize topic against the Astro receiver's allowed enum. Without this,
+  // freeform topics fail movebetter.co's content schema. This is Astro-only —
+  // WordPress has its own tag/category system and should receive the raw topic.
+  // (Previously applied in the shared dispatch block, which caused WordPress
+  // posts to lose their topic field when the slug didn't match the Astro enum.)
+  const topicMap = normalizeTopicForReceiver(payload.topic, workspaceSlug)
+  const normalizedTopic = topicMap.normalized ? topicMap.normalized : (topicMap.dropped ? null : payload.topic)
 
   const body = {
     slug:        payload.slug,
@@ -132,7 +128,7 @@ async function publishToAstro(res, payload, cred) {
   // Kebab-case topic slug — used by movebetter.co's blog schema (mapped
   // into `topic` frontmatter on receive). Animal's receiver ignores
   // unknown fields, so this is safe for both tenants.
-  if (typeof payload.topic === 'string' && payload.topic.trim()) body.topic = payload.topic.trim()
+  if (typeof normalizedTopic === 'string' && normalizedTopic.trim()) body.topic = normalizedTopic.trim()
 
   let upstream
   try {

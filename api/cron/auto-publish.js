@@ -135,7 +135,9 @@ async function markContentItemScheduled({ pkg, workspaceId, bufferId }) {
       status:           'scheduled',
       buffer_update_id: bufferId,
       auto_published:   true,
-      approved_at:      now,
+      // Do NOT write approved_at here — it's set by the human editorial
+      // approve flow in approve-package.js and must not be overwritten
+      // with the cron dispatch time (breaks time-since-approval analytics).
       notes:            `Auto-published by cron at ${now}`,
     }),
   })
