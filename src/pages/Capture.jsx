@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Camera, FolderOpen, Loader2, Upload, X, Check,
-  Image as ImageIcon, AlertCircle,
+  Image as ImageIcon, AlertCircle, Smartphone,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -50,6 +50,29 @@ export default function Capture() {
   const [pendingFiles, setPendingFiles] = useState([])
   const [sharedCaption, setSharedCaption] = useState('')
   const [isUploading, setIsUploading] = useState(false)
+
+  // PWA install prompt — captured from the browser's beforeinstallprompt event.
+  // Only fires when the app is not already installed and the browser supports PWA.
+  // null = event hasn't fired (already installed, or browser doesn't support).
+  const [installPrompt, setInstallPrompt] = useState(null)
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault() // prevent the mini-infobar on Chrome Android
+      setInstallPrompt(e)
+    }
+    window.addEventListener('beforeinstallprompt', handler)
+    return () => window.removeEventListener('beforeinstallprompt', handler)
+  }, [])
+
+  const handleInstall = async () => {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') {
+      setInstallPrompt(null) // banner gone once accepted
+    }
+  }
 
   // Cleanup object URLs on unmount to avoid leaks.
   useEffect(() => {
@@ -154,9 +177,28 @@ export default function Capture() {
       </Link>
 
       <h1 className="text-2xl font-semibold mb-1">Capture</h1>
-      <p className="text-sm text-zinc-600 mb-6">
+      <p className="text-sm text-zinc-600 mb-4">
         Snap a photo or short video, or pick existing files from anywhere. Works on any device with a camera or file browser.
       </p>
+
+      {/* Add-to-Home-Screen install prompt — only visible when the browser fires
+          beforeinstallprompt (Chrome/Edge on Android, Chrome on desktop).
+          Hidden on iOS Safari (use Share → Add to Home Screen instead) and when
+          already installed as a PWA. */}
+      {installPrompt && (
+        <button
+          type="button"
+          onClick={handleInstall}
+          className="w-full flex items-center gap-3 px-4 py-3 mb-6 rounded-lg border border-primary/30 bg-primary/5 text-left hover:bg-primary/10 transition"
+        >
+          <Smartphone className="w-5 h-5 text-primary shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-primary">Add to Home Screen</p>
+            <p className="text-xs text-primary/70">One tap to capture — no browser chrome, no sign-in wait</p>
+          </div>
+          <span className="text-xs font-medium text-primary shrink-0">Install</span>
+        </button>
+      )}
 
       {/* Capture entry points — only shown when nothing is queued */}
       {pendingFiles.length === 0 && (
