@@ -45,7 +45,7 @@ export default async function handler(req, res) {
 
   // Resolve clinician row for the authenticated user.
   const clinicianRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/clinicians?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}&select=id&limit=1`,
+    `${SUPABASE_URL}/rest/v1/staff?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}&select=id&limit=1`,
     {
       headers: {
         apikey:        SUPABASE_KEY,
@@ -54,14 +54,14 @@ export default async function handler(req, res) {
     }
   )
   if (!clinicianRes.ok) return dbErr(res, clinicianRes, 'Clinician lookup failed')
-  const clinicianRows = await clinicianRes.json().catch(() => [])
-  if (!clinicianRows.length) return res.status(200).json([])
-  const clinicianId = clinicianRows[0].id
+  const staffRows = await clinicianRes.json().catch(() => [])
+  if (!staffRows.length) return res.status(200).json([])
+  const staffId = staffRows[0].id
 
   const r = await fetch(
-    `${SUPABASE_URL}/rest/v1/clinician_corpus_documents` +
+    `${SUPABASE_URL}/rest/v1/staff_corpus_documents` +
     `?workspace_id=eq.${ws.id}` +
-    `&clinician_id=eq.${clinicianId}` +
+    `&staff_id=eq.${staffId}` +
     `&doc_type=eq.${encodeURIComponent(docType)}` +
     `&archived_at=is.null` +
     `&select=id,title,updated_at,body` +

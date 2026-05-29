@@ -11,7 +11,7 @@
 //     k?: number,               // default 8, capped at 50
 //     kind?: 'photo'|'video'|'any', // default 'any'
 //     minScore?: number,        // default 0.5 — cosine similarity threshold
-//     clinicianId?: string      // optional — scope to one clinician's captures
+//     staffId?: string      // optional — scope to one clinician's captures
 //   }
 //
 // Auth: Clerk JWT + workspace org-id check (workspaceContext).
@@ -69,12 +69,12 @@ export default async function handler(req, res) {
   const minScore = typeof body.minScore === 'number'
     ? Math.min(Math.max(body.minScore, 0), 1)
     : DEFAULT_MIN_SCORE
-  const clinicianId = body.clinicianId ? String(body.clinicianId) : null
+  const staffId = body.staffId ? String(body.staffId) : null
 
   // --- Search visual memory via shared helper ---
   let clips
   try {
-    clips = await searchClips({ query, workspaceId: ws.id, k, kind, minScore, clinicianId })
+    clips = await searchClips({ query, workspaceId: ws.id, k, kind, minScore, staffId })
   } catch (e) {
     console.error('[editorial/pull-clips] search failed:', e?.message)
     return res.status(500).json({ error: 'search_failed', detail: e?.message })
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
     model: 'text-embedding-3-small',
     workspaceId: ws.id,
     workspaceSlug: ws.slug,
-    requested: { k, kind: kind || 'any', minScore, clinicianId },
+    requested: { k, kind: kind || 'any', minScore, staffId },
     clips,
   })
 }

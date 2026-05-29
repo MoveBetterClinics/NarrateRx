@@ -90,7 +90,7 @@ export default async function handler(req, res) {
   // Load the interview (everything we might need across both paths).
   const ivRes = await sb(
     `interviews?id=eq.${item.interview_id}&${wsFilter}` +
-    `&select=id,clinician_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,cleaned_messages,outputs,created_at,audience,story_type,generation_style`,
+    `&select=id,staff_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,cleaned_messages,outputs,created_at,audience,story_type,generation_style`,
   )
   if (!ivRes.ok) return dbErr(res, ivRes)
   const ivRows = await ivRes.json()
@@ -98,21 +98,21 @@ export default async function handler(req, res) {
   const interview = ivRows[0]
 
   // Load clinician (name + voice_notes) — workspace-scoped to prevent FK leakage.
-  let clinicianName = ''
+  let staffName = ''
   let voiceNotes = ''
   let voicePhrases = []
-  if (interview.clinician_id) {
+  if (interview.staff_id) {
     const [clinRes, phrasesRes] = await Promise.all([
-      sb(`clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name,voice_notes`),
+      sb(`staff?id=eq.${interview.staff_id}&${wsFilter}&select=name,voice_notes`),
       // Top voice phrase anchors (Phase C.2). Weight desc → strongest first.
       sb(
-        `clinician_voice_phrases?clinician_id=eq.${interview.clinician_id}&${wsFilter}` +
+        `staff_voice_phrases?staff_id=eq.${interview.staff_id}&${wsFilter}` +
         `&select=phrase&order=weight.desc,last_seen_at.desc&limit=8`
       ),
     ])
     if (clinRes.ok) {
       const rows = await clinRes.json()
-      clinicianName = rows[0]?.name ?? ''
+      staffName = rows[0]?.name ?? ''
       voiceNotes    = rows[0]?.voice_notes ?? ''
     }
     if (phrasesRes.ok) {
@@ -122,10 +122,10 @@ export default async function handler(req, res) {
 
   // Phase 5 Feature 2 — hot practice-memory block for THIS clinician.
   // Same shape the interview prompt already injects.
-  const ownHistoryBlock = interview.clinician_id
+  const ownHistoryBlock = interview.staff_id
     ? await resolveOwnHistoryBlock({
         workspaceId:        ws.id,
-        clinicianId:        interview.clinician_id,
+        staffId:        interview.staff_id,
         excludeInterviewId: interview.id,
         query:              buildRagQuery(interview),
       })
@@ -170,11 +170,11 @@ export default async function handler(req, res) {
     // Active tentpole campaign flows into derivative content only — see
     // api/content-plan/draft.js for the same pattern. Empty string when
     // no campaign is active. Clinician scope honors per-clinician targeting.
-    const activeCampaign = await loadCurrentTentpole(ws.id, interview.clinician_id || null)
+    const activeCampaign = await loadCurrentTentpole(ws.id, interview.staff_id || null)
     const campaignContext = getTentpolePromptContext(activeCampaign, ws)
     const systemPrompt = getAtomSystemPrompt(
       ws,
-      clinicianName,
+      staffName,
       interview.topic,
       atom.platform,
       atom.angle,

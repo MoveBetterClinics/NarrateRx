@@ -50,7 +50,7 @@ const NAME_SIZE_CLASSES = {
  *   nameClassName?: string,
  * }} props
  */
-export function ClinicianChip({
+export function StaffChip({
   id,
   name,
   size = 'md',

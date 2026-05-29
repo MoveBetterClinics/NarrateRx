@@ -53,7 +53,7 @@ export default async function handler(req, res) {
 
       // Approved content items (last 50)
       const contentRes = await sb(
-        `content_items?${wsFilter}&status=eq.approved&select=id,content,clinician_id&order=approved_at.desc&limit=50`
+        `content_items?${wsFilter}&status=eq.approved&select=id,content,staff_id&order=approved_at.desc&limit=50`
       )
       if (contentRes.ok) {
         const items = await contentRes.json()
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
             sourceKind:   'approved_edit',
             sourceId:     item.id,
             text:         item.content,
-            clinicianId:  item.clinician_id ?? null,
+            staffId:  item.staff_id ?? null,
             weightDelta:  1.5,
           })
         }
@@ -72,7 +72,7 @@ export default async function handler(req, res) {
 
       // Most recent completed interviews (last 20)
       const ivRes = await sb(
-        `interviews?${wsFilter}&status=eq.completed&select=id,cleaned_messages,messages,clinician_id&order=created_at.desc&limit=20`
+        `interviews?${wsFilter}&status=eq.completed&select=id,cleaned_messages,messages,staff_id&order=created_at.desc&limit=20`
       )
       if (ivRes.ok) {
         const interviews = await ivRes.json()
@@ -85,7 +85,7 @@ export default async function handler(req, res) {
             sourceKind:   'interview_turn',
             sourceId:     iv.id,
             text,
-            clinicianId:  iv.clinician_id ?? null,
+            staffId:  iv.staff_id ?? null,
             weightDelta:  1.0,
           })
         }

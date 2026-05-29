@@ -120,7 +120,7 @@ async function handler(req, res) {
         sb(
           `content_items?workspace_id=eq.${ws.id}` +
           `&published_at=gte.${encodeURIComponent(weekStart)}` +
-          `&select=id,topic,platform,clinician_name,published_at` +
+          `&select=id,topic,platform,staff_name,published_at` +
           `&order=published_at.desc&limit=20`
         ),
         sb(
@@ -136,7 +136,7 @@ async function handler(req, res) {
         ),
         sb(
           `story_packages?workspace_id=eq.${ws.id}&status=eq.complete` +
-          `&select=id,topic,similarity,clinician_id,created_at` +
+          `&select=id,topic,similarity,staff_id,created_at` +
           `&order=created_at.desc&limit=20`
         ),
       ])
@@ -147,16 +147,16 @@ async function handler(req, res) {
       const queued       = queuedRes.ok       ? await queuedRes.json()       : []
 
       // Resolve clinician names for queued packages (small fetch).
-      const cIds = [...new Set(queued.map((q) => q.clinician_id).filter(Boolean))]
+      const cIds = [...new Set(queued.map((q) => q.staff_id).filter(Boolean))]
       let cMap = {}
       if (cIds.length) {
-        const cRes = await sb(`clinicians?id=in.(${cIds.join(',')})&select=id,name`)
+        const cRes = await sb(`staff?id=in.(${cIds.join(',')})&select=id,name`)
         if (cRes.ok) {
           const rows = await cRes.json()
           cMap = Object.fromEntries(rows.map((r) => [r.id, r.name]))
         }
       }
-      const queuedWithNames = queued.map((q) => ({ ...q, clinician_name: cMap[q.clinician_id] }))
+      const queuedWithNames = queued.map((q) => ({ ...q, staff_name: cMap[q.staff_id] }))
 
       // Roll up slate stats from last-week window only.
       const slateStats = {
@@ -189,7 +189,7 @@ async function handler(req, res) {
       // Empty list = derive from producer-tier clinicians.
       if (recipientUserIds.length === 0) {
         const pRes = await sb(
-          `clinicians?workspace_id=eq.${ws.id}&permission_tier=eq.producer` +
+          `staff?workspace_id=eq.${ws.id}&permission_tier=eq.producer` +
           `&user_id=not.is.null&select=user_id`
         )
         if (pRes.ok) {

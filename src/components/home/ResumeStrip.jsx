@@ -63,8 +63,8 @@ export default function ResumeStrip({ interviews, currentUserId, clinicians = []
 function ResumeCard({ interview, currentUserId, clinicians }) {
   const isOwner = interview.owner_id === currentUserId
   const href = isOwner
-    ? `/interview/${interview.clinicianId}/${interview.id}`
-    : `/clinician/${interview.clinicianId}`
+    ? `/interview/${interview.staffId}/${interview.id}`
+    : `/staff/${interview.staffId}`
   // Owner attribution only renders when (a) we're not the owner and (b)
   // resolveOwnerName produced a real name (clinician.name preferred, then
   // dot-separated email; otherwise null → no suffix).
@@ -78,14 +78,14 @@ function ResumeCard({ interview, currentUserId, clinicians }) {
       <div className="flex items-center gap-2 mb-1.5">
         <Avatar className="h-6 w-6">
           <AvatarFallback className="bg-primary/10 text-primary text-3xs font-bold">
-            {getInitials(interview.clinicianName)}
+            {getInitials(interview.staffName)}
           </AvatarFallback>
         </Avatar>
         <p
           className="text-xs font-semibold text-foreground/80 truncate"
-          title={interview.clinicianName}
+          title={interview.staffName}
         >
-          {interview.clinicianName}
+          {interview.staffName}
         </p>
       </div>
       <p className="text-sm font-bold text-foreground truncate leading-snug" title={interview.topic}>

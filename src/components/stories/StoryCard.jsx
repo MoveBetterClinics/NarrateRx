@@ -4,7 +4,7 @@ import { Target } from 'lucide-react'
 import { formatRelativeDate } from '@/lib/utils'
 import { queryKeys, fetchStory } from '@/lib/queries'
 import { getStageToken } from '@/lib/stageTokens'
-import { ClinicianChip } from '@/components/ClinicianChip'
+import { StaffChip } from '@/components/StaffChip'
 
 // Short labels for platform chips shown on the card.
 const PLATFORM_SHORT = {
@@ -47,8 +47,8 @@ export default function StoryCard({ story }) {
   const qc = useQueryClient()
   const {
     id,
-    clinician_id,
-    clinician_name,
+    staff_id,
+    staff_name,
     topic,
     pieces,
     pieces_count,
@@ -85,9 +85,9 @@ export default function StoryCard({ story }) {
 
       {/* Clinician — secondary context */}
       <div className="mb-3">
-        <ClinicianChip
-          id={clinician_id}
-          name={clinician_name}
+        <StaffChip
+          id={staff_id}
+          name={staff_name}
           size="sm"
           showName
           className="min-w-0"

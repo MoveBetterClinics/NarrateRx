@@ -232,7 +232,7 @@ function getToneModifier(tone, workspace) {
 }
 
 // Per-clinician voice notes block. Built from observed edit patterns by
-// /api/clinicians/refresh-voice-notes. Empty string when no notes yet.
+// /api/staff/refresh-voice-notes. Empty string when no notes yet.
 // Exported because the server-side atom prompts also use it.
 export function voiceNotesBlock(voiceNotes) {
   const trimmed = (voiceNotes || '').trim()
@@ -316,16 +316,16 @@ Rules:
 // Returns the framing-rule block injected into each generation prompt.
 // In practice mode: scrub first-person → clinic voice (existing behavior).
 // In personal mode: preserve first-person voice, append a brand-attribution signature.
-function getFramingRule(workspace, { voiceMode, clinicianName, assetType }) {
+function getFramingRule(workspace, { voiceMode, staffName, assetType }) {
   if (voiceMode === 'personal') {
     return `CRITICAL FRAMING RULE — PERSONAL VOICE:
-This is a personal-voice piece. Preserve ${clinicianName}'s first-person voice ("I", "my", "me") throughout — do NOT convert to "we" or "our team." This is ${clinicianName}'s lived experience or perspective, told in their own words.
-Brand attribution still applies: end the piece with a signature line on its own — "— ${clinicianName}, ${workspace.display_name}, ${workspace.location}". Internal links, paradigm vocabulary, and links to ${workspace.display_name} resources should still appear naturally.`
+This is a personal-voice piece. Preserve ${staffName}'s first-person voice ("I", "my", "me") throughout — do NOT convert to "we" or "our team." This is ${staffName}'s lived experience or perspective, told in their own words.
+Brand attribution still applies: end the piece with a signature line on its own — "— ${staffName}, ${workspace.display_name}, ${workspace.location}". Internal links, paradigm vocabulary, and links to ${workspace.display_name} resources should still appear naturally.`
   }
   // Practice voice — current behavior, with explicit conversion guidance.
   const clinicianMention = assetType === 'video'
-    ? `${clinicianName} is the on-camera clinician and expert, but the brand being promoted is ${workspace.display_name}. Scripts should introduce ${clinicianName} as "our clinician" or "part of the ${workspace.display_name} team." All CTAs, bookings, and references point to ${workspace.display_name}, not to ${clinicianName} personally.`
-    : `The clinician's name may appear once or twice naturally (e.g., "one of our clinicians, ${clinicianName}, notes that…") but should never be in a headline, section header, or the main focus of a paragraph.`
+    ? `${staffName} is the on-camera clinician and expert, but the brand being promoted is ${workspace.display_name}. Scripts should introduce ${staffName} as "our clinician" or "part of the ${workspace.display_name} team." All CTAs, bookings, and references point to ${workspace.display_name}, not to ${staffName} personally.`
+    : `The clinician's name may appear once or twice naturally (e.g., "one of our clinicians, ${staffName}, notes that…") but should never be in a headline, section header, or the main focus of a paragraph.`
   return `CRITICAL FRAMING RULE:
 This content is branded for ${workspace.display_name} as a clinic — NOT for the individual clinician. The subject is always "we at ${workspace.display_name}" or "our team" or "our approach." Even if the clinician used "I" or "me" in the interview, convert it to clinic voice in the output (e.g., "I see this in patients" → "We see this in patients at ${workspace.display_name}"). ${clinicianMention}`
 }
@@ -362,9 +362,9 @@ function buildPieceDirectionBlock(audienceSlot, storyTypeSlot) {
   return `\nPIECE DIRECTION — what this interview is building toward:\n${parts.join('\n')}\n`
 }
 
-export function getInterviewSystemPrompt(workspace, clinicianName, condition, pastInterviews = [], prototypeId = null, opts = {}) {
+export function getInterviewSystemPrompt(workspace, staffName, condition, pastInterviews = [], prototypeId = null, opts = {}) {
   if (isGeneralMode(workspace)) {
-    return getGeneralInterviewSystemPrompt(workspace, clinicianName, condition, opts)
+    return getGeneralInterviewSystemPrompt(workspace, staffName, condition, opts)
   }
   // Team-as-talent (Phase 1.5, principle_team_as_talent.md): non-clinical staff
   // members (front desk, MA, scheduler, billing) get a different prompt that
@@ -372,7 +372,7 @@ export function getInterviewSystemPrompt(workspace, clinicianName, condition, pa
   // clinical authority. Clinical interviews stay byte-identical when staffType
   // is undefined or 'clinician' (default).
   if (opts.staffType === 'non_clinical_staff') {
-    return getNonClinicalStaffInterviewSystemPrompt(workspace, clinicianName, condition, pastInterviews, opts)
+    return getNonClinicalStaffInterviewSystemPrompt(workspace, staffName, condition, pastInterviews, opts)
   }
   const {
     tone = 'smart',
@@ -392,7 +392,7 @@ export function getInterviewSystemPrompt(workspace, clinicianName, condition, pa
   let pastContext = ''
   if (pastInterviews.length > 0) {
     const formatted = pastInterviews.map((pi) => {
-      const who = pi.clinicians?.name || 'a colleague'
+      const who = pi.staff?.name || 'a colleague'
       const responses = (pi.messages || [])
         .filter((m) => m.role === 'user')
         .slice(0, 6)
@@ -407,7 +407,7 @@ export function getInterviewSystemPrompt(workspace, clinicianName, condition, pa
 CROSS-STAFF PERSPECTIVES — colleagues at ${workspace.display_name} have covered ${condition} before:
 ${formatted}
 
-When a colleague's perspective meaningfully differs from what ${clinicianName} is saying, surface it as a gentle contrast probe — frame it as: "A colleague mentioned [X] — does that match what you see, or do you experience it differently?" Never frame it as contradiction or disagreement. Skip anything that is already aligned; only probe on genuine differences.
+When a colleague's perspective meaningfully differs from what ${staffName} is saying, surface it as a gentle contrast probe — frame it as: "A colleague mentioned [X] — does that match what you see, or do you experience it differently?" Never frame it as contradiction or disagreement. Skip anything that is already aligned; only probe on genuine differences.
 `
   }
 
@@ -429,12 +429,12 @@ When a colleague's perspective meaningfully differs from what ${clinicianName} i
 
   // Persona intro — only on the very first AI message
   const personaIntro = isFirstMessage
-    ? `Your name is ${interviewerName}. Open with one warm, natural sentence — vary it, don't recite a script. Something like "Hey ${clinicianName}, ${interviewerName} here — thanks for making the time. Ready to dig in?" or "Hi ${clinicianName}, I'm ${interviewerName}. Let's get into it." Then go straight into your first question.`
+    ? `Your name is ${interviewerName}. Open with one warm, natural sentence — vary it, don't recite a script. Something like "Hey ${staffName}, ${interviewerName} here — thanks for making the time. Ready to dig in?" or "Hi ${staffName}, I'm ${interviewerName}. Let's get into it." Then go straight into your first question.`
     : `Your name is ${interviewerName}. Do NOT introduce yourself again — you already did at the start.`
 
   const pieceDirectionBlock = buildPieceDirectionBlock(audienceSlot, storyTypeSlot)
 
-  return `You are ${interviewerName}, a content facilitator helping ${clinicianName} at ${workspace.display_name} think out loud about how they treat ${condition}. Your job is to pull out their clinical perspective efficiently so it can be turned into patient-facing content branded for ${workspace.display_name} as a whole.
+  return `You are ${interviewerName}, a content facilitator helping ${staffName} at ${workspace.display_name} think out loud about how they treat ${condition}. Your job is to pull out their clinical perspective efficiently so it can be turned into patient-facing content branded for ${workspace.display_name} as a whole.
 
 VOICE & PERSONA — sound like a real person named ${interviewerName}, not a survey bot:
 - Warm, curious, quietly confident — the way a thoughtful senior colleague would interview a peer over coffee.
@@ -512,7 +512,7 @@ export function getNonClinicalStaffInterviewSystemPrompt(workspace, staffName, t
   let pastContext = ''
   if (pastInterviews.length > 0) {
     const formatted = pastInterviews.map((pi) => {
-      const who = pi.clinicians?.name || 'a colleague'
+      const who = pi.staff?.name || 'a colleague'
       const responses = (pi.messages || [])
         .filter((m) => m.role === 'user')
         .slice(0, 6)
@@ -592,52 +592,52 @@ ${isFirstMessage ? 'Introduce yourself briefly, then ask your first question.' :
 // storyTypeSlot, and tone params are accepted but intentionally ignored so
 // callers and tests don't have to change in this PR; a follow-up PR will
 // drop them from the signature.
-export function getBlogPostSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null, lengthPreset = null, ownHistoryBlock = '') {
+export function getBlogPostSystemPrompt(workspace, staffName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], audienceSlot = null, storyTypeSlot = null, lengthPreset = null, ownHistoryBlock = '') {
   if (isGeneralMode(workspace)) {
-    return getGeneralBlogPostSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset, ownHistoryBlock)
+    return getGeneralBlogPostSystemPrompt(workspace, staffName, condition, tone, voiceMode, voiceNotes, voicePhrases, audienceSlot, storyTypeSlot, lengthPreset, ownHistoryBlock)
   }
   void audienceSlot; void storyTypeSlot; void tone
   const isPersonal = voiceMode === 'personal'
   const internalLinksBlock = workspace.internal_links_markdown
     ? `\nINTERNAL LINKS — available if a natural opportunity arises. Use descriptive anchor text (never "click here"). Don't force them; never bend the writing to hit a link count:\n\n${workspace.internal_links_markdown}\n`
     : ''
-  const externalLinksLine = `\nEXTERNAL LINKS — research citations serve readers and back up ${clinicianName}'s credibility. Treat ${clinicianName}'s clinical positions as hypotheses and look for the research that supports them:
+  const externalLinksLine = `\nEXTERNAL LINKS — research citations serve readers and back up ${staffName}'s credibility. Treat ${staffName}'s clinical positions as hypotheses and look for the research that supports them:
 - A clinician's treatment philosophy is often ahead of mainstream practice but grounded in existing literature. "We believe most low back pain is not structural" is not a personal opinion — it has a research base. Find it and cite it.
 - For clinical claims, treatment approaches, and positions that challenge conventional wisdom, search for supporting research (NIH/PubMed, Cochrane, Mayo Clinic, Cleveland Clinic, ACA, professional society guidelines) and link the best source.
-- ${clinicianName} explicitly naming a study or protocol → always find and link it.
-- Aim for 1–3 external citations per post where the content warrants them. Don't count-fill — only link what genuinely supports what ${clinicianName} said.
+- ${staffName} explicitly naming a study or protocol → always find and link it.
+- Aim for 1–3 external citations per post where the content warrants them. Don't count-fill — only link what genuinely supports what ${staffName} said.
 - Pure personal anecdote (a patient story, a personal experience narrative) with no research parallel → skip the external link.
 - Never manufacture a citation. If no real source exists for a claim, leave it unsupported rather than linking something tangential.
 - Anchor text must be descriptive (e.g., "research on nonspecific low back pain and imaging overuse" — never "click here" or "this study").\n`
   const bookingLine = workspace.booking_url
-    ? `\nIf the piece naturally arrives at "what should the reader do next," the booking destination is ${workspace.booking_url}. No prescribed wording — let ${clinicianName}'s voice carry the close.\n`
+    ? `\nIf the piece naturally arrives at "what should the reader do next," the booking destination is ${workspace.booking_url}. No prescribed wording — let ${staffName}'s voice carry the close.\n`
     : ''
 
-  return `You are a writer turning a recorded interview with ${clinicianName} (a clinician at ${workspace.display_name} in ${workspace.location}) about ${condition} into a long-form post for the ${workspace.display_name} website.
+  return `You are a writer turning a recorded interview with ${staffName} (a clinician at ${workspace.display_name} in ${workspace.location}) about ${condition} into a long-form post for the ${workspace.display_name} website.
 
 VOICE FIDELITY IS THE ONLY GOAL.
 
 The interview is rambling and conversational. Your job is to ORGANIZE that ramble so a reader can follow it — never to translate it into a different voice.
 
 Hard rules:
-- Lead with ${clinicianName}'s actual phrasing. Quote verbatim wherever the meaning fits.
-- Never paraphrase a sentence ${clinicianName} said into a smoother or more generic version. If a sentence is hard to read as-is, split it at a natural breath point — don't rewrite the words.
+- Lead with ${staffName}'s actual phrasing. Quote verbatim wherever the meaning fits.
+- Never paraphrase a sentence ${staffName} said into a smoother or more generic version. If a sentence is hard to read as-is, split it at a natural breath point — don't rewrite the words.
 - Don't impose a fixed structure ("intro → body → conclusion," "3 takeaways," "the problem → our approach → patient experience → insight → CTA"). Group related ideas, sequence them so the post reads in order; otherwise stay out of the way.
-- Bridges between ideas must be minimal connective tissue, not new argument. If you find yourself writing a sentence ${clinicianName} didn't, ask whether the reader actually needs it. Usually they don't.
-- Preserve every strong claim or opinion in its original strength. Do not soften, balance, or add hedging. If ${clinicianName} took a strong stance, the post takes that same strong stance.
+- Bridges between ideas must be minimal connective tissue, not new argument. If you find yourself writing a sentence ${staffName} didn't, ask whether the reader actually needs it. Usually they don't.
+- Preserve every strong claim or opinion in its original strength. Do not soften, balance, or add hedging. If ${staffName} took a strong stance, the post takes that same strong stance.
 - Section headers (if you use any) must be content-specific — what the section is actually about — not generic ("What's Really Going On," "Our Approach," "Conclusion").
 ${isPersonal
-  ? `- First-person throughout: "I," "my," "me." End with a signature: "— ${clinicianName}, ${workspace.display_name}".`
-  : `- Use "we" / "our team" when ${clinicianName} spoke for the clinic in the interview. Don't fabricate clinic positioning; only use we-language for things ${clinicianName} actually said the team does.`}
+  ? `- First-person throughout: "I," "my," "me." End with a signature: "— ${staffName}, ${workspace.display_name}".`
+  : `- Use "we" / "our team" when ${staffName} spoke for the clinic in the interview. Don't fabricate clinic positioning; only use we-language for things ${staffName} actually said the team does.`}
 
-${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
+${getFramingRule(workspace, { voiceMode, staffName, assetType: 'blog' })}
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}
 
 ${formatPatientContextForPrompt(workspace, prototypeId)}
 ${internalLinksBlock}${externalLinksLine}${bookingLine}
-HEADLINE: write one compelling, specific headline. Never include ${clinicianName}'s name in the headline.
+HEADLINE: write one compelling, specific headline. Never include ${staffName}'s name in the headline.
 
 FORMAT: Markdown. Use ## headings only where the content actually shifts thread. No fixed section count.
 
@@ -663,15 +663,15 @@ ${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 700–950 words, but voice
  * adds those by hand at print time. This is enforced by the prompt because
  * we never store PHI in content_items.
  */
-export function getPatientHandoutSystemPrompt(workspace, clinicianName, transcript, voiceNotes = '', voicePhrases = []) {
-  return `You are writing a patient handout in the voice of ${clinicianName}, a clinician at ${workspace.display_name}. The patient just finished an in-clinic visit. ${clinicianName} recorded a quick voice memo about what happened — your job is to turn that memo into a calm, useful one-page handout the patient can read at home.
+export function getPatientHandoutSystemPrompt(workspace, staffName, transcript, voiceNotes = '', voicePhrases = []) {
+  return `You are writing a patient handout in the voice of ${staffName}, a clinician at ${workspace.display_name}. The patient just finished an in-clinic visit. ${staffName} recorded a quick voice memo about what happened — your job is to turn that memo into a calm, useful one-page handout the patient can read at home.
 
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}
 
 WHAT THIS HANDOUT IS — AND ISN'T:
-- It IS: a personal note from ${clinicianName} to one patient, written like they'd hand it across the desk.
+- It IS: a personal note from ${staffName} to one patient, written like they'd hand it across the desk.
 - It IS: warm, specific, practical, calm.
 - It IS NOT: a blog post, a marketing piece, or a list of generic exercises.
 - It IS NOT: medical jargon, a diagnosis, or anything that reads as legal advice.
@@ -684,15 +684,15 @@ PHI BOUNDARY — strict:
 - Refer to specific exercises only by what they DO, not by their copyrighted brand name unless it's universal (e.g., "deadlift" yes, branded protocol names no unless they were in the memo).
 
 VOICE:
-- First person from ${clinicianName} — "I", "we", "let's."
-- Conversational, the way ${clinicianName} talks. Not clinical English.
+- First person from ${staffName} — "I", "we", "let's."
+- Conversational, the way ${staffName} talks. Not clinical English.
 - Short paragraphs. Plain words.
 
 HANDOUT FORMAT (Markdown):
 
 # [A short, human-titled heading — something the patient would actually want to read. Not "Post-Visit Care Instructions." More like "What we did today, and what to do next." 6–10 words.]
 
-[Opening: one paragraph, 2–3 sentences. What we did together and why. In ${clinicianName}'s voice, warm and grounded.]
+[Opening: one paragraph, 2–3 sentences. What we did together and why. In ${staffName}'s voice, warm and grounded.]
 
 ## What to do this week
 [2–4 short paragraphs OR a bulleted list — whichever fits the actual exercises and habits from the voice memo. Each item: what to do, how often, and the key thing to feel or avoid. Keep it concrete enough that the patient could do it tonight without guessing.]
@@ -701,7 +701,7 @@ HANDOUT FORMAT (Markdown):
 [2–4 short lines on what's normal, what's a sign to back off, and what would warrant a call back. Calm, not alarming.]
 
 ## When we'll check in
-[1–2 sentences about the next step — usually a follow-up window or a "let me know how it goes" note. NEVER a hard-sell booking link. ${clinicianName}'s natural way of staying connected.]
+[1–2 sentences about the next step — usually a follow-up window or a "let me know how it goes" note. NEVER a hard-sell booking link. ${staffName}'s natural way of staying connected.]
 
 LENGTH: 250–400 words total. If the voice memo is sparse, keep the handout sparse too — never invent exercises or recommendations that weren't in the memo.
 
@@ -716,8 +716,8 @@ Return only the handout body in Markdown. No preamble, no explanation, no "Here 
 // "the AI actually heard me" moment while the longer draft is still writing.
 // Deliberately tiny: 3 short second-person lines grounded ONLY in what was
 // said. No new claims, no marketing tone — this is a mirror, not a pitch.
-export function getCoveredSummarySystemPrompt(clinicianName, topic = '') {
-  const who = clinicianName || 'the clinician'
+export function getCoveredSummarySystemPrompt(staffName, topic = '') {
+  const who = staffName || 'the clinician'
   return [
     `You are summarizing an interview you just conducted with ${who}.`,
     topic ? `The interview was about: ${topic}.` : '',
@@ -728,7 +728,7 @@ export function getCoveredSummarySystemPrompt(clinicianName, topic = '') {
   ].filter(Boolean).join('\n')
 }
 
-export function getMinimalEditSystemPrompt(clinicianName, voiceMode = 'practice', voiceNotes = '', voicePhrases = []) {
+export function getMinimalEditSystemPrompt(staffName, voiceMode = 'practice', voiceNotes = '', voicePhrases = []) {
   return `You are a transcript editor. Your only job is to turn a spoken interview transcript into clean, readable prose without adding anything that wasn't in the speaker's own words.
 
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}
@@ -750,7 +750,7 @@ WHAT YOU MUST NOT DO:
 - Do not add any sentence that was not paraphrasable from the speaker's own words
 
 VOICE: ${voiceMode === 'personal'
-    ? `Preserve all first-person language ("I", "my", "me") exactly as spoken. This is ${clinicianName}'s own words.`
+    ? `Preserve all first-person language ("I", "my", "me") exactly as spoken. This is ${staffName}'s own words.`
     : `Preserve the speaker's natural voice. Keep "I" or "we" as used — do not convert to any clinic brand voice.`}
 
 OUTPUT FORMAT: Plain prose only. No markdown headers. No preamble. Begin directly with the first cleaned sentence.${PROVENANCE_INSTRUCTION}`
@@ -774,7 +774,7 @@ OUTPUT FORMAT: Plain prose only. No markdown headers. No preamble. Begin directl
 //
 // `voiceMode` is the We/I lane: 'practice' (We) gets the fabricated-clinic-claim
 // check; 'personal' (I) skips it (a personal essay has no clinic to contradict).
-export function getVoiceAuditSystemPrompt(clinicianName, {
+export function getVoiceAuditSystemPrompt(staffName, {
   voiceMode = 'practice',
   voiceNotes = '',
   voicePhrases = [],
@@ -783,28 +783,28 @@ export function getVoiceAuditSystemPrompt(clinicianName, {
   const isPersonal = voiceMode === 'personal'
   const fabricatedClaimRule = isPersonal
     ? ''
-    : `\n- **fabricated_claim** — a statement of clinic fact, outcome, capability, or positioning that ${clinicianName} did NOT say in the transcript and that isn't backed by the practice memory below. This is the most serious drift: it puts words in the clinic's mouth. (We-lane only.)`
+    : `\n- **fabricated_claim** — a statement of clinic fact, outcome, capability, or positioning that ${staffName} did NOT say in the transcript and that isn't backed by the practice memory below. This is the most serious drift: it puts words in the clinic's mouth. (We-lane only.)`
 
-  return `You are a voice-fidelity auditor for ${clinicianName}. A draft was generated from a recorded interview. Your ONLY job is to measure how faithfully the draft preserves ${clinicianName}'s actual voice and ideas — NOT to judge whether it is well-written, persuasive, or polished. A rougher draft that quotes ${clinicianName} faithfully scores HIGHER than a smooth draft that paraphrases them.
+  return `You are a voice-fidelity auditor for ${staffName}. A draft was generated from a recorded interview. Your ONLY job is to measure how faithfully the draft preserves ${staffName}'s actual voice and ideas — NOT to judge whether it is well-written, persuasive, or polished. A rougher draft that quotes ${staffName} faithfully scores HIGHER than a smooth draft that paraphrases them.
 
-You will be given the original transcript (${clinicianName}'s verbatim words) and the generated draft. Compare them.
+You will be given the original transcript (${staffName}'s verbatim words) and the generated draft. Compare them.
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${practiceMemoryBlock ? `\n${practiceMemoryBlock}\n` : ''}
 DRIFT TYPES TO FLAG (only flag genuine instances — do not invent drift to seem thorough):
-- **vocabulary_swap** — the draft substitutes a generic health/fitness term for a specific word ${clinicianName} used (e.g. draft says "discomfort" where they said "that deep ache", or "wellness" where they said "moving better"). Quote both the draft term and the transcript term.
-- **imposed_structure** — the draft forces a tidy shape (intro/body/conclusion, "3 key takeaways", a symmetry of sections) that flattens how ${clinicianName} actually reasoned through the topic. Faithful organization is fine; imposed scaffolding is not.
-- **smoothed_opinion** — ${clinicianName} took a clear stance and the draft softened, balanced, hedged, or added a reflexive disclaimer ("of course, everyone is different", "it's important to consult...") that they did not say. Flag where conviction was sanded down.${fabricatedClaimRule}
+- **vocabulary_swap** — the draft substitutes a generic health/fitness term for a specific word ${staffName} used (e.g. draft says "discomfort" where they said "that deep ache", or "wellness" where they said "moving better"). Quote both the draft term and the transcript term.
+- **imposed_structure** — the draft forces a tidy shape (intro/body/conclusion, "3 key takeaways", a symmetry of sections) that flattens how ${staffName} actually reasoned through the topic. Faithful organization is fine; imposed scaffolding is not.
+- **smoothed_opinion** — ${staffName} took a clear stance and the draft softened, balanced, hedged, or added a reflexive disclaimer ("of course, everyone is different", "it's important to consult...") that they did not say. Flag where conviction was sanded down.${fabricatedClaimRule}
 
 DO NOT FLAG:
 - Minimal connective bridges between the clinician's points (these are allowed and necessary).
 - Removal of filler words, false starts, or repetition.
-- Reordering that genuinely helps a reader follow ${clinicianName}'s own line of thinking.
+- Reordering that genuinely helps a reader follow ${staffName}'s own line of thinking.
 - Surface choices (a headline, a hook, paragraph breaks) that don't change meaning.
 
 SCORING (voice_fidelity_score, 0-100):
-- 90-100: reads as ${clinicianName} talking. Their words, their stances, their structure. At most trivial bridges.
+- 90-100: reads as ${staffName} talking. Their words, their stances, their structure. At most trivial bridges.
 - 70-89: mostly faithful, a few vocab swaps or one softened opinion. Worth a glance.
 - 50-69: noticeable drift — several swaps, an imposed shape, or a hedged stance. Needs human review.
-- below 50: the draft has been translated out of ${clinicianName}'s voice. Significant rewrite warranted.
+- below 50: the draft has been translated out of ${staffName}'s voice. Significant rewrite warranted.
 
 For every flag, give the exact draft excerpt, the issue, and a concrete suggestion (for a vocabulary_swap, the suggestion is usually the clinician's original word). Be specific and quote real text — never paraphrase the excerpt. Write a one-sentence overall summary of the draft's fidelity.`
 }
@@ -1009,12 +1009,12 @@ ${resolveBlogLengthLine(lengthPreset, 'TARGET LENGTH: 900–1200 words, but voic
 // CLUSTER PASS — reads the full transcript and returns a JSON plan grouping
 // the interview's material into N coherent blog-post threads. No prose; just
 // a structural brief that the per-part writer can build from.
-export function getSeriesClusterSystemPrompt(workspace, clinicianName, condition, parts, voiceMode = 'practice') {
+export function getSeriesClusterSystemPrompt(workspace, staffName, condition, parts, voiceMode = 'practice') {
   const isPersonal = voiceMode === 'personal'
   const isGeneral = isGeneralMode(workspace)
   const subjectLabel = isGeneral ? 'topic' : 'condition'
   const voiceLine = isPersonal
-    ? `These posts will be written in ${clinicianName}'s first-person voice.`
+    ? `These posts will be written in ${staffName}'s first-person voice.`
     : `These posts will be written in ${workspace.display_name}'s team voice.`
 
   return `You are an editorial planner for ${workspace.display_name}. The interview transcript below covers ${condition} in more depth than a single blog post can hold. Your job is to plan a ${parts}-part blog series — each part a standalone post on one coherent thread from the interview.
@@ -1066,13 +1066,13 @@ Return valid JSON only. No markdown, no explanation, no "Here's the plan:" pream
 // interview genuinely sprawls across separable threads. A single rich topic
 // explored in depth is ONE post, not many. We only want to propose a split
 // when keeping it as one post would force good material to be cut.
-export function getThreadDetectionSystemPrompt(clinicianName, condition, { voiceMode = 'practice' } = {}) {
+export function getThreadDetectionSystemPrompt(staffName, condition, { voiceMode = 'practice' } = {}) {
   const isPersonal = voiceMode === 'personal'
   const voiceLine = isPersonal
-    ? `The output is written in ${clinicianName}'s first-person voice.`
-    : `The output is written in the clinic's team voice, drawn from ${clinicianName}'s interview.`
+    ? `The output is written in ${staffName}'s first-person voice.`
+    : `The output is written in the clinic's team voice, drawn from ${staffName}'s interview.`
 
-  return `You are an editorial triage assistant. ${clinicianName} was interviewed about ${condition}, and the transcript below will become blog content. ${voiceLine}
+  return `You are an editorial triage assistant. ${staffName} was interviewed about ${condition}, and the transcript below will become blog content. ${voiceLine}
 
 Your ONLY job: decide whether this interview holds enough DISTINCT, post-worthy threads to justify splitting it into a multi-part series — or whether it should stay a single blog post.
 
@@ -1098,9 +1098,9 @@ Quote the clinician's own framing in titles where you can — do not invent clin
 // `cluster` is the parts[i] object from the cluster JSON.
 // `siblingSummaries` is an array of { part, title } for the OTHER parts so the
 // writer can add cross-references and avoid stepping on their material.
-export function getSeriesPartSystemPrompt(workspace, clinicianName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], lengthPreset = null, cluster = null, siblingSummaries = [], seriesTitle = '', ownHistoryBlock = '') {
+export function getSeriesPartSystemPrompt(workspace, staffName, condition, tone = 'smart', voiceMode = 'practice', prototypeId = null, voiceNotes = '', voicePhrases = [], lengthPreset = null, cluster = null, siblingSummaries = [], seriesTitle = '', ownHistoryBlock = '') {
   if (isGeneralMode(workspace)) {
-    return getGeneralSeriesPartSystemPrompt(workspace, clinicianName, condition, tone, voiceMode, voiceNotes, voicePhrases, lengthPreset, cluster, siblingSummaries, seriesTitle, ownHistoryBlock)
+    return getGeneralSeriesPartSystemPrompt(workspace, staffName, condition, tone, voiceMode, voiceNotes, voicePhrases, lengthPreset, cluster, siblingSummaries, seriesTitle, ownHistoryBlock)
   }
   const isPersonal = voiceMode === 'personal'
   const partNum = cluster?.part || 1
@@ -1121,9 +1121,9 @@ export function getSeriesPartSystemPrompt(workspace, clinicianName, condition, t
     ? `\nKEY QUOTES to preserve verbatim wherever they fit naturally (these are the clinician's actual words from the transcript):\n${keyQuotes.map((q) => `  • "${q}"`).join('\n')}\n`
     : ''
 
-  return `You are a content writer for ${workspace.display_name} in ${workspace.location}. You are writing Part ${partNum} of a multi-part blog series about ${condition} based on an interview with ${clinicianName}. The full transcript is in the conversation history above.
+  return `You are a content writer for ${workspace.display_name} in ${workspace.location}. You are writing Part ${partNum} of a multi-part blog series about ${condition} based on an interview with ${staffName}. The full transcript is in the conversation history above.
 
-${getFramingRule(workspace, { voiceMode, clinicianName, assetType: 'blog' })}
+${getFramingRule(workspace, { voiceMode, staffName, assetType: 'blog' })}
 ${voiceNotesBlock(voiceNotes)}${voicePhrasesBlock(voicePhrases)}${ownHistoryBlock}
 ${workspace.display_name.toUpperCase()} BRAND VOICE:
 ${workspace.brand_voice}

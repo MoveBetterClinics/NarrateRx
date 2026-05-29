@@ -91,7 +91,7 @@ async function authByCaptureToken(token) {
   if (!token || !token.startsWith('cct_')) return null
 
   const r = await sb(
-    `clinicians?capture_upload_token=eq.${encodeURIComponent(token)}` +
+    `staff?capture_upload_token=eq.${encodeURIComponent(token)}` +
       `&select=id,workspace_id,name,user_id,permission_tier,staff_type,capture_upload_token_expires_at`,
   )
   if (!r.ok) return null
@@ -197,7 +197,7 @@ export default async function handler(req, res) {
     method: 'POST',
     body: JSON.stringify({
       workspace_id: auth.workspace.id,
-      clinician_id: auth.clinician.id,
+      staff_id: auth.clinician.id,
       kind,
       status: 'raw',
       source: 'capture_companion',
@@ -222,7 +222,7 @@ export default async function handler(req, res) {
 
   // --- Update token last-used (best effort) ---
   waitUntil(
-    sb(`clinicians?id=eq.${auth.clinician.id}`, {
+    sb(`staff?id=eq.${auth.clinician.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ capture_upload_token_last_used_at: new Date().toISOString() }),
     }).catch(() => {}),

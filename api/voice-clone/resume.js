@@ -6,7 +6,7 @@
 // upstream 5xx). Skips the upload — calls the shared clone+persist core
 // against the existing blob.
 //
-// Body: { clinicianId: string, sampleUrl: string }
+// Body: { staffId: string, sampleUrl: string }
 // Response (success): { voiceId, sampleUrl }
 // Response (failure): same shape as /create — includes sampleUrl so the
 //   client can keep the stash and let the user retry.
@@ -48,8 +48,8 @@ export default async function handler(req, res) {
 
   if (!(await enforceLimit(req, res, 'media'))) return
 
-  const { clinicianId, sampleUrl } = req.body || {}
-  if (!clinicianId) return res.status(400).json({ error: 'clinicianId required' })
+  const { staffId, sampleUrl } = req.body || {}
+  if (!staffId) return res.status(400).json({ error: 'staffId required' })
   if (!sampleUrl || typeof sampleUrl !== 'string') {
     return res.status(400).json({ error: 'sampleUrl required' })
   }
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
   // Guard: the URL must be in our blob storage AND under the expected
   // voice-clone-samples/<workspace-slug>/<clinician-id>- prefix. This stops
   // a caller from cloning arbitrary URLs at our ElevenLabs expense.
-  const expectedPrefix = `voice-clone-samples/${ws.slug}/${clinicianId}-`
+  const expectedPrefix = `voice-clone-samples/${ws.slug}/${staffId}-`
   const looksOk = /^https:\/\/[^/]+\.public\.blob\.vercel-storage\.com\//.test(sampleUrl)
     && sampleUrl.includes(expectedPrefix)
   if (!looksOk) {
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
   }
 
   const clinicianRes = await sb(
-    `clinicians?id=eq.${encodeURIComponent(clinicianId)}` +
+    `staff?id=eq.${encodeURIComponent(staffId)}` +
     `&workspace_id=eq.${ws.id}` +
     `&select=id,name,eleven_voice_id,voice_clone_revoked_at&limit=1`
   )

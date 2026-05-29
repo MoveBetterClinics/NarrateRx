@@ -36,13 +36,13 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-const SELECT_COLS = 'id,workspace_id,clinician_id,owner_id,messages,session_state,status,synthesis_result,completed_at,synthesized_at,created_at,updated_at'
+const SELECT_COLS = 'id,workspace_id,staff_id,owner_id,messages,session_state,status,synthesis_result,completed_at,synthesized_at,created_at,updated_at'
 
 // Look up the founder's Self-clinician row by Clerk user_id; create one if
-// missing. Returns { clinicianId } or { error, status } on failure.
+// missing. Returns { staffId } or { error, status } on failure.
 async function findOrCreateFounderClinician(ws, userId, fallbackName) {
   const lookup = await sb(
-    `clinicians?workspace_id=eq.${ws.id}&user_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`
+    `staff?workspace_id=eq.${ws.id}&user_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`
   )
   if (!lookup.ok) {
     const body = await lookup.text().catch(() => '')
@@ -50,11 +50,11 @@ async function findOrCreateFounderClinician(ws, userId, fallbackName) {
     return { error: 'Founder lookup failed', status: 500 }
   }
   const rows = await lookup.json()
-  if (rows[0]?.id) return { clinicianId: rows[0].id }
+  if (rows[0]?.id) return { staffId: rows[0].id }
 
   // No clinician row yet. Create a Self-clinician keyed to this Clerk user.
   const name = (fallbackName || '').trim() || 'Founder'
-  const create = await sb('clinicians', {
+  const create = await sb('staff', {
     method: 'POST',
     body: JSON.stringify({
       workspace_id: ws.id,
@@ -68,7 +68,7 @@ async function findOrCreateFounderClinician(ws, userId, fallbackName) {
     return { error: 'Founder create failed', status: 500 }
   }
   const created = await create.json()
-  return { clinicianId: created[0]?.id }
+  return { staffId: created[0]?.id }
 }
 
 export default async function handler(req, res) {
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
-        clinician_id: found.clinicianId || null,
+        staff_id: found.staffId || null,
         owner_id: auth.userId,
         messages: [],
         status: 'in_progress',

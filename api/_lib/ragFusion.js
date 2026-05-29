@@ -23,7 +23,7 @@ const MAX_MERGED_CHUNKS = 18
  * Fetch fused RAG context for a topic + clinician scope.
  *
  * Flow:
- *   1. searchPracticeMemory per clinicianId in parallel → merge, dedupe, sort
+ *   1. searchPracticeMemory per staffId in parallel → merge, dedupe, sort
  *   2. composeVisualQuery (Haiku) → expanded query string using practice framing
  *   3. searchClips with expanded query → visual chunks
  *
@@ -33,7 +33,7 @@ const MAX_MERGED_CHUNKS = 18
  * @param {object} args
  * @param {string}   args.topic
  * @param {string}   args.workspaceId
- * @param {string[]} args.clinicianIds     — array; pass [clinicianId] for single-clinician
+ * @param {string[]} args.staffIds     — array; pass [staffId] for single-clinician
  * @param {number}   [args.practiceK=6]   — chunks per clinician
  * @param {number}   [args.visualK=8]     — visual clips to retrieve
  * @param {string}   [args.visualKind]    — 'photo' | 'video' | null
@@ -51,7 +51,7 @@ const MAX_MERGED_CHUNKS = 18
 export async function fetchFusedRagContext({
   topic,
   workspaceId,
-  clinicianIds = [],
+  staffIds = [],
   practiceK = 6,
   visualK = 8,
   visualKind = null,
@@ -67,14 +67,14 @@ export async function fetchFusedRagContext({
   let practiceMs = 0
   try {
     const tp0 = Date.now()
-    const perClinician = clinicianIds.length > 0
-      ? clinicianIds.map((cid) => searchPracticeMemory({
+    const perClinician = staffIds.length > 0
+      ? staffIds.map((cid) => searchPracticeMemory({
           workspaceId,
-          clinicianId: cid,
+          staffId: cid,
           query: topic,
           topK: practiceK,
         }))
-      : [searchPracticeMemory({ workspaceId, clinicianId: null, query: topic, topK: practiceK })]
+      : [searchPracticeMemory({ workspaceId, staffId: null, query: topic, topK: practiceK })]
 
     const results = await Promise.all(perClinician)
     practiceMs = Date.now() - tp0

@@ -18,7 +18,7 @@ import AssetsPane from '@/components/story-detail/AssetsPane'
 import TranscriptExport from '@/components/story-detail/TranscriptExport'
 import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
-import { ClinicianChip } from '@/components/ClinicianChip'
+import { StaffChip } from '@/components/StaffChip'
 import ReferencesPanel from '@/components/ReferencesPanel'
 import ExcludeFromBookToggle from '@/components/book/ExcludeFromBookToggle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -298,24 +298,24 @@ export default function StoryDetail() {
                 {stageMeta.label}
               </Badge>
             </div>
-            {story.clinician_name && (
-              story.clinician_id ? (
+            {story.staff_name && (
+              story.staff_id ? (
                 <Link
-                  to={`/clinician/${story.clinician_id}`}
+                  to={`/staff/${story.staff_id}`}
                   className="inline-flex text-muted-foreground hover:text-foreground"
                 >
-                  <ClinicianChip
-                    id={story.clinician_id}
-                    name={story.clinician_name}
+                  <StaffChip
+                    id={story.staff_id}
+                    name={story.staff_name}
                     size="md"
                     showName
                     nameClassName="text-sm"
                   />
                 </Link>
               ) : (
-                <ClinicianChip
-                  id={story.clinician_id}
-                  name={story.clinician_name}
+                <StaffChip
+                  id={story.staff_id}
+                  name={story.staff_name}
                   size="md"
                   showName
                   nameClassName="text-sm text-muted-foreground"

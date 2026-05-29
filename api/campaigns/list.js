@@ -1,5 +1,5 @@
 // List campaigns for the current workspace. Returns the campaign rows plus
-// a contributed_count + contributed_clinician_ids derived from interviews
+// a contributed_count + contributed_staff_ids derived from interviews
 // tagged with this campaign_id where the interviewer actually fired (i.e.
 // messages length > 0). This is the data the Stories campaign progress strip
 // renders ("4 of 8 clinicians have contributed").
@@ -35,7 +35,7 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
 }
 
 const CAMPAIGN_FIELDS = [
-  'id', 'name', 'description', 'status', 'target_clinician_ids',
+  'id', 'name', 'description', 'status', 'target_staff_ids',
   // Phase 4 Tentpole PR A — multi-campaign fields.
   'start_at', 'end_at', 'event_at', 'theme_notes', 'content_style',
   'cta_url', 'cta_label', 'cta_pitch',
@@ -71,16 +71,16 @@ export default async function handler(req, res) {
   const ivR = await sb(
     `interviews?workspace_id=eq.${ws.id}` +
       `&campaign_id=in.(${ids.map(encodeURIComponent).join(',')})` +
-      `&select=campaign_id,clinician_id,messages` +
+      `&select=campaign_id,staff_id,messages` +
       `&messages=neq.[]`,
   )
   if (!ivR.ok) return dbErr(res, ivR)
   const interviews = await ivR.json()
 
-  // 3. Roll up distinct clinician_ids per campaign.
-  const contribByCampaign = new Map() // campaign_id → Set<clinician_id>
+  // 3. Roll up distinct staff_ids per campaign.
+  const contribByCampaign = new Map() // campaign_id → Set<staff_id>
   for (const iv of interviews) {
-    if (!iv?.campaign_id || !iv?.clinician_id) continue
+    if (!iv?.campaign_id || !iv?.staff_id) continue
     // Defense in depth: even though messages=neq.[] filters above, double-check
     // the array isn't empty in case the JSONB filter ever shifts shape.
     if (Array.isArray(iv.messages) && iv.messages.length === 0) continue
@@ -89,14 +89,14 @@ export default async function handler(req, res) {
       set = new Set()
       contribByCampaign.set(iv.campaign_id, set)
     }
-    set.add(iv.clinician_id)
+    set.add(iv.staff_id)
   }
 
   const out = campaigns.map((c) => {
     const set = contribByCampaign.get(c.id) || new Set()
     return {
       ...c,
-      contributed_clinician_ids: [...set],
+      contributed_staff_ids: [...set],
       contributed_count: set.size,
     }
   })

@@ -95,12 +95,12 @@ function runFfmpeg(args) {
  * @param {string} params.channel       — key in VIDEO_CHANNEL_SPECS
  * @param {string} params.captionText   — text shown in the caption band (optional marketing headline)
  * @param {Object} params.workspace     — workspace row (display_name, colors)
- * @param {string} params.clinicianName — display name for lower-third
+ * @param {string} params.staffName — display name for lower-third
  * @param {number} [params.startSec]    — clip start offset in the source (multi-clip v1). Default 0.
  * @param {number} [params.durationSec] — clip length in seconds; clamped to MAX_RENDER_SECONDS. Default MAX_RENDER_SECONDS.
  * @returns {Promise<{buffer: Buffer, width: number, height: number, channel: string, hadSubtitles: boolean}>}
  */
-export async function renderVideoChannel({ videoUrl, channel, captionText, workspace, clinicianName, startSec, durationSec }) {
+export async function renderVideoChannel({ videoUrl, channel, captionText, workspace, staffName, startSec, durationSec }) {
   const spec = VIDEO_CHANNEL_SPECS[channel]
   if (!spec) throw new Error(`Unknown video channel: ${channel}`)
 
@@ -226,7 +226,7 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
       height:        spec.height,
       captionPos:    spec.captionPos,
       captionText:   captionText || '',
-      clinicianName: clinicianName || '',
+      staffName: staffName || '',
       workspaceName: workspace?.display_name || '',
       primaryColor,
       accentColor,

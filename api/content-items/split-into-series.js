@@ -169,7 +169,7 @@ export default async function handler(req, res) {
   // Load the source interview.
   const ivRes = await sb(
     `interviews?id=eq.${item.interview_id}&${wsFilter}` +
-    `&select=id,clinician_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,outputs,audience,story_type`,
+    `&select=id,staff_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,outputs,audience,story_type`,
   )
   if (!ivRes.ok) return dbErr(res, ivRes)
   const ivRows = await ivRes.json()
@@ -182,21 +182,21 @@ export default async function handler(req, res) {
   }
 
   // Clinician name + voice context (mirrors regenerate.js).
-  let clinicianName = ''
+  let staffName = ''
   let voiceNotes = ''
   let voicePhrases = []
   let clinicianPreferredLength = null
-  if (interview.clinician_id) {
+  if (interview.staff_id) {
     const [clinRes, phrasesRes] = await Promise.all([
-      sb(`clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name,voice_notes,preferred_length`),
+      sb(`staff?id=eq.${interview.staff_id}&${wsFilter}&select=name,voice_notes,preferred_length`),
       sb(
-        `clinician_voice_phrases?clinician_id=eq.${interview.clinician_id}&${wsFilter}` +
+        `staff_voice_phrases?staff_id=eq.${interview.staff_id}&${wsFilter}` +
         `&select=phrase&order=weight.desc,last_seen_at.desc&limit=8`,
       ),
     ])
     if (clinRes.ok) {
       const rows = await clinRes.json()
-      clinicianName            = rows[0]?.name ?? ''
+      staffName            = rows[0]?.name ?? ''
       voiceNotes               = rows[0]?.voice_notes ?? ''
       clinicianPreferredLength = rows[0]?.preferred_length ?? null
     }
@@ -223,10 +223,10 @@ export default async function handler(req, res) {
 
   // Phase 5 Feature 2 — clinician's prior thinking, fetched once and reused
   // across every series-part call below.
-  const ownHistoryBlock = interview.clinician_id
+  const ownHistoryBlock = interview.staff_id
     ? await resolveOwnHistoryBlock({
         workspaceId:        ws.id,
-        clinicianId:        interview.clinician_id,
+        staffId:        interview.staff_id,
         excludeInterviewId: interview.id,
         query:              buildRagQuery(interview),
       })
@@ -260,7 +260,7 @@ export default async function handler(req, res) {
     // ── PASS 1: cluster the transcript into N threads ─────────────────────
     const clusterSystem = getSeriesClusterSystemPrompt(
       overlaidWorkspace,
-      clinicianName,
+      staffName,
       interview.topic,
       partCount,
       interview.voice_mode || 'practice',
@@ -311,7 +311,7 @@ export default async function handler(req, res) {
 
       const partSystem = getSeriesPartSystemPrompt(
         overlaidWorkspace,
-        clinicianName,
+        staffName,
         interview.topic,
         interview.tone || 'smart',
         interview.voice_mode || 'practice',
@@ -355,8 +355,8 @@ export default async function handler(req, res) {
     const newRows = writtenParts.map(({ cluster, content }) => ({
       workspace_id:        ws.id,
       interview_id:        interview.id,
-      clinician_id:        item.clinician_id,
-      clinician_name:      item.clinician_name,
+      staff_id:        item.staff_id,
+      staff_name:      item.staff_name,
       topic:               item.topic,
       platform:            'blog',
       content,

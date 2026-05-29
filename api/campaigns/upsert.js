@@ -1,7 +1,7 @@
 // Create or update a campaign. Admin-only.
 //
 // POST body: {
-//   id?, name, description?, status?, target_clinician_ids,
+//   id?, name, description?, status?, target_staff_ids,
 //   // Phase 4 Tentpole PR A — time-windowed multi-campaign fields:
 //   start_at?, end_at?, event_at?,            // ISO timestamps; null = no constraint
 //   theme_notes?,                              // freeform what-this-is-about
@@ -99,11 +99,11 @@ export default async function handler(req, res) {
   const description = body.description ? String(body.description) : null
   const status = ALLOWED_STATUS.has(body.status) ? body.status : 'active'
 
-  const rawTargets = Array.isArray(body.target_clinician_ids) ? body.target_clinician_ids : []
+  const rawTargets = Array.isArray(body.target_staff_ids) ? body.target_staff_ids : []
   // Force every element to a string; reject anything obviously non-uuidish so the
   // PostgREST insert doesn't fail with a cryptic 22P02. Keeps the public error
   // response tidy ("invalid clinician id") instead of "Database error".
-  const target_clinician_ids = rawTargets
+  const target_staff_ids = rawTargets
     .map((v) => (v == null ? '' : String(v)))
     .filter((v) => /^[0-9a-f-]{8,}$/i.test(v))
 
@@ -151,7 +151,7 @@ export default async function handler(req, res) {
 
   if (id) {
     // UPDATE — scoped to this workspace so a stale id can't cross-tenant write.
-    const patch = { name, description, status, target_clinician_ids }
+    const patch = { name, description, status, target_staff_ids }
     applyMulti(patch)
     const r = await sb(
       `campaigns?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${ws.id}`,
@@ -171,7 +171,7 @@ export default async function handler(req, res) {
     name,
     description,
     status,
-    target_clinician_ids,
+    target_staff_ids,
     created_by: auth.userId || null,
   }
   applyMulti(row)

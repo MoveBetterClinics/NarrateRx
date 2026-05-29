@@ -194,7 +194,7 @@ export async function startResumableUpload(file, meta, { abortSignal, onProgress
         parentId: meta.parentId || null,
         contentPieceId: meta.contentPieceId || null,
         collectionId: meta.collectionId || null,
-        clinicianId: meta.clinicianId || null,
+        staffId: meta.staffId || null,
       },
     }),
   })

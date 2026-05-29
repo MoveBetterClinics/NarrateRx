@@ -33,7 +33,7 @@ async function sb(path, init = {}) {
  * @param {number} [params.k=8]           — max clips to return (capped at 50)
  * @param {string} [params.kind]          — 'photo' | 'video' | null (= any)
  * @param {number} [params.minScore=0.5]  — cosine similarity threshold
- * @param {string} [params.clinicianId]   — optional clinician-scoped search
+ * @param {string} [params.staffId]   — optional clinician-scoped search
  *
  * @returns {Promise<Array>} shaped clip objects (camelCase)
  * @throws on embed failure or RPC failure
@@ -44,7 +44,7 @@ export async function searchClips({
   k = 8,
   kind = null,
   minScore = 0.5,
-  clinicianId = null,
+  staffId = null,
 }) {
   // Embed the query text
   const [queryEmbedding] = await embedTexts([query])
@@ -61,7 +61,7 @@ export async function searchClips({
       filter_workspace_id: workspaceId,
       filter_kind: kind || null,
       filter_min_score: minScore,
-      filter_clinician_id: clinicianId || null,
+      filter_staff_id: staffId || null,
     }),
   })
 
@@ -88,6 +88,6 @@ export async function searchClips({
     audioQuality:    r.audio_quality,
     videoQuality:    r.video_quality,
     storyRole:       r.story_role,
-    clinicianId:     r.clinician_id,
+    staffId:     r.staff_id,
   }))
 }

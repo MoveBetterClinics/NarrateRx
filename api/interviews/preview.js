@@ -1,4 +1,4 @@
-// POST /api/interviews/preview  { tone, prototypeId?, clinicianName? }
+// POST /api/interviews/preview  { tone, prototypeId?, staffName? }
 //
 // Generates a single sample Bernard opening question using the workspace's
 // current voice config. Used by the Voice Settings "hear Bernard" preview
@@ -25,7 +25,7 @@ export default async function handler(req, res) {
     return res.status(status).json({ error: auth.reason })
   }
 
-  const { tone = 'smart', prototypeId = null, clinicianName = 'your clinician' } = req.body || {}
+  const { tone = 'smart', prototypeId = null, staffName = 'your clinician' } = req.body || {}
 
   const tones = getTonesForWorkspace(ws)
   const toneObj = tones.find(t => t.id === tone) ?? tones[0]
@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     proto ? `Archetype in focus: ${proto.label} — ${proto.coreDesire || ''}` : '',
   ].filter(Boolean).join('\n\n')
 
-  const userPrompt = `Write ONE warm, natural opening question you'd ask ${clinicianName} at the start of a new interview. Sound like a curious colleague over coffee, not a survey. One sentence only — the opening question itself, nothing else.`
+  const userPrompt = `Write ONE warm, natural opening question you'd ask ${staffName} at the start of a new interview. Sound like a curious colleague over coffee, not a survey. One sentence only — the opening question itself, nothing else.`
 
   const { text } = await generateText({
     model: 'anthropic/claude-haiku-4-5-20251001',

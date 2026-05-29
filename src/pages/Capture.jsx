@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
 import { uploadMedia } from '@/lib/mediaLib'
-import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
+import { useSelfStaffId } from '@/lib/useSelfStaffId'
 import ShotListCard from '@/components/capture/ShotListCard'
 
 // Universal capture page — PWA. Works on any device with a browser:
@@ -41,7 +41,7 @@ function purposeForFile(file) {
 
 export default function Capture() {
   useDocumentTitle('Capture')
-  const clinicianId = useSelfClinicianId()
+  const staffId = useSelfStaffId()
 
   const cameraInputRef = useRef(null)
   const filePickerRef = useRef(null)
@@ -140,7 +140,7 @@ export default function Capture() {
       try {
         const p = pendingFiles[i]
         const blob = await uploadMedia(p.file, {
-          clinicianId: clinicianId || null,
+          staffId: staffId || null,
           notes: sharedCaption || null,
           assetPurpose: purposeForFile(p.file),
           capturedAt: new Date().toISOString(),

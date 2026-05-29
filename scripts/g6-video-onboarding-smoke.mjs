@@ -118,7 +118,7 @@ try {
 // Probe clinicians.user_id
 {
   const probe = await fetch(
-    `${SUPABASE_URL}/rest/v1/clinicians?select=user_id&limit=1`,
+    `${SUPABASE_URL}/rest/v1/staff?select=user_id&limit=1`,
     { headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` } }
   )
   assert(
@@ -217,7 +217,7 @@ assert(
 
 assert(
   'claim.js seeds clinicians row after workspace insert',
-  claimSrc && /sb\('clinicians'.*method.*POST/s.test(claimSrc),
+  claimSrc && /sb\('staff'.*method.*POST/s.test(claimSrc),
   claimSrc ? '' : '→ clinician seed call not found in claim.js'
 )
 

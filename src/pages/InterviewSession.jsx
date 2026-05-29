@@ -136,7 +136,7 @@ function detectAndStripStopPhrase(transcript) {
 
 export default function InterviewSession() {
   useDocumentTitle('Interview')
-  const { clinicianId, interviewId } = useParams()
+  const { staffId, interviewId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   // wrap=1 is set by PhoneCall (Live Interview) when the user clicks End.
@@ -174,7 +174,7 @@ export default function InterviewSession() {
   // user navigates here from the clinician profile (already warm) or
   // returns to a previously-loaded interview within the gcTime window.
   const qc = useQueryClient()
-  const { data: clinicianData } = useClinician(clinicianId)
+  const { data: clinicianData } = useClinician(staffId)
   const { data: interviewData, isLoading: interviewLoading } = useInterview(interviewId)
   const clinician = clinicianData ?? null
   const [interview, setInterview] = useState(null)
@@ -304,7 +304,7 @@ export default function InterviewSession() {
         // re-fetches on next render rather than staying frozen.
         if (updated?.id) qc.setQueryData(queryKeys.interviews.detail(updated.id), updated)
         qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
-        qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
+        qc.invalidateQueries({ queryKey: queryKeys.staff.all })
         setSaveStatus('saved')
         setTimeout(() => setSaveStatus(''), 2000)
       })
@@ -483,7 +483,7 @@ export default function InterviewSession() {
 
     // Fetch learned practice knowledge for this topic — injected into every
     // system prompt for this session. Fails silently (empty block = graceful noop).
-    const clinicianParam = clinicianId ? `&clinician_id=${encodeURIComponent(clinicianId)}` : ''
+    const clinicianParam = staffId ? `&staff_id=${encodeURIComponent(staffId)}` : ''
     apiFetch(`/api/concepts/context?topic=${encodeURIComponent(interviewData.topic || '')}${clinicianParam}`)
       .then((data) => {
         const { block, agreementBlock, gapBlock } = /** @type {{ block?: string, agreementBlock?: string, gapBlock?: string }} */ (data || {})
@@ -503,13 +503,13 @@ export default function InterviewSession() {
     // Falls back silently when there's no signal. A later PR replaces the
     // recency-based pick with embedding-based RAG.
     Promise.all([
-      fetchClinician(clinicianId).catch(() => null),
-      fetchClinicianRecentContent(clinicianId, 3).catch(() => []),
+      fetchClinician(staffId).catch(() => null),
+      fetchClinicianRecentContent(staffId, 3).catch(() => []),
     ])
       .then(([clinicianRow, recentContent]) => {
         const priorInterviews = pickPriorInterviews(clinicianRow?.interviews || [], interviewId)
         ownHistoryBlockRef.current = buildOwnHistoryBlock({
-          clinicianName: clinicianRow?.name || 'this clinician',
+          staffName: clinicianRow?.name || 'this clinician',
           priorInterviews,
           priorContent: Array.isArray(recentContent) ? recentContent : [],
         })
@@ -519,7 +519,7 @@ export default function InterviewSession() {
     // mid-session (the auth-gated route remounts on user change). Listing
     // them would re-fire this seeding effect and clobber in-progress state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviewLoading, interviewData, interviewId, navigate, clinicianId])
+  }, [interviewLoading, interviewData, interviewId, navigate, staffId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -1124,7 +1124,7 @@ export default function InterviewSession() {
       let voicePhrases = []
       try {
         const vp = await apiFetch(
-          `/api/clinicians/voice-phrases?clinician_id=${clinician.id}&limit=8`
+          `/api/staff/voice-phrases?staff_id=${clinician.id}&limit=8`
         )
         voicePhrases = Array.isArray(vp?.phrases) ? vp.phrases : []
       } catch (e) {
@@ -1181,7 +1181,7 @@ export default function InterviewSession() {
       // that creates the content_items rows. Flush caches so ContentHub /
       // Calendar pick those up on next read.
       qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
-      qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staff.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
 
       // Fire-and-forget: populate provenance on the new blog content_item.
@@ -1337,7 +1337,7 @@ export default function InterviewSession() {
       <div className="flex flex-col min-w-0 flex-1">
       <div className="flex items-center gap-3 pb-4 shrink-0">
         <Button variant="ghost" size="icon" asChild>
-          <Link to={`/clinician/${clinicianId}`}>
+          <Link to={`/staff/${staffId}`}>
             <ArrowLeft className="h-4 w-4" />
           </Link>
         </Button>
@@ -1470,13 +1470,13 @@ export default function InterviewSession() {
         <ScrollArea className="h-full pr-4 -mr-4">
           <div className="space-y-4 pb-4">
           {displayMessages.map((msg, i) => (
-            <MessageBubble key={i} message={msg} clinicianName={firstNameOnly} />
+            <MessageBubble key={i} message={msg} staffName={firstNameOnly} />
           ))}
 
           {isStreaming && streamingText && (
             <MessageBubble
               message={{ role: 'assistant', content: streamingText }}
-              clinicianName={firstNameOnly}
+              staffName={firstNameOnly}
               isStreaming
             />
           )}
@@ -1844,7 +1844,7 @@ function InstructionCard({ icon, title, body }) {
   )
 }
 
-function MessageBubble({ message, clinicianName, isStreaming }) {
+function MessageBubble({ message, staffName, isStreaming }) {
   const runtimeWs = useWorkspace()
   // Prefer the Brand Kit's favicon / mark-only role (canonical), then any
   // legacy workspace.logo.icon, then the static per-deploy fallback.
@@ -1869,7 +1869,7 @@ function MessageBubble({ message, clinicianName, isStreaming }) {
         </div>
       ) : (
         <div className="h-8 w-8 rounded-full bg-secondary flex items-center justify-center shrink-0 text-xs font-medium">
-          {clinicianName[0]}
+          {staffName[0]}
         </div>
       )}
       <div className="flex flex-col gap-1 max-w-[90%] sm:max-w-[80%]">

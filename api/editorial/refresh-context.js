@@ -53,7 +53,7 @@ export default async function handler(req, res) {
 
   // Fetch the package (workspace-scoped)
   const pkgRes = await sb(
-    `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}&select=id,topic,clinician_id`
+    `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}&select=id,topic,staff_id`
   )
   if (!pkgRes.ok) return res.status(500).json({ error: 'db_error' })
   const pkgRows = await pkgRes.json()
@@ -66,7 +66,7 @@ export default async function handler(req, res) {
     const fused = await fetchFusedRagContext({
       topic: pkg.topic,
       workspaceId: ws.id,
-      clinicianIds: pkg.clinician_id ? [pkg.clinician_id] : [],
+      staffIds: pkg.staff_id ? [pkg.staff_id] : [],
     })
     ragContext = {
       practice_chunks: (fused.practiceChunks || []).map((c) => ({

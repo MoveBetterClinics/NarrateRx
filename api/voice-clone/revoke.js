@@ -8,7 +8,7 @@
 // Keeps voice_clone_sample_url + voice_clone_consent_at intact so a clinician
 // who later re-consents can re-clone from the same sample without re-recording.
 //
-// Body: { clinicianId: string }
+// Body: { staffId: string }
 // Response: { ok: true }
 
 export const config = { runtime: 'nodejs', maxDuration: 60 }
@@ -47,11 +47,11 @@ export default async function handler(req, res) {
 
   if (!(await enforceLimit(req, res, 'media'))) return
 
-  const { clinicianId } = req.body || {}
-  if (!clinicianId) return res.status(400).json({ error: 'clinicianId required' })
+  const { staffId } = req.body || {}
+  if (!staffId) return res.status(400).json({ error: 'staffId required' })
 
   const lookupRes = await sb(
-    `clinicians?id=eq.${encodeURIComponent(clinicianId)}` +
+    `staff?id=eq.${encodeURIComponent(staffId)}` +
     `&workspace_id=eq.${ws.id}` +
     `&select=id,eleven_voice_id&limit=1`
   )
@@ -63,7 +63,7 @@ export default async function handler(req, res) {
     try {
       await deleteVoice(clinician.eleven_voice_id)
     } catch (e) {
-      console.warn(`[voice-clone] delete upstream failed for clinician=${clinicianId}: ${e?.message}`)
+      console.warn(`[voice-clone] delete upstream failed for clinician=${staffId}: ${e?.message}`)
       // Continue to null out locally — keeping a dangling voice_id on our
       // side is worse than leaking an upstream voice that the user can
       // manually delete in the ElevenLabs dashboard.
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
   }
 
   const patchRes = await sb(
-    `clinicians?id=eq.${encodeURIComponent(clinicianId)}&workspace_id=eq.${ws.id}`,
+    `staff?id=eq.${encodeURIComponent(staffId)}&workspace_id=eq.${ws.id}`,
     {
       method: 'PATCH',
       body: JSON.stringify({

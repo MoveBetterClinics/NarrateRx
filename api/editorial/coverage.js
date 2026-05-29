@@ -68,15 +68,15 @@ export default async function handler(req, res) {
 
   // --- Pull clinicians + their assets in one fetch each (small workspaces) ---
   // 1. Workspace clinicians
-  const cliniciansRes = await sb(`clinicians?workspace_id=eq.${ws.id}&select=id,name&order=name.asc`)
-  if (!cliniciansRes.ok) return res.status(500).json({ error: 'db_error_clinicians' })
-  const clinicians = await cliniciansRes.json()
+  const staffRes = await sb(`staff?workspace_id=eq.${ws.id}&select=id,name&order=name.asc`)
+  if (!staffRes.ok) return res.status(500).json({ error: 'db_error_clinicians' })
+  const clinicians = await staffRes.json()
 
-  // 2. Non-archived assets in workspace (id, clinician_id, captured_at, created_at)
+  // 2. Non-archived assets in workspace (id, staff_id, captured_at, created_at)
   // We aggregate client-side rather than PostgREST group-by because the result
   // set is bounded (typically <2000 rows even for active workspaces).
   const assetsRes = await sb(
-    `media_assets?workspace_id=eq.${ws.id}&archived_at=is.null&select=id,clinician_id,captured_at,created_at`
+    `media_assets?workspace_id=eq.${ws.id}&archived_at=is.null&select=id,staff_id,captured_at,created_at`
   )
   if (!assetsRes.ok) return res.status(500).json({ error: 'db_error_assets' })
   const assets = await assetsRes.json()
@@ -92,23 +92,23 @@ export default async function handler(req, res) {
   //    if this read fails we still return coverage with zero winners rather
   //    than 500 the whole dashboard.
   const winnersRes = await sb(
-    `content_items?workspace_id=eq.${ws.id}&status=eq.published&performed_well=eq.true&archived_at=is.null&select=topic,clinician_id`
+    `content_items?workspace_id=eq.${ws.id}&status=eq.published&performed_well=eq.true&archived_at=is.null&select=topic,staff_id`
   )
   const winners = winnersRes.ok ? await winnersRes.json() : []
 
   // --- Per-clinician rollup ---
-  const byClinician = new Map()
-  for (const c of clinicians) byClinician.set(c.id, { id: c.id, name: c.name, asset_count: 0, asset_count_14d: 0, last_capture_at: null, winner_count: 0 })
+  const byStaff = new Map()
+  for (const c of clinicians) byStaff.set(c.id, { id: c.id, name: c.name, asset_count: 0, asset_count_14d: 0, last_capture_at: null, winner_count: 0 })
 
   for (const w of winners) {
-    if (!w.clinician_id) continue
-    const bucket = byClinician.get(w.clinician_id)
+    if (!w.staff_id) continue
+    const bucket = byStaff.get(w.staff_id)
     if (bucket) bucket.winner_count++
   }
 
   for (const a of assets) {
-    if (!a.clinician_id) continue
-    const bucket = byClinician.get(a.clinician_id)
+    if (!a.staff_id) continue
+    const bucket = byStaff.get(a.staff_id)
     if (!bucket) continue  // asset orphaned to a deleted clinician
     bucket.asset_count++
     const when = a.captured_at || a.created_at
@@ -160,7 +160,7 @@ export default async function handler(req, res) {
   })
 
   return res.status(200).json({
-    clinicians: Array.from(byClinician.values()).sort((a, b) => b.asset_count - a.asset_count),
+    clinicians: Array.from(byStaff.values()).sort((a, b) => b.asset_count - a.asset_count),
     topics:     topics.sort((a, b) => {
       // Gaps first (package_count=0), then by priority desc, then by name
       if ((a.package_count === 0) !== (b.package_count === 0)) {

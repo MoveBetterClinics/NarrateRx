@@ -20,8 +20,8 @@
  * name continues to work for them.
  *
  * Tables that point at clinicians.id (must be re-pointed at the winner):
- *   - interviews.clinician_id
- *   - clinician_recipes.clinician_id  (deduped — winner keeps unique-named
+ *   - interviews.staff_id
+ *   - staff_recipes.staff_id  (deduped — winner keeps unique-named
  *     recipes; loser duplicates with the same name are dropped)
  *
  * Usage:
@@ -103,7 +103,7 @@ console.log(DRY_RUN ? 'DRY RUN — no writes\n' : 'LIVE RUN — writing changes\
 // candidate for "same person who created multiple rows in same workspace."
 const { rows: clinicians } = await db.query(`
   select c.id, c.workspace_id, c.name, c.user_id, c.created_by_id, c.created_at,
-         (select count(*) from interviews i where i.clinician_id = c.id) as iv_count
+         (select count(*) from interviews i where i.staff_id = c.id) as iv_count
   from clinicians c
   where c.created_by_id is not null
   order by c.workspace_id, c.created_by_id, iv_count desc, c.created_at asc
@@ -185,24 +185,24 @@ for (const [key, rows] of groups) {
   try {
     for (const loser of losers) {
       // Move interviews
-      await db.query(`update interviews set clinician_id = $1 where clinician_id = $2`, [winner.id, loser.id])
+      await db.query(`update interviews set staff_id = $1 where staff_id = $2`, [winner.id, loser.id])
 
       // Move recipes — but skip duplicates by name. If both winner and
       // loser have a recipe named "Default", keep winner's and drop
       // loser's. Same-name recipes are the only realistic collision case.
-      const { rows: loserRecipes } = await db.query(`select id, name from clinician_recipes where clinician_id = $1`, [loser.id])
-      const { rows: winnerRecipes } = await db.query(`select name from clinician_recipes where clinician_id = $1`, [winner.id])
+      const { rows: loserRecipes } = await db.query(`select id, name from staff_recipes where staff_id = $1`, [loser.id])
+      const { rows: winnerRecipes } = await db.query(`select name from staff_recipes where staff_id = $1`, [winner.id])
       const winnerNames = new Set(winnerRecipes.map((r) => r.name.toLowerCase()))
       for (const lr of loserRecipes) {
         if (winnerNames.has(lr.name.toLowerCase())) {
-          await db.query(`delete from clinician_recipes where id = $1`, [lr.id])
+          await db.query(`delete from staff_recipes where id = $1`, [lr.id])
         } else {
-          await db.query(`update clinician_recipes set clinician_id = $1 where id = $2`, [winner.id, lr.id])
+          await db.query(`update staff_recipes set staff_id = $1 where id = $2`, [winner.id, lr.id])
         }
       }
 
       // Move any other clinician-pointing rows. None exist today besides
-      // interviews + clinician_recipes, but a generic FK-discovery would
+      // interviews + staff_recipes, but a generic FK-discovery would
       // catch future additions. For now, keep it explicit.
 
       // Delete the loser row

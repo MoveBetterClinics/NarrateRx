@@ -37,11 +37,11 @@ async function sb(path, init = {}) {
  * Compose the text that gets embedded for a media_asset.
  * Keep this stable — changing the composition invalidates existing embeddings.
  */
-function composeEmbeddingText(asset, clinicianName = '') {
+function composeEmbeddingText(asset, staffName = '') {
   const lines = []
   const kind = asset.kind || 'media'
   const filename = asset.filename || asset.blob_pathname || '(unnamed)'
-  lines.push(`[capture] ${filename} (kind=${kind}${clinicianName ? `, captured by ${clinicianName}` : ''})`)
+  lines.push(`[capture] ${filename} (kind=${kind}${staffName ? `, captured by ${staffName}` : ''})`)
 
   if (asset.visual_narrative) {
     lines.push(`Visual: ${asset.visual_narrative}`)
@@ -68,10 +68,10 @@ function composeEmbeddingText(asset, clinicianName = '') {
 /**
  * Best-effort fetch of clinician display name for richer embedding context.
  */
-async function getClinicianName(clinicianId) {
-  if (!clinicianId) return ''
+async function getClinicianName(staffId) {
+  if (!staffId) return ''
   try {
-    const r = await sb(`clinicians?id=eq.${clinicianId}&select=name`)
+    const r = await sb(`staff?id=eq.${staffId}&select=name`)
     if (!r.ok) return ''
     const rows = await r.json()
     return rows?.[0]?.name || ''
@@ -92,7 +92,7 @@ export async function indexMediaAsset({ assetId }) {
 
   // 1. Fetch the media_asset row.
   const assetRes = await sb(
-    `media_assets?id=eq.${assetId}&select=id,workspace_id,clinician_id,kind,filename,blob_pathname,ai_tags,visual_narrative,alt_text,notes,condition,source,captured_at`,
+    `media_assets?id=eq.${assetId}&select=id,workspace_id,staff_id,kind,filename,blob_pathname,ai_tags,visual_narrative,alt_text,notes,condition,source,captured_at`,
   )
   if (!assetRes.ok) {
     return { ok: false, reason: `fetch_asset_failed_${assetRes.status}` }
@@ -102,8 +102,8 @@ export async function indexMediaAsset({ assetId }) {
   if (!asset) return { ok: false, reason: 'asset_not_found' }
 
   // 2. Compose embedding text. If too sparse, defer.
-  const clinicianName = await getClinicianName(asset.clinician_id)
-  const text = composeEmbeddingText(asset, clinicianName)
+  const staffName = await getClinicianName(asset.staff_id)
+  const text = composeEmbeddingText(asset, staffName)
   if (!text || text.length < 16) {
     return { ok: false, reason: 'text_too_sparse' }
   }
@@ -137,7 +137,7 @@ export async function indexMediaAsset({ assetId }) {
     method: 'POST',
     body: JSON.stringify({
       workspace_id: asset.workspace_id,
-      clinician_id: asset.clinician_id,
+      staff_id: asset.staff_id,
       source_type: 'media_asset',
       source_id: assetId,
       source_blob_url: asset.blob_pathname || null,

@@ -89,8 +89,8 @@ export default function TranscriptHighlighter({ story, children }) {
     try {
       await createContentItems({
         interviewId:   story.id,
-        clinicianId:   story.clinician_id,
-        clinicianName: story.clinician_name,
+        staffId:   story.staff_id,
+        staffName: story.staff_name,
         topic:         story.topic,
         platform,
         content,

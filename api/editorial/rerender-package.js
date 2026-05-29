@@ -67,7 +67,7 @@ export default async function handler(req, res) {
   // --- Load package ---
   const pkgRes = await sb(
     `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}` +
-    `&select=id,clinician_id,source_asset_id,topic,caption_text,channels,renders,status`
+    `&select=id,staff_id,source_asset_id,topic,caption_text,channels,renders,status`
   )
   if (!pkgRes.ok) return res.status(500).json({ error: 'db_error' })
   const pkgs = await pkgRes.json()
@@ -96,12 +96,12 @@ export default async function handler(req, res) {
   }
 
   // --- Load clinician name ---
-  let clinicianName = ''
-  if (pkg.clinician_id) {
-    const cRes = await sb(`clinicians?id=eq.${pkg.clinician_id}&workspace_id=eq.${ws.id}&select=name`)
+  let staffName = ''
+  if (pkg.staff_id) {
+    const cRes = await sb(`staff?id=eq.${pkg.staff_id}&workspace_id=eq.${ws.id}&select=name`)
     if (cRes.ok) {
       const cRows = await cRes.json()
-      clinicianName = cRows?.[0]?.name || ''
+      staffName = cRows?.[0]?.name || ''
     }
   }
 
@@ -143,10 +143,10 @@ export default async function handler(req, res) {
       kind:          isVideo ? 'video' : 'photo',
       channels,
       captionText:   newCaption,
-      clinicianName,
+      staffName,
       filename:      asset.filename,
       topic:         pkg.topic,
-      clinicianId:   pkg.clinician_id || null,
+      staffId:   pkg.staff_id || null,
     })
   )
 

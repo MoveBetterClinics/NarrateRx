@@ -69,7 +69,7 @@ export default async function handler(req, res) {
   let voiceId = process.env.TTS_DEFAULT_VOICE_ID || DEFAULT_VOICE_ID
   try {
     const clRes = await sb(
-      `clinicians?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}` +
+      `staff?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}` +
       `&select=id,eleven_voice_id&limit=1`,
     )
     if (clRes.ok) {

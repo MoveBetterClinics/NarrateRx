@@ -76,8 +76,8 @@ async function handler(req, res) {
             collectionId: typeof meta.collectionId === 'string' && meta.collectionId
               ? meta.collectionId
               : null,
-            clinicianId: typeof meta.clinicianId === 'string' && meta.clinicianId
-              ? meta.clinicianId
+            staffId: typeof meta.staffId === 'string' && meta.staffId
+              ? meta.staffId
               : null,
           }),
         }

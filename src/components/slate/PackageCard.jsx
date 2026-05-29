@@ -144,11 +144,11 @@ function TriageBadge({ reason }) {
 }
 
 /**
- * @param {{ pkg: object, clinicianName?: string, triageReason?: string|null, onApprove: fn, onSkip: fn, onUpdate: fn }}
+ * @param {{ pkg: object, staffName?: string, triageReason?: string|null, onApprove: fn, onSkip: fn, onUpdate: fn }}
  * onUpdate(updatedPkg) — called when caption or renders change so parent can refresh.
  * triageReason — optional badge text shown above the thumbnail (e.g. "Low confidence").
  */
-export default function PackageCard({ pkg, clinicianName, triageReason, onApprove, onSkip, onUpdate }) {
+export default function PackageCard({ pkg, staffName, triageReason, onApprove, onSkip, onUpdate }) {
   const [approving, setApproving]           = useState(false)
   const [editing, setEditing]               = useState(false)
   const [caption, setCaption]               = useState(pkg.caption_text || '')
@@ -400,10 +400,10 @@ export default function PackageCard({ pkg, clinicianName, triageReason, onApprov
           <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
             {pkg.caption_text}
           </p>
-          {(clinicianName || renders.length > 0) && (
+          {(staffName || renders.length > 0) && (
             <p className="text-2xs text-muted-foreground mt-0.5">
-              {clinicianName && <span>{clinicianName}</span>}
-              {clinicianName && renders.length > 0 && <span className="mx-1 opacity-50">·</span>}
+              {staffName && <span>{staffName}</span>}
+              {staffName && renders.length > 0 && <span className="mx-1 opacity-50">·</span>}
               {renders.length > 0 && <span>{renders.length} channel{renders.length !== 1 ? 's' : ''}</span>}
             </p>
           )}

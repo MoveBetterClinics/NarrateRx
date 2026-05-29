@@ -61,8 +61,8 @@ if (winner.created_by_id !== loser.created_by_id) {
   process.exit(1)
 }
 
-const { rows: loserInterviews } = await db.query(`select id, topic, status from interviews where clinician_id = $1`, [LOSER_ID])
-const { rows: loserRecipes }    = await db.query(`select id, name from clinician_recipes where clinician_id = $1`, [LOSER_ID])
+const { rows: loserInterviews } = await db.query(`select id, topic, status from interviews where staff_id = $1`, [LOSER_ID])
+const { rows: loserRecipes }    = await db.query(`select id, name from staff_recipes where staff_id = $1`, [LOSER_ID])
 console.log(`\nLoser has ${loserInterviews.length} interviews and ${loserRecipes.length} recipes that will move to winner.`)
 
 if (DRY_RUN) {
@@ -74,11 +74,11 @@ if (DRY_RUN) {
 await db.query('BEGIN')
 try {
   // Move interviews
-  const moveIv = await db.query(`update interviews set clinician_id = $1 where clinician_id = $2`, [WINNER_ID, LOSER_ID])
+  const moveIv = await db.query(`update interviews set staff_id = $1 where staff_id = $2`, [WINNER_ID, LOSER_ID])
   console.log(`Moved ${moveIv.rowCount} interviews`)
 
   // Move recipes (none expected from loser, but be safe)
-  const moveRc = await db.query(`update clinician_recipes set clinician_id = $1 where clinician_id = $2`, [WINNER_ID, LOSER_ID])
+  const moveRc = await db.query(`update staff_recipes set staff_id = $1 where staff_id = $2`, [WINNER_ID, LOSER_ID])
   console.log(`Moved ${moveRc.rowCount} recipes`)
 
   // Set user_id on the winner (= the shared Clerk created_by_id)

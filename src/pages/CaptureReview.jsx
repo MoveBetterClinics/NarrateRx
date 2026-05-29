@@ -25,17 +25,17 @@ import { toast } from '@/lib/toast'
  * pipeline as InterviewSession. On completion it PATCHes status='completed'
  * (which triggers content_items creation server-side) and routes to Stories.
  *
- * Route: /capture/:clinicianId/:interviewId/review
+ * Route: /capture/:staffId/:interviewId/review
  */
 export default function CaptureReview() {
   useDocumentTitle('Review transcript')
   const navigate = useNavigate()
-  const { clinicianId, interviewId } = useParams()
+  const { staffId, interviewId } = useParams()
   const qc = useQueryClient()
   const ws = useWorkspace()
 
   const { data: interview, isLoading: ivLoading, isError: ivError } = useInterview(interviewId)
-  const { data: clinician, isLoading: clLoading } = useClinician(clinicianId)
+  const { data: clinician, isLoading: clLoading } = useClinician(staffId)
 
   // Editable transcript — seeded from the Whisper output on first load.
   const [transcript, setTranscript] = useState(null) // null = not yet seeded
@@ -75,7 +75,7 @@ export default function CaptureReview() {
         })
 
         qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
-        qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
+        qc.invalidateQueries({ queryKey: queryKeys.staff.all })
         qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
         qc.invalidateQueries({ queryKey: queryKeys.stories?.all ?? ['stories'] })
 
@@ -101,14 +101,14 @@ export default function CaptureReview() {
       try {
         const { apiFetch } = await import('@/lib/api')
         const [vp, clinicianRow, recentContent] = await Promise.all([
-          apiFetch(`/api/clinicians/voice-phrases?clinician_id=${clinicianId}&limit=8`).catch(() => null),
-          fetchClinician(clinicianId).catch(() => null),
-          fetchClinicianRecentContent(clinicianId, 3).catch(() => []),
+          apiFetch(`/api/staff/voice-phrases?staff_id=${staffId}&limit=8`).catch(() => null),
+          fetchClinician(staffId).catch(() => null),
+          fetchClinicianRecentContent(staffId, 3).catch(() => []),
         ])
         voicePhrases = Array.isArray(vp?.phrases) ? vp.phrases : []
         if (clinicianRow) {
           ownHistoryBlock = buildOwnHistoryBlock({
-            clinicianName: clinicianRow.name || 'this clinician',
+            staffName: clinicianRow.name || 'this clinician',
             priorInterviews: pickPriorInterviews(clinicianRow.interviews || [], interviewId),
             priorContent: Array.isArray(recentContent) ? recentContent : [],
           })
@@ -163,7 +163,7 @@ export default function CaptureReview() {
       })
 
       qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
-      qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staff.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories?.all ?? ['stories'] })
 
@@ -180,7 +180,7 @@ export default function CaptureReview() {
       setStreamingText('')
       setError(err?.message || 'Generation failed — please try again.')
     }
-  }, [transcript, clinician, interview, ws, clinicianId, interviewId, isGenerating, isTextImport, navigate, qc])
+  }, [transcript, clinician, interview, ws, staffId, interviewId, isGenerating, isTextImport, navigate, qc])
 
   const loading = ivLoading || clLoading
 

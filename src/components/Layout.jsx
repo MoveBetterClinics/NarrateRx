@@ -2,8 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { UserButton, useAuth, useClerk } from '@clerk/react'
 import { useQuery } from '@tanstack/react-query'
-import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
-import { useEnsureSelfClinician } from '@/lib/useEnsureSelfClinician'
+import { useSelfStaffId } from '@/lib/useSelfStaffId'
+import { useEnsureSelfStaff } from '@/lib/useEnsureSelfStaff'
 import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -54,10 +54,10 @@ export default function Layout({ children }) {
   const { has: hasCapability } = usePermission()
   const [mobileOpen, setMobileOpen] = useState(false)
   const ws = useWorkspace()
-  const selfClinicianId = useSelfClinicianId()
+  const selfStaffId = useSelfStaffId()
   // Provision a Self staff/clinician row on first load for invited talent so
   // "My staff profile" appears without waiting for their first interview.
-  useEnsureSelfClinician()
+  useEnsureSelfStaff()
   const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
   const logoAlt = ws?.display_name || ws?.name || STATIC_WORKSPACE.name
 
@@ -103,7 +103,7 @@ export default function Layout({ children }) {
           </nav>
           {hasCapability(CAP_SETTINGS_VIEW) && (
             <div className="hidden md:flex items-center gap-1">
-              <SettingsMenu role={role} isEditor={isEditor} selfClinicianId={selfClinicianId} />
+              <SettingsMenu role={role} isEditor={isEditor} selfStaffId={selfStaffId} />
             </div>
           )}
 
@@ -176,9 +176,9 @@ export default function Layout({ children }) {
                 </Link>
               </DrawerClose>
             )}
-            {selfClinicianId && hasCapability(CAP_INTERVIEW_START) && (
+            {selfStaffId && hasCapability(CAP_INTERVIEW_START) && (
               <DrawerClose asChild>
-                <Link to={`/clinician/${selfClinicianId}`} className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
+                <Link to={`/staff/${selfStaffId}`} className="flex items-center gap-2 px-3 py-3 rounded-md text-sm text-muted-foreground active:bg-accent/30">
                   <UserCircle className="h-4 w-4" /> My staff profile
                 </Link>
               </DrawerClose>
@@ -329,7 +329,7 @@ function NavLink({ to, label, active, icon: Icon }) {
 // Single "⚙ Tools" dropdown that replaces the 4-icon pile in the desktop
 // header. Closes on outside click or Escape. All admin items are only
 // rendered when role === 'admin'.
-function SettingsMenu({ role, isEditor, selfClinicianId }) {
+function SettingsMenu({ role, isEditor, selfStaffId }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -369,8 +369,8 @@ function SettingsMenu({ role, isEditor, selfClinicianId }) {
             </Link>
           )}
           {role === 'admin' && <div className="border-t border-border my-1" />}
-          {selfClinicianId && (
-            <Link to={`/clinician/${selfClinicianId}`} onClick={() => setOpen(false)} className={itemClass}>
+          {selfStaffId && (
+            <Link to={`/staff/${selfStaffId}`} onClick={() => setOpen(false)} className={itemClass}>
               <UserCircle className="h-4 w-4 shrink-0" /> My staff profile
             </Link>
           )}

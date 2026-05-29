@@ -358,7 +358,7 @@ async function handler(req, res) {
   // 3b. Seed founding clinician row. Fire-and-forget — failure here doesn't block
   // the onboarding flow; the Capture Companion can create the row lazily on first
   // upload. Tied to the Clerk user_id so the capture endpoint can look them up.
-  sb('clinicians', {
+  sb('staff', {
     method: 'POST',
     body: JSON.stringify({
       workspace_id: row.id,

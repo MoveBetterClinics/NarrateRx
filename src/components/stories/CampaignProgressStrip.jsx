@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Target, ChevronDown, ChevronUp } from 'lucide-react'
-import { ClinicianChip } from '@/components/ClinicianChip'
+import { StaffChip } from '@/components/StaffChip'
 
 /**
  * Amber-tinted progress strip shown above the Stories grid when a campaign
@@ -9,12 +9,12 @@ import { ClinicianChip } from '@/components/ClinicianChip'
 export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
   const [showPending, setShowPending] = useState(false)
 
-  const targetIds = Array.isArray(campaign.target_clinician_ids)
-    ? campaign.target_clinician_ids
+  const targetIds = Array.isArray(campaign.target_staff_ids)
+    ? campaign.target_staff_ids
     : []
   const contributedIds = new Set(
-    Array.isArray(campaign.contributed_clinician_ids)
-      ? campaign.contributed_clinician_ids
+    Array.isArray(campaign.contributed_staff_ids)
+      ? campaign.contributed_staff_ids
       : [],
   )
   const targetTotal = targetIds.length
@@ -81,7 +81,7 @@ export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
             <ul className="mt-2 flex flex-wrap gap-2">
               {pendingClinicians.map(({ id, name }) => (
                 <li key={id} className="flex items-center gap-2 bg-white/10 border border-white/15 rounded-full pl-1 pr-3 py-0.5">
-                  <ClinicianChip id={id} name={name} size="sm" showName
+                  <StaffChip id={id} name={name} size="sm" showName
                     nameClassName="text-white/95 text-xs font-medium"
                   />
                 </li>

@@ -185,8 +185,8 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   const [speakerRole, setSpeakerRole] = useState('clinician')
   const [collectionId, setCollectionId] = useState('')
   const [collections, setCollections] = useState([])
-  const [clinicianId, setClinicianId] = useState('')
-  const [clinicians, setClinicians] = useState([])
+  const [staffId, setClinicianId] = useState('')
+  const [clinicians, setStaff] = useState([])
   // Smart-preview tray — files pending upload, with detected duration + any
   // purpose mismatch flags. Cleared after a successful upload kick-off.
   const [pending, setPending] = useState([])
@@ -198,14 +198,14 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   // for interview uploads where the speaker IS the clinician. Admin-staff and
   // patient-guest interviews don't get the picker — the clip isn't "of" a
   // clinician in those cases, so attribution would be misleading.
-  const showClinicianPicker = ((!showSpeakerRole) || speakerRole === 'clinician') && clinicians.length > 0
+  const showStaffPicker = ((!showSpeakerRole) || speakerRole === 'clinician') && clinicians.length > 0
   // Build a continuous 1-N step numbering regardless of which optional
   // sections actually render. Purpose is always step 1; the counter starts
   // at 2 so the next-shown section gets 2. DOM order is: purpose → speaker
   // role → clinician → collection → drop zone.
   let stepCounter = 2
   const stepSpeakerRole = showSpeakerRole ? stepCounter++ : null
-  const stepClinician = showClinicianPicker ? stepCounter++ : null
+  const stepClinician = showStaffPicker ? stepCounter++ : null
   const stepCollection = collections.length > 0 ? stepCounter++ : null
   const stepDrop = stepCounter
 
@@ -216,8 +216,8 @@ export default function MediaUploader({ onUploaded, createdBy }) {
       .then((rows) => { if (!cancelled) setCollections(Array.isArray(rows) ? rows : []) })
       .catch(() => { if (!cancelled) setCollections([]) })
     fetchClinicians()
-      .then((rows) => { if (!cancelled) setClinicians(Array.isArray(rows) ? rows : []) })
-      .catch(() => { if (!cancelled) setClinicians([]) })
+      .then((rows) => { if (!cancelled) setStaff(Array.isArray(rows) ? rows : []) })
+      .catch(() => { if (!cancelled) setStaff([]) })
     return () => { cancelled = true }
   }, [])
 
@@ -269,7 +269,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
       speakerRole: showSpeakerRole ? speakerRole : null,
       // Optional — server verifies workspace scope before linking.
       collectionId: collectionId || null,
-      clinicianId: showClinicianPicker ? clinicianId || null : null,
+      staffId: showStaffPicker ? staffId || null : null,
     })))
 
     if (results.some((r) => r)) onUploaded?.()
@@ -386,7 +386,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           clinician. Hidden for admin-staff and patient-guest interviews where
           clinician attribution would be misleading. Links the asset to a
           specific clinician so Library filters and staff attribution work. */}
-      {showClinicianPicker && (
+      {showStaffPicker && (
         <div className="mb-3 rounded-xl border bg-card p-4">
           <div className="flex items-center gap-2 mb-2.5">
             <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
@@ -409,7 +409,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
               type="button"
               onClick={() => setClinicianId('')}
               className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                !clinicianId
+                !staffId
                   ? 'bg-primary text-white border-primary'
                   : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
               }`}
@@ -420,9 +420,9 @@ export default function MediaUploader({ onUploaded, createdBy }) {
               <button
                 type="button"
                 key={c.id}
-                onClick={() => setClinicianId(c.id === clinicianId ? '' : c.id)}
+                onClick={() => setClinicianId(c.id === staffId ? '' : c.id)}
                 className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                  clinicianId === c.id
+                  staffId === c.id
                     ? 'bg-primary text-white border-primary'
                     : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                 }`}
@@ -537,8 +537,8 @@ export default function MediaUploader({ onUploaded, createdBy }) {
             {collectionId && collections.find((c) => c.id === collectionId)
               ? ` · ${collections.find((c) => c.id === collectionId).name}`
               : ''}
-            {clinicianId && clinicians.find((c) => c.id === clinicianId)
-              ? ` · ${clinicians.find((c) => c.id === clinicianId).name}`
+            {staffId && clinicians.find((c) => c.id === staffId)
+              ? ` · ${clinicians.find((c) => c.id === staffId).name}`
               : ''}.
           </p>
         </div>

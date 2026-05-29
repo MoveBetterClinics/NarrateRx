@@ -54,22 +54,22 @@ function sb(path, init = {}) {
 // over raw turns.
 const INTERVIEW_FIELDS = 'id,topic,status,created_at,messages,summary_text,summary_generated_at'
 
-async function fetchClinicianInterviews(workspaceId, clinicianId) {
-  const qs = `clinicians?id=eq.${clinicianId}&workspace_id=eq.${workspaceId}&select=name,interviews(${INTERVIEW_FIELDS})`
+async function fetchClinicianInterviews(workspaceId, staffId) {
+  const qs = `staff?id=eq.${staffId}&workspace_id=eq.${workspaceId}&select=name,interviews(${INTERVIEW_FIELDS})`
   const r = await sb(qs)
   if (!r.ok) {
-    console.error(`[practiceMemory] clinician fetch ${r.status} ws=${workspaceId} clinician=${clinicianId}`)
+    console.error(`[practiceMemory] clinician fetch ${r.status} ws=${workspaceId} clinician=${staffId}`)
     return null
   }
   const rows = await r.json()
   return rows[0] || null
 }
 
-async function fetchRecentApprovedContent(workspaceId, clinicianId, limit = 3) {
-  const qs = `content_items?workspace_id=eq.${workspaceId}&clinician_id=eq.${clinicianId}&status=in.(approved,published)&archived_at=is.null&select=id,topic,platform,content&order=created_at.desc&limit=${limit}`
+async function fetchRecentApprovedContent(workspaceId, staffId, limit = 3) {
+  const qs = `content_items?workspace_id=eq.${workspaceId}&staff_id=eq.${staffId}&status=in.(approved,published)&archived_at=is.null&select=id,topic,platform,content&order=created_at.desc&limit=${limit}`
   const r = await sb(qs)
   if (!r.ok) {
-    console.error(`[practiceMemory] content fetch ${r.status} ws=${workspaceId} clinician=${clinicianId}`)
+    console.error(`[practiceMemory] content fetch ${r.status} ws=${workspaceId} clinician=${staffId}`)
     return []
   }
   return await r.json()
@@ -88,16 +88,16 @@ async function fetchRecentApprovedContent(workspaceId, clinicianId, limit = 3) {
  *
  * @param {object} args
  * @param {string} args.workspaceId
- * @param {string} args.clinicianId
+ * @param {string} args.staffId
  * @param {string=} args.excludeInterviewId   — current interview, excluded from both tiers
  * @param {string=} args.query                — optional natural-language query (topic + leading turns)
  */
-export async function resolveOwnHistoryBlock({ workspaceId, clinicianId, excludeInterviewId, query }) {
+export async function resolveOwnHistoryBlock({ workspaceId, staffId, excludeInterviewId, query }) {
   try {
-    if (!workspaceId || !clinicianId) return ''
+    if (!workspaceId || !staffId) return ''
     const [clinicianRow, recentContent] = await Promise.all([
-      fetchClinicianInterviews(workspaceId, clinicianId),
-      fetchRecentApprovedContent(workspaceId, clinicianId),
+      fetchClinicianInterviews(workspaceId, staffId),
+      fetchRecentApprovedContent(workspaceId, staffId),
     ])
     if (!clinicianRow) return ''
     const priorInterviews = pickPriorInterviews(clinicianRow.interviews || [], excludeInterviewId)
@@ -111,7 +111,7 @@ export async function resolveOwnHistoryBlock({ workspaceId, clinicianId, exclude
       ]
       relatedSnippets = await searchPracticeMemory({
         workspaceId,
-        clinicianId,
+        staffId,
         query:           String(query).slice(0, QUERY_MAX_CHARS),
         topK:            RAG_TOP_K,
         excludeSourceIds,
@@ -119,7 +119,7 @@ export async function resolveOwnHistoryBlock({ workspaceId, clinicianId, exclude
     }
 
     return buildOwnHistoryBlock({
-      clinicianName: clinicianRow.name || 'this clinician',
+      staffName: clinicianRow.name || 'this clinician',
       priorInterviews,
       priorContent: recentContent,
       relatedSnippets,
@@ -145,7 +145,7 @@ export async function resolveOwnHistoryBlock({ workspaceId, clinicianId, exclude
  *
  * @param {object} args
  * @param {string} args.workspaceId
- * @param {string} args.clinicianId
+ * @param {string} args.staffId
  * @param {string=} args.excludeInterviewId
  * @returns {Promise<string[]>}
  */
@@ -162,25 +162,25 @@ export async function resolveOwnHistoryBlock({ workspaceId, clinicianId, exclude
  * @param {object} args
  * @param {string}  args.topic
  * @param {string}  args.workspaceId
- * @param {string=} args.clinicianId
+ * @param {string=} args.staffId
  * @param {number}  [args.k=6]
  * @returns {Promise<string>}
  */
-export async function buildTopicScopedHistoryBlock({ topic, workspaceId, clinicianId, k = 6 }) {
+export async function buildTopicScopedHistoryBlock({ topic, workspaceId, staffId, k = 6 }) {
   try {
     if (!workspaceId || !topic) return ''
     const chunks = await searchPracticeMemory({
       workspaceId,
-      clinicianId: clinicianId || null,
+      staffId: staffId || null,
       query: String(topic).slice(0, QUERY_MAX_CHARS),
       topK: k,
     })
-    if (!chunks.length) return buildOwnHistoryBlock({ clinicianName: 'this clinician' })
+    if (!chunks.length) return buildOwnHistoryBlock({ staffName: 'this clinician' })
 
     // Format chunks as the RELATED section of the standard block so the
     // prompt directive and label structure stay identical.
     return buildOwnHistoryBlock({
-      clinicianName: 'this clinician',
+      staffName: 'this clinician',
       priorInterviews: [],
       priorContent: [],
       relatedSnippets: chunks.map((c) => ({
@@ -195,12 +195,12 @@ export async function buildTopicScopedHistoryBlock({ topic, workspaceId, clinici
   }
 }
 
-export async function resolvePriorCorpusSnippets({ workspaceId, clinicianId, excludeInterviewId }) {
+export async function resolvePriorCorpusSnippets({ workspaceId, staffId, excludeInterviewId }) {
   try {
-    if (!workspaceId || !clinicianId) return []
+    if (!workspaceId || !staffId) return []
     const [clinicianRow, recentContent] = await Promise.all([
-      fetchClinicianInterviews(workspaceId, clinicianId),
-      fetchRecentApprovedContent(workspaceId, clinicianId, 6),
+      fetchClinicianInterviews(workspaceId, staffId),
+      fetchRecentApprovedContent(workspaceId, staffId, 6),
     ])
     if (!clinicianRow) return []
     const snippets = []

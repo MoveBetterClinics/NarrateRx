@@ -16,7 +16,7 @@ import { useBookExclusion, regenerateBook } from '@/lib/bookExclusions'
 import { useAppMutation } from '@/lib/useAppMutation'
 import { toast } from '@/lib/toast'
 
-const VALID_TABLES = new Set(['interviews', 'clinician_corpus_documents'])
+const VALID_TABLES = new Set(['interviews', 'staff_corpus_documents'])
 
 export default function ExcludeFromBookToggle({
   sourceTable,

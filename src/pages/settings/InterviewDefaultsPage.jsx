@@ -27,7 +27,7 @@ import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { useClinicians } from '@/lib/queries'
-import { ClinicianChip } from '@/components/ClinicianChip'
+import { StaffChip } from '@/components/StaffChip'
 import { SlotEditor } from '@/components/settings/SlotEditor'
 import {
   AUDIENCE_CATALOG,
@@ -182,7 +182,7 @@ export default function InterviewDefaultsPage() {
 //
 // Read-only directory of clinicians with a "voice notes" badge. The full
 // edit surface for a clinician's voice notes lives on their profile at
-// /clinician/:id — this card is a fast scanner + nav shortcut.
+// /staff/:id — this card is a fast scanner + nav shortcut.
 
 function VoiceMemoryRoster({ interviewerName }) {
   const { data: clinicians = [], isLoading } = useClinicians()
@@ -215,10 +215,10 @@ function VoiceMemoryRoster({ interviewerName }) {
             return (
               <li key={c.id}>
                 <Link
-                  to={`/clinician/${c.id}`}
+                  to={`/staff/${c.id}`}
                   className="flex items-center gap-2.5 py-1 group"
                 >
-                  <ClinicianChip id={c.id} name={c.name} size="sm" showName nameClassName="text-xs text-indigo-800 group-hover:text-indigo-950" />
+                  <StaffChip id={c.id} name={c.name} size="sm" showName nameClassName="text-xs text-indigo-800 group-hover:text-indigo-950" />
                   <span className={`text-3xs font-medium px-1.5 py-0.5 rounded-full ${hasNotes ? 'bg-indigo-200 text-indigo-800' : 'bg-indigo-100/60 text-indigo-500'}`}>
                     {hasNotes ? 'voice notes' : 'no notes yet'}
                   </span>

@@ -75,7 +75,7 @@ export default async function handler(req, res) {
   // --- Load package + source asset consent state (must belong to this workspace) ---
   const pkgRes = await sb(
     `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}` +
-    `&select=id,workspace_id,clinician_id,source_asset_id,topic,caption_text,similarity,channels,renders,status,source_asset:media_assets(consent_status)`
+    `&select=id,workspace_id,staff_id,source_asset_id,topic,caption_text,similarity,channels,renders,status,source_asset:media_assets(consent_status)`
   )
   if (!pkgRes.ok) return res.status(500).json({ error: 'db_error' })
   const pkgs = await pkgRes.json()
@@ -104,12 +104,12 @@ export default async function handler(req, res) {
   }
 
   // --- Resolve clinician name ---
-  let clinicianName = ''
-  if (pkg.clinician_id) {
-    const cRes = await sb(`clinicians?id=eq.${pkg.clinician_id}&workspace_id=eq.${ws.id}&select=name`)
+  let staffName = ''
+  if (pkg.staff_id) {
+    const cRes = await sb(`staff?id=eq.${pkg.staff_id}&workspace_id=eq.${ws.id}&select=name`)
     if (cRes.ok) {
       const cRows = await cRes.json()
-      clinicianName = cRows?.[0]?.name || ''
+      staffName = cRows?.[0]?.name || ''
     }
   }
 
@@ -135,8 +135,8 @@ export default async function handler(req, res) {
   const rows = Object.values(byPlatform).map(({ platform, renders: pRenders }) => ({
     workspace_id:   ws.id,
     interview_id:   null,
-    clinician_id:   pkg.clinician_id || null,
-    clinician_name: clinicianName,
+    staff_id:   pkg.staff_id || null,
+    staff_name: staffName,
     topic:          pkg.topic,
     platform,
     content:        pkg.caption_text,

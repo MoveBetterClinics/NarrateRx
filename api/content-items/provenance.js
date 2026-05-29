@@ -72,7 +72,7 @@ export default async function handler(req, res) {
   if (!contentItemId) return err(res, 'Missing contentItemId')
 
   // Load the target content_item (workspace-scoped).
-  const itemRes = await sb(`content_items?id=eq.${contentItemId}&${wsFilter}&select=id,interview_id,clinician_id,content,platform`)
+  const itemRes = await sb(`content_items?id=eq.${contentItemId}&${wsFilter}&select=id,interview_id,staff_id,content,platform`)
   if (!itemRes.ok) return dbErr(res, itemRes)
   const itemRows = await itemRes.json()
   if (!itemRows.length) return err(res, 'Content item not found', 404)
@@ -107,11 +107,11 @@ export default async function handler(req, res) {
     )
   }
 
-  const clinicianId = item.clinician_id
-  if (clinicianId) {
+  const staffId = item.staff_id
+  if (staffId) {
     parallelFetches.push(
       sb(
-        `clinician_voice_phrases?clinician_id=eq.${clinicianId}&${wsFilter}` +
+        `staff_voice_phrases?staff_id=eq.${staffId}&${wsFilter}` +
         `&select=phrase&order=weight.desc,last_seen_at.desc&limit=12`,
       )
         .then(async (r) => { if (r.ok) voicePhrases = await r.json() })
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
     parallelFetches.push(
       resolvePriorCorpusSnippets({
         workspaceId: ws.id,
-        clinicianId,
+        staffId,
         excludeInterviewId: item.interview_id,
       })
         .then((snips) => { priorCorpusSnippets = snips })

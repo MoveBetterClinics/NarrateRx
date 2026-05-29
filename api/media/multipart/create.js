@@ -116,7 +116,7 @@ async function handler(req, res) {
     parentId: meta.parentId || null,
     contentPieceId: meta.contentPieceId || null,
     collectionId: typeof meta.collectionId === 'string' && meta.collectionId ? meta.collectionId : null,
-    clinicianId: typeof meta.clinicianId === 'string' && meta.clinicianId ? meta.clinicianId : null,
+    staffId: typeof meta.staffId === 'string' && meta.staffId ? meta.staffId : null,
   })
 
   let clientToken

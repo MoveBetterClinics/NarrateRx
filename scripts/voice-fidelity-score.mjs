@@ -81,20 +81,20 @@ const wsIds = workspaces.map(w => w.id)
 
 // Clinicians (all in scope workspaces)
 const clinicians = await sbGet(
-  `clinicians?workspace_id=in.(${wsIds.join(',')})&select=id,name,workspace_id,voice_notes`
+  `staff?workspace_id=in.(${wsIds.join(',')})&select=id,name,workspace_id,voice_notes`
 )
-const clinicianMap = Object.fromEntries(clinicians.map(c => [c.id, c]))
+const staffMap = Object.fromEntries(clinicians.map(c => [c.id, c]))
 console.log(`  ✓ Clinicians: ${clinicians.length}`)
 
 // Voice phrases per clinician
 const cIds = clinicians.map(c => c.id)
 const phraseRows = cIds.length
-  ? await sbGet(`clinician_voice_phrases?clinician_id=in.(${cIds.join(',')})&select=clinician_id,phrase,weight&order=weight.desc`)
+  ? await sbGet(`staff_voice_phrases?staff_id=in.(${cIds.join(',')})&select=staff_id,phrase,weight&order=weight.desc`)
   : []
 const phrasesMap = {}
 for (const p of phraseRows) {
-  if (!phrasesMap[p.clinician_id]) phrasesMap[p.clinician_id] = []
-  phrasesMap[p.clinician_id].push(p)
+  if (!phrasesMap[p.staff_id]) phrasesMap[p.staff_id] = []
+  phrasesMap[p.staff_id].push(p)
 }
 console.log(`  ✓ Voice phrases: ${phraseRows.length} total across ${Object.keys(phrasesMap).length} clinicians`)
 
@@ -104,7 +104,7 @@ const allContentItems = []
 const perWsLimit = Math.ceil(LIMIT / wsIds.length)
 for (const wsId of wsIds) {
   // Note: avoid `content=not.is.null` — PostgREST treats `content` as reserved; filter client-side.
-  let ciPath = `content_items?workspace_id=eq.${wsId}&status=in.(approved,published)&select=id,workspace_id,clinician_id,platform,content,created_at&order=created_at.desc&limit=${perWsLimit}`
+  let ciPath = `content_items?workspace_id=eq.${wsId}&status=in.(approved,published)&select=id,workspace_id,staff_id,platform,content,created_at&order=created_at.desc&limit=${perWsLimit}`
   if (SINCE) ciPath += `&created_at=gte.${SINCE}`
   const items = await sbGet(ciPath)
   allContentItems.push(...items)
@@ -113,13 +113,13 @@ const contentItems = allContentItems.slice(0, LIMIT)
 console.log(`  ✓ Content items to score: ${contentItems.length}`)
 
 // ── Evaluator ─────────────────────────────────────────────────────────────────
-function buildEvalPrompt({ body, clinicianName, phrases, kind, workspaceName }) {
+function buildEvalPrompt({ body, staffName, phrases, kind, workspaceName }) {
   const phraseExamples = (phrases || []).slice(0, 8).map(p => `- "${p.phrase}"`).join('\n')
   const hasPhrases = phraseExamples.length > 0
 
   return {
     system: `You are a precise content quality evaluator. Score the given piece on multiple voice fidelity dimensions. Return ONLY valid JSON — no markdown, no preamble, no commentary.`,
-    user: `Evaluate this ${kind || 'blog post'} written for ${clinicianName} at ${workspaceName}.
+    user: `Evaluate this ${kind || 'blog post'} written for ${staffName} at ${workspaceName}.
 
 ${hasPhrases ? `CLINICIAN'S AUTHENTIC VOICE PHRASES (from their approved content — use these to judge fidelity):
 ${phraseExamples}` : `(No voice phrases on record for this clinician yet.)`}
@@ -150,9 +150,9 @@ let skipped = 0
 
 for (let i = 0; i < contentItems.length; i++) {
   const item = contentItems[i]
-  const clinician = clinicianMap[item.clinician_id]
+  const clinician = staffMap[item.staff_id]
   const workspace = workspaceMap[item.workspace_id]
-  const phrases = phrasesMap[item.clinician_id] || []
+  const phrases = phrasesMap[item.staff_id] || []
 
   if (!item.content || item.content.trim().length < 100) {
     skipped++
@@ -167,7 +167,7 @@ for (let i = 0; i < contentItems.length; i++) {
   try {
     const evalPrompt = buildEvalPrompt({
       body: item.content,
-      clinicianName: cName,
+      staffName: cName,
       phrases,
       kind: item.platform,  // `platform` is the column name in content_items
       workspaceName: wName,
@@ -200,8 +200,8 @@ for (let i = 0; i < contentItems.length; i++) {
     scored.push({
       id: item.id,
       kind: item.platform,  // `platform` is the column name in content_items
-      clinicianId: item.clinician_id,
-      clinicianName: cName,
+      staffId: item.staff_id,
+      staffName: cName,
       workspaceId: item.workspace_id,
       workspaceName: wName,
       month,
@@ -251,8 +251,8 @@ const globalAvg = allOverall.length
   : 'n/a'
 
 // By clinician
-const byClinician = groupBy(scored, s => s.clinicianName)
-const clinicianRows = Object.entries(byClinician)
+const byStaff = groupBy(scored, s => s.staffName)
+const staffRows = Object.entries(byStaff)
   .map(([name, items]) => ({
     name,
     count: items.length,
@@ -343,7 +343,7 @@ ${scored.filter(s => s.hasPhrases).length > 0 && scored.filter(s => !s.hasPhrase
 
 | Clinician | Items | Overall | Voice Fidelity | Clinical Texture | Specificity | Phrases |
 |---|---|---|---|---|---|---|
-${clinicianRows.map(r => `| ${r.name} | ${r.count} | **${r.overall}** | ${r.vf} | ${r.ct} | ${r.sp} | ${r.hasPhrases ? `✓ (${r.phraseCount})` : '✗ none'} |`).join('\n')}
+${staffRows.map(r => `| ${r.name} | ${r.count} | **${r.overall}** | ${r.vf} | ${r.ct} | ${r.sp} | ${r.hasPhrases ? `✓ (${r.phraseCount})` : '✗ none'} |`).join('\n')}
 
 ---
 
@@ -381,7 +381,7 @@ ${topFlags.length ? topFlags.map(([flag, count]) => `- **${flag}** — flagged i
 
 | # | Clinician | Type | Month | Score | Red Flag |
 |---|---|---|---|---|---|
-${bottom10.map((s, i) => `| ${i+1} | ${s.clinicianName} | ${s.kind} | ${s.month} | ${s.overall} | ${s.redFlag || '-'} |`).join('\n')}
+${bottom10.map((s, i) => `| ${i+1} | ${s.staffName} | ${s.kind} | ${s.month} | ${s.overall} | ${s.redFlag || '-'} |`).join('\n')}
 
 ---
 
@@ -389,14 +389,14 @@ ${bottom10.map((s, i) => `| ${i+1} | ${s.clinicianName} | ${s.kind} | ${s.month}
 
 | # | Clinician | Type | Month | Score | Notes |
 |---|---|---|---|---|---|
-${top10.map((s, i) => `| ${i+1} | ${s.clinicianName} | ${s.kind} | ${s.month} | ${s.overall} | ${s.redFlag === 'none' ? '✓ clean' : (s.redFlag || '-')} |`).join('\n')}
+${top10.map((s, i) => `| ${i+1} | ${s.staffName} | ${s.kind} | ${s.month} | ${s.overall} | ${s.redFlag === 'none' ? '✓ clean' : (s.redFlag || '-')} |`).join('\n')}
 
 ---
 
 ## Recommendations
 
-${clinicianRows.length ? `**Per clinician:**
-${clinicianRows.map(r => {
+${staffRows.length ? `**Per clinician:**
+${staffRows.map(r => {
   const score = parseFloat(r.overall)
   if (isNaN(score)) return ''
   if (score >= 7.5) return `- **${r.name}**: Strong (${r.overall}) — use as voice benchmark for other clinicians`

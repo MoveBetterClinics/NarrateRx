@@ -136,7 +136,7 @@ async function processAsset(asset) {
   if (DRY_RUN) {
     // Just verify we can read the row + compose the embedding text.
     const r = await sb(
-      `media_assets?id=eq.${asset.id}&select=id,filename,kind,ai_tags,visual_narrative,clinician_id`,
+      `media_assets?id=eq.${asset.id}&select=id,filename,kind,ai_tags,visual_narrative,staff_id`,
     )
     if (!r.ok) {
       stats.failed++

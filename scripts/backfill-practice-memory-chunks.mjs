@@ -67,7 +67,7 @@ for (const ws of workspaces) {
   console.log(`\n── ${ws.slug} (${ws.id}) ──`)
 
   const ivRes = await sb(
-    `interviews?workspace_id=eq.${ws.id}&summary_text=not.is.null&select=id,clinician_id,topic,summary_text,created_at&order=created_at.desc`
+    `interviews?workspace_id=eq.${ws.id}&summary_text=not.is.null&select=id,staff_id,topic,summary_text,created_at&order=created_at.desc`
   )
   if (!ivRes.ok) {
     console.error(`  interviews fetch ${ivRes.status}`)
@@ -82,7 +82,7 @@ for (const ws of workspaces) {
     }
     await indexInterviewSummary({
       workspaceId:  ws.id,
-      clinicianId:  iv.clinician_id,
+      staffId:  iv.staff_id,
       interviewId:  iv.id,
       summaryText:  iv.summary_text,
       topic:        iv.topic,
@@ -97,7 +97,7 @@ for (const ws of workspaces) {
   // that never produced a summary (abandoned mid-flow, manual drafts) so
   // long as they have message content.
   const ivFullRes = await sb(
-    `interviews?workspace_id=eq.${ws.id}&status=eq.completed&select=id,clinician_id,topic,messages,cleaned_messages,created_at&order=created_at.desc`
+    `interviews?workspace_id=eq.${ws.id}&status=eq.completed&select=id,staff_id,topic,messages,cleaned_messages,created_at&order=created_at.desc`
   )
   if (!ivFullRes.ok) {
     console.error(`  raw-transcript fetch ${ivFullRes.status}`)
@@ -116,7 +116,7 @@ for (const ws of workspaces) {
       }
       await indexInterviewTranscriptFull({
         workspaceId:     ws.id,
-        clinicianId:     iv.clinician_id,
+        staffId:     iv.staff_id,
         interviewId:     iv.id,
         messages:        iv.messages,
         cleanedMessages: iv.cleaned_messages,

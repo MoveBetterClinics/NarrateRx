@@ -42,7 +42,7 @@ export default function ProducerOnboarding({ onComplete }) {
   async function markComplete({ silent = false } = {}) {
     setSaving(true)
     try {
-      await apiFetch('/api/clinicians/complete-producer-onboarding', { method: 'POST' })
+      await apiFetch('/api/staff/complete-producer-onboarding', { method: 'POST' })
       // Invalidate workspace so the producer_onboarded_at field refreshes
       qc.invalidateQueries({ queryKey: queryKeys.workspace.me })
       onComplete?.()

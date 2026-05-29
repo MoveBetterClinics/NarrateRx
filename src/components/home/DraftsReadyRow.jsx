@@ -51,7 +51,7 @@ export default function DraftsReadyRow({ stories = [] }) {
         ...p,
         storyId: s.id,
         topic: s.topic,
-        clinicianName: s.clinician_name,
+        staffName: s.staff_name,
       })
     }
   }
@@ -99,8 +99,8 @@ export default function DraftsReadyRow({ stories = [] }) {
                 ) : null}
               </div>
               <p className="mt-3 text-sm font-semibold leading-snug text-foreground line-clamp-2">{piece.topic}</p>
-              {piece.clinicianName ? (
-                <p className="text-2xs text-muted-foreground mt-1 truncate">{piece.clinicianName}</p>
+              {piece.staffName ? (
+                <p className="text-2xs text-muted-foreground mt-1 truncate">{piece.staffName}</p>
               ) : null}
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
                 <span className="text-2xs text-muted-foreground">Approve · Edit · Publish</span>

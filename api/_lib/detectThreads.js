@@ -87,7 +87,7 @@ export async function detectInterviewThreads(ws, contentItemId) {
   // Load the target item — must be a blog, not already part of a series.
   const itemRes = await sb(
     `content_items?id=eq.${contentItemId}&${wsFilter}` +
-    `&select=id,interview_id,clinician_id,platform,series_id,status`,
+    `&select=id,interview_id,staff_id,platform,series_id,status`,
   )
   if (!itemRes.ok) return { eligible: false, recommended_parts: 1, reason: 'item_fetch_failed' }
   const itemRows = await itemRes.json().catch(() => [])
@@ -101,7 +101,7 @@ export async function detectInterviewThreads(ws, contentItemId) {
   // Load the transcript.
   const ivRes = await sb(
     `interviews?id=eq.${item.interview_id}&${wsFilter}` +
-    `&select=messages,cleaned_messages,voice_mode,topic,clinician_id`,
+    `&select=messages,cleaned_messages,voice_mode,topic,staff_id`,
   )
   if (!ivRes.ok) return { eligible: false, recommended_parts: 1, reason: 'interview_fetch_failed' }
   const ivRows = await ivRes.json().catch(() => [])
@@ -130,25 +130,25 @@ export async function detectInterviewThreads(ws, contentItemId) {
   }
 
   // Resolve clinician name for the prompt (best-effort).
-  let clinicianName = 'the clinician'
-  const clinicianId = item.clinician_id || interview.clinician_id
-  if (clinicianId) {
-    const cRes = await sb(`clinicians?id=eq.${clinicianId}&${wsFilter}&select=name`).catch(() => null)
+  let staffName = 'the clinician'
+  const staffId = item.staff_id || interview.staff_id
+  if (staffId) {
+    const cRes = await sb(`staff?id=eq.${staffId}&${wsFilter}&select=name`).catch(() => null)
     if (cRes?.ok) {
       const rows = await cRes.json().catch(() => [])
-      if (rows.length && rows[0].name) clinicianName = rows[0].name
+      if (rows.length && rows[0].name) staffName = rows[0].name
     }
   }
 
   // MODEL GATE — ask whether the material splits into distinct threads.
-  const systemPrompt = getThreadDetectionSystemPrompt(clinicianName, interview.topic || 'this topic', { voiceMode })
+  const systemPrompt = getThreadDetectionSystemPrompt(staffName, interview.topic || 'this topic', { voiceMode })
   let detection
   try {
     const { object } = await generateObject({
       model: MODEL,
       schema: detectionSchema,
       system: systemPrompt,
-      messages: [{ role: 'user', content: `TRANSCRIPT (${clinicianName}'s verbatim words):\n\n${transcript}` }],
+      messages: [{ role: 'user', content: `TRANSCRIPT (${staffName}'s verbatim words):\n\n${transcript}` }],
       temperature: 0.1,
     })
     detection = object

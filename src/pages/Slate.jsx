@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Clapperboard, Loader2, RefreshCw, Wand2, AlertCircle, ListChecks, ShieldAlert, BarChart3, Sparkles, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useWorkspace } from '@/lib/WorkspaceContext'
-import { useClinicianSummaries } from '@/lib/queries'
+import { useStaffSummaries } from '@/lib/queries'
 import { apiFetch } from '@/lib/api'
 import { toast } from '@/lib/toast'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
@@ -78,8 +78,8 @@ export default function Slate() {
   const ws = useWorkspace()
   const qc = useQueryClient()
 
-  const { data: clinicians = [] } = useClinicianSummaries()
-  const clinicianMap = useMemo(
+  const { data: clinicians = [] } = useStaffSummaries()
+  const staffMap = useMemo(
     () => Object.fromEntries(clinicians.map((c) => [c.id, c.name])),
     [clinicians]
   )
@@ -192,12 +192,12 @@ export default function Slate() {
 
   const filteredPackages = useMemo(() => {
     if (!activeClinicianId) return basePackages
-    return basePackages.filter((p) => p.clinician_id === activeClinicianId)
+    return basePackages.filter((p) => p.staff_id === activeClinicianId)
   }, [basePackages, activeClinicianId])
 
   // Clinicians who appear in the current view (for filter chips)
   const activeClinicianIds = useMemo(
-    () => [...new Set(basePackages.map((p) => p.clinician_id).filter(Boolean))],
+    () => [...new Set(basePackages.map((p) => p.staff_id).filter(Boolean))],
     [basePackages]
   )
 
@@ -226,18 +226,18 @@ export default function Slate() {
     // Build the per-slot generation plan. For campaign slots, the topic is
     // the campaign's theme_notes (or name as fallback). For non-campaign
     // slots, pull from fallbackTopics. When a campaign has
-    // target_clinician_ids, propagate it to generate-package so clip search
+    // target_staff_ids, propagate it to generate-package so clip search
     // scopes to that clinician's library (per-clinician targeting).
     let fallbackCursor = 0
     const plan = slotAssignments.map((campaign) => {
       if (campaign) {
         const topic = campaign.theme_notes || campaign.name
-        const targets = Array.isArray(campaign.target_clinician_ids) ? campaign.target_clinician_ids : []
-        // Single target → pass as clinicianId. Multi-target → leave broad
+        const targets = Array.isArray(campaign.target_staff_ids) ? campaign.target_staff_ids : []
+        // Single target → pass as staffId. Multi-target → leave broad
         // (clip search picks from any of the targets via campaign-level
         // filtering — refine if/when multi-target campaigns get common).
-        const clinicianId = targets.length === 1 ? targets[0] : null
-        return { campaignId: campaign.id, topic, campaign, clinicianId }
+        const staffId = targets.length === 1 ? targets[0] : null
+        return { campaignId: campaign.id, topic, campaign, staffId }
       }
       const topic = fallbackTopics[fallbackCursor++]
       return topic ? { campaignId: null, topic } : null
@@ -255,7 +255,7 @@ export default function Slate() {
     let succeeded = 0
     for (let i = 0; i < plan.length; i++) {
       setGenProgress({ current: i + 1, total: plan.length })
-      const { topic, campaignId, clinicianId } = plan[i]
+      const { topic, campaignId, staffId } = plan[i]
       try {
         await apiFetch('/api/editorial/generate-package', {
           method: 'POST',
@@ -263,7 +263,7 @@ export default function Slate() {
           body: JSON.stringify({
             topic,
             ...(campaignId ? { campaignId } : {}),
-            ...(clinicianId ? { clinicianId } : {}),
+            ...(staffId ? { staffId } : {}),
           }),
         })
         succeeded++
@@ -529,7 +529,7 @@ export default function Slate() {
                   : 'border-border text-muted-foreground hover:border-primary/40'
               }`}
             >
-              {clinicianMap[cid] || 'Unknown'}
+              {staffMap[cid] || 'Unknown'}
             </button>
           ))}
         </div>
@@ -605,7 +605,7 @@ export default function Slate() {
             <PackageCard
               key={pkg.id}
               pkg={pkg}
-              clinicianName={clinicianMap[pkg.clinician_id]}
+              staffName={staffMap[pkg.staff_id]}
               triageReason={view === 'triage' ? triageReasonFor(pkg) : null}
               onApprove={handleApprove}
               onSkip={handleSkip}
@@ -629,7 +629,7 @@ export default function Slate() {
                 <PackageCard
                   key={pkg.id}
                   pkg={pkg}
-                  clinicianName={clinicianMap[pkg.clinician_id]}
+                  staffName={staffMap[pkg.staff_id]}
                   onApprove={handleApprove}
                   onSkip={handleSkip}
                   onUpdate={() => qc.invalidateQueries({ queryKey: ['story-packages'] })}

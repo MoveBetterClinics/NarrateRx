@@ -77,7 +77,7 @@ export async function auditContentItem(ws, contentItemId) {
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   // Load the target content_item.
-  const itemRes = await sb(`content_items?id=eq.${contentItemId}&${wsFilter}&select=id,interview_id,clinician_id,content,platform`)
+  const itemRes = await sb(`content_items?id=eq.${contentItemId}&${wsFilter}&select=id,interview_id,staff_id,content,platform`)
   if (!itemRes.ok) return { ok: false, audited: false, reason: 'item_fetch_failed' }
   const itemRows = await itemRes.json().catch(() => [])
   if (!itemRows.length) return { ok: false, audited: false, reason: 'item_not_found' }
@@ -89,7 +89,7 @@ export async function auditContentItem(ws, contentItemId) {
   let transcript = ''
   let voiceMode = 'practice'
   let voiceNotes = ''
-  let clinicianName = 'the clinician'
+  let staffName = 'the clinician'
   let voicePhrases = []
   const fetches = []
 
@@ -113,14 +113,14 @@ export async function auditContentItem(ws, contentItemId) {
     )
   }
 
-  if (item.clinician_id) {
+  if (item.staff_id) {
     fetches.push(
-      sb(`clinicians?id=eq.${item.clinician_id}&${wsFilter}&select=name,voice_notes`)
+      sb(`staff?id=eq.${item.staff_id}&${wsFilter}&select=name,voice_notes`)
         .then(async (r) => {
           if (!r.ok) return
           const rows = await r.json()
           if (rows.length) {
-            clinicianName = rows[0].name || clinicianName
+            staffName = rows[0].name || staffName
             voiceNotes = rows[0].voice_notes || ''
           }
         })
@@ -128,7 +128,7 @@ export async function auditContentItem(ws, contentItemId) {
     )
     fetches.push(
       sb(
-        `clinician_voice_phrases?clinician_id=eq.${item.clinician_id}&${wsFilter}` +
+        `staff_voice_phrases?staff_id=eq.${item.staff_id}&${wsFilter}` +
         `&select=phrase&order=weight.desc,last_seen_at.desc&limit=12`,
       )
         .then(async (r) => { if (r.ok) voicePhrases = await r.json() })
@@ -148,16 +148,16 @@ export async function auditContentItem(ws, contentItemId) {
 
   // Practice memory — We-lane only.
   let practiceMemoryBlock = ''
-  if (voiceMode === 'practice' && item.clinician_id) {
+  if (voiceMode === 'practice' && item.staff_id) {
     practiceMemoryBlock = await resolveOwnHistoryBlock({
       workspaceId: ws.id,
-      clinicianId: item.clinician_id,
+      staffId: item.staff_id,
       excludeInterviewId: item.interview_id,
       query: buildRagQuery(interview),
     }).catch(() => '')
   }
 
-  const systemPrompt = getVoiceAuditSystemPrompt(clinicianName, {
+  const systemPrompt = getVoiceAuditSystemPrompt(staffName, {
     voiceMode,
     voiceNotes,
     voicePhrases,
@@ -165,7 +165,7 @@ export async function auditContentItem(ws, contentItemId) {
   })
 
   const userContent =
-    `ORIGINAL TRANSCRIPT (${clinicianName}'s verbatim words):\n${transcript}\n\n` +
+    `ORIGINAL TRANSCRIPT (${staffName}'s verbatim words):\n${transcript}\n\n` +
     `========================================\n\n` +
     `GENERATED DRAFT TO AUDIT:\n${item.content}`
 

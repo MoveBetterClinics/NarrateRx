@@ -1,4 +1,4 @@
-// POST /api/clinicians/sync-name  { name: string }
+// POST /api/staff/sync-name  { name: string }
 //
 // Propagates a Clerk display-name change onto the calling user's Self
 // clinician row(s) in the current workspace. Scoped by:
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' })
 
   const r = await sb(
-    `clinicians?workspace_id=eq.${ws.id}&user_id=eq.${encodeURIComponent(auth.userId)}`,
+    `staff?workspace_id=eq.${ws.id}&user_id=eq.${encodeURIComponent(auth.userId)}`,
     {
       method: 'PATCH',
       body: JSON.stringify({ name: name.trim(), updated_at: new Date().toISOString() }),

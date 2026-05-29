@@ -1,4 +1,4 @@
-// GET /api/clinicians/voice-phrases?clinician_id=<uuid>&limit=<n>
+// GET /api/staff/voice-phrases?staff_id=<uuid>&limit=<n>
 //
 // Returns the structured voice substrate for a single clinician — the
 // frequency-weighted phrases that future phases (auto-tune, diff annotations,
@@ -7,7 +7,7 @@
 //
 // Tenant isolation: workspaceScope(req) resolves the workspace from the host,
 // every query filters by workspace_id, and the clinician existence-check is
-// scoped to the same workspace so cross-workspace clinician_ids return 404.
+// scoped to the same workspace so cross-workspace staff_ids return 404.
 
 export const config = { runtime: 'nodejs' }
 
@@ -50,8 +50,8 @@ async function handler(req, res) {
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   const url = new URL(req.url, 'http://localhost')
-  const clinicianId = url.searchParams.get('clinician_id')
-  if (!clinicianId) return res.status(400).json({ error: 'Missing clinician_id' })
+  const staffId = url.searchParams.get('staff_id')
+  if (!staffId) return res.status(400).json({ error: 'Missing staff_id' })
 
   const limitRaw = parseInt(url.searchParams.get('limit') || '', 10)
   const limit = Number.isFinite(limitRaw) && limitRaw > 0
@@ -60,7 +60,7 @@ async function handler(req, res) {
 
   // Scope the clinician lookup to this workspace so cross-tenant ids 404.
   const clinRes = await sb(
-    `clinicians?id=eq.${clinicianId}&workspace_id=eq.${workspaceId}&select=id`
+    `staff?id=eq.${staffId}&workspace_id=eq.${workspaceId}&select=id`
   )
   if (!clinRes.ok) return dbErr(res, clinRes, 'clinician lookup failed')
   const clinRows = await clinRes.json()
@@ -71,7 +71,7 @@ async function handler(req, res) {
   // voice-freshness card ("trained on N pieces, last updated X").
   const [phrasesRes, summaryRes, piecesRes] = await Promise.all([
     sb(
-      `clinician_voice_phrases?clinician_id=eq.${clinicianId}&workspace_id=eq.${workspaceId}` +
+      `staff_voice_phrases?staff_id=eq.${staffId}&workspace_id=eq.${workspaceId}` +
       `&select=phrase,weight,approve_count,reject_count,first_seen_at,last_seen_at` +
       `&order=weight.desc,last_seen_at.desc` +
       `&limit=${limit}`
@@ -79,14 +79,14 @@ async function handler(req, res) {
     // count=exact via Prefer header puts the total in Content-Range. Cheaper
     // than fetching every row just to .length it.
     sb(
-      `clinician_voice_phrases?clinician_id=eq.${clinicianId}&workspace_id=eq.${workspaceId}` +
+      `staff_voice_phrases?staff_id=eq.${staffId}&workspace_id=eq.${workspaceId}` +
       `&select=last_seen_at&order=last_seen_at.desc&limit=1`,
       { headers: { Prefer: 'count=exact' } }
     ),
     // Approved content_items used to grow this voice profile. Approximate —
     // doesn't reflect content_items that produced zero voice-worthy phrases.
     sb(
-      `content_items?clinician_id=eq.${clinicianId}&workspace_id=eq.${workspaceId}` +
+      `content_items?staff_id=eq.${staffId}&workspace_id=eq.${workspaceId}` +
       `&status=in.(approved,published)&select=id&limit=1`,
       { headers: { Prefer: 'count=exact' } }
     ),
@@ -109,7 +109,7 @@ async function handler(req, res) {
   const lastUpdatedAt = summaryRows[0]?.last_seen_at ?? null
 
   return res.status(200).json({
-    clinician_id:    clinicianId,
+    staff_id:    staffId,
     count:           phrases.length,
     limit,
     total_phrases:   totalPhrases,

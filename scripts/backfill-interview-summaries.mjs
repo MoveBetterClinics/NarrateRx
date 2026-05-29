@@ -72,7 +72,7 @@ function sb(path, init = {}) {
 
 // ─── Fetch candidates ────────────────────────────────────────────────────────
 
-let qs = `interviews?status=eq.completed&summary_text=is.null&select=id,workspace_id,topic,clinician_id,cleaned_messages,messages,clinicians(name),workspaces!inner(slug)&order=created_at.desc&limit=${LIMIT}`
+let qs = `interviews?status=eq.completed&summary_text=is.null&select=id,workspace_id,topic,staff_id,cleaned_messages,messages,staff(name),workspaces!inner(slug)&order=created_at.desc&limit=${LIMIT}`
 if (WORKSPACE_SLUG) qs += `&workspaces.slug=eq.${WORKSPACE_SLUG}`
 
 const r = await sb(qs)
@@ -107,7 +107,7 @@ for (const iv of rows) {
     await summarizeInterview({
       interviewId:    iv.id,
       workspaceId:    iv.workspace_id,
-      clinicianName:  iv.clinicians?.name || '',
+      staffName:  iv.staff?.name || '',
       topic:          iv.topic,
       messages,
     })

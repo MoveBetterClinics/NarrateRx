@@ -4,7 +4,7 @@
 // /account/security) work without us adding wildcard routes.
 //
 // Clinician-shaped settings (display name, voice playback pace, content
-// focus override, voice notes, recipes) live on /clinician/:id. The
+// focus override, voice notes, recipes) live on /staff/:id. The
 // UserButton dropdown surfaces both with their own labels.
 
 import { UserProfile } from '@clerk/react'

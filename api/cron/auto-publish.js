@@ -154,7 +154,7 @@ async function processWorkspace(ws, summary) {
     `story_packages?workspace_id=eq.${ws.id}` +
     `&status=eq.approved` +
     `&auto_published_at=is.null` +
-    `&select=id,workspace_id,clinician_id,source_asset_id,topic,caption_text,similarity,voice_fidelity_score,channels,renders,qc_flags,source_asset:media_assets(consent_status,qc_flags)` +
+    `&select=id,workspace_id,staff_id,source_asset_id,topic,caption_text,similarity,voice_fidelity_score,channels,renders,qc_flags,source_asset:media_assets(consent_status,qc_flags)` +
     `&order=updated_at.asc` +
     `&limit=${BATCH_SIZE}`
   )
@@ -178,7 +178,7 @@ async function processWorkspace(ws, summary) {
   // Resolve GBP location channels once (same for all packages).
   const gbpChannels = settings.gbp?.enabled ? await resolveGbpChannelIds(ws.id) : []
 
-  // Load active campaigns once — used to enforce target_clinician_ids per package.
+  // Load active campaigns once — used to enforce target_staff_ids per package.
   const activeCampaigns = await getActiveCampaigns(ws.id).catch(() => [])
 
   const dispatched = []
@@ -190,7 +190,7 @@ async function processWorkspace(ws, summary) {
     // clinician (i.e. all campaigns have target restrictions that exclude them),
     // hold the package rather than publishing under the wrong campaign window.
     if (activeCampaigns.length > 0) {
-      const campaignsForClinician = filterCampaignsForClinician(activeCampaigns, pkg.clinician_id)
+      const campaignsForClinician = filterCampaignsForClinician(activeCampaigns, pkg.staff_id)
       if (campaignsForClinician.length === 0) {
         held.push({ id: pkg.id, reasons: [{ signal: 'campaign_targeting', detail: 'No active campaigns target this clinician' }] })
         continue

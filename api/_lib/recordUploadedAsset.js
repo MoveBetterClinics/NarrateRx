@@ -12,7 +12,7 @@
 //   tokenPayload: parsed object (NOT a JSON string) carrying scope + meta:
 //                 { scopeColumn, scopeId, filename, createdBy, patientPseudonym,
 //                   condition, capturedAt, notes, assetPurpose, speakerRole,
-//                   parentId, contentPieceId, collectionId, clinicianId }
+//                   parentId, contentPieceId, collectionId, staffId }
 //
 // Returns the inserted media_assets row (or null on insert failure).
 
@@ -164,7 +164,7 @@ export async function recordUploadedAsset({ blob, tokenPayload }) {
     asset_purpose: assetPurpose,
     speaker_role: speakerRole,
     parent_id: meta.parentId || null,
-    clinician_id: meta.clinicianId || null,
+    staff_id: meta.staffId || null,
   }
 
   const ins = await sb('media_assets', { method: 'POST', body: JSON.stringify(row) })

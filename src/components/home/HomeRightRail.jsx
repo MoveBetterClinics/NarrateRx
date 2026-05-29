@@ -57,7 +57,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
           const t = new Date(p.scheduled_at).getTime()
           return t >= now && t <= in7Days
         })
-        .map((p) => ({ ...p, storyId: s.id, clinicianName: s.clinicianName }))
+        .map((p) => ({ ...p, storyId: s.id, staffName: s.staffName }))
     )
     .sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
     .slice(0, 8)
@@ -104,7 +104,7 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
                 >
                   <span className="text-xs font-medium text-foreground truncate">
                     {PLATFORM_LABELS[p.platform] || p.platform}
-                    {p.clinicianName ? ` · ${p.clinicianName}` : ''}
+                    {p.staffName ? ` · ${p.staffName}` : ''}
                   </span>
                   <span className="text-2xs text-muted-foreground">
                     {formatScheduled(p.scheduled_at)}

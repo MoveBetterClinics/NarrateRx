@@ -31,17 +31,17 @@ function formatEventDate(iso) {
 /**
  * Filter campaigns to those that apply to the given clinician.
  *
- *   • target_clinician_ids empty/missing → workspace-wide (applies to all)
- *   • target_clinician_ids includes clinicianId → applies to this clinician
- *   • non-empty AND missing clinicianId → does NOT apply (a targeted campaign
+ *   • target_staff_ids empty/missing → workspace-wide (applies to all)
+ *   • target_staff_ids includes staffId → applies to this clinician
+ *   • non-empty AND missing staffId → does NOT apply (a targeted campaign
  *     can't bind without a target)
  */
-export function filterCampaignsForClinician(campaigns, clinicianId) {
+export function filterCampaignsForClinician(campaigns, staffId) {
   if (!Array.isArray(campaigns)) return []
   return campaigns.filter((c) => {
-    const targets = Array.isArray(c.target_clinician_ids) ? c.target_clinician_ids : []
+    const targets = Array.isArray(c.target_staff_ids) ? c.target_staff_ids : []
     if (targets.length === 0) return true
-    return clinicianId ? targets.includes(clinicianId) : false
+    return staffId ? targets.includes(staffId) : false
   })
 }
 
@@ -54,15 +54,15 @@ export function filterCampaignsForClinician(campaigns, clinicianId) {
  * wins over an evergreen, etc.
  *
  * @param {string}      workspaceId
- * @param {string|null} clinicianId — When present, also requires that the
- *   campaign apply to this clinician (target_clinician_ids empty or includes
+ * @param {string|null} staffId — When present, also requires that the
+ *   campaign apply to this clinician (target_staff_ids empty or includes
  *   this id). Lets per-clinician atom prompts (draft.js / regenerate.js) skip
  *   campaigns that target other clinicians.
  */
-export async function loadCurrentTentpole(workspaceId, clinicianId = null) {
+export async function loadCurrentTentpole(workspaceId, staffId = null) {
   if (!workspaceId) return null
   const all = await getActiveCampaigns(workspaceId)
-  const campaigns = filterCampaignsForClinician(all, clinicianId)
+  const campaigns = filterCampaignsForClinician(all, staffId)
   if (!campaigns.length) return null
   const now = Date.now()
   const ranked = campaigns

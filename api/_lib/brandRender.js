@@ -114,7 +114,7 @@ export function buildBrandOverlaySvg({
   height,
   captionPos,
   captionText,
-  clinicianName,
+  staffName,
   workspaceName,
   primaryColor,
   accentColor,
@@ -143,7 +143,7 @@ export function buildBrandOverlaySvg({
   const captionLines = wrapLines(captionText, maxCharsPerLine, maxLines)
 
   const lowerFontSize = Math.round(baseDim * 0.030)
-  const lowerLeftText = svgEscape(clinicianName || '')
+  const lowerLeftText = svgEscape(staffName || '')
   const lowerRightText = svgEscape(workspaceName || '')
 
   const captionLineHeight = Math.round(captionFontSize * 1.2)
@@ -183,7 +183,7 @@ export function buildBrandOverlaySvg({
 /**
  * Render one channel's worth of a photo asset.
  */
-export async function renderPhotoChannel({ photoUrl, channel, captionText, workspace, clinicianName }) {
+export async function renderPhotoChannel({ photoUrl, channel, captionText, workspace, staffName }) {
   const spec = CHANNEL_SPECS[channel]
   if (!spec) {
     throw new Error(`Unknown channel: ${channel}`)
@@ -223,7 +223,7 @@ export async function renderPhotoChannel({ photoUrl, channel, captionText, works
     height: spec.height,
     captionPos: spec.captionPos,
     captionText,
-    clinicianName,
+    staffName,
     workspaceName: workspace?.display_name || '',
     primaryColor,
     accentColor,

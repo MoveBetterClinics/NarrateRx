@@ -11,12 +11,12 @@ import EmptyState from '@/components/EmptyState'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { ClinicianChip } from '@/components/ClinicianChip'
+import { StaffChip } from '@/components/StaffChip'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import {
-  useClinician, useClinicianSummaries, useDeleteClinician, useDeleteInterview,
+  useClinician, useStaffSummaries, useDeleteClinician, useDeleteInterview,
   useClinicianRecipes, usePatchClinicianRecipe, useDeleteClinicianRecipe,
   usePatchClinician,
 } from '@/lib/queries'
@@ -67,14 +67,14 @@ function phraseStrength(total) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export default function ClinicianProfile() {
+export default function StaffProfile() {
   useDocumentTitle('Staff profile')
-  const { clinicianId } = useParams()
+  const { staffId } = useParams()
   const navigate = useNavigate()
   const { user } = useUser()
   const { role } = useUserRole()
-  const { data: clinician, isLoading: loading, error: loadError } = useClinician(clinicianId)
-  const { data: clinicians = [] } = useClinicianSummaries()
+  const { data: clinician, isLoading: loading, error: loadError } = useClinician(staffId)
+  const { data: clinicians = [] } = useStaffSummaries()
 
   // Initial tab can be deep-linked via ?tab=voice|settings|activity. Used by
   // /settings/voice-training success path so users land directly on the
@@ -102,15 +102,15 @@ export default function ClinicianProfile() {
     if (!clinician) return
     const isOwner = clinician.created_by_id === user?.id
     if (!isOwner && role !== 'admin') return
-    fetchClinicianArc(clinicianId, clinician.interviews || [])
+    fetchClinicianArc(staffId, clinician.interviews || [])
       .then(setArc)
       .catch(() => {})
-  }, [clinician, clinicianId, user?.id, role])
+  }, [clinician, staffId, user?.id, role])
 
   // Fetch voice-phrases for the hero ring + phrase preview.
   useEffect(() => {
     if (!clinician?.id) return
-    apiFetch(`/api/clinicians/voice-phrases?clinician_id=${clinician.id}&limit=6`)
+    apiFetch(`/api/staff/voice-phrases?staff_id=${clinician.id}&limit=6`)
       .then(setVoiceData)
       .catch(() => {})
   }, [clinician?.id])
@@ -127,7 +127,7 @@ export default function ClinicianProfile() {
 
   async function handleDeleteClinician() {
     try {
-      await deleteClinicianMut.mutateAsync({ id: clinicianId, userId: user.id })
+      await deleteClinicianMut.mutateAsync({ id: staffId, userId: user.id })
       toast.success(`Deleted ${clinician?.name || 'staff member'}`)
       navigate('/')
     } catch (e) {
@@ -141,8 +141,8 @@ export default function ClinicianProfile() {
   const interviews = clinician.interviews || []
   const completed = interviews.filter((i) => i.status === 'completed')
   const inProgress = interviews.filter((i) => i.status === 'in_progress')
-  const isMyClinicianProfile = clinician.created_by_id === user?.id
-  const showArc = isMyClinicianProfile || role === 'admin'
+  const isMyStaffProfile = clinician.created_by_id === user?.id
+  const showArc = isMyStaffProfile || role === 'admin'
 
   // Voice hero data
   const speed = clinician?.tts_settings?.speed ?? SPEED_DEFAULT
@@ -165,7 +165,7 @@ export default function ClinicianProfile() {
 
           {/* Identity row */}
           <div className="flex items-center gap-4 mb-3 flex-wrap sm:flex-nowrap">
-            <ClinicianChip id={clinician.id} name={clinician.name} size="xl" />
+            <StaffChip id={clinician.id} name={clinician.name} size="xl" />
             <div className="flex-1 min-w-0">
               <h1 className="text-xl font-bold leading-tight truncate">{clinician.name}</h1>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -203,7 +203,7 @@ export default function ClinicianProfile() {
                   New Interview
                 </Link>
               </Button>
-              {isMyClinicianProfile && (
+              {isMyStaffProfile && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -285,7 +285,7 @@ export default function ClinicianProfile() {
                       <InterviewRow
                         key={interview.id}
                         interview={interview}
-                        clinicianId={clinicianId}
+                        staffId={staffId}
                         currentUserId={user?.id}
                         clinicians={clinicians}
                         onDelete={() => setDeleteTarget({ type: 'interview', id: interview.id })}
@@ -303,7 +303,7 @@ export default function ClinicianProfile() {
                       <InterviewRow
                         key={interview.id}
                         interview={interview}
-                        clinicianId={clinicianId}
+                        staffId={staffId}
                         currentUserId={user?.id}
                         clinicians={clinicians}
                         onDelete={() => setDeleteTarget({ type: 'interview', id: interview.id })}
@@ -420,7 +420,7 @@ export default function ClinicianProfile() {
 
                 {/* ── Col 2: Pace + memory (owner only) / freshness stats (non-owner) ── */}
                 <div className="space-y-5">
-                  {isMyClinicianProfile ? (
+                  {isMyStaffProfile ? (
                     <>
                       {/* Pace readout */}
                       <div>
@@ -529,10 +529,10 @@ export default function ClinicianProfile() {
                 }
               />
             )}
-            {isMyClinicianProfile && <VoicePlaybackCard clinician={clinician} />}
-            {isMyClinicianProfile && <VoiceCloneCard clinician={clinician} />}
-            <VoiceFreshnessCard clinicianId={clinician.id} clinicianName={clinician.name} />
-            {isMyClinicianProfile && <VoiceNotesPanel clinician={clinician} />}
+            {isMyStaffProfile && <VoicePlaybackCard clinician={clinician} />}
+            {isMyStaffProfile && <VoiceCloneCard clinician={clinician} />}
+            <VoiceFreshnessCard staffId={clinician.id} staffName={clinician.name} />
+            {isMyStaffProfile && <VoiceNotesPanel clinician={clinician} />}
           </div>
         </div>
       )}
@@ -540,11 +540,11 @@ export default function ClinicianProfile() {
       {/* ── Settings tab ──────────────────────────────────────────── */}
       {activeTab === 'settings' && (
         <div className="px-6 py-6 space-y-4 max-w-2xl">
-          {isMyClinicianProfile && <DisplayNameCard />}
-          {(isMyClinicianProfile || role === 'admin') && (
+          {isMyStaffProfile && <DisplayNameCard />}
+          {(isMyStaffProfile || role === 'admin') && (
             <DefaultToneCard clinician={clinician} />
           )}
-          {(isMyClinicianProfile || role === 'admin') && (
+          {(isMyStaffProfile || role === 'admin') && (
             <CaptureCompanionCard clinician={clinician} />
           )}
           {role === 'admin' && <ClinicianRecipeCard clinician={clinician} />}
@@ -761,7 +761,7 @@ function CaptureCompanionCard({ clinician }) {
     let cancelled = false
     setLoading(true)
     setError(null)
-    apiFetch(`/api/capture/token?clinicianId=${clinician.id}`)
+    apiFetch(`/api/capture/token?staffId=${clinician.id}`)
       .then((data) => {
         if (cancelled) return
         setTokenState(data)
@@ -780,7 +780,7 @@ function CaptureCompanionCard({ clinician }) {
 
   const generateMutation = useAppMutation({
     mutationFn: () =>
-      apiFetch(`/api/capture/token?clinicianId=${clinician.id}`, { method: 'POST' }),
+      apiFetch(`/api/capture/token?staffId=${clinician.id}`, { method: 'POST' }),
     onSuccess: (data) => {
       setNewToken(data?.token || null)
       setTokenState({
@@ -798,7 +798,7 @@ function CaptureCompanionCard({ clinician }) {
 
   const revokeMutation = useAppMutation({
     mutationFn: () =>
-      apiFetch(`/api/capture/token?clinicianId=${clinician.id}`, { method: 'DELETE' }),
+      apiFetch(`/api/capture/token?staffId=${clinician.id}`, { method: 'DELETE' }),
     onSuccess: () => {
       setTokenState({ hasToken: false, expiresAt: null, lastUsedAt: null })
       setNewToken(null)
@@ -1089,13 +1089,13 @@ function RecipeRow({ recipe, workspace, voiceModes, onSetDefault, onDelete, busy
 
 // ── Interview row ─────────────────────────────────────────────────────────────
 
-function InterviewRow({ interview, clinicianId, currentUserId, clinicians, onDelete }) {
+function InterviewRow({ interview, staffId, currentUserId, clinicians, onDelete }) {
   const isOwner = interview.owner_id === currentUserId
   const isComplete = interview.status === 'completed'
   const ownerName = !isOwner ? resolveOwnerName(interview, clinicians) : null
   const href = isComplete
-    ? `/output/${clinicianId}/${interview.id}`
-    : `/interview/${clinicianId}/${interview.id}`
+    ? `/output/${staffId}/${interview.id}`
+    : `/interview/${staffId}/${interview.id}`
 
   return (
     <Card className="hover:shadow-sm transition-shadow">

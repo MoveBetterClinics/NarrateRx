@@ -203,7 +203,7 @@ export default function MediaHub() {
   // last-6-chars Clerk id stub when we can't find a match (e.g. an admin
   // uploaded an asset and isn't in the clinicians table).
   const { data: clinicianRoster = [] } = useClinicians()
-  const clinicianNameByUserId = useMemo(() => {
+  const staffNameByUserId = useMemo(() => {
     const m = new Map()
     for (const c of clinicianRoster) {
       if (c.created_by_id && c.name) m.set(c.created_by_id, c.name)
@@ -598,7 +598,7 @@ export default function MediaHub() {
                 // Prefer the resolved clinician name; fall back to the last 6
                 // chars of a Clerk id when the uploader isn't in the roster
                 // (e.g. an admin without a clinicians row).
-                const name = clinicianNameByUserId.get(uid)
+                const name = staffNameByUserId.get(uid)
                 const label = name || (uid.startsWith('user_') ? `…${uid.slice(-6)}` : uid.slice(0, 12))
                 return (
                   <button

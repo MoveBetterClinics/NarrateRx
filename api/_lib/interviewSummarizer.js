@@ -36,8 +36,8 @@ function sb(path, init = {}) {
   })
 }
 
-function buildPrompt({ clinicianName, topic, transcriptText }) {
-  const who = clinicianName || 'the clinician'
+function buildPrompt({ staffName, topic, transcriptText }) {
+  const who = staffName || 'the clinician'
   const what = topic || 'a clinical topic'
   return `You are distilling a clinician's interview into a 3–5 sentence summary that captures THEIR specific thinking — the perspective, the philosophy, the concrete examples, the counterintuitive takes that make their approach distinct.
 
@@ -65,8 +65,8 @@ Return only the summary text — no preamble, no labels.`
  * @typedef {object} SummarizeArgs
  * @property {string} interviewId
  * @property {string} workspaceId
- * @property {string=} clinicianId
- * @property {string=} clinicianName
+ * @property {string=} staffId
+ * @property {string=} staffName
  * @property {string=} topic
  * @property {Array<{role:string,content:string}>} messages   — preferred cleaned_messages, else raw
  */
@@ -77,7 +77,7 @@ Return only the summary text — no preamble, no labels.`
  *
  * @param {SummarizeArgs} args
  */
-export async function summarizeInterview({ interviewId, workspaceId, clinicianId, clinicianName, topic, messages }) {
+export async function summarizeInterview({ interviewId, workspaceId, staffId, staffName, topic, messages }) {
   try {
     if (!interviewId || !workspaceId) return
 
@@ -94,7 +94,7 @@ export async function summarizeInterview({ interviewId, workspaceId, clinicianId
 
     const { text } = await generateText({
       model: MODEL,
-      messages: [{ role: 'user', content: buildPrompt({ clinicianName, topic, transcriptText: truncated }) }],
+      messages: [{ role: 'user', content: buildPrompt({ staffName, topic, transcriptText: truncated }) }],
       maxOutputTokens: 512,
     })
 
@@ -123,7 +123,7 @@ export async function summarizeInterview({ interviewId, workspaceId, clinicianId
     // Fire-and-forget; failures log but never break the summarization path.
     indexInterviewSummary({
       workspaceId,
-      clinicianId,
+      staffId,
       interviewId,
       summaryText: summary,
       topic,

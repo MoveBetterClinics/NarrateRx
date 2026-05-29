@@ -102,7 +102,7 @@ export async function cloneFromSampleUrl({ ws, clinician, sampleUrl }) {
   }
 
   const patchRes = await sb(
-    `clinicians?id=eq.${encodeURIComponent(clinician.id)}&workspace_id=eq.${ws.id}`,
+    `staff?id=eq.${encodeURIComponent(clinician.id)}&workspace_id=eq.${ws.id}`,
     {
       method: 'PATCH',
       body: JSON.stringify({

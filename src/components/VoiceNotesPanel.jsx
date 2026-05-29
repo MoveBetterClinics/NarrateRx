@@ -11,7 +11,7 @@ import { apiFetch } from '@/lib/api'
 // Voice notes display for a clinician profile. Shows what the AI has learned
 // about how this clinician edits AI drafts, and lets them refresh manually.
 //
-// The notes themselves are computed by /api/clinicians/refresh-voice-notes,
+// The notes themselves are computed by /api/staff/refresh-voice-notes,
 // which compares ai_original_content vs. content for recent edited drafts.
 export default function VoiceNotesPanel({ clinician }) {
   const qc = useQueryClient()
@@ -24,14 +24,14 @@ export default function VoiceNotesPanel({ clinician }) {
     setError('')
     setResult(null)
     try {
-      const data = await apiFetch('/api/clinicians/refresh-voice-notes', {
+      const data = await apiFetch('/api/staff/refresh-voice-notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clinician_id: clinician.id }),
+        body: JSON.stringify({ staff_id: clinician.id }),
       })
       setResult(data)
       // Refetch the clinician so the new voice_notes show in the UI
-      qc.invalidateQueries({ queryKey: queryKeys.clinicians.detail(clinician.id) })
+      qc.invalidateQueries({ queryKey: queryKeys.staff.detail(clinician.id) })
     } catch (e) {
       setError(e.message || 'Refresh failed')
     } finally {

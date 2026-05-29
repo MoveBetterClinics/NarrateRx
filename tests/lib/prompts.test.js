@@ -265,7 +265,7 @@ describe('getVoiceAuditSystemPrompt', () => {
 
   it('includes the voice-phrases block when phrases are provided', () => {
     const without = getVoiceAuditSystemPrompt('Dr. Smith', { voicePhrases: [] })
-    // Shape mirrors clinician_voice_phrases rows: [{ phrase }].
+    // Shape mirrors staff_voice_phrases rows: [{ phrase }].
     const withPhrases = getVoiceAuditSystemPrompt('Dr. Smith', {
       voicePhrases: [{ phrase: 'moving better' }, { phrase: 'that deep ache' }],
     })

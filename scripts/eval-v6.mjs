@@ -88,7 +88,7 @@ async function evalTopic({ topic, workspaceId }) {
     .catch(() => [])
 
   // V6: fused context
-  const fused = await fetchFusedRagContext({ topic, workspaceId, clinicianIds: [], visualK: 1, minVisualScore: 0 })
+  const fused = await fetchFusedRagContext({ topic, workspaceId, staffIds: [], visualK: 1, minVisualScore: 0 })
     .catch(() => null)
 
   const v6Clips = fused?.visualChunks || []

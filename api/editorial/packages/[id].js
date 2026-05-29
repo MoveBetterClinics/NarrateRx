@@ -113,7 +113,7 @@ export default async function handler(req, res) {
         packageId:     row.id,
         workspaceId:   ws.id,
         workspaceName: ws.display_name,
-        clinicianId:   row.clinician_id || null,
+        staffId:   row.staff_id || null,
         topic:         row.topic,
         captionText:   row.caption_text,
       }).catch((e) => {

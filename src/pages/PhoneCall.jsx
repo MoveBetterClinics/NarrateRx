@@ -65,7 +65,7 @@ Only emit INTERVIEW_COMPLETE on its own line when the clinician clearly signals 
  * full system prompt client-side, mint an OpenAI ephemeral token, open WebRTC,
  * and push the prompt over the data channel via session.update. Transcript turns
  * persist to interviews.messages (debounced). When the assistant emits
- * [INTERVIEW_COMPLETE], we finalize and hand off to /interview/:clinicianId/:interviewId
+ * [INTERVIEW_COMPLETE], we finalize and hand off to /interview/:staffId/:interviewId
  * which already knows how to auto-generate the blog post on load.
  *
  * Why we keep the prompt-build on the client: getInterviewSystemPrompt lives
@@ -113,7 +113,7 @@ export default function PhoneCall() {
   const micStreamRef   = useRef(null)
   const audioElRef     = useRef(null)
   const interviewIdRef = useRef(null)
-  const clinicianIdRef = useRef(null)
+  const staffIdRef = useRef(null)
   const persistTimerRef = useRef(null)
   const turnsRef       = useRef(/** @type {{role:'user'|'assistant',content:string,partial?:boolean}[]} */ ([]))
   const completedRef   = useRef(false)
@@ -285,14 +285,14 @@ export default function PhoneCall() {
         createdByEmail: user.primaryEmailAddress?.emailAddress,
         userId: user.id,
       })
-      clinicianIdRef.current = clinician.id
+      staffIdRef.current = clinician.id
 
       // 2. Create the interview row. capture_mode='realtime_voice' marks it
       //    so analytics can split realtime vs. chat. Tone uses the clinician's
       //    saved default (getOrCreateClinician returns default_tone); falls
       //    back to 'smart' for a brand-new clinician with no preference set.
       const interview = await createInterview({
-        clinicianId: clinician.id,
+        staffId: clinician.id,
         topic: topic.trim(),
         ownerEmail: user.primaryEmailAddress?.emailAddress,
         tone: clinician.default_tone || 'smart',
@@ -308,7 +308,7 @@ export default function PhoneCall() {
       //    (similar interviews, learned concepts, prior session) so the AI
       //    has the same backstory it would in chat mode. Each individual
       //    fetch failure degrades gracefully — we still start the call.
-      const ctxClinicianParam = `&clinician_id=${encodeURIComponent(clinician.id)}`
+      const ctxClinicianParam = `&staff_id=${encodeURIComponent(clinician.id)}`
       const [pastInterviews, conceptCtx, clinicianRow] = await Promise.all([
         fetchSimilarInterviews(topic.trim(), interview.id).catch(() => []),
         apiFetch(
@@ -888,7 +888,7 @@ export default function PhoneCall() {
     // assistant's final message (model emitted it), but pass wrap=1 too as
     // a safety net — if the final PATCH above failed, wrap=1 still tells
     // InterviewSession to treat this as a completed realtime call.
-    navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime&wrap=1`)
+    navigate(`/interview/${staffIdRef.current}/${interviewIdRef.current}?from=realtime&wrap=1`)
   }
 
   // ────────────────────────────────────────────────────────────────────────
@@ -1078,12 +1078,12 @@ export default function PhoneCall() {
       : Promise.resolve()
     persistP.finally(() => {
       hangUp()
-      if (interviewIdRef.current && clinicianIdRef.current) {
+      if (interviewIdRef.current && staffIdRef.current) {
         // wrap=1 tells InterviewSession the user clicked End — even if the
         // PATCH above failed to persist the COMPLETE_TOKEN, InterviewSession
         // will treat the call as complete and kick off blog generation
         // instead of falling through to chat-resume mode.
-        navigate(`/interview/${clinicianIdRef.current}/${interviewIdRef.current}?from=realtime&wrap=1`)
+        navigate(`/interview/${staffIdRef.current}/${interviewIdRef.current}?from=realtime&wrap=1`)
       } else {
         navigate('/')
       }

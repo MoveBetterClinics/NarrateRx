@@ -39,7 +39,7 @@ export default function NewInterview() {
   const PATIENT_PROTOTYPES_UI = getPatientPrototypesUi(workspace)
 
   const preferredName = user?.unsafeMetadata?.display_name || user?.fullName || ''
-  const [clinicianName, setClinicianName] = useState(preferredName)
+  const [staffName, setClinicianName] = useState(preferredName)
   const [condition, setCondition] = useState(searchParams.get('topic') || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -64,7 +64,7 @@ export default function NewInterview() {
   // Pre-fill clinician name from Clerk once it hydrates
   useEffect(() => {
     const name = user?.unsafeMetadata?.display_name || user?.fullName || ''
-    if (name && !clinicianName) setClinicianName(name)
+    if (name && !staffName) setClinicianName(name)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.unsafeMetadata?.display_name, user?.fullName])
 
@@ -78,12 +78,12 @@ export default function NewInterview() {
   // recipes stay empty and the UI uses generic defaults.
   const { data: cliniciansForSuggestions = [], isLoading: cliniciansLoading } = useClinicians()
   const resolvedClinician = useMemo(() => {
-    const name = clinicianName.trim().toLowerCase()
+    const name = staffName.trim().toLowerCase()
     if (!name) return null
     return cliniciansForSuggestions.find(
       (c) => c.name.trim().toLowerCase() === name
     )
-  }, [cliniciansForSuggestions, clinicianName])
+  }, [cliniciansForSuggestions, staffName])
 
   const { data: recipes = [], isLoading: recipesLoading } = useClinicianRecipes(resolvedClinician?.id)
 
@@ -145,12 +145,12 @@ export default function NewInterview() {
 
   async function handleStart(selectedCondition) {
     const topic = (selectedCondition ?? condition).trim()
-    if (!clinicianName.trim() || !topic || !user) return
+    if (!staffName.trim() || !topic || !user) return
 
     // Self-detection — if the typed clinician name matches the user's
     // display name OR Clerk full name (case-insensitive), bind the
     // clinician row to user.id so renames don't fork the identity.
-    const typed = clinicianName.trim().toLowerCase()
+    const typed = staffName.trim().toLowerCase()
     const display = (user?.unsafeMetadata?.display_name || '').trim().toLowerCase()
     const full    = (user?.fullName || '').trim().toLowerCase()
     const isSelf  = !!typed && (typed === display || typed === full)
@@ -159,13 +159,13 @@ export default function NewInterview() {
     setError('')
     try {
       const clinician = await getOrCreateClinician({
-        name: clinicianName.trim(),
+        name: staffName.trim(),
         createdById: user.id,
         createdByEmail: user.primaryEmailAddress?.emailAddress,
         userId: isSelf ? user.id : undefined,
       })
       const interview = await createInterview({
-        clinicianId: clinician.id,
+        staffId: clinician.id,
         topic,
         ownerEmail: user.primaryEmailAddress?.emailAddress,
         tone,
@@ -274,7 +274,7 @@ export default function NewInterview() {
             <Input
               id="clinician"
               placeholder="e.g. Dr. Quasney"
-              value={clinicianName}
+              value={staffName}
               onChange={(e) => setClinicianName(e.target.value)}
               autoComplete="name"
             />
@@ -400,7 +400,7 @@ export default function NewInterview() {
               handler. */}
           <Button
             onClick={() => handleStart()}
-            disabled={!clinicianName.trim() || !condition.trim() || loading}
+            disabled={!staffName.trim() || !condition.trim() || loading}
             className="w-full"
             size="lg"
           >
@@ -619,7 +619,7 @@ function SaveRecipeDialog({ open, onClose, clinician, levers, existingRecipeCoun
     if (!name.trim()) return
     try {
       const saved = await createMut.mutateAsync({
-        clinicianId: clinician.id,
+        staffId: clinician.id,
         name: name.trim(),
         emoji: emoji.trim() || '⭐',
         is_default: isDefault,

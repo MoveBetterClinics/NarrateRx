@@ -10,7 +10,7 @@ function daysSince(iso) {
   return Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000))
 }
 
-function ClinicianRow({ c }) {
+function StaffRow({ c }) {
   const lastDays = daysSince(c.last_capture_at)
   const stale = lastDays > STALE_CAPTURE_DAYS
   const noContent = c.asset_count === 0
@@ -128,7 +128,7 @@ export default function CoveragePanel() {
   const clinicians = data?.clinicians || []
   const topics = data?.topics || []
   const gapsCount = topics.filter((t) => t.package_count === 0).length
-  const staleCliniciansCount = clinicians.filter(
+  const staleStaffCount = clinicians.filter(
     (c) => c.asset_count === 0 || daysSince(c.last_capture_at) > STALE_CAPTURE_DAYS
   ).length
 
@@ -141,9 +141,9 @@ export default function CoveragePanel() {
             <Camera className="h-3.5 w-3.5" />
             Clinician capture activity
           </h2>
-          {staleCliniciansCount > 0 && (
+          {staleStaffCount > 0 && (
             <span className="text-2xs font-semibold text-amber-700">
-              {staleCliniciansCount} need{staleCliniciansCount !== 1 ? '' : 's'} attention
+              {staleStaffCount} need{staleStaffCount !== 1 ? '' : 's'} attention
             </span>
           )}
         </div>
@@ -153,7 +153,7 @@ export default function CoveragePanel() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {clinicians.map((c) => <ClinicianRow key={c.id} c={c} />)}
+            {clinicians.map((c) => <StaffRow key={c.id} c={c} />)}
           </div>
         )}
       </section>

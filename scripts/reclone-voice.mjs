@@ -63,7 +63,7 @@ const [ws] = await wsRes.json()
 if (!ws) { console.error(`No workspace: ${wsSlug}`); process.exit(1) }
 
 const clRes = await sb(
-  `clinicians?workspace_id=eq.${ws.id}&user_id=not.is.null&select=id,name,eleven_voice_id&order=created_at.asc&limit=1`
+  `staff?workspace_id=eq.${ws.id}&user_id=not.is.null&select=id,name,eleven_voice_id&order=created_at.asc&limit=1`
 )
 if (!clRes.ok) { console.error(`clinicians fetch ${clRes.status}`); process.exit(1) }
 const [cl] = await clRes.json()
@@ -75,7 +75,7 @@ console.log(`Current ID : ${cl.eleven_voice_id ?? '(none)'}`)
 
 // ── Fetch interviews with audio ────────────────────────────────────────────
 const ivRes = await sb(
-  `interviews?workspace_id=eq.${ws.id}&clinician_id=eq.${cl.id}` +
+  `interviews?workspace_id=eq.${ws.id}&staff_id=eq.${cl.id}` +
   `&audio_recording_url=not.is.null&status=eq.completed` +
   `&select=id,audio_recording_url,created_at` +
   `&order=created_at.desc&limit=${maxFiles}`
@@ -154,7 +154,7 @@ const { voice_id: newVoiceId } = await createRes.json()
 console.log(`New voice created: ${newVoiceId}`)
 
 // ── Update clinicians.eleven_voice_id ──────────────────────────────────────
-const patchRes = await sb(`clinicians?id=eq.${cl.id}`, {
+const patchRes = await sb(`staff?id=eq.${cl.id}`, {
   method: 'PATCH',
   body:   JSON.stringify({ eleven_voice_id: newVoiceId }),
 })

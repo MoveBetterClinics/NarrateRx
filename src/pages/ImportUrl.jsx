@@ -34,7 +34,7 @@ export default function ImportUrl() {
     setLoading(true)
 
     try {
-      const { clinicianId, interviewId } = await apiFetch('/api/import-url', {
+      const { staffId, interviewId } = await apiFetch('/api/import-url', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed }),
@@ -42,7 +42,7 @@ export default function ImportUrl() {
       if (!interviewId) throw new Error('Import succeeded but no interview ID returned.')
 
       toast.success('Content fetched — review and edit before generating.')
-      navigate(`/capture/${clinicianId}/${interviewId}/review`)
+      navigate(`/capture/${staffId}/${interviewId}/review`)
     } catch (err) {
       setError(err?.message || 'Import failed — please try again.')
       setLoading(false)

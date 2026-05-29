@@ -17,7 +17,7 @@
 //
 // Response 200:
 //   {
-//     assetId, kind, sourceBlobUrl, captionText, clinicianName,
+//     assetId, kind, sourceBlobUrl, captionText, staffName,
 //     renders: [{ channel, blobUrl, width, height, sizeBytes, hadSubtitles? }, ...],
 //     errors?: [{ channel, error }],
 //     elapsedMs
@@ -83,7 +83,7 @@ export default async function handler(req, res) {
   // --- Fetch asset + clinician ---
   const assetRes = await sb(
     `media_assets?id=eq.${assetId}&workspace_id=eq.${ws.id}` +
-      `&select=id,kind,blob_url,filename,clinician_id,archived_at`,
+      `&select=id,kind,blob_url,filename,staff_id,archived_at`,
   )
   if (!assetRes.ok) return res.status(500).json({ error: 'db_error' })
   const assets = await assetRes.json()
@@ -109,12 +109,12 @@ export default async function handler(req, res) {
     }
   }
 
-  let clinicianName = ''
-  if (asset.clinician_id) {
-    const cRes = await sb(`clinicians?id=eq.${asset.clinician_id}&workspace_id=eq.${ws.id}&select=name`)
+  let staffName = ''
+  if (asset.staff_id) {
+    const cRes = await sb(`staff?id=eq.${asset.staff_id}&workspace_id=eq.${ws.id}&select=name`)
     if (cRes.ok) {
       const cRows = await cRes.json()
-      clinicianName = cRows?.[0]?.name || ''
+      staffName = cRows?.[0]?.name || ''
     }
   }
 
@@ -135,7 +135,7 @@ export default async function handler(req, res) {
           channel,
           captionText,
           workspace: ws,
-          clinicianName,
+          staffName,
         })
         const pathname = `media/renders/${ws.slug}/${asset.id}/${channel}-${safeFilename}.jpg`
         const blob = await blobPut(pathname, buffer, {
@@ -153,7 +153,7 @@ export default async function handler(req, res) {
           channel,
           captionText,
           workspace: ws,
-          clinicianName,
+          staffName,
         })
         const pathname = `media/renders/${ws.slug}/${asset.id}/${channel}-${safeFilename}.mp4`
         const blob = await blobPut(pathname, buffer, {
@@ -180,7 +180,7 @@ export default async function handler(req, res) {
     kind: asset.kind,
     sourceBlobUrl: asset.blob_url,
     captionText,
-    clinicianName,
+    staffName,
     renders,
     errors: errors.length ? errors : undefined,
     elapsedMs,

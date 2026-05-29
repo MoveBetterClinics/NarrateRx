@@ -4,7 +4,7 @@ import { useUser } from '@clerk/react'
 import { FileText, Clock, Loader2, RefreshCw, ChevronRight, Send, BookOpen } from 'lucide-react'
 import LoadingState from '@/components/LoadingState'
 import { Button } from '@/components/ui/button'
-import { useStories, useClinicianSummaries } from '@/lib/queries'
+import { useStories, useStaffSummaries } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
@@ -37,7 +37,7 @@ export default function Home() {
   // Slim clinician summaries — free cache hit when Stories has loaded first
   // (useStories populates the card cache as a side-effect). Includes
   // session_state so we can identify in-progress interviews for the resume strip.
-  const { data: clinicians = [], isLoading: cliniciansLoading } = useClinicianSummaries()
+  const { data: clinicians = [], isLoading: cliniciansLoading } = useStaffSummaries()
 
   // ?bucket= deep-link scroll
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function Home() {
   const allInterviews = useMemo(
     () =>
       clinicians.flatMap((c) =>
-        (c.interviews || []).map((i) => ({ ...i, clinicianName: c.name, clinicianId: c.id }))
+        (c.interviews || []).map((i) => ({ ...i, staffName: c.name, staffId: c.id }))
       ),
     [clinicians]
   )
@@ -300,7 +300,7 @@ export default function Home() {
                 className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors group"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{s.clinicianName}</p>
+                  <p className="text-sm font-medium truncate">{s.staffName}</p>
                   <p className="text-xs text-muted-foreground truncate">{s.topic}</p>
                 </div>
                 <span className="text-xs font-medium text-muted-foreground group-hover:text-primary transition-colors flex items-center gap-0.5">
@@ -336,7 +336,7 @@ export default function Home() {
                     className="flex items-center gap-3 px-4 py-3 hover:bg-accent/20 transition-colors group"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{s.clinicianName}</p>
+                      <p className="text-sm font-medium truncate">{s.staffName}</p>
                       <p className="text-xs text-muted-foreground truncate">
                         {s.topic}
                         {approvedCount > 1 ? ` · ${approvedCount} pieces` : ''}

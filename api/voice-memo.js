@@ -9,7 +9,7 @@
 //   filename    — original file name, used for blob path + Whisper ext hint
 //   durationSec — recording length in seconds; stored for analytics/UI
 //
-// Response: { clinicianId, interviewId }
+// Response: { staffId, interviewId }
 //
 // Requires OPENAI_API_KEY for Whisper. The handler returns a clear 500 if the
 // key is missing so the error is obvious in Vercel logs.
@@ -163,21 +163,21 @@ export default async function handler(req, res) {
   // won't have a clinician row yet. We create one bound to their Clerk user_id
   // so the row is reused across future captures.
   const wsFilter = `workspace_id=eq.${ws.id}`
-  let clinicianId
+  let staffId
   let defaultTone = 'smart'
 
   const clinRes = await sb(
-    `clinicians?${wsFilter}&user_id=eq.${encodeURIComponent(auth.userId)}&select=id,default_tone&limit=1`
+    `staff?${wsFilter}&user_id=eq.${encodeURIComponent(auth.userId)}&select=id,default_tone&limit=1`
   )
   if (clinRes.ok) {
     const rows = await clinRes.json()
     if (rows.length) {
-      clinicianId = rows[0].id
+      staffId = rows[0].id
       defaultTone = rows[0].default_tone || 'smart'
     }
   }
 
-  if (!clinicianId) {
+  if (!staffId) {
     // No clinician row yet — create one. Fetch the display name from Clerk so
     // the label isn't just "Me". The user can rename from their profile later.
     let name = 'Me'
@@ -189,7 +189,7 @@ export default async function handler(req, res) {
       console.warn(`[voice-memo] could not fetch Clerk user ${auth.userId}: ${e?.message}`)
     }
 
-    const cRes = await sb('clinicians', {
+    const cRes = await sb('staff', {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
@@ -203,10 +203,10 @@ export default async function handler(req, res) {
       console.error(`[voice-memo] clinician create failed ${cRes.status}: ${body.slice(0, 300)}`)
       return res.status(500).json({ error: 'Could not create clinician record' })
     }
-    clinicianId = (await cRes.json())[0]?.id
+    staffId = (await cRes.json())[0]?.id
   }
 
-  if (!clinicianId) {
+  if (!staffId) {
     return res.status(500).json({ error: 'Clinician ID could not be determined' })
   }
 
@@ -221,7 +221,7 @@ export default async function handler(req, res) {
     method: 'POST',
     body: JSON.stringify({
       workspace_id:              ws.id,
-      clinician_id:              clinicianId,
+      staff_id:              staffId,
       owner_id:                  auth.userId,
       topic,
       status:                    'in_progress',
@@ -244,5 +244,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Interview created but no ID returned' })
   }
 
-  return res.status(200).json({ clinicianId, interviewId: interview.id })
+  return res.status(200).json({ staffId, interviewId: interview.id })
 }

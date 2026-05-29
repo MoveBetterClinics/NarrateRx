@@ -77,7 +77,7 @@ export async function syncAuthorCorpus({ log = false, dryRun = false } = {}) {
 
   // ── Resolve Q's clinician in each workspace (matched by user_id) ───────
   const srcClRes = await sb(
-    `clinicians?workspace_id=eq.${srcWs.id}&user_id=not.is.null&select=id,name,user_id&order=created_at.asc&limit=1`
+    `staff?workspace_id=eq.${srcWs.id}&user_id=not.is.null&select=id,name,user_id&order=created_at.asc&limit=1`
   )
   if (!srcClRes.ok) throw new Error(`source clinician fetch ${srcClRes.status}`)
   const [srcClinician] = await srcClRes.json()
@@ -85,7 +85,7 @@ export async function syncAuthorCorpus({ log = false, dryRun = false } = {}) {
 
   // Find matching clinician in target by the same user_id
   const tgtClRes = await sb(
-    `clinicians?workspace_id=eq.${tgtWs.id}&user_id=eq.${srcClinician.user_id}&select=id&limit=1`
+    `staff?workspace_id=eq.${tgtWs.id}&user_id=eq.${srcClinician.user_id}&select=id&limit=1`
   )
   if (!tgtClRes.ok) throw new Error(`target clinician fetch ${tgtClRes.status}`)
   const [tgtClinician] = await tgtClRes.json()
@@ -98,8 +98,8 @@ export async function syncAuthorCorpus({ log = false, dryRun = false } = {}) {
 
   // ── Fetch completed interviews in source ───────────────────────────────
   const ivRes = await sb(
-    `interviews?workspace_id=eq.${srcWs.id}&clinician_id=eq.${srcClinician.id}` +
-    `&status=eq.completed&select=id,clinician_id,topic,messages,cleaned_messages,created_at` +
+    `interviews?workspace_id=eq.${srcWs.id}&staff_id=eq.${srcClinician.id}` +
+    `&status=eq.completed&select=id,staff_id,topic,messages,cleaned_messages,created_at` +
     `&order=created_at.desc`
   )
   if (!ivRes.ok) throw new Error(`interviews fetch ${ivRes.status}`)
@@ -136,7 +136,7 @@ export async function syncAuthorCorpus({ log = false, dryRun = false } = {}) {
   for (const iv of toIndex) {
     await indexInterviewTranscriptFull({
       workspaceId:     tgtWs.id,          // ← target workspace, not source
-      clinicianId:     tgtClinician.id,   // ← target clinician record
+      staffId:     tgtClinician.id,   // ← target clinician record
       interviewId:     iv.id,             // source_id stays the original interview id
       messages:        iv.messages,
       cleanedMessages: iv.cleaned_messages,

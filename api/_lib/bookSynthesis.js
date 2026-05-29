@@ -4,7 +4,7 @@
 // Source rules (CLAUDE-bound — do not feed atoms or AI-generated content):
 //   - interviews where status='completed' AND has message content
 //     (both capture_mode='interview' and capture_mode='voice_memo')
-//   - clinician_corpus_documents where doc_type IN ('original_blog','uploaded_draft')
+//   - staff_corpus_documents where doc_type IN ('original_blog','uploaded_draft')
 //   - minus rows listed in book_excluded_sources
 //
 // Output is structured chapters in JSON:
@@ -66,7 +66,7 @@ export async function loadSources({ workspaceId }) {
     excluded.filter((e) => e.source_table === 'interviews').map((e) => e.source_id)
   )
   const excludedDocs = new Set(
-    excluded.filter((e) => e.source_table === 'clinician_corpus_documents').map((e) => e.source_id)
+    excluded.filter((e) => e.source_table === 'staff_corpus_documents').map((e) => e.source_id)
   )
 
   // Interviews (and voice memos, which are interviews with capture_mode='voice_memo').
@@ -97,13 +97,13 @@ export async function loadSources({ workspaceId }) {
 
   // Original blogs and uploaded drafts.
   const docRes = await sb(
-    `clinician_corpus_documents?workspace_id=eq.${workspaceId}` +
+    `staff_corpus_documents?workspace_id=eq.${workspaceId}` +
     `&doc_type=in.(original_blog,uploaded_draft)` +
     `&archived_at=is.null` +
     `&select=id,doc_type,title,body,created_at` +
     `&order=created_at.asc`
   )
-  if (!docRes.ok) throw new Error(`clinician_corpus_documents ${docRes.status}`)
+  if (!docRes.ok) throw new Error(`staff_corpus_documents ${docRes.status}`)
   const docRows = await docRes.json()
 
   const originalBlogs = []

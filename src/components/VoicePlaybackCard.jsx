@@ -3,7 +3,7 @@
 // in clinicians.tts_settings (JSONB), so adding voice_id / model_id later
 // only needs a new control here — no migration, no schema change.
 //
-// Shown only on the owner's own ClinicianProfile (gated upstream).
+// Shown only on the owner's own StaffProfile (gated upstream).
 
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, Volume2 } from 'lucide-react'

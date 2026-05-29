@@ -163,7 +163,7 @@ async function upsertConcept(workspaceId, kind, label, existingConcepts) {
   return rows[0]?.id ?? null
 }
 
-async function insertMention({ conceptId, workspaceId, sourceKind, sourceId, clinicianId, weightDelta, excerpt }) {
+async function insertMention({ conceptId, workspaceId, sourceKind, sourceId, staffId, weightDelta, excerpt }) {
   const r = await sb('concept_mentions', {
     method: 'POST',
     body: JSON.stringify({
@@ -171,7 +171,7 @@ async function insertMention({ conceptId, workspaceId, sourceKind, sourceId, cli
       workspace_id: workspaceId,
       source_kind:  sourceKind,
       source_id:    sourceId ?? null,
-      clinician_id: clinicianId ?? null,
+      staff_id: staffId ?? null,
       weight_delta: weightDelta,
       excerpt:      excerpt ?? null,
       created_at:   new Date().toISOString(),
@@ -190,7 +190,7 @@ async function insertMention({ conceptId, workspaceId, sourceKind, sourceId, cli
 // ── Public API ───────────────────────────────────────────────────────────────
 
 /**
- * extractConcepts({ workspaceId, sourceKind, sourceId, text, clinicianId, weightDelta? })
+ * extractConcepts({ workspaceId, sourceKind, sourceId, text, staffId, weightDelta? })
  *
  * Fire-and-forget. Throws nothing — all errors are logged to console.error so
  * they land in Vercel function logs tagged [conceptExtractor].
@@ -203,7 +203,7 @@ export async function extractConcepts({
   sourceKind,
   sourceId,
   text,
-  clinicianId,
+  staffId,
   weightDelta = 1.0,
 }) {
   try {
@@ -216,7 +216,7 @@ export async function extractConcepts({
     for (const { kind, label, excerpt } of extracted) {
       const conceptId = await upsertConcept(workspaceId, kind, label, existing)
       if (!conceptId) continue
-      await insertMention({ conceptId, workspaceId, sourceKind, sourceId, clinicianId, weightDelta, excerpt })
+      await insertMention({ conceptId, workspaceId, sourceKind, sourceId, staffId, weightDelta, excerpt })
     }
 
     console.info(`[conceptExtractor] workspace=${workspaceId} source=${sourceKind}/${sourceId} extracted=${extracted.length}`)

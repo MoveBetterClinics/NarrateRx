@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   // Fetch + workspace-scope the asset.
   const assetRes = await sb(
     `media_assets?id=eq.${assetId}&workspace_id=eq.${ws.id}` +
-      `&select=id,kind,blob_url,filename,clinician_id,duration_s,archived_at,segment_status`,
+      `&select=id,kind,blob_url,filename,staff_id,duration_s,archived_at,segment_status`,
   )
   if (!assetRes.ok) return res.status(500).json({ error: 'db_error' })
   const asset = (await assetRes.json())?.[0]

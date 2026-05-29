@@ -63,7 +63,7 @@ function CoverageBar({ mentionedCount, totalCount }) {
 
 // ── Concept row ───────────────────────────────────────────────────────────────
 
-function ConceptRow({ concept, totalClinicians, onDraft }) {
+function ConceptRow({ concept, totalStaff, onDraft }) {
   const meta = KIND_META[concept.kind] || KIND_META.condition
   const agreed = concept.mentionedBy.length
   const gaps   = concept.notMentionedBy
@@ -92,7 +92,7 @@ function ConceptRow({ concept, totalClinicians, onDraft }) {
           </Button>
         </div>
 
-        <CoverageBar mentionedCount={agreed} totalCount={totalClinicians} />
+        <CoverageBar mentionedCount={agreed} totalCount={totalStaff} />
 
         {/* Clinician chips */}
         <div className="flex flex-wrap gap-1 mt-2">
@@ -114,7 +114,7 @@ function ConceptRow({ concept, totalClinicians, onDraft }) {
 
 // ── Kind section ──────────────────────────────────────────────────────────────
 
-function KindSection({ kind, concepts, totalClinicians, onDraft }) {
+function KindSection({ kind, concepts, totalStaff, onDraft }) {
   const meta = KIND_META[kind]
   if (!meta || !concepts.length) return null
 
@@ -139,7 +139,7 @@ function KindSection({ kind, concepts, totalClinicians, onDraft }) {
           <ConceptRow
             key={c.id}
             concept={c}
-            totalClinicians={totalClinicians}
+            totalStaff={totalStaff}
             onDraft={onDraft}
           />
         ))}
@@ -331,7 +331,7 @@ export default function Synthesis() {
             key={kind}
             kind={kind}
             concepts={grouped[kind]}
-            totalClinicians={clinicians.length}
+            totalStaff={clinicians.length}
             onDraft={handleDraft}
           />
         ))}

@@ -2,13 +2,13 @@
 //
 // The key factory pattern (https://tkdodo.eu/blog/effective-react-query-keys)
 // keeps cache invalidation correct: every key is built from the same source,
-// so a single `queryClient.invalidateQueries({ queryKey: queryKeys.clinicians.all })`
+// so a single `queryClient.invalidateQueries({ queryKey: queryKeys.staff.all })`
 // flushes every clinician-shaped cache entry in one call.
 //
 // Layout:
-//   queryKeys.clinicians.all           — ['clinicians']
-//   queryKeys.clinicians.list()        — ['clinicians','list']
-//   queryKeys.clinicians.detail(id)    — ['clinicians','detail', id]
+//   queryKeys.staff.all           — ['staff']
+//   queryKeys.staff.list()        — ['staff','list']
+//   queryKeys.staff.detail(id)    — ['staff','detail', id]
 //   queryKeys.workspace.me             — ['workspace','me']
 //   queryKeys.contentItems.list(args)  — ['contentItems','list', args]
 //   queryKeys.contentItems.detail(id)  — ['contentItems','detail', id]
@@ -56,10 +56,10 @@ import { buildStories, deriveStoryStage } from './stories'
 
 export const queryKeys = {
   clinicians: {
-    all:    ['clinicians'],
-    list:   () => ['clinicians', 'list'],
-    card:   () => ['clinicians', 'card'],  // slim view=card shape; populated by useStories
-    detail: (id) => ['clinicians', 'detail', id],
+    all:    ['staff'],
+    list:   () => ['staff', 'list'],
+    card:   () => ['staff', 'card'],  // slim view=card shape; populated by useStories
+    detail: (id) => ['staff', 'detail', id],
   },
   interviews: {
     all:    ['interviews'],
@@ -213,7 +213,7 @@ export function useUpdateBrandStyle() {
 
 export function useClinicians(options = {}) {
   return useQuery({
-    queryKey: queryKeys.clinicians.list(),
+    queryKey: queryKeys.staff.list(),
     queryFn: fetchClinicians,
     ...options,
   })
@@ -221,7 +221,7 @@ export function useClinicians(options = {}) {
 
 export function useClinician(id, options = {}) {
   return useQuery({
-    queryKey: queryKeys.clinicians.detail(id),
+    queryKey: queryKeys.staff.detail(id),
     queryFn: () => fetchClinician(id),
     enabled: !!id,
     ...options,
@@ -237,8 +237,8 @@ export function useDeleteClinician() {
       // Wipe the list cache + the specific detail so a re-fetch sees fresh
       // state. Also flush anything interview-shaped since deleted clinicians
       // cascade their interviews server-side.
-      qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
-      qc.removeQueries({ queryKey: queryKeys.clinicians.detail(id) })
+      qc.invalidateQueries({ queryKey: queryKeys.staff.all })
+      qc.removeQueries({ queryKey: queryKeys.staff.detail(id) })
       qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
     },
   })
@@ -250,8 +250,8 @@ export function usePatchClinician() {
     errorMessage: "Couldn't save clinician",
     mutationFn: ({ id, patch, userId }) => patchClinician(id, patch, userId),
     onSuccess: (_data, { id }) => {
-      qc.invalidateQueries({ queryKey: queryKeys.clinicians.detail(id) })
-      qc.invalidateQueries({ queryKey: queryKeys.clinicians.list() })
+      qc.invalidateQueries({ queryKey: queryKeys.staff.detail(id) })
+      qc.invalidateQueries({ queryKey: queryKeys.staff.list() })
     },
   })
 }
@@ -276,7 +276,7 @@ export function useUpdateInterview() {
       qc.invalidateQueries({ queryKey: queryKeys.interviews.detail(id) })
       // Interview status/outputs changes can flip the clinician-list summary
       // (e.g. "X completed interviews"), so refresh the clinician path too.
-      qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staff.all })
       // Auto-create of content_items on completion (see api/db/interviews.js)
       // means we should also flush the content list.
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
@@ -294,7 +294,7 @@ export function useDeleteInterview() {
       qc.removeQueries({ queryKey: queryKeys.interviews.detail(id) })
       qc.invalidateQueries({ queryKey: queryKeys.interviews.all })
       qc.invalidateQueries({ queryKey: queryKeys.stories.all })
-      qc.invalidateQueries({ queryKey: queryKeys.clinicians.all })
+      qc.invalidateQueries({ queryKey: queryKeys.staff.all })
       qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
     },
   })
@@ -525,8 +525,8 @@ export function useDeleteReference() {
 // staleTime 5min — list rarely changes outside of explicit user actions, and
 // every relevant mutation invalidates queryKeys.stories.all.
 //
-// Side-effect: writes the raw clinicians array to queryKeys.clinicians.card()
-// so Home's useClinicianSummaries() is a free cache hit when Stories has
+// Side-effect: writes the raw clinicians array to queryKeys.staff.card()
+// so Home's useStaffSummaries() is a free cache hit when Stories has
 // already loaded, eliminating the duplicate clinicians network request.
 export function useStories(filters = {}, options = {}) {
   const qc = useQueryClient()
@@ -534,10 +534,10 @@ export function useStories(filters = {}, options = {}) {
     queryKey: queryKeys.stories.list(filters),
     queryFn: async () => {
       const [clinicians, contentItems] = await Promise.all([
-        apiFetch('/api/db/clinicians?view=card'),
+        apiFetch('/api/db/staff?view=card'),
         apiFetch('/api/db/content?view=card&limit=500'),
       ])
-      qc.setQueryData(queryKeys.clinicians.card(), clinicians)
+      qc.setQueryData(queryKeys.staff.card(), clinicians)
       return buildStories(clinicians, contentItems)
     },
     staleTime: 5 * 60_000,
@@ -549,10 +549,10 @@ export function useStories(filters = {}, options = {}) {
 // resume strip. Shares the view=card endpoint with useStories; when Stories
 // has already loaded, setQueryData above makes this a zero-network cache hit.
 // Falls back to a direct fetch if Home loads before Stories (e.g. direct URL).
-export function useClinicianSummaries(options = {}) {
+export function useStaffSummaries(options = {}) {
   return useQuery({
-    queryKey: queryKeys.clinicians.card(),
-    queryFn: () => apiFetch('/api/db/clinicians?view=card'),
+    queryKey: queryKeys.staff.card(),
+    queryFn: () => apiFetch('/api/db/staff?view=card'),
     staleTime: 5 * 60_000,
     ...options,
   })
@@ -904,11 +904,11 @@ export function useUpsertCampaign() {
 
 // ── Clinician Recipes ──────────────────────────────────────────────────────
 
-export function useClinicianRecipes(clinicianId, options = {}) {
+export function useClinicianRecipes(staffId, options = {}) {
   return useQuery({
-    queryKey: queryKeys.clinicianRecipes.forClinician(clinicianId),
-    queryFn: () => fetchClinicianRecipes(clinicianId),
-    enabled: !!clinicianId,
+    queryKey: queryKeys.clinicianRecipes.forClinician(staffId),
+    queryFn: () => fetchClinicianRecipes(staffId),
+    enabled: !!staffId,
     staleTime: 1000 * 30,
     ...options,
   })
@@ -920,7 +920,7 @@ export function useCreateClinicianRecipe() {
     errorMessage: "Couldn't save recipe",
     mutationFn: (body) => createClinicianRecipe(body),
     onSuccess: (_data, body) => {
-      qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.forClinician(body.clinicianId) })
+      qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.forClinician(body.staffId) })
     },
   })
 }

@@ -92,8 +92,8 @@ describe('buildStories', () => {
     const s = result[0]
     expect(s.id).toBe('iv1')
     expect(s.workspace_id).toBe('ws1')
-    expect(s.clinician_id).toBe('c1')
-    expect(s.clinician_name).toBe('Dr. A')
+    expect(s.staff_id).toBe('c1')
+    expect(s.staff_name).toBe('Dr. A')
     expect(s.topic).toBe('Knee health')
     expect(s.status).toBe('completed')
     expect(s.pieces).toEqual([])
@@ -157,8 +157,8 @@ describe('buildStories', () => {
     expect(stories.find((s) => s.id === 'iv1').story_stage).toBe('published')
     expect(stories.find((s) => s.id === 'iv2').story_stage).toBe('capture')
     expect(stories.find((s) => s.id === 'iv3').story_stage).toBe('drafting')
-    expect(stories.find((s) => s.id === 'iv1').clinician_name).toBe('Dr. A')
-    expect(stories.find((s) => s.id === 'iv3').clinician_name).toBe('Dr. B')
+    expect(stories.find((s) => s.id === 'iv1').staff_name).toBe('Dr. A')
+    expect(stories.find((s) => s.id === 'iv3').staff_name).toBe('Dr. B')
   })
 
   it('drops orphan content_items whose interview_id has no matching interview', () => {

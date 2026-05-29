@@ -5,7 +5,7 @@
 //   - workspaces.brand_voice          (text, replaces)
 //   - workspaces.patient_context      (jsonb, additive merge — see handler)
 //   - workspaces.topic_suggestions    (jsonb array, replaces)
-//   - clinician_voice_phrases         (table rows, upsert on normalized phrase)
+//   - staff_voice_phrases         (table rows, upsert on normalized phrase)
 //
 // The prompt is bumped via SYNTHESIS_PROMPT_VERSION so retro analysis can tell
 // which prompt produced which row. Increment on every meaningful edit.

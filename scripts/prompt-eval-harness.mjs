@@ -80,26 +80,26 @@ console.log(`  ✓ Workspace: ${workspace.display_name} (${workspace.id})`)
 
 // Pull up to 5 completed interviews with messages
 const interviews = await sbGet(
-  `interviews?workspace_id=eq.${workspace.id}&status=eq.completed&messages=not.is.null&select=id,topic,messages,clinician_id,created_at&order=created_at.desc&limit=5`
+  `interviews?workspace_id=eq.${workspace.id}&status=eq.completed&messages=not.is.null&select=id,topic,messages,staff_id,created_at&order=created_at.desc&limit=5`
 )
 console.log(`  ✓ Interviews: ${interviews.length}`)
 if (!interviews.length) { console.error('No completed interviews found'); process.exit(1) }
 
 // Pull clinicians for voice data
-const clinicianIds = [...new Set(interviews.map(i => i.clinician_id).filter(Boolean))]
-const clinicians = clinicianIds.length
-  ? await sbGet(`clinicians?id=in.(${clinicianIds.join(',')})&select=id,name,voice_notes`)
+const staffIds = [...new Set(interviews.map(i => i.staff_id).filter(Boolean))]
+const clinicians = staffIds.length
+  ? await sbGet(`staff?id=in.(${staffIds.join(',')})&select=id,name,voice_notes`)
   : []
-const clinicianMap = Object.fromEntries(clinicians.map(c => [c.id, c]))
+const staffMap = Object.fromEntries(clinicians.map(c => [c.id, c]))
 
 // Pull voice phrases for each clinician
-const phraseRows = clinicianIds.length
-  ? await sbGet(`clinician_voice_phrases?clinician_id=in.(${clinicianIds.join(',')})&select=clinician_id,phrase,weight&order=weight.desc&limit=50`)
+const phraseRows = staffIds.length
+  ? await sbGet(`staff_voice_phrases?staff_id=in.(${staffIds.join(',')})&select=staff_id,phrase,weight&order=weight.desc&limit=50`)
   : []
 const phrasesMap = {}
 for (const p of phraseRows) {
-  if (!phrasesMap[p.clinician_id]) phrasesMap[p.clinician_id] = []
-  phrasesMap[p.clinician_id].push(p)
+  if (!phrasesMap[p.staff_id]) phrasesMap[p.staff_id] = []
+  phrasesMap[p.staff_id].push(p)
 }
 
 console.log(`  ✓ Clinicians: ${clinicians.map(c => c.name).join(', ')}`)
@@ -138,7 +138,7 @@ function makeVariants(interview, clinician, phrases, voiceNotes) {
 
   // Baseline config
   const BASE = {
-    workspace, clinicianName: cName, condition,
+    workspace, staffName: cName, condition,
     tone: 'smart', voiceMode: 'practice', prototypeId: null,
     voiceNotes: voiceNotes || '', voicePhrases: phrasesArr,
     audienceSlot: null, storyTypeSlot: null, lengthPreset: null, ownHistoryBlock: ''
@@ -171,11 +171,11 @@ function makeVariants(interview, clinician, phrases, voiceNotes) {
 }
 
 // ── Scoring prompt ────────────────────────────────────────────────────────────
-function buildEvalPrompt({ blogPost, clinicianName, condition, voicePhrases, workspace }) {
+function buildEvalPrompt({ blogPost, staffName, condition, voicePhrases, workspace }) {
   const phraseExamples = (voicePhrases || []).slice(0, 6).map(p => `- "${p.phrase}"`).join('\n')
   return {
     system: `You are a precise content quality evaluator for a clinical content platform. You score blog posts on specific dimensions. Your entire response must be a single valid JSON object. Do NOT wrap it in markdown code fences. Do NOT include any text before or after the JSON object. Start your response with { and end with }.`,
-    user: `Evaluate this blog post about "${condition}" written for a clinician named ${clinicianName} at ${workspace.display_name}.
+    user: `Evaluate this blog post about "${condition}" written for a clinician named ${staffName} at ${workspace.display_name}.
 
 CLINICIAN'S KNOWN VOICE PHRASES (authentic lines from their approved content):
 ${phraseExamples || '(none available)'}
@@ -211,8 +211,8 @@ console.log()
 const results = []  // { variantId, group, label, topic, score, wordCount, blogSnippet, notes }
 
 for (const interview of testInterviews) {
-  const clinician = clinicianMap[interview.clinician_id]
-  const phrases = phrasesMap[interview.clinician_id] || []
+  const clinician = staffMap[interview.staff_id]
+  const phrases = phrasesMap[interview.staff_id] || []
   const voiceNotes = clinician?.voice_notes || ''
   const variants = makeVariants(interview, clinician, phrases, voiceNotes)
   const activeVariants = QUICK ? variants.filter(v => v.group === 'tone') : variants
@@ -231,7 +231,7 @@ for (const interview of testInterviews) {
   for (const variant of activeVariants) {
     const promptText = getBlogPostSystemPrompt(
       variant.workspace,
-      variant.clinicianName,
+      variant.staffName,
       variant.condition,
       variant.tone,
       variant.voiceMode,
@@ -274,7 +274,7 @@ for (const interview of testInterviews) {
       // Evaluate the output
       const evalPrompt = buildEvalPrompt({
         blogPost: cleanPost,
-        clinicianName: variant.clinicianName,
+        staffName: variant.staffName,
         condition: variant.condition,
         voicePhrases: variant.voicePhrases,
         workspace: variant.workspace,

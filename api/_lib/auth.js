@@ -188,7 +188,7 @@ export async function lookupPermissionTier(userId, workspaceId) {
   if (!userId || !workspaceId) return { ok: true, tier: null }
   try {
     const r = await fetch(
-      `${SUPABASE_URL_FOR_TIER}/rest/v1/clinicians?user_id=eq.${encodeURIComponent(userId)}` +
+      `${SUPABASE_URL_FOR_TIER}/rest/v1/staff?user_id=eq.${encodeURIComponent(userId)}` +
       `&workspace_id=eq.${encodeURIComponent(workspaceId)}&select=permission_tier&limit=1`,
       {
         headers: {

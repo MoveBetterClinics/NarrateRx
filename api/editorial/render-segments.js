@@ -71,7 +71,7 @@ export default async function handler(req, res) {
   const inList = segmentIds.map((id) => `"${id}"`).join(',')
   const segRes = await sb(
     `video_segments?id=in.(${inList})&workspace_id=eq.${ws.id}` +
-      `&select=id,source_asset_id,clinician_id,start_sec,end_sec,hook,status,story_package_id,` +
+      `&select=id,source_asset_id,staff_id,start_sec,end_sec,hook,status,story_package_id,` +
       `source_asset:media_assets(id,kind,blob_url,filename,archived_at)`,
   )
   if (!segRes.ok) return res.status(500).json({ error: 'db_error' })
@@ -80,13 +80,13 @@ export default async function handler(req, res) {
   if (!segments.length) return res.status(404).json({ error: 'no_segments_found' })
 
   // Resolve clinician names once (best-effort) for lower-third overlays.
-  const clinicianIds = [...new Set(segments.map((s) => s.clinician_id).filter(Boolean))]
-  const clinicianNames = {}
-  if (clinicianIds.length) {
-    const cIn = clinicianIds.map((id) => `"${id}"`).join(',')
-    const cRes = await sb(`clinicians?id=in.(${cIn})&workspace_id=eq.${ws.id}&select=id,name`)
+  const staffIds = [...new Set(segments.map((s) => s.staff_id).filter(Boolean))]
+  const staffNames = {}
+  if (staffIds.length) {
+    const cIn = staffIds.map((id) => `"${id}"`).join(',')
+    const cRes = await sb(`staff?id=in.(${cIn})&workspace_id=eq.${ws.id}&select=id,name`)
     if (cRes.ok) {
-      for (const c of await cRes.json()) clinicianNames[c.id] = c.name
+      for (const c of await cRes.json()) staffNames[c.id] = c.name
     }
   }
 
@@ -108,7 +108,7 @@ export default async function handler(req, res) {
     const startSec = Number(seg.start_sec) || 0
     const durationSec = Math.max(1, (Number(seg.end_sec) || 0) - startSec)
     const captionText = String(seg.hook || '').slice(0, 500)
-    const clinicianName = clinicianNames[seg.clinician_id] || ''
+    const staffName = staffNames[seg.staff_id] || ''
 
     // Create the story package row (status='generating') so the Slate card
     // appears immediately with a spinner. topic = the segment hook.
@@ -116,7 +116,7 @@ export default async function handler(req, res) {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
-        clinician_id: seg.clinician_id || null,
+        staff_id: seg.staff_id || null,
         source_asset_id: asset.id,
         topic: captionText || 'Clip',
         caption_text: captionText,
@@ -155,10 +155,10 @@ export default async function handler(req, res) {
         kind: 'video',
         channels: DEFAULT_VIDEO_CHANNELS,
         captionText,
-        clinicianName,
+        staffName,
         filename: asset.filename,
         topic: captionText,
-        clinicianId: seg.clinician_id || null,
+        staffId: seg.staff_id || null,
         startSec,
         durationSec,
       }),

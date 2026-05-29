@@ -64,7 +64,7 @@ if (!ws) { console.error(`No workspace matched: ${wsSlug}`); process.exit(1) }
 
 // Q's clinician — resolve by user_id IS NOT NULL (Self-clinician)
 const clRes = await sb(
-  `clinicians?workspace_id=eq.${ws.id}&user_id=not.is.null&select=id,name&order=created_at.asc&limit=1`
+  `staff?workspace_id=eq.${ws.id}&user_id=not.is.null&select=id,name&order=created_at.asc&limit=1`
 )
 if (!clRes.ok) { console.error(`clinicians fetch ${clRes.status}`); process.exit(1) }
 const [cl] = await clRes.json()
@@ -76,7 +76,7 @@ console.log(`Clinician : ${cl.name} (${cl.id})\n`)
 // ── Status mode ────────────────────────────────────────────────────────────
 if (STATUS) {
   const docsRes = await sb(
-    `clinician_corpus_documents?workspace_id=eq.${ws.id}&clinician_id=eq.${cl.id}` +
+    `staff_corpus_documents?workspace_id=eq.${ws.id}&staff_id=eq.${cl.id}` +
     `&archived_at=is.null&select=id,doc_type,title,updated_at&order=updated_at.desc`
   )
   const docs = docsRes.ok ? await docsRes.json() : []
@@ -146,19 +146,19 @@ for (const filename of files) {
   if (DRY_RUN) { indexed++; continue }
 
   if (fm.docType === 'original_blog') {
-    // Upsert into clinician_corpus_documents first
-    const upsertRes = await upsertDoc({ workspaceId: ws.id, clinicianId: cl.id, fm, body })
+    // Upsert into staff_corpus_documents first
+    const upsertRes = await upsertDoc({ workspaceId: ws.id, staffId: cl.id, fm, body })
     if (!upsertRes) { skipped++; continue }
     await indexOriginalBlog({
-      workspaceId: ws.id, clinicianId: cl.id,
+      workspaceId: ws.id, staffId: cl.id,
       blogId: upsertRes.id, title: fm.title, body, publishedAt: fm.docDate,
     })
     indexed++
   } else {
-    const upsertRes = await upsertDoc({ workspaceId: ws.id, clinicianId: cl.id, fm, body })
+    const upsertRes = await upsertDoc({ workspaceId: ws.id, staffId: cl.id, fm, body })
     if (!upsertRes) { skipped++; continue }
     await indexUploadedDraft({
-      workspaceId: ws.id, clinicianId: cl.id,
+      workspaceId: ws.id, staffId: cl.id,
       docId: upsertRes.id, title: fm.title, body, uploadedAt: fm.docDate,
     })
     indexed++
@@ -167,17 +167,17 @@ for (const filename of files) {
 
 console.log(`\nDone. indexed=${indexed} skipped=${skipped}${DRY_RUN ? ' (dry-run)' : ''}`)
 
-async function upsertDoc({ workspaceId, clinicianId, fm, body }) {
+async function upsertDoc({ workspaceId, staffId, fm, body }) {
   // Check for existing by title
   const existRes = await sb(
-    `clinician_corpus_documents?workspace_id=eq.${workspaceId}` +
-    `&clinician_id=eq.${clinicianId}` +
+    `staff_corpus_documents?workspace_id=eq.${workspaceId}` +
+    `&staff_id=eq.${staffId}` +
     `&title=eq.${encodeURIComponent(fm.title)}&select=id&limit=1`
   )
   const [existing] = existRes.ok ? await existRes.json() : []
 
   if (existing) {
-    const r = await sb(`clinician_corpus_documents?id=eq.${existing.id}`, {
+    const r = await sb(`staff_corpus_documents?id=eq.${existing.id}`, {
       method: 'PATCH',
       headers: { Prefer: 'return=representation' },
       body: JSON.stringify({ body, source_url: fm.sourceUrl, doc_date: fm.docDate }),
@@ -186,11 +186,11 @@ async function upsertDoc({ workspaceId, clinicianId, fm, body }) {
     return (await r.json())[0]
   }
 
-  const r = await sb('clinician_corpus_documents', {
+  const r = await sb('staff_corpus_documents', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify({
-      workspace_id: workspaceId, clinician_id: clinicianId,
+      workspace_id: workspaceId, staff_id: staffId,
       doc_type: fm.docType, title: fm.title, body,
       source_url: fm.sourceUrl, doc_date: fm.docDate,
     }),

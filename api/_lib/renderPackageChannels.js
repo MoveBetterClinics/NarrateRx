@@ -52,17 +52,17 @@ function sb(path, init = {}) {
  * @param {string}   p.kind          — 'video' | 'photo'
  * @param {string[]} p.channels      — channel keys to render
  * @param {string}   p.captionText   — caption to render + persist
- * @param {string}   p.clinicianName — lower-third name
+ * @param {string}   p.staffName — lower-third name
  * @param {string}   [p.filename]    — source filename (for the render blob path)
  * @param {string}   [p.topic]       — for caption-fidelity scoring
- * @param {string}   [p.clinicianId] — for caption-fidelity scoring
+ * @param {string}   [p.staffId] — for caption-fidelity scoring
  * @param {number}   [p.startSec]    — clip start offset (multi-clip v1; video only). Default 0.
  * @param {number}   [p.durationSec] — clip length, clamped to MAX_RENDER_SECONDS. Default full cap.
  * @returns {Promise<{finalStatus: string, renders: object[], errors: object[]}>}
  */
 export async function renderAndPatchPackage({
   workspace, packageId, sourceUrl, sourceAssetId, kind,
-  channels, captionText, clinicianName, filename, topic, clinicianId,
+  channels, captionText, staffName, filename, topic, staffId,
   startSec, durationSec,
 }) {
   const ws = workspace
@@ -80,7 +80,7 @@ export async function renderAndPatchPackage({
         if (isVideo) {
           if (!VIDEO_CHANNEL_SPECS[channel]) { errors.push({ channel, error: 'unknown_channel' }); continue }
           const { buffer, width, height, hadSubtitles } = await renderVideoChannel({
-            videoUrl: sourceUrl, channel, captionText, workspace: ws, clinicianName,
+            videoUrl: sourceUrl, channel, captionText, workspace: ws, staffName,
             startSec, durationSec,
           })
           // Key by packageId, not just sourceAssetId — multi-clip v1 renders
@@ -94,7 +94,7 @@ export async function renderAndPatchPackage({
         } else {
           if (!CHANNEL_SPECS[channel]) { errors.push({ channel, error: 'unknown_channel' }); continue }
           const { buffer, width, height } = await renderPhotoChannel({
-            photoUrl: sourceUrl, channel, captionText, workspace: ws, clinicianName,
+            photoUrl: sourceUrl, channel, captionText, workspace: ws, staffName,
           })
           const pathname = `media/renders/${ws.slug}/${sourceAssetId}/${packageId}/${channel}-${safeFilename}.jpg`
           const blob = await blobPut(pathname, buffer, {
@@ -132,7 +132,7 @@ export async function renderAndPatchPackage({
         packageId,
         workspaceId:   ws.id,
         workspaceName: ws.display_name,
-        clinicianId:   clinicianId || null,
+        staffId:   staffId || null,
         topic:         topic || '',
         captionText,
       }).catch((e) => console.error('[renderPackageChannels] caption fidelity scoring failed:', e?.message || e))

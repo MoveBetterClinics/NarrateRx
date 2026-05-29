@@ -75,9 +75,9 @@ try {
     [workspace.id, CLINICIAN_NAME],
   )
 
-  let clinicianId
+  let staffId
   if (existing.rows[0]) {
-    clinicianId = existing.rows[0].id
+    staffId = existing.rows[0].id
     console.log(`✓ Fixture clinician already present: ${existing.rows[0].id} — ${existing.rows[0].name}`)
   } else {
     const inserted = await client.query(
@@ -86,7 +86,7 @@ try {
        returning id, name`,
       [workspace.id, CLINICIAN_NAME],
     )
-    clinicianId = inserted.rows[0].id
+    staffId = inserted.rows[0].id
     console.log(`✓ Seeded fixture clinician: ${inserted.rows[0].id} — ${inserted.rows[0].name}`)
   }
 
@@ -104,11 +104,11 @@ try {
        and interview_id in (
          select id from interviews
          where workspace_id = $1
-           and clinician_id = $2
+           and staff_id = $2
            and topic like 'E2E smoke topic%'
        )
      returning id`,
-    [workspace.id, clinicianId],
+    [workspace.id, staffId],
   )
   if (prunedItems.rowCount > 0) {
     console.log(`✓ Pruned ${prunedItems.rowCount} prior smoke content_item(s)`)
@@ -116,10 +116,10 @@ try {
   const pruned = await client.query(
     `delete from interviews
      where workspace_id = $1
-       and clinician_id = $2
+       and staff_id = $2
        and topic like 'E2E smoke topic%'
      returning id`,
-    [workspace.id, clinicianId],
+    [workspace.id, staffId],
   )
   if (pruned.rowCount > 0) {
     console.log(`✓ Pruned ${pruned.rowCount} prior smoke interview(s)`)

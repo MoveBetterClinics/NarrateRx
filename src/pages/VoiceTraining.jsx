@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
-import { useSelfClinicianId } from '@/lib/useSelfClinicianId'
+import { useSelfStaffId } from '@/lib/useSelfStaffId'
 
 // Reading script for the IVC sample — diverse phonemes, conversational
 // pacing, clinical context. ~3.5 min when read at natural pace.
@@ -30,34 +30,34 @@ const RECOMMENDED_DURATION_SEC = 180
 
 // Resume-from-failed-upload stash: when /api/voice-clone/create succeeds in
 // uploading the audio but the upstream clone step fails, we keep the blob
-// URL here so the user can retry without re-recording. Keyed by clinicianId
+// URL here so the user can retry without re-recording. Keyed by staffId
 // because different clinicians could share a browser.
 const STASH_KEY = 'narraterx.voice-clone.pending.v1'
 const STASH_TTL_MS = 24 * 60 * 60 * 1000
 
-function loadStash(clinicianId) {
-  if (!clinicianId || typeof window === 'undefined') return null
+function loadStash(staffId) {
+  if (!staffId || typeof window === 'undefined') return null
   try {
     const raw = window.localStorage.getItem(STASH_KEY)
     if (!raw) return null
     const all = JSON.parse(raw)
-    const entry = all?.[clinicianId]
+    const entry = all?.[staffId]
     if (!entry?.sampleUrl || !entry?.recordedAt) return null
     if (Date.now() - new Date(entry.recordedAt).getTime() > STASH_TTL_MS) {
-      saveStash(clinicianId, null)
+      saveStash(staffId, null)
       return null
     }
     return entry
   } catch { return null }
 }
 
-function saveStash(clinicianId, entry) {
-  if (!clinicianId || typeof window === 'undefined') return
+function saveStash(staffId, entry) {
+  if (!staffId || typeof window === 'undefined') return
   try {
     const raw = window.localStorage.getItem(STASH_KEY)
     const all = raw ? JSON.parse(raw) : {}
-    if (entry) all[clinicianId] = entry
-    else delete all[clinicianId]
+    if (entry) all[staffId] = entry
+    else delete all[staffId]
     window.localStorage.setItem(STASH_KEY, JSON.stringify(all))
   } catch { /* localStorage full or blocked — silent */ }
 }
@@ -81,7 +81,7 @@ export default function VoiceTraining() {
   useDocumentTitle('Voice training')
   const navigate = useNavigate()
   const { getToken } = useAuth()
-  const clinicianId = useSelfClinicianId()
+  const staffId = useSelfStaffId()
 
   // idle | requesting | recording | recorded | uploading
   const [state, setState] = useState('idle')
@@ -125,10 +125,10 @@ export default function VoiceTraining() {
 
   // Load any pending resume stash once we know the clinician id.
   useEffect(() => {
-    if (!clinicianId) return
-    const entry = loadStash(clinicianId)
+    if (!staffId) return
+    const entry = loadStash(staffId)
     if (entry) setPendingStash(entry)
-  }, [clinicianId])
+  }, [staffId])
 
   // Warn before leaving the page when an unsaved recording is present.
   // beforeunload fires on tab close, reload, or hard navigation; React Router
@@ -212,7 +212,7 @@ export default function VoiceTraining() {
   }, [isPlaying])
 
   const submit = useCallback(async () => {
-    if (!blob || !clinicianId) return
+    if (!blob || !staffId) return
     if (elapsed < MIN_DURATION_SEC) {
       setError(`Recording is ${Math.round(elapsed)}s — need at least ${MIN_DURATION_SEC}s for a usable clone.`)
       return
@@ -223,7 +223,7 @@ export default function VoiceTraining() {
       const token = await getToken()
       const filename = `voice-training-${Date.now()}.webm`
       const r = await fetch(
-        `/api/voice-clone/create?clinicianId=${encodeURIComponent(clinicianId)}` +
+        `/api/voice-clone/create?staffId=${encodeURIComponent(staffId)}` +
         `&durationSec=${Math.round(elapsed)}` +
         `&filename=${encodeURIComponent(filename)}`,
         {
@@ -247,26 +247,26 @@ export default function VoiceTraining() {
             filename,
             recordedAt:   new Date().toISOString(),
           }
-          saveStash(clinicianId, stash)
+          saveStash(staffId, stash)
           setPendingStash(stash)
         }
         throw new Error(data?.error || `Upload failed (${r.status})`)
       }
       // Success — clear any prior stash.
-      saveStash(clinicianId, null)
+      saveStash(staffId, null)
       setPendingStash(null)
       toast.success('Voice clone created — content can now use your voice.')
-      navigate(`/clinician/${clinicianId}?tab=voice`)
+      navigate(`/staff/${staffId}?tab=voice`)
     } catch (e) {
       setError(e?.message || 'Voice cloning failed.')
       setState('recorded')
     }
-  }, [blob, clinicianId, elapsed, mimeType, getToken, navigate])
+  }, [blob, staffId, elapsed, mimeType, getToken, navigate])
 
   // Resume a prior failed clone using the stashed sampleUrl. Skips re-record
   // and re-upload — server pulls the existing blob and calls ElevenLabs.
   const resume = useCallback(async () => {
-    if (!pendingStash || !clinicianId) return
+    if (!pendingStash || !staffId) return
     setError('')
     setResuming(true)
     try {
@@ -278,7 +278,7 @@ export default function VoiceTraining() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          clinicianId,
+          staffId,
           sampleUrl: pendingStash.sampleUrl,
         }),
       })
@@ -287,27 +287,27 @@ export default function VoiceTraining() {
         // 410 means the blob is gone — clear the stash so we don't keep
         // offering a dead-end resume button.
         if (r.status === 410) {
-          saveStash(clinicianId, null)
+          saveStash(staffId, null)
           setPendingStash(null)
         }
         throw new Error(data?.error || `Resume failed (${r.status})`)
       }
-      saveStash(clinicianId, null)
+      saveStash(staffId, null)
       setPendingStash(null)
       toast.success('Voice clone created — content can now use your voice.')
-      navigate(`/clinician/${clinicianId}?tab=voice`)
+      navigate(`/staff/${staffId}?tab=voice`)
     } catch (e) {
       setError(e?.message || 'Resume failed.')
     } finally {
       setResuming(false)
     }
-  }, [pendingStash, clinicianId, getToken, navigate])
+  }, [pendingStash, staffId, getToken, navigate])
 
   const dismissStash = useCallback(() => {
-    if (!clinicianId) return
-    saveStash(clinicianId, null)
+    if (!staffId) return
+    saveStash(staffId, null)
     setPendingStash(null)
-  }, [clinicianId])
+  }, [staffId])
 
   const recording = state === 'recording'
   const recorded = state === 'recorded'
@@ -318,7 +318,7 @@ export default function VoiceTraining() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 space-y-6">
       <Link
-        to={clinicianId ? `/clinician/${clinicianId}?tab=voice` : '/'}
+        to={staffId ? `/staff/${staffId}?tab=voice` : '/'}
         className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4 mr-1" /> Back to profile
@@ -331,7 +331,7 @@ export default function VoiceTraining() {
         <p className="text-sm text-muted-foreground">
           Record yourself reading the passage below — about 3 minutes works best. After you submit, NarrateRx will create a voice clone you can use for blog audio, handouts, and other narration.
         </p>
-        {!clinicianId && (
+        {!staffId && (
           <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mt-2">
             You don&apos;t have a clinician profile in this workspace yet — complete your first interview before training a voice clone.
           </p>
@@ -385,7 +385,7 @@ export default function VoiceTraining() {
             <Button
               type="button"
               onClick={recording ? stopRecording : startRecording}
-              disabled={uploading || requesting || !clinicianId}
+              disabled={uploading || requesting || !staffId}
               aria-label={recording ? 'Stop recording' : 'Start recording'}
               className={`h-20 w-20 rounded-full p-0 ${recording ? 'bg-red-600 hover:bg-red-700' : ''}`}
             >

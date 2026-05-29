@@ -70,12 +70,12 @@ async function resolveTarget(req) {
 
   // Which clinician? Default to "the one matching auth user_id".
   const url = new URL(req.url, 'http://localhost')
-  const clinicianIdParam = url.searchParams.get('clinicianId')
+  const staffIdParam = url.searchParams.get('staffId')
 
   let clinician
-  if (clinicianIdParam) {
+  if (staffIdParam) {
     const r = await sb(
-      `clinicians?id=eq.${clinicianIdParam}&workspace_id=eq.${ws.id}` +
+      `staff?id=eq.${staffIdParam}&workspace_id=eq.${ws.id}` +
         `&select=id,name,user_id,workspace_id,permission_tier,staff_type,capture_upload_token,capture_upload_token_expires_at,capture_upload_token_last_used_at`,
     )
     if (!r.ok) return { ok: false, status: 500, reason: 'db_error' }
@@ -83,7 +83,7 @@ async function resolveTarget(req) {
     clinician = rows?.[0]
   } else {
     const r = await sb(
-      `clinicians?user_id=eq.${encodeURIComponent(auth.userId)}&workspace_id=eq.${ws.id}` +
+      `staff?user_id=eq.${encodeURIComponent(auth.userId)}&workspace_id=eq.${ws.id}` +
         `&select=id,name,user_id,workspace_id,permission_tier,staff_type,capture_upload_token,capture_upload_token_expires_at,capture_upload_token_last_used_at`,
     )
     if (!r.ok) return { ok: false, status: 500, reason: 'db_error' }
@@ -98,7 +98,7 @@ async function resolveTarget(req) {
   let callerTier = null
   if (!isSelf) {
     const callerRes = await sb(
-      `clinicians?user_id=eq.${encodeURIComponent(auth.userId)}&workspace_id=eq.${ws.id}&select=permission_tier`,
+      `staff?user_id=eq.${encodeURIComponent(auth.userId)}&workspace_id=eq.${ws.id}&select=permission_tier`,
     )
     if (callerRes.ok) {
       const callerRows = await callerRes.json()
@@ -132,7 +132,7 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'DELETE') {
-    const r = await sb(`clinicians?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
+    const r = await sb(`staff?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
         capture_upload_token: null,
@@ -148,7 +148,7 @@ export default async function handler(req, res) {
   const token = newToken()
   const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString()
 
-  const r = await sb(`clinicians?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
+  const r = await sb(`staff?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({
       capture_upload_token: token,

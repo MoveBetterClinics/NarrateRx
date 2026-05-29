@@ -3,10 +3,10 @@
 //
 // Why: an invited member (e.g. a clinician who just accepted an org invite)
 // had no clinicians row until they started their first interview, so the
-// "My staff profile" avatar-menu item (gated on selfClinicianId) never showed
+// "My staff profile" avatar-menu item (gated on selfStaffId) never showed
 // and their profile didn't exist. This hook closes that gap by calling the
-// idempotent /api/clinicians/ensure-self endpoint once, then refreshing the
-// clinician summaries cache so useSelfClinicianId resolves and the menu item
+// idempotent /api/staff/ensure-self endpoint once, then refreshing the
+// clinician summaries cache so useSelfStaffId resolves and the menu item
 // appears — no interview required.
 //
 // Gated on CAP_INTERVIEW_START: only members who can be interviewed (the
@@ -23,17 +23,17 @@ import { useQueryClient } from '@tanstack/react-query'
 import { apiFetch } from '@/lib/api'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { usePermission } from '@/lib/usePermission'
-import { useClinicianSummaries } from '@/lib/queries'
+import { useStaffSummaries } from '@/lib/queries'
 import { CAP_INTERVIEW_START } from '@/lib/capabilities'
 
-export function useEnsureSelfClinician() {
+export function useEnsureSelfStaff() {
   const { user, isLoaded } = useUser()
   const ws = useWorkspace()
   const { has } = usePermission()
   // Snapshot to a stable boolean — `has` is a fresh closure every render, so
   // depending on it directly would re-run the effect on every parent re-render.
   const canInterview = has(CAP_INTERVIEW_START)
-  const { data: summaries, isSuccess } = useClinicianSummaries()
+  const { data: summaries, isSuccess } = useStaffSummaries()
   const qc = useQueryClient()
   const attemptedRef = useRef(false)
 
@@ -62,13 +62,13 @@ export function useEnsureSelfClinician() {
     attemptedRef.current = true
     ;(async () => {
       try {
-        await apiFetch('/api/clinicians/ensure-self', {
+        await apiFetch('/api/staff/ensure-self', {
           method: 'POST',
           body: JSON.stringify({ name: user.fullName || '' }),
         })
-        // Refresh so useSelfClinicianId picks up the new row and the avatar
+        // Refresh so useSelfStaffId picks up the new row and the avatar
         // menu's "My staff profile" item appears without a page reload.
-        qc.invalidateQueries({ queryKey: ['clinicians'] })
+        qc.invalidateQueries({ queryKey: ['staff'] })
       } catch (e) {
         // Non-fatal: the row will still be created lazily on first interview.
         // Reset the guard so a later navigation can retry.

@@ -84,7 +84,7 @@ function maxTimestamp(values) {
  * Join clinicians-with-nested-interviews and content_items into a flat
  * list of Story objects.
  *
- * @param {Array} clinicians  — output of /api/db/clinicians (with `interviews[]`)
+ * @param {Array} clinicians  — output of /api/db/staff (with `interviews[]`)
  * @param {Array} contentItems — output of /api/db/content (workspace-scoped)
  * @returns {Array<Story>}
  *
@@ -94,7 +94,7 @@ function maxTimestamp(values) {
  * belt-and-suspenders guard, not the primary defense.
  */
 export function buildStories(clinicians, contentItems) {
-  const clinicianList = Array.isArray(clinicians) ? clinicians : []
+  const staffList = Array.isArray(clinicians) ? clinicians : []
   const itemList = Array.isArray(contentItems) ? contentItems : []
 
   // Index content_items by interview_id.
@@ -107,7 +107,7 @@ export function buildStories(clinicians, contentItems) {
   }
 
   const stories = []
-  for (const clinician of clinicianList) {
+  for (const clinician of staffList) {
     if (!clinician) continue
     const interviews = Array.isArray(clinician.interviews) ? clinician.interviews : []
     for (const interview of interviews) {
@@ -163,8 +163,8 @@ export function buildStories(clinicians, contentItems) {
       stories.push({
         id: interview.id,
         workspace_id: interview.workspace_id || clinician.workspace_id || null,
-        clinician_id: clinician.id,
-        clinician_name: clinician.name,
+        staff_id: clinician.id,
+        staff_name: clinician.name,
         topic: interview.topic,
         status: interview.status,
         capture_mode: interview.capture_mode || 'interview',

@@ -42,7 +42,7 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-const SELECT = 'id,interview_id,clinician_id,clinician_name,topic,platform,content,overlay_text,slides,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,location_overrides,notes,reviewed_by,approved_by,approved_at,performed_well,archived_at,hashtag_suggestions,buffer_metrics,buffer_metrics_fetched_at,provenance,voice_fidelity_score,voice_audit,length_preset,series_id,series_part,series_total,created_at,updated_at'
+const SELECT = 'id,interview_id,staff_id,staff_name,topic,platform,content,overlay_text,slides,status,scheduled_at,published_at,media_urls,platform_post_id,buffer_update_id,resolved_url,target_locations,location_id,location_overrides,notes,reviewed_by,approved_by,approved_at,performed_well,archived_at,hashtag_suggestions,buffer_metrics,buffer_metrics_fetched_at,provenance,voice_fidelity_score,voice_audit,length_preset,series_id,series_part,series_total,created_at,updated_at'
 
 // Slim shape for the Stories list (Cards / Pipeline / Calendar / Themes views).
 // Drops heavy columns (`content`, `media_urls`, `buffer_metrics`, `notes`, etc.)
@@ -84,7 +84,7 @@ export default async function handler(req, res) {
     const from        = searchParams.get('from')        // ISO date
     const to          = searchParams.get('to')          // ISO date
     const interviewId = searchParams.get('interviewId')
-    const clinicianId = searchParams.get('clinicianId')
+    const staffId = searchParams.get('staffId')
     const archived    = searchParams.get('archived')    // 'true' | 'only' | 'all' — default excludes archived
     const limit       = parseInt(searchParams.get('limit') || '100')
     const view        = searchParams.get('view')        // 'card' | 'performers' = slim shapes
@@ -96,7 +96,7 @@ export default async function handler(req, res) {
     if (from)        qs += `&scheduled_at=gte.${from}`
     if (to)          qs += `&scheduled_at=lte.${to}`
     if (interviewId) qs += `&interview_id=eq.${interviewId}`
-    if (clinicianId) qs += `&clinician_id=eq.${encodeURIComponent(clinicianId)}`
+    if (staffId) qs += `&staff_id=eq.${encodeURIComponent(staffId)}`
     // Archive filter — archived items are hidden by default so the Hub stays
     // focused on live work. `archived=only` flips to the Archived view;
     // `archived=all` returns both (used by callers that need totals).
@@ -126,10 +126,10 @@ export default async function handler(req, res) {
     }
 
     // Single insert
-    const { interviewId, clinicianId, clinicianName, topic, platform, content, status } = body || {}
+    const { interviewId, staffId, staffName, topic, platform, content, status } = body || {}
     if (!interviewId || !platform || !content) return err(res, 'Missing required fields')
 
-    const row = { workspace_id: ws.id, interview_id: interviewId, clinician_id: clinicianId, clinician_name: clinicianName, topic, platform, content }
+    const row = { workspace_id: ws.id, interview_id: interviewId, staff_id: staffId, staff_name: staffName, topic, platform, content }
     if (status) row.status = status
     const r = await sb('content_items', {
       method: 'POST',
@@ -191,16 +191,16 @@ export default async function handler(req, res) {
         sourceKind:   'approved_edit',
         sourceId:     updated.id,
         text:         updated.content,
-        clinicianId:  updated.clinician_id ?? null,
+        staffId:  updated.staff_id ?? null,
         weightDelta:  1.5,
       })
       // Phase C.3 — feed approved content into the per-clinician voice phrase
-      // substrate. No-ops without a clinician_id (group-level pieces don't
+      // substrate. No-ops without a staff_id (group-level pieces don't
       // contribute to any one voice profile).
-      if (updated.clinician_id) {
+      if (updated.staff_id) {
         extractVoicePhrases({
           workspaceId: ws.id,
-          clinicianId: updated.clinician_id,
+          staffId: updated.staff_id,
           content:     updated.content,
         })
       }
@@ -213,7 +213,7 @@ export default async function handler(req, res) {
         sourceKind:   'rejected_edit',
         sourceId:     updated.id,
         text:         updated.content,
-        clinicianId:  updated.clinician_id ?? null,
+        staffId:  updated.staff_id ?? null,
         weightDelta:  -0.5,
       })
     }

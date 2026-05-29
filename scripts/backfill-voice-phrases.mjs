@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Phase C.1 — Seed clinician_voice_phrases from existing accepted content.
+// Phase C.1 — Seed staff_voice_phrases from existing accepted content.
 //
 // Scans every content_item with status 'approved' or 'published' that has a
-// clinician_id, extracts short characteristic sentences from the content body,
-// and upserts them into clinician_voice_phrases.
+// staff_id, extracts short characteristic sentences from the content body,
+// and upserts them into staff_voice_phrases.
 //
 // Each time a phrase appears in an accepted item the approve_count is bumped
 // by 1. On conflict (same workspace × clinician × normalized phrase) the
@@ -61,10 +61,10 @@ if (DRY_RUN) console.log('DRY RUN — no writes will be made\n')
 // 1. Fetch accepted content items with a clinician
 console.log('Fetching accepted content_items...')
 const { rows: items } = await client.query(`
-  SELECT id, workspace_id, clinician_id, content, status, created_at
+  SELECT id, workspace_id, staff_id, content, status, created_at
   FROM   content_items
   WHERE  status IN ('approved', 'published')
-    AND  clinician_id IS NOT NULL
+    AND  staff_id IS NOT NULL
     AND  content IS NOT NULL
     AND  content <> ''
   ORDER  BY created_at ASC
@@ -78,9 +78,9 @@ if (items.length === 0) {
 }
 
 // 2. Extract phrases — accumulate in a map keyed by
-//    `${workspace_id}::${clinician_id}::${phrase_normalized}` so we can merge
+//    `${workspace_id}::${staff_id}::${phrase_normalized}` so we can merge
 //    counts when the same phrase appears across multiple items before writing.
-const phraseMap = new Map()   // key → { workspace_id, clinician_id, phrase, phrase_normalized, approve_count, last_seen_at }
+const phraseMap = new Map()   // key → { workspace_id, staff_id, phrase, phrase_normalized, approve_count, last_seen_at }
 
 let itemsWithPhrases = 0
 let totalPhraseOccurrences = 0
@@ -92,7 +92,7 @@ for (const item of items) {
   totalPhraseOccurrences += phrases.length
 
   for (const { phrase, phrase_normalized } of phrases) {
-    const key = `${item.workspace_id}::${item.clinician_id}::${phrase_normalized}`
+    const key = `${item.workspace_id}::${item.staff_id}::${phrase_normalized}`
     if (phraseMap.has(key)) {
       const existing = phraseMap.get(key)
       existing.approve_count++
@@ -102,7 +102,7 @@ for (const item of items) {
     } else {
       phraseMap.set(key, {
         workspace_id:     item.workspace_id,
-        clinician_id:     item.clinician_id,
+        staff_id:     item.staff_id,
         phrase,
         phrase_normalized,
         approve_count:    1,
@@ -120,13 +120,13 @@ console.log(`${uniquePhrases.length} unique (workspace × clinician × phrase_no
 
 if (DRY_RUN) {
   // Group by clinician for readable output
-  const byClinician = {}
+  const byStaff = {}
   for (const p of uniquePhrases) {
-    const k = `${p.workspace_id} / ${p.clinician_id}`
-    if (!byClinician[k]) byClinician[k] = []
-    byClinician[k].push(p)
+    const k = `${p.workspace_id} / ${p.staff_id}`
+    if (!byStaff[k]) byStaff[k] = []
+    byStaff[k].push(p)
   }
-  for (const [grp, phrases] of Object.entries(byClinician)) {
+  for (const [grp, phrases] of Object.entries(byStaff)) {
     console.log(`── ${grp} (${phrases.length} phrases) ──`)
     for (const p of phrases.sort((a, b) => b.approve_count - a.approve_count).slice(0, 20)) {
       console.log(`  [×${p.approve_count}] ${p.phrase}`)
@@ -156,7 +156,7 @@ for (let i = 0; i < uniquePhrases.length; i += BATCH_SIZE) {
     values.push(`($${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++}, $${pIdx++})`)
     params.push(
       p.workspace_id,
-      p.clinician_id,
+      p.staff_id,
       p.phrase,
       p.phrase_normalized,
       p.approve_count,
@@ -166,13 +166,13 @@ for (let i = 0; i < uniquePhrases.length; i += BATCH_SIZE) {
   }
 
   const sql = `
-    INSERT INTO clinician_voice_phrases
-      (workspace_id, clinician_id, phrase, phrase_normalized, approve_count, reject_count, last_seen_at)
+    INSERT INTO staff_voice_phrases
+      (workspace_id, staff_id, phrase, phrase_normalized, approve_count, reject_count, last_seen_at)
     VALUES ${values.join(', ')}
-    ON CONFLICT (workspace_id, clinician_id, phrase_normalized)
+    ON CONFLICT (workspace_id, staff_id, phrase_normalized)
     DO UPDATE SET
-      approve_count = clinician_voice_phrases.approve_count + EXCLUDED.approve_count,
-      last_seen_at  = GREATEST(clinician_voice_phrases.last_seen_at, EXCLUDED.last_seen_at)
+      approve_count = staff_voice_phrases.approve_count + EXCLUDED.approve_count,
+      last_seen_at  = GREATEST(staff_voice_phrases.last_seen_at, EXCLUDED.last_seen_at)
     RETURNING (xmax = 0) AS was_inserted
   `
 

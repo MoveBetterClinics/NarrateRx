@@ -211,10 +211,10 @@ export default function VoiceMemo() {
         throw new Error(txt || `Upload failed (${r.status})`)
       }
       const data = await r.json()
-      const { clinicianId, interviewId } = data
+      const { staffId, interviewId } = data
       if (!interviewId) throw new Error('Upload succeeded but no interview id returned.')
       toast.success('Voice memo captured — review the transcript next.')
-      navigate(`/capture/${clinicianId}/${interviewId}/review`)
+      navigate(`/capture/${staffId}/${interviewId}/review`)
     } catch (e) {
       setError(e?.message || 'Upload failed.')
       setState('recorded')

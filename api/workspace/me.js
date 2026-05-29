@@ -327,7 +327,7 @@ async function handler(req, res) {
     let current_user_producer_onboarded_at = null
     try {
       const ctr = await sb(
-        `clinicians?user_id=eq.${encodeURIComponent(auth.userId)}` +
+        `staff?user_id=eq.${encodeURIComponent(auth.userId)}` +
         `&workspace_id=eq.${encodeURIComponent(workspace.id)}` +
         `&select=permission_tier,producer_onboarded_at&limit=1`
       )

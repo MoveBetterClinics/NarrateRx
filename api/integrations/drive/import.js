@@ -23,7 +23,7 @@ import { processImageUpload } from '../../_lib/imagePipeline.js'
 import { recordAudit, snapshot } from '../../_lib/audit.js'
 
 // POST /api/integrations/drive/import
-// Body: { items: [{ id, assetPurpose?, speakerRole?, clinicianId?, collectionId? }, ...] }
+// Body: { items: [{ id, assetPurpose?, speakerRole?, staffId?, collectionId? }, ...] }
 //
 // Server-side import: download each selected Drive file to /tmp (streamed, no
 // arrayBuffer per CLAUDE.md large-file rule), upload to Vercel Blob, insert
@@ -226,7 +226,7 @@ async function importOne({ workspaceId, item, createdBy }) {
     captured_at: meta.createdTime || null,
     asset_purpose: assetPurpose,
     speaker_role: speakerRole,
-    clinician_id: typeof item.clinicianId === 'string' && item.clinicianId ? item.clinicianId : null,
+    staff_id: typeof item.staffId === 'string' && item.staffId ? item.staffId : null,
     created_by: createdBy || null,
     notes: 'Imported from Google Drive',
   }

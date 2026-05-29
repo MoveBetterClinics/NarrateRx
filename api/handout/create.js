@@ -149,21 +149,21 @@ export default async function handler(req, res) {
 
   // ── 4. Find/create Self-clinician (mirrors voice-memo pattern) ─────────
   const wsFilter = `workspace_id=eq.${ws.id}`
-  let clinicianId = null
-  let clinicianName = 'Me'
+  let staffId = null
+  let staffName = 'Me'
   {
     const r = await sb(
-      `clinicians?${wsFilter}&user_id=eq.${encodeURIComponent(auth.userId)}&select=id,name,voice_notes,eleven_voice_id&limit=1`
+      `staff?${wsFilter}&user_id=eq.${encodeURIComponent(auth.userId)}&select=id,name,voice_notes,eleven_voice_id&limit=1`
     )
     if (r.ok) {
       const rows = await r.json()
       if (rows.length) {
-        clinicianId = rows[0].id
-        clinicianName = rows[0].name || clinicianName
+        staffId = rows[0].id
+        staffName = rows[0].name || staffName
       }
     }
   }
-  if (!clinicianId) {
+  if (!staffId) {
     let name = 'Me'
     try {
       const user = await clerkClient().users.getUser(auth.userId)
@@ -172,7 +172,7 @@ export default async function handler(req, res) {
     } catch (e) {
       console.warn(`[handout] could not fetch Clerk user: ${e?.message}`)
     }
-    const cRes = await sb('clinicians', {
+    const cRes = await sb('staff', {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
@@ -187,10 +187,10 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Could not create clinician record' })
     }
     const created = (await cRes.json())[0]
-    clinicianId = created?.id
-    clinicianName = created?.name || clinicianName
+    staffId = created?.id
+    staffName = created?.name || staffName
   }
-  if (!clinicianId) {
+  if (!staffId) {
     return res.status(500).json({ error: 'Clinician ID could not be determined' })
   }
 
@@ -199,7 +199,7 @@ export default async function handler(req, res) {
   let voicePhrases = []
   {
     const r = await sb(
-      `clinicians?id=eq.${clinicianId}&${wsFilter}&select=voice_notes`
+      `staff?id=eq.${staffId}&${wsFilter}&select=voice_notes`
     )
     if (r.ok) {
       const rows = await r.json()
@@ -208,7 +208,7 @@ export default async function handler(req, res) {
   }
   {
     const r = await sb(
-      `clinician_voice_phrases?clinician_id=eq.${clinicianId}&${wsFilter}` +
+      `staff_voice_phrases?staff_id=eq.${staffId}&${wsFilter}` +
       `&order=weight.desc&limit=12&select=phrase`
     )
     if (r.ok) {
@@ -226,7 +226,7 @@ export default async function handler(req, res) {
       method: 'POST',
       body: JSON.stringify({
         workspace_id:              ws.id,
-        clinician_id:              clinicianId,
+        staff_id:              staffId,
         owner_id:                  auth.userId,
         topic,
         status:                    'completed',
@@ -251,7 +251,7 @@ export default async function handler(req, res) {
   // ── 6. Generate handout body ───────────────────────────────────────────
   let handoutBody = ''
   try {
-    const systemPrompt = getPatientHandoutSystemPrompt(ws, clinicianName, transcript, voiceNotes, voicePhrases)
+    const systemPrompt = getPatientHandoutSystemPrompt(ws, staffName, transcript, voiceNotes, voicePhrases)
     const { text } = await generateText({
       model: MODEL,
       messages: [{ role: 'user', content: systemPrompt }],
@@ -275,8 +275,8 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         workspace_id:   ws.id,
         interview_id:   interviewId,
-        clinician_id:   clinicianId,
-        clinician_name: clinicianName,
+        staff_id:   staffId,
+        staff_name: staffName,
         topic,
         platform:       'handout',
         content:        handoutBody,
@@ -294,5 +294,5 @@ export default async function handler(req, res) {
     contentItemId = (await r.json())[0]?.id
   }
 
-  return res.status(200).json({ clinicianId, interviewId, contentItemId })
+  return res.status(200).json({ staffId, interviewId, contentItemId })
 }

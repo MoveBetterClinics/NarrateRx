@@ -6,7 +6,7 @@
 //                                          existing prototypes, summary, etc.)
 //   - workspaces.topic_suggestions        (replace)
 //   - workspaces.onboarding_interview_completed_at  (set to now)
-//   - clinician_voice_phrases             (upsert on normalized phrase)
+//   - staff_voice_phrases             (upsert on normalized phrase)
 //   - workspace_onboarding_interviews.*   (status='synthesized', audit fields)
 //
 // Synchronous (no queue). Typical run: ~20–40s on Sonnet for a 15-message
@@ -48,7 +48,7 @@ async function dbErr(res, r, msg = 'Database error', status = 500) {
   return res.status(status).json({ error: msg })
 }
 
-// Normalize a phrase for the unique-index lookup on clinician_voice_phrases
+// Normalize a phrase for the unique-index lookup on staff_voice_phrases
 // (matches the migration-042 contract: lowercase, trimmed, terminal punctuation
 // stripped). Application-layer normalization keeps the index column simple
 // (text instead of a generated column).
@@ -153,7 +153,7 @@ export default async function handler(req, res) {
 
   // Load the interview row. Workspace filter is the multi-tenant fence.
   const loadR = await sb(
-    `workspace_onboarding_interviews?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${ws.id}&select=id,clinician_id,owner_id,messages,status`
+    `workspace_onboarding_interviews?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${ws.id}&select=id,staff_id,owner_id,messages,status`
   )
   if (!loadR.ok) return dbErr(res, loadR, 'Load failed')
   const interview = (await loadR.json())[0]
@@ -228,8 +228,8 @@ export default async function handler(req, res) {
   // so we can merge additively. One round-trip; both lookups are cheap.
   const fname = (founderName || '').trim() || 'Founder'
   const [clinR, wsR] = await Promise.all([
-    interview.clinician_id
-      ? sb(`clinicians?id=eq.${interview.clinician_id}&workspace_id=eq.${ws.id}&select=id,name`)
+    interview.staff_id
+      ? sb(`staff?id=eq.${interview.staff_id}&workspace_id=eq.${ws.id}&select=id,name`)
       : Promise.resolve({ ok: true, json: async () => [] }),
     sb(`workspaces?id=eq.${ws.id}&select=patient_context,topic_suggestions,brand_voice,display_name`),
   ])
@@ -352,7 +352,7 @@ export default async function handler(req, res) {
   invalidateWorkspaceCacheBySlug(ws.slug)
 
   // ── Upsert voice phrases ────────────────────────────────────────────────
-  // Skip silently if we have no clinician_id (orphaned interview) or no phrases
+  // Skip silently if we have no staff_id (orphaned interview) or no phrases
   // (a thin transcript). The synthesis row still gets marked 'synthesized'.
   if (clinician?.id && normalized.voicePhrases.length) {
     const rows = []
@@ -363,7 +363,7 @@ export default async function handler(req, res) {
       seen.add(norm)
       rows.push({
         workspace_id: ws.id,
-        clinician_id: clinician.id,
+        staff_id: clinician.id,
         phrase: p.phrase,
         phrase_normalized: norm,
         weight: 1.0,
@@ -377,7 +377,7 @@ export default async function handler(req, res) {
       // Per project memory (feedback_postgrest_upsert): missing on_conflict in URL
       // causes 409 even with the Prefer header set.
       const upsertR = await sb(
-        'clinician_voice_phrases?on_conflict=workspace_id,clinician_id,phrase_normalized',
+        'staff_voice_phrases?on_conflict=workspace_id,staff_id,phrase_normalized',
         {
           method: 'POST',
           headers: { Prefer: 'resolution=merge-duplicates, return=minimal' },

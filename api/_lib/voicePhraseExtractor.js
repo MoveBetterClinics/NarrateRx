@@ -2,7 +2,7 @@
 //
 // Single source of truth for the algorithm that pulls characteristic phrases
 // out of a piece of approved content and writes them into
-// clinician_voice_phrases. Used by:
+// staff_voice_phrases. Used by:
 //
 //   * api/db/content.js — fire-and-forget on every content_item approval,
 //     so the table auto-deepens with every shipped piece (Phase C.3).
@@ -101,18 +101,18 @@ export function extractPhrasesFromContent(content) {
 // ── Upsert via Supabase REST ─────────────────────────────────────────────────
 
 // PostgREST exposes ON CONFLICT through the Prefer: resolution=merge-duplicates
-// header. The unique index on (workspace_id, clinician_id, phrase_normalized)
+// header. The unique index on (workspace_id, staff_id, phrase_normalized)
 // drives the conflict target. Existing rows get approve_count+1, last_seen_at
 // bumped; weight is intentionally left to the auto-tune worker's positive
 // signal (currently the default 1.0; richer weighting lands in a follow-up).
-async function upsertOneVoicePhrase({ workspaceId, clinicianId, phrase, phraseNormalized }) {
+async function upsertOneVoicePhrase({ workspaceId, staffId, phrase, phraseNormalized }) {
   // PostgREST's merge-duplicates doesn't let us express "+1 to approve_count"
   // — it overwrites the row with the values we sent. Do a read-modify-write:
   // fetch existing, increment locally, PATCH if exists else INSERT.
   const lookupRes = await sb(
-    `clinician_voice_phrases` +
+    `staff_voice_phrases` +
     `?workspace_id=eq.${workspaceId}` +
-    `&clinician_id=eq.${clinicianId}` +
+    `&staff_id=eq.${staffId}` +
     `&phrase_normalized=eq.${encodeURIComponent(phraseNormalized)}` +
     `&select=id,approve_count,weight`
   )
@@ -124,7 +124,7 @@ async function upsertOneVoicePhrase({ workspaceId, clinicianId, phrase, phraseNo
   const existing = (await lookupRes.json())[0]
 
   if (existing) {
-    const patchRes = await sb(`clinician_voice_phrases?id=eq.${existing.id}`, {
+    const patchRes = await sb(`staff_voice_phrases?id=eq.${existing.id}`, {
       method: 'PATCH',
       body: JSON.stringify({
         approve_count: existing.approve_count + 1,
@@ -139,11 +139,11 @@ async function upsertOneVoicePhrase({ workspaceId, clinicianId, phrase, phraseNo
     return
   }
 
-  const insertRes = await sb('clinician_voice_phrases', {
+  const insertRes = await sb('staff_voice_phrases', {
     method: 'POST',
     body: JSON.stringify({
       workspace_id:      workspaceId,
-      clinician_id:      clinicianId,
+      staff_id:      staffId,
       phrase,
       phrase_normalized: phraseNormalized,
       weight:            1.0,
@@ -164,22 +164,22 @@ async function upsertOneVoicePhrase({ workspaceId, clinicianId, phrase, phraseNo
 // ── Public entry point ───────────────────────────────────────────────────────
 
 /**
- * extractVoicePhrases({ workspaceId, clinicianId, content })
+ * extractVoicePhrases({ workspaceId, staffId, content })
  *
  * Fire-and-forget extractor for the content-approval hook. Pulls voice-worthy
  * sentences out of the approved content body and upserts each into
- * clinician_voice_phrases. Never throws — caller can ignore the returned
+ * staff_voice_phrases. Never throws — caller can ignore the returned
  * promise without unhandled-rejection risk.
  *
  * No-ops when:
- *   * clinicianId is missing (content_items without an owning clinician
+ *   * staffId is missing (content_items without an owning clinician
  *     don't contribute to any per-clinician voice profile)
  *   * content is empty / whitespace only
  *   * no sentences clear the voice-worthy quality gate
  */
-export async function extractVoicePhrases({ workspaceId, clinicianId, content }) {
+export async function extractVoicePhrases({ workspaceId, staffId, content }) {
   try {
-    if (!workspaceId || !clinicianId) return
+    if (!workspaceId || !staffId) return
     if (!content?.trim()) return
 
     const phrases = extractPhrasesFromContent(content)
@@ -192,14 +192,14 @@ export async function extractVoicePhrases({ workspaceId, clinicianId, content })
     for (const { phrase, phrase_normalized } of phrases) {
       await upsertOneVoicePhrase({
         workspaceId,
-        clinicianId,
+        staffId,
         phrase,
         phraseNormalized: phrase_normalized,
       })
     }
 
     console.info(
-      `[voicePhraseExtractor] workspace=${workspaceId} clinician=${clinicianId} ` +
+      `[voicePhraseExtractor] workspace=${workspaceId} clinician=${staffId} ` +
       `phrases=${phrases.length}`
     )
   } catch (e) {

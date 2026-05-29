@@ -89,7 +89,7 @@ export default async function handler(req, res) {
 
   const ivRes = await sb(
     `interviews?id=eq.${item.interview_id}&${wsFilter}` +
-    `&select=id,clinician_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,outputs,audience,story_type,generation_style`,
+    `&select=id,staff_id,topic,tone,voice_mode,prototype_id,verbatim_flags,location_id,messages,outputs,audience,story_type,generation_style`,
   )
   if (!ivRes.ok) return dbErr(res, ivRes)
   const ivRows = await ivRes.json()
@@ -99,31 +99,31 @@ export default async function handler(req, res) {
   const turns = Array.isArray(interview.messages) ? interview.messages : []
   if (!turns.length) return err(res, 'Interview transcript missing — cannot regenerate', 422)
 
-  let clinicianName = ''
+  let staffName = ''
   let voiceNotes = ''
   let voicePhrases = []
   let clinicianPreferredLength = null
-  if (interview.clinician_id) {
+  if (interview.staff_id) {
     const [clinRes, phrasesRes] = await Promise.all([
-      sb(`clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name,voice_notes,preferred_length`),
+      sb(`staff?id=eq.${interview.staff_id}&${wsFilter}&select=name,voice_notes,preferred_length`),
       sb(
-        `clinician_voice_phrases?clinician_id=eq.${interview.clinician_id}&${wsFilter}` +
+        `staff_voice_phrases?staff_id=eq.${interview.staff_id}&${wsFilter}` +
         `&select=phrase&order=weight.desc,last_seen_at.desc&limit=8`
       ),
     ])
     if (clinRes.ok) {
       const rows = await clinRes.json()
-      clinicianName            = rows[0]?.name ?? ''
+      staffName            = rows[0]?.name ?? ''
       voiceNotes               = rows[0]?.voice_notes ?? ''
       clinicianPreferredLength = rows[0]?.preferred_length ?? null
     }
     if (phrasesRes.ok) voicePhrases = await phrasesRes.json()
   }
 
-  const ownHistoryBlock = interview.clinician_id
+  const ownHistoryBlock = interview.staff_id
     ? await resolveOwnHistoryBlock({
         workspaceId:        ws.id,
-        clinicianId:        interview.clinician_id,
+        staffId:        interview.staff_id,
         excludeInterviewId: interview.id,
         query:              buildRagQuery(interview),
       })
@@ -151,14 +151,14 @@ export default async function handler(req, res) {
 
   const systemPrompt = isMinimal
     ? getMinimalEditSystemPrompt(
-        clinicianName,
+        staffName,
         interview.voice_mode || 'practice',
         voiceNotes,
         voicePhrases,
       )
     : getBlogPostSystemPrompt(
         overlaidWorkspace,
-        clinicianName,
+        staffName,
         interview.topic,
         interview.tone || 'smart',
         interview.voice_mode || 'practice',

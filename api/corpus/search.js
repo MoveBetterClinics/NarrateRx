@@ -37,7 +37,7 @@ export default async function handler(req, res) {
 
   // Resolve the clinician row so results are scoped to this user's corpus.
   const clinicianRes = await fetch(
-    `${SUPABASE_URL}/rest/v1/clinicians?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}&select=id&limit=1`,
+    `${SUPABASE_URL}/rest/v1/staff?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}&select=id&limit=1`,
     {
       headers: {
         apikey:        SUPABASE_KEY,
@@ -45,10 +45,10 @@ export default async function handler(req, res) {
       },
     }
   )
-  let clinicianId = null
+  let staffId = null
   if (clinicianRes.ok) {
     const rows = await clinicianRes.json().catch(() => [])
-    clinicianId = rows[0]?.id ?? null
+    staffId = rows[0]?.id ?? null
   }
 
   // Author Mode raw-voice substrate — Q's own spoken and written words only.
@@ -59,7 +59,7 @@ export default async function handler(req, res) {
 
   const results = await searchPracticeMemory({
     workspaceId:      ws.id,
-    clinicianId,
+    staffId,
     query:            query.trim(),
     topK:             Math.min(Math.max(Number(topK) || 5, 1), 10),
     excludeSourceIds: [],

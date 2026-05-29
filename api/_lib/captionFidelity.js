@@ -30,7 +30,7 @@ function sb(path, init = {}) {
   })
 }
 
-function buildEvalPrompt({ topic, caption, clinicianName, phrases, workspaceName }) {
+function buildEvalPrompt({ topic, caption, staffName, phrases, workspaceName }) {
   const phraseExamples = (phrases || []).slice(0, 8).map((p) => `- "${p.phrase}"`).join('\n')
   const hasPhrases = phraseExamples.length > 0
   return {
@@ -41,7 +41,7 @@ dimensions. Return ONLY valid JSON — no markdown, no preamble, no commentary.`
     user:
 `Evaluate this story package — a thumbnail title + accompanying caption that
 will be burned into video subtitles and posted as the social caption. Written
-for ${clinicianName} at ${workspaceName}.
+for ${staffName} at ${workspaceName}.
 
 ${hasPhrases
   ? `CLINICIAN'S AUTHENTIC VOICE PHRASES (use these to judge fidelity):\n${phraseExamples}`
@@ -72,13 +72,13 @@ Score each dimension 1–10 and return this exact JSON shape (no other keys):
  * @param {string} args.packageId       — story_packages.id
  * @param {string} args.workspaceId     — story_packages.workspace_id (used for cross-check + lookup)
  * @param {string} args.workspaceName   — for evaluator prompt
- * @param {string|null} args.clinicianId
+ * @param {string|null} args.staffId
  * @param {string} args.topic
  * @param {string} args.captionText
  * @returns {Promise<{ ok: boolean, score?: number, reason?: string }>}
  */
 export async function scoreCaptionFidelity({
-  packageId, workspaceId, workspaceName, clinicianId, topic, captionText,
+  packageId, workspaceId, workspaceName, staffId, topic, captionText,
 }) {
   if (!packageId || !workspaceId) return { ok: false, reason: 'missing_ids' }
   if (!process.env.AI_GATEWAY_API_KEY) return { ok: false, reason: 'no_ai_key' }
@@ -89,16 +89,16 @@ export async function scoreCaptionFidelity({
 
   // Look up clinician + voice phrases. Failures here are non-fatal — we
   // still score, just with empty phrase corpus.
-  let clinicianName = 'unknown clinician'
+  let staffName = 'unknown clinician'
   let phrases = []
-  if (clinicianId) {
+  if (staffId) {
     try {
-      const cRes = await sb(`clinicians?id=eq.${clinicianId}&select=name`)
+      const cRes = await sb(`staff?id=eq.${staffId}&select=name`)
       if (cRes.ok) {
         const rows = await cRes.json()
-        clinicianName = rows?.[0]?.name || clinicianName
+        staffName = rows?.[0]?.name || staffName
       }
-      const pRes = await sb(`clinician_voice_phrases?clinician_id=eq.${clinicianId}&select=phrase,weight&order=weight.desc&limit=8`)
+      const pRes = await sb(`staff_voice_phrases?staff_id=eq.${staffId}&select=phrase,weight&order=weight.desc&limit=8`)
       if (pRes.ok) phrases = await pRes.json()
     } catch {
       // ignore — we'll score with whatever we have
@@ -106,7 +106,7 @@ export async function scoreCaptionFidelity({
   }
 
   const prompt = buildEvalPrompt({
-    topic: title, caption: text, clinicianName, phrases,
+    topic: title, caption: text, staffName, phrases,
     workspaceName: workspaceName || 'workspace',
   })
 

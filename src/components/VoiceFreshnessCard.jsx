@@ -5,9 +5,9 @@ import { apiFetch } from '@/lib/api'
 
 // Voice-freshness card — Phase C.4.
 //
-// Renders the structured voice substrate (clinician_voice_phrases) as a
+// Renders the structured voice substrate (staff_voice_phrases) as a
 // readable artifact: a one-line stat strip ("trained on N pieces, last updated
-// X") plus the top phrases as italic blockquotes. Sits on ClinicianProfile
+// X") plus the top phrases as italic blockquotes. Sits on StaffProfile
 // under the header, complementing VoiceNotesPanel — voice-notes is the human-
 // readable distillation, this card is the literal substrate the AI consults.
 //
@@ -29,20 +29,20 @@ function formatRelative(iso) {
   return `${Math.round(days / 365)} year${days < 730 ? '' : 's'} ago`
 }
 
-export default function VoiceFreshnessCard({ clinicianId, clinicianName }) {
+export default function VoiceFreshnessCard({ staffId, staffName }) {
   const [data, setData]       = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError]     = useState(false)
 
   useEffect(() => {
-    if (!clinicianId) return
+    if (!staffId) return
     let cancelled = false
     setLoading(true)
-    apiFetch(`/api/clinicians/voice-phrases?clinician_id=${clinicianId}&limit=${TOP_PHRASES}`)
+    apiFetch(`/api/staff/voice-phrases?staff_id=${staffId}&limit=${TOP_PHRASES}`)
       .then((d) => { if (!cancelled) { setData(d); setLoading(false) } })
       .catch(() => { if (!cancelled) { setError(true); setLoading(false) } })
     return () => { cancelled = true }
-  }, [clinicianId])
+  }, [staffId])
 
   if (loading || error) return null  // Quiet — card just doesn't render until ready.
 
@@ -50,7 +50,7 @@ export default function VoiceFreshnessCard({ clinicianId, clinicianName }) {
   const pieces    = data?.pieces_count  ?? 0
   const lastSeen  = formatRelative(data?.last_updated_at)
   const phrases   = data?.phrases ?? []
-  const firstName = clinicianName?.split(' ')[0] || 'this clinician'
+  const firstName = staffName?.split(' ')[0] || 'this clinician'
 
   // Empty state — table is empty for this clinician.
   if (total === 0) {

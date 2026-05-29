@@ -107,7 +107,7 @@ function DraftItem({ draft, isActive, onLoad }) {
         {date && <span className="block text-xs text-muted-foreground">{date}</span>}
       </button>
       <ExcludeFromBookToggle
-        sourceTable="clinician_corpus_documents"
+        sourceTable="staff_corpus_documents"
         sourceId={draft.id}
         variant="inline"
       />
@@ -139,7 +139,7 @@ export default function AuthorMode() {
   // editor uses it as a starting point; saving creates a NEW uploaded_draft
   // (the original_blog row stays untouched). The reason this list exists in
   // this surface at all is the per-row admin "Exclude from book" toggle —
-  // there's no other UI today that lists clinician_corpus_documents.
+  // there's no other UI today that lists staff_corpus_documents.
   const {
     data: originalBlogs = [],
     isLoading: originalBlogsLoading,

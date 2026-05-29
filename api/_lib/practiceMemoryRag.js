@@ -117,7 +117,7 @@ async function upsertChunks(rows) {
   // pgvector expects '[v1,v2,...]' string form over PostgREST.
   const payload = rows.map((r) => ({
     workspace_id:  r.workspaceId,
-    clinician_id:  r.clinicianId ?? null,
+    staff_id:  r.staffId ?? null,
     source_type:   r.sourceType,
     source_id:     r.sourceId,
     chunk_index:   r.chunkIndex,
@@ -156,7 +156,7 @@ async function deleteExtraChunks(sourceType, sourceId, keepCount) {
  * Index a single interview summary. One chunk per row.
  * No-op if summaryText is empty.
  */
-export async function indexInterviewSummary({ workspaceId, clinicianId, interviewId, summaryText, topic, createdAt }) {
+export async function indexInterviewSummary({ workspaceId, staffId, interviewId, summaryText, topic, createdAt }) {
   try {
     if (!workspaceId || !interviewId) return
     const text = String(summaryText || '').trim()
@@ -175,7 +175,7 @@ export async function indexInterviewSummary({ workspaceId, clinicianId, intervie
 
     await upsertChunks([{
       workspaceId,
-      clinicianId,
+      staffId,
       sourceType:  'interview_summary',
       sourceId:    interviewId,
       chunkIndex:  0,
@@ -204,7 +204,7 @@ export async function indexContentItem({ workspaceId, contentItemId }) {
 
     const r = await sb(
       `content_items?id=eq.${contentItemId}&workspace_id=eq.${workspaceId}` +
-      '&select=id,clinician_id,topic,platform,content,status,created_at'
+      '&select=id,staff_id,topic,platform,content,status,created_at'
     )
     if (!r.ok) {
       console.error(`[practiceMemoryRag] content fetch ${r.status} item=${contentItemId}`)
@@ -234,7 +234,7 @@ export async function indexContentItem({ workspaceId, contentItemId }) {
       if (!embedding) return null
       return {
         workspaceId,
-        clinicianId:  row.clinician_id ?? null,
+        staffId:  row.staff_id ?? null,
         sourceType:   'content_item',
         sourceId:     row.id,
         chunkIndex:   i,
@@ -266,13 +266,13 @@ function cap(s) {
  *
  * @param {object} args
  * @param {string} args.workspaceId
- * @param {string=} args.clinicianId      — scope to this clinician's chunks
+ * @param {string=} args.staffId      — scope to this clinician's chunks
  * @param {string} args.query             — natural-language text (transcript excerpt, topic, etc.)
  * @param {number=} args.topK             — default 6
  * @param {string[]=} args.excludeSourceIds — skip these source IDs (e.g., hot-tier items, current interview)
  * @returns {Promise<Array<{source_type, source_id, source_label, text, similarity}>>}
  */
-export async function searchPracticeMemory({ workspaceId, clinicianId, query, topK = 6, excludeSourceIds = [], sourceTypes = null }) {
+export async function searchPracticeMemory({ workspaceId, staffId, query, topK = 6, excludeSourceIds = [], sourceTypes = null }) {
   try {
     if (!workspaceId) return []
     const q = String(query || '').trim()
@@ -285,7 +285,7 @@ export async function searchPracticeMemory({ workspaceId, clinicianId, query, to
       method: 'POST',
       body: JSON.stringify({
         p_workspace_id:       workspaceId,
-        p_clinician_id:       clinicianId ?? null,
+        p_staff_id:       staffId ?? null,
         p_query_embedding:    `[${embedding.join(',')}]`,
         p_match_count:        topK,
         p_exclude_source_ids: excludeSourceIds,
@@ -376,7 +376,7 @@ function buildTranscriptBody(messages) {
  */
 export async function indexInterviewTranscriptFull({
   workspaceId,
-  clinicianId,
+  staffId,
   interviewId,
   messages,
   cleanedMessages,
@@ -408,7 +408,7 @@ export async function indexInterviewTranscriptFull({
       if (!embedding) return null
       return {
         workspaceId,
-        clinicianId:  clinicianId ?? null,
+        staffId:  staffId ?? null,
         sourceType:   'interview_transcript_full',
         sourceId:     interviewId,
         chunkIndex:   i,
@@ -435,7 +435,7 @@ export async function indexInterviewTranscriptFull({
  */
 async function indexAuthoredProse({
   workspaceId,
-  clinicianId,
+  staffId,
   sourceId,
   sourceType,
   title,
@@ -464,7 +464,7 @@ async function indexAuthoredProse({
       if (!embedding) return null
       return {
         workspaceId,
-        clinicianId:  clinicianId ?? null,
+        staffId:  staffId ?? null,
         sourceType,
         sourceId,
         chunkIndex:   i,
@@ -488,12 +488,12 @@ async function indexAuthoredProse({
 /**
  * Index a piece of prose the clinician wrote themselves (pre-NarrateRx
  * blogs, articles, longhand). Caller supplies a UUID source_id and tracks
- * the source row in clinician_corpus_documents (migration 079, follow-up).
+ * the source row in staff_corpus_documents (migration 079, follow-up).
  */
-export async function indexOriginalBlog({ workspaceId, clinicianId, blogId, title, body, publishedAt }) {
+export async function indexOriginalBlog({ workspaceId, staffId, blogId, title, body, publishedAt }) {
   return indexAuthoredProse({
     workspaceId,
-    clinicianId,
+    staffId,
     sourceId:   blogId,
     sourceType: 'original_blog',
     title,
@@ -507,10 +507,10 @@ export async function indexOriginalBlog({ workspaceId, clinicianId, blogId, titl
  * Index a draft document the clinician uploaded (notes, voice memo
  * transcribed verbatim, longhand drafts).
  */
-export async function indexUploadedDraft({ workspaceId, clinicianId, docId, title, body, uploadedAt }) {
+export async function indexUploadedDraft({ workspaceId, staffId, docId, title, body, uploadedAt }) {
   return indexAuthoredProse({
     workspaceId,
-    clinicianId,
+    staffId,
     sourceId:   docId,
     sourceType: 'uploaded_draft',
     title,
@@ -525,10 +525,10 @@ export async function indexUploadedDraft({ workspaceId, clinicianId, docId, titl
  * Returns chunks the clinician spoke or wrote themselves, never AI-generated
  * text. Use this from the book-composing UI; never use it for Practice Mode.
  */
-export function searchAuthorCorpus({ workspaceId, clinicianId, query, topK = 6, excludeSourceIds = [] }) {
+export function searchAuthorCorpus({ workspaceId, staffId, query, topK = 6, excludeSourceIds = [] }) {
   return searchPracticeMemory({
     workspaceId,
-    clinicianId,
+    staffId,
     query,
     topK,
     excludeSourceIds,

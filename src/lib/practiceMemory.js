@@ -67,7 +67,7 @@ export function pickPriorInterviews(allInterviews, currentInterviewId) {
 const RAG_SNIPPET_CHARS = 500
 const RAG_BLOCK_MAX_CHARS = 3000
 
-export function buildOwnHistoryBlock({ clinicianName, priorInterviews = [], priorContent = [], relatedSnippets = [] }) {
+export function buildOwnHistoryBlock({ staffName, priorInterviews = [], priorContent = [], relatedSnippets = [] }) {
   const hasInterviews = priorInterviews.length > 0
   const hasContent = priorContent.length > 0
   const hasRelated = Array.isArray(relatedSnippets) && relatedSnippets.length > 0
@@ -120,7 +120,7 @@ export function buildOwnHistoryBlock({ clinicianName, priorInterviews = [], prio
 
   if (sections.length === 0) return ''
 
-  const directive = `YOUR PRIOR THINKING — content ${clinicianName} has already produced. The RECENT block is always-on hot context; the RELATED block was retrieved from the full corpus by topic similarity to today's session. Reference it naturally when today's topic connects: "Last time you talked about X — has your thinking evolved?" or "You've written that Y matters — does this story tie back to that?" Don't recap; build on. Never quote these verbatim.`
+  const directive = `YOUR PRIOR THINKING — content ${staffName} has already produced. The RECENT block is always-on hot context; the RELATED block was retrieved from the full corpus by topic similarity to today's session. Reference it naturally when today's topic connects: "Last time you talked about X — has your thinking evolved?" or "You've written that Y matters — does this story tie back to that?" Don't recap; build on. Never quote these verbatim.`
 
   return `\n${directive}\n\n${sections.join('\n\n')}\n`
 }

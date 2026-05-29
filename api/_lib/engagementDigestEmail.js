@@ -37,10 +37,10 @@ function pluralize(n, singular, plural) {
  *     id: string, slug: string, display_name?: string, name?: string,
  *     primary_logo_url?: string, colors?: { primary?: string }
  *   },
- *   published:     Array<{ id, topic, platform, published_at, clinician_name? }>,
+ *   published:     Array<{ id, topic, platform, published_at, staff_name? }>,
  *   slateStats:    { generated, approved, skipped, failed, complete_awaiting: number },
  *   triage:        { failed, lowConfidence, stale: number },
- *   queued:        Array<{ id, topic, similarity?, clinician_name?, created_at }>,
+ *   queued:        Array<{ id, topic, similarity?, staff_name?, created_at }>,
  *   weekStart:     string  // ISO start of the reporting week
  *   weekEnd:       string  // ISO end of the reporting week
  * }} input
@@ -156,7 +156,7 @@ function publishedSection(items, _baseUrl) {
     <tr><td style="padding:6px 0;border-bottom:1px solid #f0eee9;">
       <div style="font-size:14px;font-weight:600;line-height:1.4;">${escapeHtml(it.topic || '(untitled)')}</div>
       <div style="font-size:11px;color:#71717a;margin-top:2px;">
-        ${escapeHtml(it.platform || '')}${it.clinician_name ? ` · ${escapeHtml(it.clinician_name)}` : ''}${it.published_at ? ` · ${fmtDate(it.published_at)}` : ''}
+        ${escapeHtml(it.platform || '')}${it.staff_name ? ` · ${escapeHtml(it.staff_name)}` : ''}${it.published_at ? ` · ${fmtDate(it.published_at)}` : ''}
       </div>
     </td></tr>`).join('')
   const more = items.length > 6
@@ -173,7 +173,7 @@ function queuedSection(items, slateUrl, totalCount) {
     <tr><td style="padding:6px 0;border-bottom:1px solid #f0eee9;">
       <div style="font-size:14px;font-weight:600;line-height:1.4;">${escapeHtml(it.topic || '(untitled)')}</div>
       <div style="font-size:11px;color:#71717a;margin-top:2px;">
-        ${it.clinician_name ? escapeHtml(it.clinician_name) : 'No clinician'}${typeof it.similarity === 'number' ? ` · ${Math.round(it.similarity * 100)}% confidence` : ''}
+        ${it.staff_name ? escapeHtml(it.staff_name) : 'No clinician'}${typeof it.similarity === 'number' ? ` · ${Math.round(it.similarity * 100)}% confidence` : ''}
       </div>
     </td></tr>`).join('')
   const more = totalCount > 5

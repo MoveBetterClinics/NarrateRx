@@ -10,7 +10,7 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ClinicianChip } from '@/components/ClinicianChip'
+import { StaffChip } from '@/components/StaffChip'
 import ReadAloudButton from '@/components/ReadAloudButton'
 import { PLATFORM_META, STATUS_META } from '@/lib/contentMeta'
 import { getStageToken } from '@/lib/stageTokens'
@@ -293,7 +293,7 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
       {piece.platform === 'blog' && <SplitSuggestionBanner piece={piece} />}
       {/* View-mode toggle — always visible; Attributed only when provenance exists.
           Read-aloud (Phase 5 F#3 audio caller) sits on the right; uses this
-          piece's clinician_id so the voice clone is auto-resolved server-side. */}
+          piece's staff_id so the voice clone is auto-resolved server-side. */}
       <div className="flex items-center gap-1">
         {(['edit', ...(hasProvenance ? ['attributed'] : []), 'assets']).map((mode) => (
           <button
@@ -312,7 +312,7 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
         <div className="ml-auto">
           <ReadAloudButton
             text={value}
-            clinicianId={piece.clinician_id}
+            staffId={piece.staff_id}
             size="sm"
             variant="ghost"
             className="h-6 text-xs"
@@ -526,10 +526,10 @@ function RegenerateButton({ piece, story }) {
   // before they click — no surprise about why output sounds the way it does.
   const contextBullets = (() => {
     const bullets = []
-    // Voice notes: piece.clinician_id implies the clinician has a profile.
+    // Voice notes: piece.staff_id implies the clinician has a profile.
     // We don't have voice_notes content on the piece, so this is a heuristic
     // signal ("a clinician profile is bound, which may carry voice notes").
-    if (piece.clinician_id || story?.clinician_id) bullets.push('Voice notes')
+    if (piece.staff_id || story?.staff_id) bullets.push('Voice notes')
     const echoCount = piece.provenance?.summary?.voice_phrase_echo_count ?? 0
     if (echoCount > 0) bullets.push(`${echoCount} exemplar${echoCount === 1 ? '' : 's'}`)
     if (story?.prototype_id && workspace) {
@@ -559,9 +559,9 @@ function RegenerateButton({ piece, story }) {
         <div className="flex items-start gap-2">
           <span className="text-amber-800">
             Replace this draft with a fresh AI generation? Current text and approval state will be lost.
-            {piece.clinician_name && (
+            {piece.staff_name && (
               <span className="block mt-0.5 text-amber-700/80">
-                Bernard will apply {piece.clinician_name}&rsquo;s voice settings.
+                Bernard will apply {piece.staff_name}&rsquo;s voice settings.
               </span>
             )}
           </span>
@@ -1271,7 +1271,7 @@ function ApprovalPanel({ piece }) {
         // bytes into the destination repo. See src/lib/publishImageMirror.js.
         const manifest = buildImagesManifest({ markdown, mediaUrls: piece.media_urls, slug })
         const payload = { slug, title, description, pubDate, markdown, ...manifest }
-        if (piece.clinician_name) payload.author = piece.clinician_name
+        if (piece.staff_name) payload.author = piece.staff_name
         if (piece.topic) {
           const topicSlug = piece.topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
           if (topicSlug) payload.topic = topicSlug
@@ -1475,7 +1475,7 @@ function ApprovalPanel({ piece }) {
     ? piece.provenance?.blocks?.filter((b) => b.source_type === 'verbatim').length ?? 0
     : 0
 
-  // Approver display: ClinicianChip when we have a name, plain email fallback
+  // Approver display: StaffChip when we have a name, plain email fallback
   // otherwise. piece.approved_by historically holds an email; approved_by_name
   // is the resolved display name when the approver is a clinician.
   const approverName = piece.approved_by_name || piece.approved_by
@@ -1518,8 +1518,8 @@ function ApprovalPanel({ piece }) {
         {piece.approved_by && piece.approved_at && (
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
             Approved by
-            {piece.approved_by_clinician_id
-              ? <ClinicianChip name={approverName} id={piece.approved_by_clinician_id} size="sm" showName />
+            {piece.approved_by_staff_id
+              ? <StaffChip name={approverName} id={piece.approved_by_staff_id} size="sm" showName />
               : <span>{approverName}</span>
             }
             <span>on{' '}

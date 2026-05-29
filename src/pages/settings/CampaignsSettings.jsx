@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
-import { useClinicianSummaries } from '@/lib/queries'
+import { useStaffSummaries } from '@/lib/queries'
 import { toast } from '@/lib/toast'
 import { useUserRole } from '@/lib/useUserRole'
 import { usePermission } from '@/lib/usePermission'
@@ -99,8 +99,8 @@ export default function CampaignsSettings() {
   const [editing, setEditing] = useState(null) // null | 'new' | campaign object
 
   // Clinician map for rendering target labels on campaign rows.
-  const { data: clinicians = [] } = useClinicianSummaries()
-  const clinicianMap = useMemo(
+  const { data: clinicians = [] } = useStaffSummaries()
+  const staffMap = useMemo(
     () => Object.fromEntries(clinicians.map((c) => [c.id, c.name])),
     [clinicians]
   )
@@ -196,7 +196,7 @@ export default function CampaignsSettings() {
               title="Active"
               items={active}
               onEdit={setEditing}
-              clinicianMap={clinicianMap}
+              staffMap={staffMap}
             />
           )}
           {upcoming.length > 0 && (
@@ -204,7 +204,7 @@ export default function CampaignsSettings() {
               title="Upcoming"
               items={upcoming}
               onEdit={setEditing}
-              clinicianMap={clinicianMap}
+              staffMap={staffMap}
             />
           )}
           {other.length > 0 && (
@@ -213,7 +213,7 @@ export default function CampaignsSettings() {
               items={other}
               onEdit={setEditing}
               muted
-              clinicianMap={clinicianMap}
+              staffMap={staffMap}
             />
           )}
         </>
@@ -224,7 +224,7 @@ export default function CampaignsSettings() {
 
 // ─── List + row ──────────────────────────────────────────────────────────────
 
-function CampaignList({ title, items, onEdit, muted, clinicianMap }) {
+function CampaignList({ title, items, onEdit, muted, staffMap }) {
   return (
     <section className="flex flex-col gap-2">
       <h2 className={`text-2xs font-bold uppercase tracking-widest ${muted ? 'text-muted-foreground/70' : 'text-muted-foreground'}`}>
@@ -237,7 +237,7 @@ function CampaignList({ title, items, onEdit, muted, clinicianMap }) {
             campaign={c}
             onEdit={onEdit}
             muted={muted}
-            clinicianMap={clinicianMap}
+            staffMap={staffMap}
           />
         ))}
       </div>
@@ -245,12 +245,12 @@ function CampaignList({ title, items, onEdit, muted, clinicianMap }) {
   )
 }
 
-function CampaignRow({ campaign: c, onEdit, muted, clinicianMap }) {
+function CampaignRow({ campaign: c, onEdit, muted, staffMap }) {
   const ws = campaignWindowState(c)
-  const targets = Array.isArray(c.target_clinician_ids) ? c.target_clinician_ids : []
+  const targets = Array.isArray(c.target_staff_ids) ? c.target_staff_ids : []
   const targetLabel = targets.length === 0
     ? 'Workspace-wide'
-    : `Targets: ${targets.map((id) => clinicianMap?.[id] || 'Unknown').join(', ')}`
+    : `Targets: ${targets.map((id) => staffMap?.[id] || 'Unknown').join(', ')}`
   return (
     <button
       type="button"
@@ -307,7 +307,7 @@ function CampaignEditor({ initial, onCancel, onSaved }) {
     cta_url:        initial?.cta_url || '',
     cta_label:      initial?.cta_label || '',
     cta_pitch:      initial?.cta_pitch || '',
-    target_clinician_ids: Array.isArray(initial?.target_clinician_ids) ? initial.target_clinician_ids : [],
+    target_staff_ids: Array.isArray(initial?.target_staff_ids) ? initial.target_staff_ids : [],
   }))
   const [saving, setSaving] = useState(false)
 
@@ -335,7 +335,7 @@ function CampaignEditor({ initial, onCancel, onSaved }) {
         cta_url:       form.cta_url.trim() || null,
         cta_label:     form.cta_label.trim() || null,
         cta_pitch:     form.cta_pitch.trim() || null,
-        target_clinician_ids: form.target_clinician_ids || [],
+        target_staff_ids: form.target_staff_ids || [],
       }
       const saved = await apiFetch('/api/campaigns/upsert', {
         method: 'POST',
@@ -428,8 +428,8 @@ function CampaignEditor({ initial, onCancel, onSaved }) {
       </Field>
 
       <StaffTargetPicker
-        selected={form.target_clinician_ids}
-        onChange={(ids) => set('target_clinician_ids', ids)}
+        selected={form.target_staff_ids}
+        onChange={(ids) => set('target_staff_ids', ids)}
       />
 
       <div className="border-t border-border pt-4 flex flex-col gap-3">
@@ -501,10 +501,10 @@ function Field({ label, hint, children }) {
 // (the default + most common case — most campaigns apply across all staff).
 // "Staff" intentionally covers both clinicians AND non-clinical team members
 // who interview (admins, office managers, etc.) per the team-as-talent
-// principle. The underlying field name target_clinician_ids stays for
+// principle. The underlying field name target_staff_ids stays for
 // schema continuity; only the UI label changed.
 function StaffTargetPicker({ selected, onChange }) {
-  const { data: staff = [], isLoading } = useClinicianSummaries()
+  const { data: staff = [], isLoading } = useStaffSummaries()
   const selectedSet = new Set(selected || [])
 
   function toggle(id) {

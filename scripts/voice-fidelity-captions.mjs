@@ -105,27 +105,27 @@ console.log(`  ✓ Workspaces: ${workspaces.map((w) => w.slug).join(', ')}`)
 
 // Clinicians
 const clinicians = await sbGet(
-  `clinicians?workspace_id=in.(${wsIds.join(',')})&select=id,name,workspace_id,voice_notes`
+  `staff?workspace_id=in.(${wsIds.join(',')})&select=id,name,workspace_id,voice_notes`
 )
-const clinicianMap = Object.fromEntries(clinicians.map((c) => [c.id, c]))
+const staffMap = Object.fromEntries(clinicians.map((c) => [c.id, c]))
 console.log(`  ✓ Clinicians: ${clinicians.length}`)
 
 // Voice phrases
 const cIds = clinicians.map((c) => c.id)
 const phraseRows = cIds.length
-  ? await sbGet(`clinician_voice_phrases?clinician_id=in.(${cIds.join(',')})&select=clinician_id,phrase,weight&order=weight.desc`)
+  ? await sbGet(`staff_voice_phrases?staff_id=in.(${cIds.join(',')})&select=staff_id,phrase,weight&order=weight.desc`)
   : []
 const phrasesMap = {}
 for (const p of phraseRows) {
-  if (!phrasesMap[p.clinician_id]) phrasesMap[p.clinician_id] = []
-  phrasesMap[p.clinician_id].push(p)
+  if (!phrasesMap[p.staff_id]) phrasesMap[p.staff_id] = []
+  phrasesMap[p.staff_id].push(p)
 }
 console.log(`  ✓ Voice phrases: ${phraseRows.length} across ${Object.keys(phrasesMap).length} clinicians`)
 
 // Story packages
 let packages = []
 if (PACKAGE_ID) {
-  packages = await sbGet(`story_packages?id=eq.${PACKAGE_ID}&select=id,workspace_id,clinician_id,topic,caption_text,status,created_at`)
+  packages = await sbGet(`story_packages?id=eq.${PACKAGE_ID}&select=id,workspace_id,staff_id,topic,caption_text,status,created_at`)
   if (!packages.length) { console.error(`Package ${PACKAGE_ID} not found`); process.exit(1) }
   // Verify it belongs to one of our in-scope workspaces.
   if (!wsIds.includes(packages[0].workspace_id)) {
@@ -136,7 +136,7 @@ if (PACKAGE_ID) {
   const statusIn = STATUS_FILTER.length === 1 ? `status=eq.${STATUS_FILTER[0]}` : `status=in.(${STATUS_FILTER.join(',')})`
   const perWsLimit = Math.max(1, Math.ceil(LIMIT / wsIds.length))
   for (const wsId of wsIds) {
-    let p = `story_packages?workspace_id=eq.${wsId}&${statusIn}&select=id,workspace_id,clinician_id,topic,caption_text,status,created_at&order=created_at.desc&limit=${perWsLimit}`
+    let p = `story_packages?workspace_id=eq.${wsId}&${statusIn}&select=id,workspace_id,staff_id,topic,caption_text,status,created_at&order=created_at.desc&limit=${perWsLimit}`
     if (SINCE) p += `&created_at=gte.${SINCE}`
     const rows = await sbGet(p)
     packages.push(...rows)
@@ -146,7 +146,7 @@ if (PACKAGE_ID) {
 console.log(`  ✓ Packages to score: ${packages.length}`)
 
 // ── Evaluator ─────────────────────────────────────────────────────────────────
-function buildEvalPrompt({ topic, caption, clinicianName, phrases, workspaceName }) {
+function buildEvalPrompt({ topic, caption, staffName, phrases, workspaceName }) {
   const phraseExamples = (phrases || []).slice(0, 8).map((p) => `- "${p.phrase}"`).join('\n')
   const hasPhrases = phraseExamples.length > 0
 
@@ -158,7 +158,7 @@ dimensions. Return ONLY valid JSON — no markdown, no preamble, no commentary.`
     user:
 `Evaluate this story package — a thumbnail title + accompanying caption that
 will be burned into video subtitles and posted as the social caption. Written
-for ${clinicianName} at ${workspaceName}.
+for ${staffName} at ${workspaceName}.
 
 ${hasPhrases
   ? `CLINICIAN'S AUTHENTIC VOICE PHRASES (use these to judge fidelity):
@@ -191,9 +191,9 @@ let skipped = 0
 
 for (let i = 0; i < packages.length; i++) {
   const pkg = packages[i]
-  const clinician = clinicianMap[pkg.clinician_id]
+  const clinician = staffMap[pkg.staff_id]
   const workspace = workspaceMap[pkg.workspace_id]
-  const phrases = phrasesMap[pkg.clinician_id] || []
+  const phrases = phrasesMap[pkg.staff_id] || []
 
   const captionText = (pkg.caption_text || '').trim()
   const topicText = (pkg.topic || '').trim()
@@ -211,7 +211,7 @@ for (let i = 0; i < packages.length; i++) {
     const evalPrompt = buildEvalPrompt({
       topic: topicText,
       caption: captionText,
-      clinicianName: cName,
+      staffName: cName,
       phrases,
       workspaceName: wName,
     })
@@ -254,8 +254,8 @@ for (let i = 0; i < packages.length; i++) {
       packageId:     pkg.id,
       workspaceId:   pkg.workspace_id,
       workspaceName: wName,
-      clinicianId:   pkg.clinician_id,
-      clinicianName: cName,
+      staffId:   pkg.staff_id,
+      staffName: cName,
       topic:         topicText,
       captionText,
       createdAt:     pkg.created_at,
@@ -315,7 +315,7 @@ const md = [
   '',
   '| # | Clinician | Score | Red flag | Title |',
   '|---|---|---|---|---|',
-  ...scored.map((s, i) => `| ${i + 1} | ${s.clinicianName} | ${s.overall ?? '—'} | ${s.breakdown.red_flag || '—'} | ${s.topic.slice(0, 60)} |`),
+  ...scored.map((s, i) => `| ${i + 1} | ${s.staffName} | ${s.overall ?? '—'} | ${s.breakdown.red_flag || '—'} | ${s.topic.slice(0, 60)} |`),
   '',
 ].join('\n')
 
@@ -340,7 +340,7 @@ if (FIXTURE_OUT) {
     samples: scored.map((s) => ({
       packageId: s.packageId,
       workspaceName: s.workspaceName,
-      clinicianName: s.clinicianName,
+      staffName: s.staffName,
       topic: s.topic,
       captionText: s.captionText,
       overall: s.overall,

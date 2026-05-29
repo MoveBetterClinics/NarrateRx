@@ -71,7 +71,7 @@ export default async function handler(req, res) {
   try {
     // Fetch the interview (transcript = primary source; blog = editorial context)
     const ivRes = await sb(
-      `interviews?id=eq.${atom.interview_id}&${wsFilter}&select=outputs,topic,tone,voice_mode,clinician_id,location_id,created_at,messages,audience,story_type`
+      `interviews?id=eq.${atom.interview_id}&${wsFilter}&select=outputs,topic,tone,voice_mode,staff_id,location_id,created_at,messages,audience,story_type`
     )
     if (!ivRes.ok) throw new Error('Could not fetch interview')
     const ivRows = await ivRes.json()
@@ -85,19 +85,19 @@ export default async function handler(req, res) {
     if (!turns.length) throw new Error('Interview transcript missing — cannot generate atom')
 
     // Fetch clinician name + voice substrate
-    let clinicianName = ''
+    let staffName = ''
     let voiceNotes    = ''
     let voicePhrases  = []
     const [clinRes, phrasesRes] = await Promise.all([
-      sb(`clinicians?id=eq.${interview.clinician_id}&${wsFilter}&select=name,voice_notes`),
+      sb(`staff?id=eq.${interview.staff_id}&${wsFilter}&select=name,voice_notes`),
       sb(
-        `clinician_voice_phrases?clinician_id=eq.${interview.clinician_id}&${wsFilter}` +
+        `staff_voice_phrases?staff_id=eq.${interview.staff_id}&${wsFilter}` +
         `&select=phrase&order=weight.desc,last_seen_at.desc&limit=8`,
       ),
     ])
     if (clinRes.ok) {
       const clinRows = await clinRes.json()
-      clinicianName = clinRows[0]?.name ?? ''
+      staffName = clinRows[0]?.name ?? ''
       voiceNotes    = clinRows[0]?.voice_notes ?? ''
     }
     if (phrasesRes.ok) {
@@ -123,20 +123,20 @@ export default async function handler(req, res) {
     // null when nothing is active → empty campaignContext → atoms use their
     // default per-platform CTAs. Blog generation does NOT call this; blogs
     // are intentionally evergreen.
-    // Pass clinician_id so per-clinician-targeted campaigns are honored —
-    // a campaign with non-empty target_clinician_ids only applies to atoms
+    // Pass staff_id so per-clinician-targeted campaigns are honored —
+    // a campaign with non-empty target_staff_ids only applies to atoms
     // produced for clinicians on its target list.
-    const activeCampaign = await loadCurrentTentpole(ws.id, interview.clinician_id || null)
+    const activeCampaign = await loadCurrentTentpole(ws.id, interview.staff_id || null)
     const campaignContext = getTentpolePromptContext(activeCampaign, ws)
 
     // Phase 5 Feature 2 — this clinician's prior thinking block, shared
     // across the canonical atom call below AND any per-location GBP variant
     // calls that follow. Resolved once to avoid N+1 Supabase round-trips
     // when a workspace has many GBP locations.
-    const ownHistoryBlock = interview.clinician_id
+    const ownHistoryBlock = interview.staff_id
       ? await resolveOwnHistoryBlock({
           workspaceId:        ws.id,
-          clinicianId:        interview.clinician_id,
+          staffId:        interview.staff_id,
           excludeInterviewId: interview.id,
           query:              buildRagQuery(interview),
         })
@@ -145,7 +145,7 @@ export default async function handler(req, res) {
     // Build the focused atom prompt
     const systemPrompt = getAtomSystemPrompt(
       ws,
-      clinicianName,
+      staffName,
       interview.topic,
       atom.platform,
       atom.angle,
@@ -234,8 +234,8 @@ export default async function handler(req, res) {
     const itemPayload = {
       workspace_id:   ws.id,
       interview_id:   atom.interview_id,
-      clinician_id:   interview.clinician_id,
-      clinician_name: clinicianName,
+      staff_id:   interview.staff_id,
+      staff_name: staffName,
       topic:          interview.topic,
       platform:       atom.platform,
       content:        caption,
@@ -275,7 +275,7 @@ export default async function handler(req, res) {
               const locWs = { ...ws, location_keyword: loc.location_keyword ?? loc.city }
               const locPrompt = getAtomSystemPrompt(
                 locWs,
-                clinicianName,
+                staffName,
                 interview.topic,
                 'gbp',
                 atom.angle,

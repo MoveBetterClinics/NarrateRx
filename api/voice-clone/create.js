@@ -4,7 +4,7 @@
 // shared clone-from-URL pipeline (api/_lib/voiceCloneActions.js).
 //
 // Query params:
-//   clinicianId — required; clinician whose voice this is
+//   staffId — required; clinician whose voice this is
 //   durationSec — recording length in seconds (server enforces 60s floor)
 //   filename    — original file name for blob path + ext sniffing
 //
@@ -70,12 +70,12 @@ export default async function handler(req, res) {
   if (!(await enforceLimit(req, res, 'media'))) return
 
   const { searchParams } = new URL(req.url, 'http://localhost')
-  const clinicianId = searchParams.get('clinicianId')
+  const staffId = searchParams.get('staffId')
   const durationSec = parseInt(searchParams.get('durationSec') || '0', 10) || 0
   const rawFilename = searchParams.get('filename') || `voice-clone-${Date.now()}.webm`
   const contentType = req.headers['content-type'] || 'audio/webm'
 
-  if (!clinicianId) return res.status(400).json({ error: 'clinicianId required' })
+  if (!staffId) return res.status(400).json({ error: 'staffId required' })
   if (durationSec && durationSec < MIN_SAMPLE_SECONDS) {
     return res.status(400).json({
       error: `Recording is too short — ${MIN_SAMPLE_SECONDS}s minimum for a usable voice clone.`,
@@ -83,7 +83,7 @@ export default async function handler(req, res) {
   }
 
   const clinicianRes = await sb(
-    `clinicians?id=eq.${encodeURIComponent(clinicianId)}` +
+    `staff?id=eq.${encodeURIComponent(staffId)}` +
     `&workspace_id=eq.${ws.id}` +
     `&select=id,name,eleven_voice_id,voice_clone_revoked_at&limit=1`
   )
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
 
   // ── Upload to Blob ──────────────────────────────────────────────────────────
   const safeName = rawFilename.replace(/[^a-z0-9._-]/gi, '_').slice(0, 80)
-  const blobPath = `voice-clone-samples/${ws.slug}/${clinicianId}-${Date.now()}-${safeName}`
+  const blobPath = `voice-clone-samples/${ws.slug}/${staffId}-${Date.now()}-${safeName}`
   let blobResult
   try {
     blobResult = await blobPut(blobPath, audioBuffer, {

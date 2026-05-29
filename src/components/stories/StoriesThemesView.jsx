@@ -5,7 +5,7 @@ import { useLocations } from '@/lib/queries'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getStoryArchetypes } from '@/lib/topicSuggestions'
 import { getStageToken } from '@/lib/stageTokens'
-import { ClinicianChip } from '@/components/ClinicianChip'
+import { StaffChip } from '@/components/StaffChip'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -122,13 +122,13 @@ function ThemeCard({ topic, stories, workspace }) {
   const { byArchetype, untagged } = archetypeMix(stories, workspace)
   const showMix = byArchetype.length > 0 || untagged > 0
 
-  // Clinician initials — deduplicated by clinician_id
+  // Clinician initials — deduplicated by staff_id
   const seen = new Set()
   const clinicians = []
   for (const s of stories) {
-    if (!seen.has(s.clinician_id)) {
-      seen.add(s.clinician_id)
-      clinicians.push({ id: s.clinician_id, name: s.clinician_name || '?' })
+    if (!seen.has(s.staff_id)) {
+      seen.add(s.staff_id)
+      clinicians.push({ id: s.staff_id, name: s.staff_name || '?' })
     }
   }
 
@@ -146,8 +146,8 @@ function ThemeCard({ topic, stories, workspace }) {
   // muted "no verbatim yet" line instead of fake contrast.
   const withQuote    = stories.filter((s) => !!s.verbatim_snippet)
   const perspectives = withQuote.slice(0, 3).map((s) => ({
-    clinicianId: s.clinician_id,
-    name:        s.clinician_name || 'Clinician',
+    staffId: s.staff_id,
+    name:        s.staff_name || 'Clinician',
     snippet:     firstSentence(s.verbatim_snippet),
   }))
 
@@ -165,7 +165,7 @@ function ThemeCard({ topic, stories, workspace }) {
         <h3 className="font-semibold text-gray-900 text-base leading-snug">{topic}</h3>
         <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs font-medium px-2.5 py-1 rounded-full shrink-0">
           <Users size={11} />
-          {clinicians.length} {clinicians.length === 1 ? 'clinician' : 'clinicians'}
+          {clinicians.length} {clinicians.length === 1 ? 'clinician' : 'staff'}
         </span>
       </div>
 
@@ -198,7 +198,7 @@ function ThemeCard({ topic, stories, workspace }) {
       {/* Clinician chips */}
       <div className="flex flex-wrap gap-1.5">
         {clinicians.slice(0, 5).map((c) => (
-          <ClinicianChip key={c.id} id={c.id} name={c.name} />
+          <StaffChip key={c.id} id={c.id} name={c.name} />
         ))}
         {clinicians.length > 5 && (
           <span className="inline-flex items-center justify-center h-7 px-2 rounded-full bg-gray-100 text-gray-500 text-xs">
@@ -225,8 +225,8 @@ function ThemeCard({ topic, stories, workspace }) {
                     key={i}
                     className="flex items-start gap-2 border-l-2 border-agreement-signal pl-3"
                   >
-                    <ClinicianChip
-                      id={p.clinicianId}
+                    <StaffChip
+                      id={p.staffId}
                       name={p.name}
                       size="sm"
                       className="mt-0.5 shrink-0"

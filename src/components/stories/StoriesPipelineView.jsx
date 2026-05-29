@@ -20,7 +20,7 @@ export default function StoriesPipelineView({ stories, isLoading }) {
     (story.pieces ?? []).map((piece) => ({
       ...piece,
       topic: story.topic,
-      clinician_name: story.clinician_name,
+      staff_name: story.staff_name,
     })),
   )
 

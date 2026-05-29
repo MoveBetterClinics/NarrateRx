@@ -240,7 +240,7 @@ function normalizeSegments(proposed, maxSegments, sourceDuration) {
  *
  * @param {Object} p
  * @param {Object} p.workspace   — workspace row (id, brand voice/context fields)
- * @param {Object} p.asset       — media_assets row (id, blob_url, clinician_id, duration_s)
+ * @param {Object} p.asset       — media_assets row (id, blob_url, staff_id, duration_s)
  * @param {number} [p.maxSegments]
  * @returns {Promise<{ status: string, count: number, note: string|null }>}
  */
@@ -277,7 +277,7 @@ export async function detectSegmentsForAsset({ workspace, asset, maxSegments = D
       const rows = segments.map((s, i) => ({
         workspace_id: ws.id,
         source_asset_id: asset.id,
-        clinician_id: asset.clinician_id || null,
+        staff_id: asset.staff_id || null,
         start_sec: s.start_sec,
         end_sec: s.end_sec,
         hook: s.hook,

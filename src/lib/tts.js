@@ -32,7 +32,7 @@
 
 import { apiFetchResponse } from '@/lib/api'
 
-/** @typedef {{ onStart?: () => void; onEnd?: () => void; onError?: (e: unknown) => void; voiceId?: string; clinicianId?: string; speed?: number }} SpeakOptions */
+/** @typedef {{ onStart?: () => void; onEnd?: () => void; onError?: (e: unknown) => void; voiceId?: string; staffId?: string; speed?: number }} SpeakOptions */
 
 // A 100ms silent MP3 — used to gesture-prime <audio> playback on iOS WebKit.
 export const SILENT_MP3 =
@@ -213,7 +213,7 @@ export function createTtsPlayer() {
       res = await apiFetchResponse('/api/tts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, voiceId: opts.voiceId, clinicianId: opts.clinicianId, speed: opts.speed }),
+        body: JSON.stringify({ text, voiceId: opts.voiceId, staffId: opts.staffId, speed: opts.speed }),
         signal,
       })
     } catch {

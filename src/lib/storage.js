@@ -40,9 +40,9 @@ export function getOrCreateClinician(name) {
   return clinician
 }
 
-export function createInterview(clinicianId, topic) {
+export function createInterview(staffId, topic) {
   const data = load()
-  const clinician = data.clinicians.find((c) => c.id === clinicianId)
+  const clinician = data.clinicians.find((c) => c.id === staffId)
   if (!clinician) return null
   const interview = {
     id: crypto.randomUUID(),
@@ -58,15 +58,15 @@ export function createInterview(clinicianId, topic) {
   return interview
 }
 
-export function getInterview(clinicianId, interviewId) {
-  const clinician = getClinician(clinicianId)
+export function getInterview(staffId, interviewId) {
+  const clinician = getClinician(staffId)
   if (!clinician) return null
   return clinician.interviews.find((i) => i.id === interviewId) || null
 }
 
-export function updateInterviewMessages(clinicianId, interviewId, messages) {
+export function updateInterviewMessages(staffId, interviewId, messages) {
   const data = load()
-  const clinician = data.clinicians.find((c) => c.id === clinicianId)
+  const clinician = data.clinicians.find((c) => c.id === staffId)
   if (!clinician) return
   const interview = clinician.interviews.find((i) => i.id === interviewId)
   if (!interview) return
@@ -75,9 +75,9 @@ export function updateInterviewMessages(clinicianId, interviewId, messages) {
   save(data)
 }
 
-export function saveInterviewOutputs(clinicianId, interviewId, outputs) {
+export function saveInterviewOutputs(staffId, interviewId, outputs) {
   const data = load()
-  const clinician = data.clinicians.find((c) => c.id === clinicianId)
+  const clinician = data.clinicians.find((c) => c.id === staffId)
   if (!clinician) return
   const interview = clinician.interviews.find((i) => i.id === interviewId)
   if (!interview) return
@@ -87,17 +87,17 @@ export function saveInterviewOutputs(clinicianId, interviewId, outputs) {
   save(data)
 }
 
-export function deleteInterview(clinicianId, interviewId) {
+export function deleteInterview(staffId, interviewId) {
   const data = load()
-  const clinician = data.clinicians.find((c) => c.id === clinicianId)
+  const clinician = data.clinicians.find((c) => c.id === staffId)
   if (!clinician) return
   clinician.interviews = clinician.interviews.filter((i) => i.id !== interviewId)
   save(data)
 }
 
-export function deleteClinician(clinicianId) {
+export function deleteClinician(staffId) {
   const data = load()
-  data.clinicians = data.clinicians.filter((c) => c.id !== clinicianId)
+  data.clinicians = data.clinicians.filter((c) => c.id !== staffId)
   save(data)
 }
 

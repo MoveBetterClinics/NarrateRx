@@ -3,10 +3,10 @@
 // per clinician, enforced by partial unique index from migration 050.
 //
 // Routes:
-//   GET    /api/db/clinician-recipes?clinicianId=<uuid>   → list for clinician
-//   POST   /api/db/clinician-recipes                       → create
-//   PATCH  /api/db/clinician-recipes?id=<uuid>             → update
-//   DELETE /api/db/clinician-recipes?id=<uuid>             → delete
+//   GET    /api/db/staff-recipes?staffId=<uuid>   → list for clinician
+//   POST   /api/db/staff-recipes                       → create
+//   PATCH  /api/db/staff-recipes?id=<uuid>             → update
+//   DELETE /api/db/staff-recipes?id=<uuid>             → delete
 //
 // All endpoints scope to the request's workspace via workspaceContext.
 
@@ -37,11 +37,11 @@ const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
 async function dbErr(res, r, msg = 'Database error', status = 500) {
   const body = await r.text().catch(() => '')
-  console.error(`[db/clinician-recipes] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
+  console.error(`[db/staff-recipes] ${msg} — supabase ${r.status}: ${body.slice(0, 500)}`)
   return res.status(status).json({ error: msg })
 }
 
-const RECIPE_FIELDS = 'id,workspace_id,clinician_id,name,emoji,is_default,audience,story_type,tone,voice_mode,cleanup_level,created_at,updated_at'
+const RECIPE_FIELDS = 'id,workspace_id,staff_id,name,emoji,is_default,audience,story_type,tone,voice_mode,cleanup_level,created_at,updated_at'
 
 const PATCHABLE = new Set(['name', 'emoji', 'is_default', 'audience', 'story_type', 'tone', 'voice_mode', 'cleanup_level'])
 
@@ -49,25 +49,25 @@ const PATCHABLE = new Set(['name', 'emoji', 'is_default', 'audience', 'story_typ
 // before setting a new default (insert or update) so the partial unique
 // index never collides. Workspace filter is mandatory — a missing filter
 // would let a malformed call PATCH across workspaces (audit 2026-05-17).
-async function clearOtherDefaults(workspaceId, clinicianId, exceptId = null) {
+async function clearOtherDefaults(workspaceId, staffId, exceptId = null) {
   const filter = exceptId
-    ? `workspace_id=eq.${workspaceId}&clinician_id=eq.${clinicianId}&id=neq.${exceptId}&is_default=eq.true`
-    : `workspace_id=eq.${workspaceId}&clinician_id=eq.${clinicianId}&is_default=eq.true`
-  const r = await sb(`clinician_recipes?${filter}`, {
+    ? `workspace_id=eq.${workspaceId}&staff_id=eq.${staffId}&id=neq.${exceptId}&is_default=eq.true`
+    : `workspace_id=eq.${workspaceId}&staff_id=eq.${staffId}&is_default=eq.true`
+  const r = await sb(`staff_recipes?${filter}`, {
     method: 'PATCH',
     body: JSON.stringify({ is_default: false }),
   })
   if (!r.ok) {
     const body = await r.text().catch(() => '')
-    console.error(`[db/clinician-recipes] clearOtherDefaults failed — supabase ${r.status}: ${body.slice(0, 500)}`)
+    console.error(`[db/staff-recipes] clearOtherDefaults failed — supabase ${r.status}: ${body.slice(0, 500)}`)
   }
 }
 
 // Confirms a clinician id belongs to the current workspace before any
-// operation accepts it as input. Prevents POSTing a clinicianId from
+// operation accepts it as input. Prevents POSTing a staffId from
 // another workspace and triggering cross-tenant mutations.
-async function clinicianInWorkspace(workspaceId, clinicianId) {
-  const r = await sb(`clinicians?id=eq.${clinicianId}&workspace_id=eq.${workspaceId}&select=id&limit=1`)
+async function clinicianInWorkspace(workspaceId, staffId) {
+  const r = await sb(`staff?id=eq.${staffId}&workspace_id=eq.${workspaceId}&select=id&limit=1`)
   if (!r.ok) return false
   const rows = await r.json().catch(() => [])
   return Array.isArray(rows) && rows.length > 0
@@ -76,7 +76,7 @@ async function clinicianInWorkspace(workspaceId, clinicianId) {
 export default async function handler(req, res) {
   const { searchParams } = new URL(req.url, 'http://localhost')
   const id = searchParams.get('id')
-  const clinicianId = searchParams.get('clinicianId')
+  const staffId = searchParams.get('staffId')
 
   const ws = await workspaceContext(req)
   if (!ws) return err(res, 'Workspace not resolved', 400)
@@ -88,8 +88,8 @@ export default async function handler(req, res) {
   const wsFilter = `workspace_id=eq.${ws.id}`
 
   if (req.method === 'GET') {
-    if (!clinicianId) return err(res, 'Missing clinicianId')
-    const r = await sb(`clinician_recipes?${wsFilter}&clinician_id=eq.${clinicianId}&select=${RECIPE_FIELDS}&order=is_default.desc,created_at.asc`)
+    if (!staffId) return err(res, 'Missing staffId')
+    const r = await sb(`staff_recipes?${wsFilter}&staff_id=eq.${staffId}&select=${RECIPE_FIELDS}&order=is_default.desc,created_at.asc`)
     if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }
@@ -97,23 +97,23 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     if (!(await enforceLimit(req, res, 'media'))) return
     const body = req.body || {}
-    if (!body.clinicianId) return err(res, 'Missing clinicianId')
+    if (!body.staffId) return err(res, 'Missing staffId')
     if (!body.name?.trim())  return err(res, 'Name required')
 
-    // Ownership check: the client-supplied clinicianId must belong to the
+    // Ownership check: the client-supplied staffId must belong to the
     // current workspace. Without this, a logged-in user from tenant A could
-    // POST with a clinicianId from tenant B and clearOtherDefaults would
+    // POST with a staffId from tenant B and clearOtherDefaults would
     // flip is_default across tenant B's rows.
-    if (!(await clinicianInWorkspace(ws.id, body.clinicianId))) {
+    if (!(await clinicianInWorkspace(ws.id, body.staffId))) {
       return err(res, 'Clinician not found', 404)
     }
 
     const isDefault = !!body.is_default
-    if (isDefault) await clearOtherDefaults(ws.id, body.clinicianId)
+    if (isDefault) await clearOtherDefaults(ws.id, body.staffId)
 
     const row = {
       workspace_id:  ws.id,
-      clinician_id:  body.clinicianId,
+      staff_id:  body.staffId,
       name:          body.name.trim(),
       emoji:         body.emoji?.trim() || '⭐',
       is_default:    isDefault,
@@ -123,7 +123,7 @@ export default async function handler(req, res) {
       voice_mode:    body.voice_mode    ?? null,
       cleanup_level: body.cleanup_level ?? null,
     }
-    const r = await sb('clinician_recipes', { method: 'POST', body: JSON.stringify(row) })
+    const r = await sb('staff_recipes', { method: 'POST', body: JSON.stringify(row) })
     if (!r.ok) return dbErr(res, r, 'Create failed')
     const data = await r.json()
     return ok(res, data[0], 201)
@@ -142,15 +142,15 @@ export default async function handler(req, res) {
 
     // If flipping to default, clear other defaults for this clinician first.
     if (patch.is_default === true) {
-      // Need clinician_id to clear siblings — fetch it.
-      const lookup = await sb(`clinician_recipes?id=eq.${id}&${wsFilter}&select=clinician_id`)
+      // Need staff_id to clear siblings — fetch it.
+      const lookup = await sb(`staff_recipes?id=eq.${id}&${wsFilter}&select=staff_id`)
       if (!lookup.ok) return dbErr(res, lookup)
       const rows = await lookup.json()
       if (!rows.length) return err(res, 'Not found', 404)
-      await clearOtherDefaults(ws.id, rows[0].clinician_id, id)
+      await clearOtherDefaults(ws.id, rows[0].staff_id, id)
     }
 
-    const r = await sb(`clinician_recipes?id=eq.${id}&${wsFilter}`, {
+    const r = await sb(`staff_recipes?id=eq.${id}&${wsFilter}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     })
@@ -162,7 +162,7 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE') {
     if (!(await enforceLimit(req, res, 'media'))) return
     if (!id) return err(res, 'Missing id')
-    const r = await sb(`clinician_recipes?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
+    const r = await sb(`staff_recipes?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
     if (!r.ok) return dbErr(res, r, 'Delete failed')
     return ok(res, { ok: true })
   }

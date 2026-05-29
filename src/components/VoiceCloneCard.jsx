@@ -5,7 +5,7 @@
 //   - had_clone:   voice_clone_revoked_at IS NOT NULL (offers re-clone path)
 //   - never_clone: neither — first-time CTA
 //
-// Owner-only — gated upstream in ClinicianProfile.
+// Owner-only — gated upstream in StaffProfile.
 
 import { Link } from 'react-router-dom'
 import { useState } from 'react'
@@ -39,7 +39,7 @@ export default function VoiceCloneCard({ clinician }) {
     try {
       await apiFetch('/api/voice-clone/revoke', {
         method: 'POST',
-        body: JSON.stringify({ clinicianId: clinician.id }),
+        body: JSON.stringify({ staffId: clinician.id }),
       })
       // Invalidate the clinician cache so the card flips state.
       queryClient.invalidateQueries({ queryKey: ['clinician'] })

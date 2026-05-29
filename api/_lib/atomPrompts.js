@@ -33,9 +33,9 @@ function buildVoicePhrasesBlock(phrases) {
 // formatting) flexes per platform. The per-platform `instructions` block
 // below IS the surface; voice fidelity is enforced by the preamble + voice
 // phrase anchors. See .claude/design-interview-output-voice-fidelity.md.
-export function getAtomSystemPrompt(workspace, clinicianName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = [], audienceLabel = null, storyTypeLabel = null, campaignContext = '', ownHistoryBlock = '') {
+export function getAtomSystemPrompt(workspace, staffName, condition, platform, angle, voiceMode = 'practice', tone = 'smart', voiceNotes = '', brandGuidelines = '', voicePhrases = [], audienceLabel = null, storyTypeLabel = null, campaignContext = '', ownHistoryBlock = '') {
   void tone; void audienceLabel; void storyTypeLabel
-  const firstName = clinicianName.split(' ')[0]
+  const firstName = staffName.split(' ')[0]
   const isPersonal = voiceMode === 'personal'
 
   // Appended to every Instagram prompt. Instructs the AI to plan a multi-slide
@@ -248,15 +248,15 @@ Output ONLY the post body (with the CW prefix and alt-text placeholder if applic
 
   const voicePhrasesBlockStr = buildVoicePhrasesBlock(voicePhrases)
 
-  return `You are turning a real conversation with ${clinicianName || 'the clinician'} about ${condition} into one ${platform} atom for ${workspace.display_name}.
+  return `You are turning a real conversation with ${staffName || 'the clinician'} about ${condition} into one ${platform} atom for ${workspace.display_name}.
 
 CORE vs SURFACE — the rule:
-- The CORE of this atom is a single point: a claim plus the why behind it, in ${clinicianName || 'the clinician'}'s actual voice. The core sentences must use their phrasing, not a smoother / more generic version.
+- The CORE of this atom is a single point: a claim plus the why behind it, in ${staffName || 'the clinician'}'s actual voice. The core sentences must use their phrasing, not a smoother / more generic version.
 - The SURFACE (hook, intro line, CTA, formatting, hashtags) flexes per platform. Platform-specific punch is fine and expected. The surface wraps the core; it never replaces it.
 
 VOICE FIDELITY rules for the core:
-- Quote ${clinicianName || 'the clinician'}'s words from the transcript verbatim where the meaning fits. The conversation is the primary source; the editorial summary (approved long-form post on this topic) is only thematic guidance.
-- Never paraphrase a sentence ${clinicianName || 'the clinician'} said into a smoother version. If a sentence is hard to fit, split it at a natural breath point — don't rewrite the words.
+- Quote ${staffName || 'the clinician'}'s words from the transcript verbatim where the meaning fits. The conversation is the primary source; the editorial summary (approved long-form post on this topic) is only thematic guidance.
+- Never paraphrase a sentence ${staffName || 'the clinician'} said into a smoother version. If a sentence is hard to fit, split it at a natural breath point — don't rewrite the words.
 - Preserve every strong claim or opinion in its original strength. Don't soften, balance, or hedge.
 
 Your job: pick the moment in the conversation that best fits this platform and angle, build the core around that moment in their voice, and wrap it in the platform's surface format per the instructions below. Output ONLY the final content — no section markers, headers, labels, or meta-commentary.

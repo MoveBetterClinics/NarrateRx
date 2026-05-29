@@ -9,7 +9,7 @@
 // settings (email, password, MFA, sessions) stay on /account.
 //
 // Renders nothing when there's no signed-in user. Caller is responsible for
-// only mounting this on the owner's own clinician profile (isMyClinicianProfile).
+// only mounting this on the owner's own clinician profile (isMyStaffProfile).
 
 import { useState } from 'react'
 import { useUser } from '@clerk/react'

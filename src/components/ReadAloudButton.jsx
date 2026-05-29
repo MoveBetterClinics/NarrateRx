@@ -1,7 +1,7 @@
 // "Read aloud" button — first real production caller of the F#3 voice clone.
 //
 // Plays a short audio preview (≤PREVIEW_CHARS) of the supplied text via
-// /api/tts. When clinicianId is passed, the server resolves to that
+// /api/tts. When staffId is passed, the server resolves to that
 // clinician's voice clone (if active). Otherwise falls back to the default
 // Bernard voice.
 //
@@ -41,7 +41,7 @@ function truncateAtBoundary(text, max) {
 /**
  * @param {object} props
  * @param {string} props.text          — full piece body; auto-truncated to a preview
- * @param {string=} props.clinicianId  — resolves to this clinician's clone (F#3)
+ * @param {string=} props.staffId  — resolves to this clinician's clone (F#3)
  * @param {string=} props.label        — button label (default "Read aloud (preview)")
  * @param {string=} props.size         — Button size; default 'sm'
  * @param {string=} props.variant      — Button variant; default 'outline'
@@ -49,7 +49,7 @@ function truncateAtBoundary(text, max) {
  */
 export default function ReadAloudButton({
   text,
-  clinicianId,
+  staffId,
   label = 'Read aloud (preview)',
   size = 'sm',
   variant = 'outline',
@@ -79,7 +79,7 @@ export default function ReadAloudButton({
     const preview = truncateAtBoundary(text, PREVIEW_CHARS)
     setState('loading')
     ttsRef.current.speak(preview, {
-      clinicianId,
+      staffId,
       onStart: () => setState('playing'),
       onEnd:   () => setState('idle'),
       onError: () => setState('idle'),
@@ -94,7 +94,7 @@ export default function ReadAloudButton({
       onClick={onClick}
       disabled={disabled}
       className={className}
-      title={clinicianId ? "Hear this in this clinician's voice (if cloned)" : 'Hear this in the default voice'}
+      title={staffId ? "Hear this in this clinician's voice (if cloned)" : 'Hear this in the default voice'}
     >
       {state === 'loading' ? (
         <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Loading…</>

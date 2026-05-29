@@ -8,7 +8,7 @@
 //     topic: string,              // required — e.g. "spinal manipulation technique"
 //     captionText?: string,       // if omitted: auto-generated from clip + topic
 //     channels?: string[],        // default: top 3 for the clip's kind
-//     clinicianId?: string,       // scope clip search to one clinician
+//     staffId?: string,       // scope clip search to one clinician
 //     kind?: 'photo'|'video'|'any' // clip search filter (default 'any')
 //   }
 //
@@ -23,7 +23,7 @@
 //
 // Response 200:
 //   {
-//     packageId, topic, captionText, clinicianName,
+//     packageId, topic, captionText, staffName,
 //     clip: { assetId, similarity, kind, blobUrl, filename, ... },
 //     renders: [{ channel, blobUrl, width, height, sizeBytes, hadSubtitles? }],
 //     errors?: [{ channel, error }],
@@ -151,7 +151,7 @@ export default async function handler(req, res) {
   if (topic.length > 2000) return res.status(400).json({ error: 'topic_too_long' })
 
   let captionText = String(body.captionText || '').trim().slice(0, 500)
-  const clinicianId = body.clinicianId ? String(body.clinicianId) : null
+  const staffId = body.staffId ? String(body.staffId) : null
   const requestedKind = body.kind && body.kind !== 'any' ? String(body.kind) : null
   // Phase 4 Tentpole PR B: optional campaign tagging.
   const campaignId = body.campaignId ? String(body.campaignId) : null
@@ -188,7 +188,7 @@ export default async function handler(req, res) {
       const fused = await fetchFusedRagContext({
         topic,
         workspaceId: ws.id,
-        clinicianIds: clinicianId ? [clinicianId] : [],
+        staffIds: staffId ? [staffId] : [],
         visualK: 1,
         visualKind: requestedKind,
         minVisualScore: 0.4,
@@ -229,7 +229,7 @@ export default async function handler(req, res) {
         k: 1,
         kind: requestedKind,
         minScore: 0.4,
-        clinicianId,
+        staffId,
       })
     } catch (e) {
       console.error('[generate-package] clip search failed:', e.message)
@@ -276,7 +276,7 @@ export default async function handler(req, res) {
         method: 'POST',
         body: JSON.stringify({
           workspace_id:  ws.id,
-          clinician_id:  clinicianId || null,
+          staff_id:  staffId || null,
           source_asset_id: null,
           topic,
           caption_text:  captionText,
@@ -304,8 +304,8 @@ export default async function handler(req, res) {
 
     // Resolve clinician name for render overlays (best-effort).
     let brollClinicianName = ''
-    if (clinicianId) {
-      const cRes = await sb(`clinicians?id=eq.${clinicianId}&workspace_id=eq.${ws.id}&select=name`)
+    if (staffId) {
+      const cRes = await sb(`staff?id=eq.${staffId}&workspace_id=eq.${ws.id}&select=name`)
       if (cRes.ok) {
         const cRows = await cRes.json()
         brollClinicianName = cRows?.[0]?.name || ''
@@ -321,9 +321,9 @@ export default async function handler(req, res) {
         topic,
         captionText,
         workspace:     ws,
-        clinicianId:   clinicianId || null,
+        staffId:   staffId || null,
         channels:      brollChannels,
-        clinicianName: brollClinicianName,
+        staffName: brollClinicianName,
       })
     )
 
@@ -331,7 +331,7 @@ export default async function handler(req, res) {
       packageId:    brollPackageId,
       topic,
       captionText,
-      clinicianName: brollClinicianName,
+      staffName: brollClinicianName,
       status:       'pending_broll',
       broll_status: 'generating',
       broll_model:  'gen3a_turbo',
@@ -356,13 +356,13 @@ export default async function handler(req, res) {
   }
 
   // --- 2. Look up clinician name ────────────────────────────────────────────
-  let clinicianName = ''
-  const lookupClinicianId = clip.clinicianId || clinicianId
+  let staffName = ''
+  const lookupClinicianId = clip.staffId || staffId
   if (lookupClinicianId) {
-    const cRes = await sb(`clinicians?id=eq.${lookupClinicianId}&workspace_id=eq.${ws.id}&select=name`)
+    const cRes = await sb(`staff?id=eq.${lookupClinicianId}&workspace_id=eq.${ws.id}&select=name`)
     if (cRes.ok) {
       const cRows = await cRes.json()
-      clinicianName = cRows?.[0]?.name || ''
+      staffName = cRows?.[0]?.name || ''
     }
   }
 
@@ -392,7 +392,7 @@ export default async function handler(req, res) {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
-        clinician_id: lookupClinicianId || null,
+        staff_id: lookupClinicianId || null,
         source_asset_id: clip.assetId || null,
         topic,
         caption_text: captionText,
@@ -431,10 +431,10 @@ export default async function handler(req, res) {
       kind:          isVideo ? 'video' : 'photo',
       channels,
       captionText,
-      clinicianName,
+      staffName,
       filename:      clip.filename,
       topic,
-      clinicianId:   lookupClinicianId || null,
+      staffId:   lookupClinicianId || null,
     })
   )
 
@@ -443,7 +443,7 @@ export default async function handler(req, res) {
     status: 'generating',
     topic,
     captionText,
-    clinicianName,
+    staffName,
     clip: {
       assetId:         clip.assetId,
       similarity:      clip.similarity,

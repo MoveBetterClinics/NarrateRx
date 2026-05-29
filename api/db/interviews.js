@@ -67,7 +67,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (id) {
       const r = await sb(
-        `interviews?id=eq.${id}&${wsFilter}&select=id,clinician_id,topic,status,messages,cleaned_messages,outputs,session_state,paused_at,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,audience,story_type,cleanup_level,pull_quote_candidates,pull_quote_selected_id,verbatim_flags,generation_style,capture_mode,source_audio_url,created_at,updated_at`
+        `interviews?id=eq.${id}&${wsFilter}&select=id,staff_id,topic,status,messages,cleaned_messages,outputs,session_state,paused_at,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,audience,story_type,cleanup_level,pull_quote_candidates,pull_quote_selected_id,verbatim_flags,generation_style,capture_mode,source_audio_url,created_at,updated_at`
       )
       if (!r.ok) return dbErr(res, r)
       const data = await r.json()
@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     if (!topic) return err(res, 'Missing id or topic')
 
     let qs = `interviews?${wsFilter}&topic=ilike.${encodeURIComponent(topic)}&status=eq.completed`
-    qs += `&select=id,topic,messages,created_at,clinicians(name)`
+    qs += `&select=id,topic,messages,created_at,staff(name)`
     if (excludeId) qs += `&id=neq.${excludeId}`
     qs += `&order=created_at.desc&limit=3`
 
@@ -92,8 +92,8 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     if (!(await enforceLimit(req, res, 'media'))) return
 
-    const { clinicianId, topic, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, generationStyle, topicBacklogId } = req.body || {}
-    if (!clinicianId) return err(res, 'Missing clinicianId')
+    const { staffId, topic, ownerEmail, tone, voiceMode, prototypeId, locationId, audience, storyType, cleanupLevel, generationStyle, topicBacklogId } = req.body || {}
+    if (!staffId) return err(res, 'Missing staffId')
     if (!topic?.trim()) return err(res, 'Topic required')
 
     // owner_id comes from the verified Clerk token, never the request body.
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
-        clinician_id: clinicianId,
+        staff_id: staffId,
         topic: topic.trim(),
         owner_id: ownerId,
         owner_email: ownerEmail,
@@ -170,7 +170,7 @@ export default async function handler(req, res) {
 
     if (!id) return err(res, 'Missing id')
 
-    const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,clinician_id,topic,location_id,capture_mode,source_audio_url`)
+    const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,staff_id,topic,location_id,capture_mode,source_audio_url`)
     if (!chk.ok) return dbErr(res, chk)
     const rows = await chk.json()
     if (!rows.length) return err(res, 'Not found', 404)
@@ -221,7 +221,7 @@ export default async function handler(req, res) {
     // already saved before this branch ran — we never want any of the
     // enrichment paths to bubble up and 500 the PATCH.
     if (body.outputs && body.status === 'completed') {
-      const { clinician_id, topic, location_id, capture_mode, source_audio_url } = rows[0]
+      const { staff_id, topic, location_id, capture_mode, source_audio_url } = rows[0]
       const o = body.outputs
       // URL-import keystone is already-published content (the source URL is
       // the live post). Mark the blog content_item as published with the
@@ -230,16 +230,16 @@ export default async function handler(req, res) {
       const isImportedKeystone = capture_mode === 'text_import' && !!source_audio_url
 
       // Fetch clinician name once for the inserts below. Workspace filter
-      // is defense-in-depth: clinician_id came from the interview row that's
+      // is defense-in-depth: staff_id came from the interview row that's
       // already workspace-filtered above, so any belonging-to-this-workspace
       // clinician is reachable, but an explicit filter prevents a stale FK
       // from another workspace leaking a name into a content_item insert.
-      let clinicianName = ''
+      let staffName = ''
       try {
-        const clinRes = await sb(`clinicians?id=eq.${clinician_id}&${wsFilter}&select=name`)
+        const clinRes = await sb(`staff?id=eq.${staff_id}&${wsFilter}&select=name`)
         if (clinRes.ok) {
           const clinRows = await clinRes.json()
-          clinicianName = clinRows[0]?.name ?? ''
+          staffName = clinRows[0]?.name ?? ''
         } else {
           console.error(`[db/interviews] post-complete clinician name fetch ${clinRes.status} for interview=${id} ws=${ws.slug}`)
         }
@@ -275,8 +275,8 @@ export default async function handler(req, res) {
               return {
                 workspace_id:   ws.id,
                 interview_id:   id,
-                clinician_id,
-                clinician_name: clinicianName,
+                staff_id,
+                staff_name: staffName,
                 topic:          topic ?? '',
                 platform,
                 content:        o[key],
@@ -329,7 +329,7 @@ export default async function handler(req, res) {
               sourceKind:   'interview_turn',
               sourceId:     id,
               text:         interviewText,
-              clinicianId:  rows[0].clinician_id ?? null,
+              staffId:  rows[0].staff_id ?? null,
               weightDelta:  1.0,
             })
             // Phase 5 Feature 2 — practice-memory summarization runs alongside
@@ -338,8 +338,8 @@ export default async function handler(req, res) {
             summarizeInterview({
               interviewId:   id,
               workspaceId:   ws.id,
-              clinicianId:   rows[0].clinician_id ?? null,
-              clinicianName,
+              staffId:   rows[0].staff_id ?? null,
+              staffName,
               topic:         topic,
               messages:      turns,
             })

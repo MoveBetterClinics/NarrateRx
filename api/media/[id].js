@@ -40,7 +40,7 @@ function sb(path, init = {}) {
   })
 }
 
-const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,original_blob_url,web_blob_url,web_width,web_height,mux_asset_id,mux_playback_id,transcode_status,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,asset_purpose,speaker_role,clinician_id,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
+const SELECT_COMMON = 'id,kind,status,source,blob_url,blob_pathname,original_blob_url,web_blob_url,web_width,web_height,mux_asset_id,mux_playback_id,transcode_status,rendered_url,drive_id,filename,mime_type,size_bytes,duration_s,aspect_ratio,width,height,thumbnail_url,patient_pseudonym,condition,captured_at,tags,ai_tags,transcription,visual_narrative,asset_purpose,speaker_role,staff_id,parent_id,notes,alt_text,content_item_ids,archived_at,created_at,updated_at,created_by'
 
 async function fetchRow(where, select) {
   const r = await sb(`media_assets?${where}&select=${select}`)
@@ -96,18 +96,18 @@ async function handler(req, res) {
       thumbnail_url:     patch.thumbnailUrl,
       rendered_url:      patch.renderedUrl,
       content_item_ids:  patch.contentItemIds,
-      clinician_id:      patch.clinicianId,
+      staff_id:      patch.staffId,
     }
     const body = Object.fromEntries(Object.entries(allowed).filter(([, v]) => v !== undefined))
 
-    // Verify any provided clinician_id belongs to the current workspace so a
+    // Verify any provided staff_id belongs to the current workspace so a
     // client can't attribute an asset to a clinician from another tenant.
     // null is allowed (clears attribution).
-    if (body.clinician_id !== undefined && body.clinician_id !== null) {
-      const cRes = await sb(`clinicians?id=eq.${body.clinician_id}&${scope.column}=eq.${scope.id}&select=id`)
+    if (body.staff_id !== undefined && body.staff_id !== null) {
+      const cRes = await sb(`staff?id=eq.${body.staff_id}&${scope.column}=eq.${scope.id}&select=id`)
       if (!cRes.ok) return res.status(500).json({ error: 'Clinician lookup failed' })
       const cRows = await cRes.json()
-      if (!cRows.length) return res.status(400).json({ error: 'Invalid clinician_id' })
+      if (!cRows.length) return res.status(400).json({ error: 'Invalid staff_id' })
     }
 
     // Validate asset_purpose if the caller is changing it, and enforce the

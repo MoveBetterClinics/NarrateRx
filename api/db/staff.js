@@ -73,7 +73,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (id) {
       // Single clinician with full interview list
-      const r = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=${CLINICIAN_BASE_FIELDS},interviews(${INTERVIEW_FIELDS})`)
+      const r = await sb(`staff?id=eq.${id}&${wsFilter}&select=${CLINICIAN_BASE_FIELDS},interviews(${INTERVIEW_FIELDS})`)
       if (!r.ok) return dbErr(res, r)
       const data = await r.json()
       return ok(res, data[0] ?? null)
@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     // All clinicians with interview summaries
     const clinicianSel = view === 'card' ? CLINICIAN_FIELDS_CARD : CLINICIAN_BASE_FIELDS
     const interviewSel = view === 'card' ? INTERVIEW_FIELDS_CARD : INTERVIEW_FIELDS
-    const r = await sb(`clinicians?${wsFilter}&select=${clinicianSel},interviews(${interviewSel})&order=name.asc`)
+    const r = await sb(`staff?${wsFilter}&select=${clinicianSel},interviews(${interviewSel})&order=name.asc`)
     if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }
@@ -113,7 +113,7 @@ export default async function handler(req, res) {
     // using right now. Phase 4 default_* columns predate the recipes
     // table and are untouched here.
     if (bindUserId) {
-      const byUserRes = await sb(`clinicians?${wsFilter}&user_id=eq.${encodeURIComponent(bindUserId)}&select=${selectExpr}`)
+      const byUserRes = await sb(`staff?${wsFilter}&user_id=eq.${encodeURIComponent(bindUserId)}&select=${selectExpr}`)
       if (!byUserRes.ok) return dbErr(res, byUserRes)
       const byUser = await byUserRes.json()
       if (byUser.length > 0) {
@@ -121,7 +121,7 @@ export default async function handler(req, res) {
         if (existing.name !== name.trim()) {
           // Label drifted — sync it. Don't return until the update lands,
           // otherwise the caller sees the old name and the UI flickers.
-          const patchRes = await sb(`clinicians?id=eq.${existing.id}&${wsFilter}`, {
+          const patchRes = await sb(`staff?id=eq.${existing.id}&${wsFilter}`, {
             method: 'PATCH',
             body: JSON.stringify({ name: name.trim(), updated_at: new Date().toISOString() }),
           })
@@ -141,7 +141,7 @@ export default async function handler(req, res) {
     // this workspace. Used when the caller didn't bind to a user_id
     // (admin recording an interview with a guest), or when the user is
     // self-interviewing but happens to have no user_id-bound row yet.
-    const findRes = await sb(`clinicians?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=${selectExpr}`)
+    const findRes = await sb(`staff?${wsFilter}&name=ilike.${encodeURIComponent(name.trim())}&select=${selectExpr}`)
     if (!findRes.ok) return dbErr(res, findRes)
     const found = await findRes.json()
     if (found.length > 0) {
@@ -149,7 +149,7 @@ export default async function handler(req, res) {
       // If the caller bound a user_id and the matched row doesn't have one
       // yet, claim it — upgrades a proxy row into a Self row on first match.
       if (bindUserId && !existing.user_id) {
-        const claim = await sb(`clinicians?id=eq.${existing.id}&${wsFilter}`, {
+        const claim = await sb(`staff?id=eq.${existing.id}&${wsFilter}`, {
           method: 'PATCH',
           body: JSON.stringify({ user_id: bindUserId, updated_at: new Date().toISOString() }),
         })
@@ -162,7 +162,7 @@ export default async function handler(req, res) {
     }
 
     // Create new
-    const createRes = await sb('clinicians', {
+    const createRes = await sb('staff', {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
@@ -197,7 +197,7 @@ export default async function handler(req, res) {
     }
     if (Object.keys(patch).length <= 1) return err(res, 'No patchable fields')
 
-    const r = await sb(`clinicians?id=eq.${id}&${wsFilter}`, {
+    const r = await sb(`staff?id=eq.${id}&${wsFilter}`, {
       method: 'PATCH',
       body: JSON.stringify(patch),
     })
@@ -211,13 +211,13 @@ export default async function handler(req, res) {
 
     if (!id) return err(res, 'Missing id')
 
-    const chk = await sb(`clinicians?id=eq.${id}&${wsFilter}&select=created_by_id`)
+    const chk = await sb(`staff?id=eq.${id}&${wsFilter}&select=created_by_id`)
     if (!chk.ok) return dbErr(res, chk)
     const rows = await chk.json()
     if (!rows.length) return err(res, 'Not found', 404)
     if (rows[0].created_by_id !== userId) return err(res, 'Forbidden', 403)
 
-    const r = await sb(`clinicians?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
+    const r = await sb(`staff?id=eq.${id}&${wsFilter}`, { method: 'DELETE' })
     if (!r.ok) return dbErr(res, r, 'Delete failed')
     return ok(res, { ok: true })
   }

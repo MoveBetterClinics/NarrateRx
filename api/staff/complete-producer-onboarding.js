@@ -1,4 +1,4 @@
-// POST /api/clinicians/complete-producer-onboarding
+// POST /api/staff/complete-producer-onboarding
 //
 // Phase 4 PR 4: marks the calling user's clinicians.producer_onboarded_at = NOW()
 // in the active workspace. Idempotent — if already set, returns the existing
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
   // we can't onboard them as a producer (the tier lookup would have failed
   // upstream). 404 instead of silently creating a row.
   const lookup = await sb(
-    `clinicians?user_id=eq.${encodeURIComponent(auth.userId)}` +
+    `staff?user_id=eq.${encodeURIComponent(auth.userId)}` +
     `&workspace_id=eq.${encodeURIComponent(ws.id)}&select=id,producer_onboarded_at&limit=1`
   )
   if (!lookup.ok) {
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   }
 
   const now = new Date().toISOString()
-  const patchRes = await sb(`clinicians?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
+  const patchRes = await sb(`staff?id=eq.${clinician.id}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({ producer_onboarded_at: now }),
   })

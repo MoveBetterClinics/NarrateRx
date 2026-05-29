@@ -1,4 +1,4 @@
-// POST /api/clinicians/ensure-self  { name?: string }
+// POST /api/staff/ensure-self  { name?: string }
 //
 // Idempotently ensures the calling user has a "Self" staff/clinician row in the
 // current workspace, bound to their Clerk user_id. Returns the row.
@@ -7,7 +7,7 @@
 // an org invite) has no clinicians row until they start their first interview —
 // the row was historically created lazily inside api/db/clinicians.js's POST.
 // That left invited staff with no "My staff profile" entry in the avatar menu
-// (gated on selfClinicianId) and an empty Activity/Voice/Settings profile until
+// (gated on selfStaffId) and an empty Activity/Voice/Settings profile until
 // they happened to record something. This endpoint lets the app provision the
 // row on workspace load so the profile exists from day one.
 //
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
   const userId = auth.userId
 
   // 1. Already provisioned? Return the existing Self row.
-  const byUserRes = await sb(`clinicians?${wsFilter}&user_id=eq.${encodeURIComponent(userId)}&select=${CLINICIAN_FIELDS}`)
+  const byUserRes = await sb(`staff?${wsFilter}&user_id=eq.${encodeURIComponent(userId)}&select=${CLINICIAN_FIELDS}`)
   if (!byUserRes.ok) {
     const body = await byUserRes.text().catch(() => '')
     console.error(`[clinicians/ensure-self] lookup ${byUserRes.status}: ${body.slice(0, 500)}`)
@@ -120,7 +120,7 @@ export default async function handler(req, res) {
   name = name.slice(0, 200)
 
   // 2. Claim a matching proxy row (admin pre-recorded this person; user_id null).
-  const byNameRes = await sb(`clinicians?${wsFilter}&user_id=is.null&name=ilike.${encodeURIComponent(name)}&select=${CLINICIAN_FIELDS}`)
+  const byNameRes = await sb(`staff?${wsFilter}&user_id=is.null&name=ilike.${encodeURIComponent(name)}&select=${CLINICIAN_FIELDS}`)
   if (byNameRes.ok) {
     const byName = await byNameRes.json()
     if (byName.length > 0) {
@@ -129,7 +129,7 @@ export default async function handler(req, res) {
       // proxy name could both pass the SELECT and the second PATCH would steal
       // the first's row. If the conditional PATCH affects zero rows, someone
       // else claimed it first — fall through to create our own row.
-      const claimRes = await sb(`clinicians?id=eq.${byName[0].id}&user_id=is.null&${wsFilter}&select=${CLINICIAN_FIELDS}`, {
+      const claimRes = await sb(`staff?id=eq.${byName[0].id}&user_id=is.null&${wsFilter}&select=${CLINICIAN_FIELDS}`, {
         method: 'PATCH',
         body: JSON.stringify({ user_id: userId, updated_at: new Date().toISOString() }),
       })
@@ -147,7 +147,7 @@ export default async function handler(req, res) {
   }
 
   // 3. Create a new Self row.
-  const createRes = await sb(`clinicians?select=${CLINICIAN_FIELDS}`, {
+  const createRes = await sb(`staff?select=${CLINICIAN_FIELDS}`, {
     method: 'POST',
     body: JSON.stringify({
       workspace_id: ws.id,

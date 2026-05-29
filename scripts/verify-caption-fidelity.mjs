@@ -100,7 +100,7 @@ if (avg < floor) {
   out('')
   out('Worst-scoring samples (below floor):')
   for (const s of offenders) {
-    out(`  - ${s.overall}/10  ${(s.clinicianName || '?').slice(0, 18).padEnd(18)} "${(s.topic || '').slice(0, 60)}"`)
+    out(`  - ${s.overall}/10  ${(s.staffName || '?').slice(0, 18).padEnd(18)} "${(s.topic || '').slice(0, 60)}"`)
     if (s.breakdown?.red_flag && s.breakdown.red_flag !== 'none') {
       out(`       red flag: ${s.breakdown.red_flag}`)
     }

@@ -4,11 +4,11 @@
 // browser. Used by InterviewSession to replace the browser's robotic
 // speechSynthesis with a neural voice for the interviewer.
 //
-// Request body: { text: string, voiceId?: string, clinicianId?: string }
+// Request body: { text: string, voiceId?: string, staffId?: string }
 // Response: audio/mpeg stream
 //
 // Voice resolution order (Phase 5 Feature 3):
-//   1. clinicianId → live (non-revoked) clone on clinicians.eleven_voice_id
+//   1. staffId → live (non-revoked) clone on clinicians.eleven_voice_id
 //   2. explicit voiceId param
 //   3. TTS_DEFAULT_VOICE_ID env
 //   4. DEFAULT_VOICE_ID constant (Adam — Bernard's voice)
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.ELEVENLABS_API_KEY
   if (!apiKey) return res.status(503).json({ error: 'TTS not configured' })
 
-  const { text, voiceId, clinicianId, speed: bodySpeed } = req.body || {}
+  const { text, voiceId, staffId, speed: bodySpeed } = req.body || {}
   if (!text || typeof text !== 'string') return res.status(400).json({ error: 'Missing text' })
   const trimmed = text.trim().slice(0, MAX_TEXT_LENGTH)
   if (!trimmed) return res.status(400).json({ error: 'Empty text' })
@@ -58,11 +58,11 @@ export default async function handler(req, res) {
   // has a live voice clone, use the clone. Caller's explicit voiceId is the
   // next fallback, then env, then the Adam default.
   let cloneVoiceId = null
-  if (clinicianId) {
+  if (staffId) {
     try {
       const r = await fetch(
         `${process.env.SUPABASE_URL}/rest/v1/clinicians` +
-        `?id=eq.${encodeURIComponent(clinicianId)}` +
+        `?id=eq.${encodeURIComponent(staffId)}` +
         `&workspace_id=eq.${ws.id}` +
         `&voice_clone_revoked_at=is.null` +
         `&eleven_voice_id=not.is.null` +
@@ -78,7 +78,7 @@ export default async function handler(req, res) {
         const rows = await r.json()
         if (rows[0]?.eleven_voice_id) cloneVoiceId = rows[0].eleven_voice_id
       } else {
-        console.error(`[tts] clinician voice lookup ${r.status} clinician=${clinicianId}`)
+        console.error(`[tts] clinician voice lookup ${r.status} clinician=${staffId}`)
       }
     } catch (e) {
       console.error('[tts] clinician voice lookup threw:', e?.message || e)

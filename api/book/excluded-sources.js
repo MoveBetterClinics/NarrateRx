@@ -6,7 +6,7 @@
 // synthesis pass (api/_lib/bookSynthesis.js) subtracts excluded rows from
 // the source pull before sending to the model.
 //
-// POST body: { source_table: 'interviews' | 'clinician_corpus_documents',
+// POST body: { source_table: 'interviews' | 'staff_corpus_documents',
 //              source_id:    uuid,
 //              reason?:      string }
 //
@@ -24,7 +24,7 @@ import { markBookStale } from '../_lib/bookStale.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-const VALID_TABLES = new Set(['interviews', 'clinician_corpus_documents'])
+const VALID_TABLES = new Set(['interviews', 'staff_corpus_documents'])
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -71,7 +71,7 @@ export default async function handler(req, res) {
     const reason      = req.body?.reason ? String(req.body.reason).slice(0, 500) : null
 
     if (!VALID_TABLES.has(sourceTable)) {
-      return res.status(400).json({ error: 'source_table must be interviews or clinician_corpus_documents' })
+      return res.status(400).json({ error: 'source_table must be interviews or staff_corpus_documents' })
     }
     if (!sourceId) return res.status(400).json({ error: 'source_id required' })
 

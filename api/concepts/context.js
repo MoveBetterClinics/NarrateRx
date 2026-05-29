@@ -1,4 +1,4 @@
-// GET /api/concepts/context?topic=<str>&clinician_id=<uuid>
+// GET /api/concepts/context?topic=<str>&staff_id=<uuid>
 //
 // Returns top workspace concepts as a formatted block + raw array, plus
 // agreement and gap probe suggestions for the active interview session.
@@ -33,8 +33,8 @@ function sb(path) {
 async function fetchAgreementProbes(workspaceId, topic, limit = 3) {
   // Pull mentions grouped by concept + clinician (distinct pairs).
   // Filter to topic-relevant concepts via the concept label (simple ilike).
-  let qs = `concept_mentions?workspace_id=eq.${workspaceId}&clinician_id=not.is.null`
-  qs += `&select=concept_id,clinician_id,workspace_concepts(kind,label,weight)`
+  let qs = `concept_mentions?workspace_id=eq.${workspaceId}&staff_id=not.is.null`
+  qs += `&select=concept_id,staff_id,workspace_concepts(kind,label,weight)`
   qs += `&workspace_concepts.workspace_id=eq.${workspaceId}`
   if (topic?.trim()) {
     // We can't filter on the joined table via REST easily, so we pull broadly
@@ -54,7 +54,7 @@ async function fetchAgreementProbes(workspaceId, topic, limit = 3) {
     if (!map.has(row.concept_id)) {
       map.set(row.concept_id, { label: concept.label, kind: concept.kind, weight: concept.weight, clinicians: new Set() })
     }
-    map.get(row.concept_id).clinicians.add(row.clinician_id)
+    map.get(row.concept_id).clinicians.add(row.staff_id)
   }
 
   const topicLower = (topic || '').toLowerCase()
@@ -71,8 +71,8 @@ async function fetchAgreementProbes(workspaceId, topic, limit = 3) {
 // Concepts in the graph not yet mentioned by THIS specific clinician.
 // These represent coverage gaps — stories the practice hasn't heard from them.
 
-async function fetchGapProbes(workspaceId, clinicianId, topic, limit = 3) {
-  if (!clinicianId) return []
+async function fetchGapProbes(workspaceId, staffId, topic, limit = 3) {
+  if (!staffId) return []
 
   // All concepts for the workspace (topic-relevant, top by weight)
   const allConcepts = await getRawConcepts({ workspaceId, topic, limit: 20 })
@@ -80,7 +80,7 @@ async function fetchGapProbes(workspaceId, clinicianId, topic, limit = 3) {
 
   // Concepts already mentioned by this clinician
   const mentionedRes = await sb(
-    `concept_mentions?workspace_id=eq.${workspaceId}&clinician_id=eq.${clinicianId}&select=concept_id&limit=200`
+    `concept_mentions?workspace_id=eq.${workspaceId}&staff_id=eq.${staffId}&select=concept_id&limit=200`
   )
   const mentionedIds = new Set(
     mentionedRes.ok ? (await mentionedRes.json()).map(r => r.concept_id) : []
@@ -124,13 +124,13 @@ export default async function handler(req, res) {
 
   const { searchParams } = new URL(req.url, 'http://localhost')
   const topic       = searchParams.get('topic') || null
-  const clinicianId = searchParams.get('clinician_id') || null
+  const staffId = searchParams.get('staff_id') || null
 
   const [block, concepts, agreementProbes, gapProbes] = await Promise.all([
     getContextBlock({ workspaceId: ws.id, topic }),
     getRawConcepts({ workspaceId: ws.id, topic, limit: 20 }),
     fetchAgreementProbes(ws.id, topic),
-    fetchGapProbes(ws.id, clinicianId, topic),
+    fetchGapProbes(ws.id, staffId, topic),
   ])
 
   const agreementBlock = buildAgreementBlock(agreementProbes)

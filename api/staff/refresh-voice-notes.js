@@ -1,4 +1,4 @@
-// POST /api/clinicians/refresh-voice-notes  { clinician_id }
+// POST /api/staff/refresh-voice-notes  { staff_id }
 //
 // Distills how this clinician edits AI drafts into a short "voice notes" block
 // that is injected into every future prompt for their content. Reads up to N
@@ -36,14 +36,14 @@ function sb(path, init = {}) {
 const ok  = (res, data, status = 200) => res.status(status).json(data)
 const err = (res, msg, status = 400)  => res.status(status).json({ error: msg })
 
-function buildAnalysisPrompt(clinicianName, workspaceName, editPairs) {
+function buildAnalysisPrompt(staffName, workspaceName, editPairs) {
   const examples = editPairs
     .map((p, i) => `### EXAMPLE ${i + 1} — ${p.platform} post on ${p.topic}
 
 AI ORIGINAL:
 ${p.ai_original_content}
 
-WHAT ${clinicianName.toUpperCase()} CHANGED IT TO:
+WHAT ${staffName.toUpperCase()} CHANGED IT TO:
 ${p.content}
 `)
     .join('\n')
@@ -77,11 +77,11 @@ export default async function handler(req, res) {
   if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   const wsFilter = `workspace_id=eq.${ws.id}`
 
-  const clinicianId = req.body?.clinician_id
-  if (!clinicianId) return err(res, 'Missing clinician_id')
+  const staffId = req.body?.staff_id
+  if (!staffId) return err(res, 'Missing staff_id')
 
   // Fetch clinician (and confirm they belong to this workspace)
-  const clinRes = await sb(`clinicians?id=eq.${clinicianId}&${wsFilter}&select=id,name`)
+  const clinRes = await sb(`staff?id=eq.${staffId}&${wsFilter}&select=id,name`)
   if (!clinRes.ok) return err(res, 'Database error', 500)
   const clinRows = await clinRes.json()
   if (!clinRows.length) return err(res, 'Clinician not found', 404)
@@ -91,7 +91,7 @@ export default async function handler(req, res) {
   // We compare in JS rather than via a PostgREST filter because content
   // can be long and PostgREST `neq` on text columns is brittle.
   const itemsRes = await sb(
-    `content_items?clinician_id=eq.${clinicianId}&${wsFilter}` +
+    `content_items?staff_id=eq.${staffId}&${wsFilter}` +
     `&select=platform,topic,content,ai_original_content` +
     `&ai_original_content=not.is.null` +
     `&order=created_at.desc&limit=40`
@@ -109,7 +109,7 @@ export default async function handler(req, res) {
 
   if (editPairs.length < MIN_PAIRS) {
     // Save a marker so the UI can show "need more edits" instead of looking broken
-    await sb(`clinicians?id=eq.${clinicianId}&${wsFilter}`, {
+    await sb(`staff?id=eq.${staffId}&${wsFilter}`, {
       method: 'PATCH',
       body: JSON.stringify({
         voice_notes: null,
@@ -144,7 +144,7 @@ export default async function handler(req, res) {
   // "NO CLEAR PATTERN" means the AI found nothing actionable
   const voiceNotes = /^NO CLEAR PATTERN/i.test(analysisText) ? null : analysisText
 
-  const patchRes = await sb(`clinicians?id=eq.${clinicianId}&${wsFilter}`, {
+  const patchRes = await sb(`staff?id=eq.${staffId}&${wsFilter}`, {
     method: 'PATCH',
     body: JSON.stringify({
       voice_notes: voiceNotes,

@@ -54,36 +54,36 @@ export default async function handler(req, res) {
 
   // ── Fetch all clinician×concept mention pairs ────────────────────────────────
   const mentionsRes = await sb(
-    `concept_mentions?workspace_id=eq.${ws.id}&clinician_id=not.is.null` +
-    `&select=concept_id,clinician_id&limit=2000`
+    `concept_mentions?workspace_id=eq.${ws.id}&staff_id=not.is.null` +
+    `&select=concept_id,staff_id&limit=2000`
   )
   const mentions = mentionsRes.ok ? await mentionsRes.json() : []
 
-  // Build concept → Set<clinicianId> map
+  // Build concept → Set<staffId> map
   const conceptClinicians = new Map()
   for (const m of mentions) {
     if (!conceptClinicians.has(m.concept_id)) conceptClinicians.set(m.concept_id, new Set())
-    conceptClinicians.get(m.concept_id).add(m.clinician_id)
+    conceptClinicians.get(m.concept_id).add(m.staff_id)
   }
 
   // All distinct clinician IDs who have mentioned anything
-  const allClinicianIds = [...new Set(mentions.map(m => m.clinician_id))]
+  const allClinicianIds = [...new Set(mentions.map(m => m.staff_id))]
 
   // ── Fetch clinician names ────────────────────────────────────────────────────
-  let cliniciansById = {}
+  let staffById = {}
   if (allClinicianIds.length) {
     const cRes = await sb(
-      `clinicians?id=in.(${allClinicianIds.join(',')})&workspace_id=eq.${ws.id}` +
+      `staff?id=in.(${allClinicianIds.join(',')})&workspace_id=eq.${ws.id}` +
       `&select=id,name&limit=100`
     )
     if (cRes.ok) {
       const cRows = await cRes.json()
-      for (const c of cRows) cliniciansById[c.id] = c.name
+      for (const c of cRows) staffById[c.id] = c.name
     }
   }
 
-  const clinicianList = allClinicianIds
-    .map(id => ({ id, name: cliniciansById[id] || 'Unknown' }))
+  const staffList = allClinicianIds
+    .map(id => ({ id, name: staffById[id] || 'Unknown' }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   // ── Assemble concept objects with per-clinician coverage ─────────────────────
@@ -98,8 +98,8 @@ export default async function handler(req, res) {
       evidenceCount:  c.evidence_count,
       firstSeenAt:    c.first_seen_at,
       lastSeenAt:     c.last_seen_at,
-      mentionedBy:    [...mentioned].map(id => ({ id, name: cliniciansById[id] || 'Unknown' })),
-      notMentionedBy: missingIds.map(id => ({ id, name: cliniciansById[id] || 'Unknown' })),
+      mentionedBy:    [...mentioned].map(id => ({ id, name: staffById[id] || 'Unknown' })),
+      notMentionedBy: missingIds.map(id => ({ id, name: staffById[id] || 'Unknown' })),
     }
   })
 
@@ -110,7 +110,7 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     concepts,
-    clinicians: clinicianList,
+    clinicians: staffList,
     coverage: {
       total:           rawConcepts.length,
       totalMentions:   totalMentioned,
