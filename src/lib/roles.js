@@ -11,7 +11,7 @@
 //
 // 'editor' is a LEGACY ALIAS for 'publisher'. New users should be created
 // with role 'publisher'; existing 'editor' users continue to work because
-// STAFF_ROLES below accepts both. Once all Clerk users have been migrated
+// EDITOR_ROLES below accepts both. Once all Clerk users have been migrated
 // to 'publisher', the alias can be dropped.
 
 export const ROLE_ADMIN     = 'admin'
@@ -19,13 +19,15 @@ export const ROLE_PUBLISHER = 'publisher'
 export const ROLE_CLINICIAN = 'clinician'
 
 // Legacy alias — pre-2026-05 we called the publisher role "editor".
-// Kept in STAFF_ROLES so existing Clerk publicMetadata.role values still
+// Kept in EDITOR_ROLES so existing Clerk publicMetadata.role values still
 // authorize correctly until they're migrated.
 export const ROLE_EDITOR_LEGACY = 'editor'
 
-// "Staff" = anyone who can edit/archive/review/publish content. Admin is a
-// superset of publisher in every gate, so admin is included here.
-export const STAFF_ROLES = [ROLE_ADMIN, ROLE_PUBLISHER, ROLE_EDITOR_LEGACY]
+// EDITOR_ROLES = anyone who can edit/archive/review/publish content (admin,
+// publisher, and the legacy 'editor' alias). Admin is a superset of publisher
+// in every gate, so it's included here. Renamed from STAFF_ROLES (2026-05-29):
+// "staff" now refers to the team-member roster entity, not this authZ grouping.
+export const EDITOR_ROLES = [ROLE_ADMIN, ROLE_PUBLISHER, ROLE_EDITOR_LEGACY]
 
 // Any signed-in workspace member, including clinicians who only own their
 // own uploads.
@@ -37,8 +39,8 @@ export const ALL_KNOWN_ROLES = [
 ]
 
 /** @param {string} role @returns {boolean} */
-export function isStaff(role) {
-  return STAFF_ROLES.includes(role)
+export function isEditor(role) {
+  return EDITOR_ROLES.includes(role)
 }
 
 /**

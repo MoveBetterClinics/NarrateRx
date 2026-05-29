@@ -8,7 +8,7 @@ export const config = { runtime: 'nodejs' }
 //   DELETE → admin or publisher; cascades collection_items but leaves assets.
 
 import { requireRole } from '../_lib/auth.js'
-import { STAFF_ROLES } from '../_lib/roles.js'
+import { EDITOR_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -16,8 +16,8 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 const ROLE_REQUIREMENTS = {
   GET:    null,
-  PATCH:  STAFF_ROLES,
-  DELETE: STAFF_ROLES,
+  PATCH:  EDITOR_ROLES,
+  DELETE: EDITOR_ROLES,
 }
 
 const ALLOWED_KINDS    = new Set(['campaign', 'series', 'session', 'adhoc'])

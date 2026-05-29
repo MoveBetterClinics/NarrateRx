@@ -1,7 +1,7 @@
 import { withSentry } from '../_lib/sentry.js'
 import { segmentById } from '../_lib/segmentInterview.js'
 import { requireRole } from '../_lib/auth.js'
-import { STAFF_ROLES } from '../_lib/roles.js'
+import { EDITOR_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
 // Manual AI segmenter endpoint. POST { id } → reads the source interview's
@@ -26,7 +26,7 @@ async function handler(req, res) {
 
   // Segmentation creates content_pieces rows — same gate as content-piece
   // creation: admin or publisher. Clinicians can browse but can't fan out.
-  const auth = await requireRole(req, STAFF_ROLES, { orgId: scope.workspace.clerk_org_id })
+  const auth = await requireRole(req, EDITOR_ROLES, { orgId: scope.workspace.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }

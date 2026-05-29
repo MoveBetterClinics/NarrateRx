@@ -8,7 +8,7 @@
 //   • Once after initial media is uploaded (on-demand from Settings)
 //   • After significant media additions to refresh the analysis
 //
-// Auth: STAFF_ROLES (admin + publisher) only — this is a workspace config action.
+// Auth: EDITOR_ROLES (admin + publisher) only — this is a workspace config action.
 //
 // Body:
 //   { sampleSize?: number }   // default 20, max 40
@@ -20,7 +20,7 @@
 export const config = { runtime: 'nodejs', maxDuration: 120 }
 
 import { requireRole } from '../_lib/auth.js'
-import { STAFF_ROLES } from '../_lib/roles.js'
+import { EDITOR_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { analyzeBrandVisuals } from '../_lib/brandVisualAnalyzer.js'
 
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
   const ws = await workspaceContext(req)
   if (!ws) return res.status(404).json({ error: 'no_workspace' })
 
-  const auth = await requireRole(req, STAFF_ROLES, { orgId: ws.clerk_org_id })
+  const auth = await requireRole(req, EDITOR_ROLES, { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }

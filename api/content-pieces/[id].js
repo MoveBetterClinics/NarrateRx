@@ -6,7 +6,7 @@ import { withSentry } from '../_lib/sentry.js'
 
 import { requireRole } from '../_lib/auth.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
-import { STAFF_ROLES } from '../_lib/roles.js'
+import { EDITOR_ROLES } from '../_lib/roles.js'
 
 // Per-method role requirements — mirrors /api/media/[id]:
 //   GET    → any authenticated user
@@ -14,8 +14,8 @@ import { STAFF_ROLES } from '../_lib/roles.js'
 //   DELETE → staff (admin or publisher) — brief teardown
 const ROLE_REQUIREMENTS = {
   GET:    null,
-  PATCH:  STAFF_ROLES,
-  DELETE: STAFF_ROLES,
+  PATCH:  EDITOR_ROLES,
+  DELETE: EDITOR_ROLES,
 }
 
 const SUPABASE_URL = process.env.SUPABASE_URL

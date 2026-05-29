@@ -1,5 +1,5 @@
 import { useAuth, useUser } from '@clerk/react'
-import { ROLE_ADMIN, ROLE_CLINICIAN, isStaff } from '@/lib/roles'
+import { ROLE_ADMIN, ROLE_CLINICIAN, isEditor } from '@/lib/roles'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 
 // Hook for reading the current user's NarrateRx role. The role is stored in
@@ -16,7 +16,7 @@ import { useWorkspace } from '@/lib/WorkspaceContext'
 // Roles (see src/lib/roles.js for the canonical persona model):
 //   admin     → workspace owner; configures NarrateRx; can purge
 //   publisher → publishes content (attach media, schedule, publish, monitor)
-//               LEGACY ALIAS: 'editor' still authorizes via isStaff()
+//               LEGACY ALIAS: 'editor' still authorizes via isEditor()
 //   clinician → owns voice; records interviews, reviews drafts; upload only
 export function useUserRole() {
   const { user, isLoaded } = useUser()
@@ -34,27 +34,27 @@ export function useUserRole() {
   const role           = (isOrgAdmin || internalBypass) ? ROLE_ADMIN : metadataRole
   const isLoading      = !isLoaded
 
-  // "Staff" = admin or publisher. Most write/edit/review gates collapse
+  // "Editor" = admin or publisher. Most write/edit/review gates collapse
   // to this — admin is a superset of publisher in every capability below
   // except canPurge.
-  const staff = isStaff(role)
+  const editor = isEditor(role)
 
   return {
     role,
     isLoading,
-    isStaff:    staff,
+    isEditor:    editor,
     canUpload:  true,                                  // any signed-in user
-    canEdit:    staff,
-    canArchive: staff,
-    canRestore: staff,
+    canEdit:    editor,
+    canArchive: editor,
+    canRestore: editor,
     canPurge:   role === ROLE_ADMIN,
     // Approval workflow gates. canReview = the user is allowed to approve
     // or request changes on a content item that's in_review. canPublish
-    // mirrors the "Publish" button visibility: only staff can publish
+    // mirrors the "Publish" button visibility: only editors can publish
     // from in_review or approved states. Clinicians can still publish
     // from a draft when the workspace.skip_review escape hatch is on
     // (the consumer applies that override on top of this hook's value).
-    canReview:  staff,
-    canPublish: staff,
+    canReview:  editor,
+    canPublish: editor,
   }
 }

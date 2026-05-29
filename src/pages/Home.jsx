@@ -27,7 +27,7 @@ const MY_STORIES_LIMIT = 5
 export default function Home() {
   useDocumentTitle('Home')
   const { user } = useUser()
-  const { canReview, role, isStaff } = useUserRole()
+  const { canReview, role, isEditor } = useUserRole()
   const runtimeWorkspace = useWorkspace()
   const [searchParams] = useSearchParams()
 
@@ -140,10 +140,10 @@ export default function Home() {
   // to staff since clinicians don't distribute; an empty list hides the card.
   const readyToDistribute = useMemo(
     () =>
-      isStaff
+      isEditor
         ? stories.filter((s) => (s.pieces_by_status?.approved ?? 0) > 0)
         : [],
-    [stories, isStaff]
+    [stories, isEditor]
   )
 
   // ── Task bucket 4: Due for an interview ─────────────────────────────────────

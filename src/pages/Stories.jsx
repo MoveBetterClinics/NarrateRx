@@ -41,8 +41,8 @@ const SELECT_CLS =
 export default function Stories() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useUser()
-  const { isStaff } = useUserRole()
-  const defaultView = isStaff ? 'pipeline' : 'cards'
+  const { isEditor } = useUserRole()
+  const defaultView = isEditor ? 'pipeline' : 'cards'
   const view = searchParams.get('view') || defaultView
 
   const platformFilter = searchParams.get('platform') || ''

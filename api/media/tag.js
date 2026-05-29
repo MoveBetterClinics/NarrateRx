@@ -1,7 +1,7 @@
 import { withSentry } from '../_lib/sentry.js'
 import { tagById } from '../_lib/tagAsset.js'
 import { requireRole } from '../_lib/auth.js'
-import { STAFF_ROLES } from '../_lib/roles.js'
+import { EDITOR_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 
@@ -27,7 +27,7 @@ async function handler(req, res) {
   const scope = await workspaceScope(req)
 
   // Tagging mutates ai_tags + status — same gate as PATCH on the asset.
-  const auth = await requireRole(req, STAFF_ROLES, { orgId: scope.workspace.clerk_org_id })
+  const auth = await requireRole(req, EDITOR_ROLES, { orgId: scope.workspace.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }

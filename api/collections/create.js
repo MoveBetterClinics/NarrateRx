@@ -5,7 +5,7 @@ export const config = { runtime: 'nodejs' }
 // enforced at the DB layer (unique on brand+slug).
 
 import { requireRole } from '../_lib/auth.js'
-import { STAFF_ROLES } from '../_lib/roles.js'
+import { EDITOR_ROLES } from '../_lib/roles.js'
 import { workspaceScope } from '../_lib/workspaceScope.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -49,7 +49,7 @@ async function handler(req, res) {
 
   const scope = await workspaceScope(req)
 
-  const auth = await requireRole(req, STAFF_ROLES, { orgId: scope.workspace.clerk_org_id })
+  const auth = await requireRole(req, EDITOR_ROLES, { orgId: scope.workspace.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }

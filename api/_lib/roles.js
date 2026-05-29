@@ -9,7 +9,7 @@ export const ROLE_CLINICIAN = 'clinician'
 export const ROLE_EDITOR_LEGACY = 'editor'
 
 // Used by requireRole() in api routes that gate content / media writes.
-export const STAFF_ROLES = [ROLE_ADMIN, ROLE_PUBLISHER, ROLE_EDITOR_LEGACY]
+export const EDITOR_ROLES = [ROLE_ADMIN, ROLE_PUBLISHER, ROLE_EDITOR_LEGACY]
 
 // Used by handshake routes (uploads) that any signed-in workspace member
 // may initiate.

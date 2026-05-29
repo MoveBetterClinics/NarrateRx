@@ -8,7 +8,7 @@
 // Roles (see api/_lib/roles.js for canonical persona model):
 //   admin     — workspace owner; configures NarrateRx; can purge
 //   publisher — publishes content (attach media, schedule, publish, monitor)
-//               LEGACY ALIAS: 'editor' — still authorizes via STAFF_ROLES
+//               LEGACY ALIAS: 'editor' — still authorizes via EDITOR_ROLES
 //   clinician — owns voice; records interviews, reviews drafts; upload only
 //
 // Default role for users with no publicMetadata.role set is 'clinician' — the

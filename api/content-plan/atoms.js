@@ -4,7 +4,7 @@ export const config = { runtime: 'nodejs' }
 
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { requireRole } from '../_lib/auth.js'
-import { STAFF_ROLES } from '../_lib/roles.js'
+import { EDITOR_ROLES } from '../_lib/roles.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -35,7 +35,7 @@ export default async function handler(req, res) {
   if (!ws) return err(res, 'Workspace not resolved', 400)
   const wsFilter = `workspace_id=eq.${ws.id}`
 
-  const allowedRoles = req.method === 'GET' ? null : STAFF_ROLES
+  const allowedRoles = req.method === 'GET' ? null : EDITOR_ROLES
   const auth = await requireRole(req, allowedRoles, { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })

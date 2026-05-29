@@ -70,11 +70,11 @@ test('pipeline card links contain valid UUIDs, not /undefined or /null', async (
 
 test('clicking a story card navigates to a valid story detail page', async ({ page }) => {
   // Pin the Cards view explicitly. Without ?view=cards the page resolves to
-  // the staff default (pipeline) for admin users — including the e2e
+  // the editor default (pipeline) for admin users — including the e2e
   // fixture — which renders /review/<piece-id> content-piece links instead
   // of /stories/<interview-id> story-card links, so a story-card assertion
   // would never find a match. See src/pages/Stories.jsx — `defaultView =
-  // isStaff ? 'pipeline' : 'cards'`.
+  // isEditor ? 'pipeline' : 'cards'`.
   await page.goto('/stories?view=cards')
   await expect(
     page.getByRole('heading', { name: /^stories$/i }),

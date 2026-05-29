@@ -20,7 +20,7 @@ export const config = { runtime: 'nodejs' }
 
 import { put as blobPut } from '@vercel/blob'
 import { requireRole } from '../_lib/auth.js'
-import { STAFF_ROLES } from '../_lib/roles.js'
+import { EDITOR_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 
 // 1080×1080 JPEG renders run ~150–500KB; base64 inflates ~33%. Cap generously
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   const ws = await workspaceContext(req)
   if (!ws) return res.status(404).json({ error: 'no_workspace' })
 
-  const auth = await requireRole(req, STAFF_ROLES, { orgId: ws.clerk_org_id })
+  const auth = await requireRole(req, EDITOR_ROLES, { orgId: ws.clerk_org_id })
   if (!auth.ok) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }

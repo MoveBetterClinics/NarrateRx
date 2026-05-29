@@ -1,7 +1,7 @@
 import { withSentry } from '../../_lib/sentry.js'
 export const config = { runtime: 'nodejs' }
 import { requireRole } from '../../_lib/auth.js'
-import { STAFF_ROLES } from '../../_lib/roles.js'
+import { EDITOR_ROLES } from '../../_lib/roles.js'
 import { workspaceScope } from '../../_lib/workspaceScope.js'
 import { invalidateWorkspaceCacheById } from '../../_lib/workspaceContext.js'
 
@@ -29,7 +29,7 @@ const VALID_ROLES = new Set([
   'brand_book',
 ])
 
-const ROLE_WRITE_ROLES = STAFF_ROLES
+const ROLE_WRITE_ROLES = EDITOR_ROLES
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {

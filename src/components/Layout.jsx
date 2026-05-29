@@ -50,7 +50,7 @@ const NAV_ITEMS = [
 
 export default function Layout({ children }) {
   const location = useLocation()
-  const { role, isStaff } = useUserRole()
+  const { role, isEditor } = useUserRole()
   const { has: hasCapability } = usePermission()
   const [mobileOpen, setMobileOpen] = useState(false)
   const ws = useWorkspace()
@@ -103,7 +103,7 @@ export default function Layout({ children }) {
           </nav>
           {hasCapability(CAP_SETTINGS_VIEW) && (
             <div className="hidden md:flex items-center gap-1">
-              <SettingsMenu role={role} isStaff={isStaff} selfClinicianId={selfClinicianId} />
+              <SettingsMenu role={role} isEditor={isEditor} selfClinicianId={selfClinicianId} />
             </div>
           )}
 
@@ -329,7 +329,7 @@ function NavLink({ to, label, active, icon: Icon }) {
 // Single "⚙ Tools" dropdown that replaces the 4-icon pile in the desktop
 // header. Closes on outside click or Escape. All admin items are only
 // rendered when role === 'admin'.
-function SettingsMenu({ role, isStaff, selfClinicianId }) {
+function SettingsMenu({ role, isEditor, selfClinicianId }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
 
@@ -380,7 +380,7 @@ function SettingsMenu({ role, isStaff, selfClinicianId }) {
           <Link to="/settings/integrations" onClick={() => setOpen(false)} className={itemClass}>
             <Settings className="h-4 w-4 shrink-0" /> Integrations
           </Link>
-          {isStaff && (
+          {isEditor && (
             <Link to="/settings/brand-kit" onClick={() => setOpen(false)} className={itemClass}>
               <Palette className="h-4 w-4 shrink-0" /> Brand Kit
             </Link>
