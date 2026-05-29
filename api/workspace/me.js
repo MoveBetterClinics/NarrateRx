@@ -16,6 +16,7 @@ import { workspaceContext, invalidateWorkspaceCacheById, invalidateWorkspaceCach
 import { requireRole, requireCapability } from '../_lib/auth.js'
 import { resolveCapabilities, CAP_SETTINGS_EDIT } from '../_lib/capabilities.js'
 import { getActiveCampaigns } from '../_lib/activeCampaigns.js'
+import { listConfiguredServices } from '../_lib/getCredential.js'
 
 // Hard allowlist — only these columns may be patched via this endpoint.
 // slug, clerk_org_id, capabilities, status are developer-owned.
@@ -370,10 +371,26 @@ async function handler(req, res) {
       console.error('[workspace/me] active campaigns fetch failed:', e?.message)
     }
 
+    // Connected publish-integration service names (buffer, wordpress, beehiiv, …).
+    // Exposed to every org-bound caller — not just admins — so the Story Detail
+    // action surface can decide Publish-vs-Export client-side without hitting the
+    // admin-gated /credentials endpoint. Service NAMES only; never the secrets.
+    // Non-fatal: [] degrades the UI to Export, which is the safe default.
+    let connected_publish_services = []
+    try {
+      const rows = await listConfiguredServices(workspace.id)
+      connected_publish_services = Array.isArray(rows)
+        ? rows.map((r) => r.service).filter(Boolean)
+        : []
+    } catch (e) {
+      console.error('[workspace/me] connected services fetch failed:', e?.message)
+    }
+
     return res.status(200).json({
       ...workspace,
       locations,
       primary_logo_url,
+      connected_publish_services,
       current_user_tier,
       current_user_capabilities,
       current_user_producer_onboarded_at,

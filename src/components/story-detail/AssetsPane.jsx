@@ -5,7 +5,7 @@ import { useUser } from '@clerk/react'
 import {
   FileText, CheckCircle2, XCircle, Send, Loader2,
   ChevronDown, MessageSquare, Eye, RotateCcw, ExternalLink, Quote,
-  Calendar, Clock, AlertTriangle, Layers,
+  Calendar, Clock, AlertTriangle, Layers, Copy, Download, Lock,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,7 @@ import { getPatientPrototypesUi } from '@/lib/prompts'
 import { LENGTH_PRESETS, resolveLengthPreset } from '@/lib/lengthPresets'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { canDirectPublishPlatform, exportShapeForPlatform, EXPORT_SHAPES } from '@/lib/outputChannels'
 import {
   useComments,
   useAddComment,
@@ -866,6 +867,64 @@ function formatScheduledLabel(d) {
   })
 }
 
+// Export action sheet — the DEFAULT path for any workspace/channel without a
+// wired direct-publish integration (per the export-first model: everything
+// exports; "Publish" is the upgrade that unlocks when an integration is
+// connected). Offers copy + download affordances keyed off the channel's
+// exportShape: markdown for blog, HTML for email, caption + image for social.
+function ExportCard({ piece }) {
+  const shape = exportShapeForPlatform(piece.platform)
+  const body = typeof piece.content === 'string' ? piece.content : JSON.stringify(piece.content, null, 2)
+  const imageUrl = Array.isArray(piece.media_urls) && piece.media_urls[0]?.url ? piece.media_urls[0].url : null
+
+  const copy = async (text, label) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(`${label} copied`)
+    } catch {
+      toast.error('Copy failed — select and copy manually')
+    }
+  }
+
+  const copyLabel = shape === EXPORT_SHAPES.MARKDOWN ? 'Copy markdown'
+    : shape === EXPORT_SHAPES.HTML_EMAIL ? 'Copy HTML'
+    : 'Copy caption'
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 space-y-2.5">
+      <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+        <Download className="h-3.5 w-3.5" />
+        Export
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          size="sm"
+          onClick={() => copy(body, copyLabel.replace('Copy ', '').replace(/^\w/, (c) => c.toUpperCase()))}
+          className="bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          <Copy className="h-3.5 w-3.5 mr-1.5" />
+          {copyLabel}
+        </Button>
+        {shape === EXPORT_SHAPES.SOCIAL_COMPOSE && imageUrl && (
+          <Button asChild size="sm" variant="outline">
+            <a href={imageUrl} download target="_blank" rel="noopener noreferrer">
+              <Download className="h-3.5 w-3.5 mr-1.5" />
+              Download image
+            </a>
+          </Button>
+        )}
+      </div>
+      <p className="inline-flex items-start gap-1.5 text-xs text-muted-foreground">
+        <Lock className="h-3 w-3 mt-0.5 shrink-0" />
+        <span>
+          Paste into your tool of choice. Direct publishing unlocks for this
+          channel once an integration is connected.
+        </span>
+      </p>
+    </div>
+  )
+}
+
 // Action sheet shown on approved pieces. Replaces the old toggle-group +
 // Publish button with a primary suggested-time CTA, an explainer caption,
 // and inline alt actions (pick a time / publish now). Blog pieces collapse
@@ -1441,19 +1500,24 @@ function ApprovalPanel({ piece }) {
           publish immediately. Blog pieces collapse to a single Publish button
           since the website webhook is synchronous. */}
       {piece.status === 'approved' && canReview && (
-        <WhenToPublishCard
-          piece={piece}
-          suggested={suggested}
-          otherScheduled={otherScheduled}
-          bufferUseQueue={!!workspace?.buffer_use_queue && piece.platform !== 'blog'}
-          prefsOverride={prefsOverride}
-          onSchedule={(d) => handlePublish({ scheduledAt: d })}
-          onPublishToQueue={() => handlePublish({ useQueue: true })}
-          onPublishNow={() => handlePublish({})}
-          onSendToBeehiiv={piece.platform === 'blog' ? handleSendToBeehiiv : undefined}
-          beehiivPublishing={beehiivPublishing}
-          publishing={publishing}
-        />
+        canDirectPublishPlatform(workspace, piece.platform, workspace?.connected_publish_services) ? (
+          <WhenToPublishCard
+            piece={piece}
+            suggested={suggested}
+            otherScheduled={otherScheduled}
+            bufferUseQueue={!!workspace?.buffer_use_queue && piece.platform !== 'blog'}
+            prefsOverride={prefsOverride}
+            onSchedule={(d) => handlePublish({ scheduledAt: d })}
+            onPublishToQueue={() => handlePublish({ useQueue: true })}
+            onPublishNow={() => handlePublish({})}
+            onSendToBeehiiv={piece.platform === 'blog' ? handleSendToBeehiiv : undefined}
+            beehiivPublishing={beehiivPublishing}
+            publishing={publishing}
+          />
+        ) : (
+          // Default path — no wired integration for this channel. Export-first.
+          <ExportCard piece={piece} />
+        )
       )}
 
       {/* Scheduled state — shows the scheduled time + Cancel button so the

@@ -950,14 +950,32 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
     })
   }
   const ok = form.enabled_outputs.length > 0
+  // Human label for the export affordance each channel produces by default.
+  const EXPORT_LABEL = {
+    markdown: 'Copy as markdown',
+    html_email: 'Copy as HTML email',
+    social_compose: 'Copy caption + download image',
+  }
+  // Channels whose publishMode can be upgraded to one-click publishing once an
+  // integration is connected (Buffer for social/GBP, WordPress/Astro for blog,
+  // newsletter for email). null publishMode = export-only by design.
+  const UPGRADE_HINT = {
+    buffer: 'Publishes via Buffer once connected',
+    website: 'Publishes to your site once connected',
+    tdc: 'Sends via your newsletter once connected',
+  }
   return (
     <Card
       title="Pick your channels"
-      subtitle="Which outputs will this workspace generate? Each interview will let you pick a subset of these. You can change this any time in settings."
+      subtitle="Which outputs will this workspace generate? Each interview lets you pick a subset. You can change this any time in settings."
     >
+      <div className="rounded-lg border border-orange-200 bg-orange-50 px-3.5 py-2.5 text-xs text-orange-900 leading-relaxed">
+        Every channel works as a <strong>clean export</strong> from day one — copy the caption, download the image, paste it wherever you post. Connect an integration later (starting with <strong>Buffer</strong>) and those channels upgrade to one-click publishing.
+      </div>
       <div className="space-y-2">
         {Object.values(OUTPUT_CHANNELS).map(channel => {
           const checked = form.enabled_outputs.includes(channel.id)
+          const upgrade = channel.publishMode ? UPGRADE_HINT[channel.publishMode] : null
           return (
             <label
               key={channel.id}
@@ -972,7 +990,8 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium leading-tight">{channel.label}</div>
                 <div className="text-2xs text-muted-foreground mt-0.5">
-                  Export: {channel.exportShape}
+                  {EXPORT_LABEL[channel.exportShape] || 'Clean export'}
+                  {upgrade ? ` · ${upgrade}` : ''}
                 </div>
               </div>
             </label>
@@ -980,7 +999,7 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        Pick at least one. Every channel ships with a clean export, and the social channels can be pushed straight to <strong>Buffer</strong> — connect once and NarrateRx queues posts to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. Additional direct integrations (Google Business Profile, website, newsletter) are available on Growth and Multi-location plans.
+        Pick at least one. Buffer fans social posts out to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. You don&apos;t need any of this set up to start — export works immediately.
       </p>
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>← Back</Button>

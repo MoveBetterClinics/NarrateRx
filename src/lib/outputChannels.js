@@ -193,3 +193,65 @@ export function canDirectPublish(workspace, channelId) {
   if (!key) return false
   return Boolean(workspace?.capabilities?.[key])
 }
+
+// content_items.platform (the atom namespace) → OUTPUT_CHANNELS registry key.
+// The registry splits a few channels for the settings picker that the atom
+// namespace keeps singular (see the instagram note above). Anything not listed
+// matches the registry key 1:1.
+const PLATFORM_TO_CHANNEL = Object.freeze({
+  instagram:     'instagram_post',
+  youtube:       'youtube_short',
+  instagram_ads: 'ig_ads',
+})
+
+// Resolve a content_items.platform value to its OUTPUT_CHANNELS key.
+export function channelIdForPlatform(platform) {
+  if (!platform) return null
+  return PLATFORM_TO_CHANNEL[platform] || (OUTPUT_CHANNELS[platform] ? platform : null)
+}
+
+// Credential `service` values (workspace_credentials.service) that satisfy each
+// publishMode. Connecting any one of these flips the channel from Export to
+// Publish — this is the runtime signal the publish endpoints actually gate on
+// (e.g. api/publish/buffer.js requires a buffer credential, not a flag).
+const PUBLISH_MODE_SERVICES = Object.freeze({
+  [PUBLISH_MODES.BUFFER]:  ['buffer'],
+  [PUBLISH_MODES.WEBSITE]: ['wordpress', 'astro_github', 'website'],
+  [PUBLISH_MODES.TDC]:     ['tdc', 'beehiiv'],
+})
+
+// True if a connected credential enables direct publish for this channel.
+// `connectedServices` is the array from GET /api/workspace/credentials
+// (each entry { service, ... }), or a Set/array of service id strings.
+export function channelHasPublishCredential(channelId, connectedServices) {
+  const channel = OUTPUT_CHANNELS[channelId]
+  if (!channel || !channel.publishMode) return false
+  const accepted = PUBLISH_MODE_SERVICES[channel.publishMode]
+  if (!accepted) return false
+  const ids = Array.isArray(connectedServices)
+    ? connectedServices.map((s) => (typeof s === 'string' ? s : s?.service)).filter(Boolean)
+    : connectedServices instanceof Set ? [...connectedServices] : []
+  return accepted.some((svc) => ids.includes(svc))
+}
+
+// Platform-keyed publish gate — the form the Story Detail action surface needs.
+// A channel is publishable when EITHER a publish-integration credential is
+// connected (the export-first upgrade path: connect Buffer/WordPress/etc → get
+// Publish) OR the first-party capability flag is set (back-compat for Move
+// Better's internal workspaces). Default — no credential, no flag — is Export.
+export function canDirectPublishPlatform(workspace, platform, connectedServices = []) {
+  const channelId = channelIdForPlatform(platform)
+  if (!channelId) return false
+  if (channelHasPublishCredential(channelId, connectedServices)) return true
+  return canDirectPublish(workspace, channelId)
+}
+
+// The export affordance shape for a content_items.platform value. Used to pick
+// the right export UI (copy markdown vs copy caption + download image vs copy
+// HTML email) when direct publish isn't available. Falls back to SOCIAL_COMPOSE
+// since every short-form channel exports as caption + asset.
+export function exportShapeForPlatform(platform) {
+  const channelId = channelIdForPlatform(platform)
+  const channel = channelId ? OUTPUT_CHANNELS[channelId] : null
+  return channel?.exportShape || EXPORT_SHAPES.SOCIAL_COMPOSE
+}

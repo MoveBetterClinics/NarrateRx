@@ -169,8 +169,10 @@ export default function Integrations() {
           Integrations
         </h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Connect publishing platforms so NarrateRx can push finished posts straight from the Content Hub.
-          Credentials are stored encrypted (AES-256-GCM) and decrypted only at publish time.
+          Optional. Every channel already works as a clean export — copy and paste wherever you post.
+          Connecting a platform here <strong>upgrades</strong> those channels to one-click publishing
+          straight from the Content Hub. Credentials are stored encrypted (AES-256-GCM) and decrypted
+          only at publish time.
         </p>
       </div>
 
