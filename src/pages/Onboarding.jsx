@@ -10,8 +10,10 @@
 //   3. Voice context — clinic_context, audience_short, brand_voice (pre-filled by scan)
 //   4. Subdomain claim — live availability check
 //   5. Channels — pick at least one (none pre-checked)
-//   6. Review + submit
-//   7. "Setting up your workspace…" loader → redirect to <slug>.narraterx.ai/settings/workspace
+//   6. Capture setup — video capture is on by default; user sets their display
+//      name for content (seeds the founding clinician row at claim time)
+//   7. Review + submit
+//   8. "Setting up your workspace…" loader → redirect to <slug>.narraterx.ai/settings/workspace
 //
 // The component does NOT use the WorkspaceProvider (no workspace exists yet)
 // and does NOT use OrgGate (Clerk Org is created server-side at the claim step).
@@ -19,7 +21,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Show, SignIn, SignUp, useAuth, useUser } from '@clerk/react'
-import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X } from 'lucide-react'
+import { Loader2, CheckCircle2, AlertCircle, ArrowRight, Sparkles, Plus, X, Clapperboard, Smartphone } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,6 +45,11 @@ export default function Onboarding() {
     brand_voice: '',
     slug: '',
     enabled_outputs: [],
+    // capture_name: the founding user's display name for content — seeds the
+    // clinicians row at claim time. Defaults to their Clerk firstName + lastName;
+    // editable in the Capture step. video_pipeline_enabled is always true for
+    // new tenants; the wizard just makes it visible and configurable.
+    capture_name: '',
   })
   const [scanState, setScanState] = useState({ status: 'idle', error: null, sources: [], recent_topics: [], services: [] })
   const [slugCheck, setSlugCheck] = useState({ status: 'idle', available: null, reason: null })
@@ -138,6 +145,15 @@ export default function Onboarding() {
             form={form}
             setForm={setForm}
             onBack={() => setStep('subdomain')}
+            onContinue={() => setStep('capture')}
+          />
+        )}
+
+        {step === 'capture' && (
+          <CaptureScreen
+            form={form}
+            setField={setField}
+            onBack={() => setStep('channels')}
             onContinue={() => setStep('review')}
           />
         )}
@@ -173,6 +189,7 @@ export default function Onboarding() {
                     audience_short: form.audience_short,
                     brand_voice: form.brand_voice,
                     enabled_outputs: form.enabled_outputs,
+                    capture_name: form.capture_name || form.display_name,
                   }),
                 })
                 if (!r.ok) {
@@ -226,10 +243,11 @@ const STEP_LABELS = {
   voice: 'Brand voice',
   subdomain: 'Choose subdomain',
   channels: 'Pick channels',
+  capture: 'Capture setup',
   review: 'Review',
   launching: 'Setting up',
 }
-const VISIBLE_STEPS = ['business', 'voice', 'subdomain', 'channels', 'review']
+const VISIBLE_STEPS = ['business', 'voice', 'subdomain', 'channels', 'capture', 'review']
 
 function ProgressBar({ step }) {
   if (!VISIBLE_STEPS.includes(step)) return null
@@ -958,7 +976,78 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
   )
 }
 
-// ── 6. Review ────────────────────────────────────────────────────────────────
+// ── 6. Capture setup ─────────────────────────────────────────────────────────
+
+function CaptureScreen({ form, setField, onBack, onContinue }) {
+  const { user } = useUser()
+
+  // Pre-fill capture_name from Clerk on first render if still empty.
+  useEffect(() => {
+    if (!form.capture_name) {
+      const name = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim()
+      if (name) setField('capture_name')(name)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-semibold">Your capture companion is ready</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Video capture is included for all workspaces. Add NarrateRx to your iPhone home
+          screen and start capturing clips in seconds — no separate app to install.
+        </p>
+      </div>
+
+      {/* Feature bullets */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {[
+          { icon: Smartphone, label: 'iPhone capture app', body: 'Add to Home Screen via Safari — opens straight to camera.' },
+          { icon: Clapperboard, label: 'Daily story slate', body: 'Your clips become approachable drafts, ready to review each morning.' },
+          { icon: CheckCircle2, label: 'You approve every post', body: 'Nothing publishes without your sign-off. Auto-publish is opt-in per channel.' },
+          { icon: Sparkles, label: 'Voice-faithful by default', body: 'AI keeps your words, your stances, your tone — flags drift before it ships.' },
+        ].map(({ icon: Icon, label, body }) => (
+          <div key={label} className="flex gap-3 rounded-lg border bg-muted/30 p-3">
+            <Icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium leading-snug">{label}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{body}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Capture name */}
+      <div className="space-y-1.5">
+        <Label htmlFor="capture-name">Your name in content</Label>
+        <Input
+          id="capture-name"
+          value={form.capture_name}
+          onChange={e => setField('capture_name')(e.target.value)}
+          placeholder="e.g. Dr. Cullen"
+          maxLength={80}
+        />
+        <p className="text-xs text-muted-foreground">
+          How your name appears in captions, social posts, and GBP updates.
+          You can change this later from your staff profile.
+        </p>
+      </div>
+
+      <div className="flex justify-between pt-2">
+        <Button variant="outline" onClick={onBack}>Back</Button>
+        <Button
+          onClick={onContinue}
+          disabled={!form.capture_name.trim()}
+        >
+          Continue <ArrowRight className="ml-1.5 h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── 7. Review ────────────────────────────────────────────────────────────────
 
 function ReviewScreen({ form, submitting, submitError, onBack, onSubmit }) {
   const { getToken } = useAuth()
