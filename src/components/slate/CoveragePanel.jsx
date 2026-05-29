@@ -43,7 +43,7 @@ function ClinicianRow({ c }) {
       </div>
       {c.winner_count > 0 && (
         <span
-          className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1 shrink-0"
+          className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-success/10 text-success border border-success/30 inline-flex items-center gap-1 shrink-0"
           title={`${c.winner_count} published piece${c.winner_count !== 1 ? 's' : ''} the audience responded to`}
         >
           <Trophy className="h-3 w-3" />
@@ -83,7 +83,7 @@ function TopicRow({ t }) {
       </div>
       {t.winner_count > 0 && (
         <span
-          className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 inline-flex items-center gap-1 shrink-0"
+          className="text-2xs font-bold px-1.5 py-0.5 rounded-full bg-success/10 text-success border border-success/30 inline-flex items-center gap-1 shrink-0"
           title={`${t.winner_count} published piece${t.winner_count !== 1 ? 's' : ''} on this topic the audience responded to`}
         >
           <Trophy className="h-3 w-3" />

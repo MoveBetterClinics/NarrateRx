@@ -32,7 +32,7 @@ export default function WinnerToggle({ piece }) {
         aria-pressed={isWinner}
         className={
           isWinner
-            ? 'inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-2.5 py-1 border bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200 disabled:opacity-50 transition-colors'
+            ? 'inline-flex items-center gap-1.5 text-xs font-semibold rounded-full px-2.5 py-1 border bg-success/10 text-success border-success/30 hover:bg-success/20 disabled:opacity-50 transition-colors'
             : 'inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-2.5 py-1 border bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground disabled:opacity-50 transition-colors'
         }
         title={
@@ -41,7 +41,7 @@ export default function WinnerToggle({ piece }) {
             : 'Mark as a winner if the audience responded. Resurfaces this topic on the daily slate.'
         }
       >
-        <Trophy className={`h-3.5 w-3.5 ${isWinner ? 'fill-amber-500' : ''}`} />
+        <Trophy className={`h-3.5 w-3.5 ${isWinner ? 'fill-success' : ''}`} />
         {isWinner ? 'Winner' : 'Mark as winner'}
       </button>
     </div>

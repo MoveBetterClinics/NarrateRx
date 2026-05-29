@@ -61,7 +61,7 @@ export default function ShotListCard({ onPick }) {
                   </span>
                 )}
                 {d.proven && (
-                  <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full border bg-amber-100 text-amber-800 border-amber-300 inline-flex items-center gap-1">
+                  <span className="text-2xs font-bold px-1.5 py-0.5 rounded-full border bg-success/10 text-success border-success/30 inline-flex items-center gap-1">
                     <Trophy className="w-3 h-3" /> worked before
                   </span>
                 )}
