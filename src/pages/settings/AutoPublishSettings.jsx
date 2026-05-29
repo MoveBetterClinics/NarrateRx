@@ -178,6 +178,9 @@ export default function AutoPublishSettings() {
                     onChange={(e) => setChannel(id, { voice_fidelity_min: parseFloat(e.target.value) })}
                     className="w-full h-2 rounded-full accent-primary cursor-pointer"
                   />
+                  <div className="flex justify-between text-2xs text-muted-foreground/60 mt-0.5">
+                    <span>Permissive</span><span>Default</span><span>Strict</span>
+                  </div>
                   <p className="text-2xs text-muted-foreground">
                     Default 70. Packages below this score are held for manual review.
                     Rubric: 90–100 = on-voice, 70–89 = mostly faithful, 50–69 = noticeable drift.
@@ -199,6 +202,9 @@ export default function AutoPublishSettings() {
                     onChange={(e) => setChannel(id, { similarity_min: parseFloat(e.target.value) })}
                     className="w-full h-2 rounded-full accent-primary cursor-pointer"
                   />
+                  <div className="flex justify-between text-2xs text-muted-foreground/60 mt-0.5">
+                    <span>Permissive</span><span>Default</span><span>Strict</span>
+                  </div>
                   <p className="text-2xs text-muted-foreground">
                     Default 65%. Ensures the visual matches the claim before publishing
                     without manual review.

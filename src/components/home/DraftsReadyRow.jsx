@@ -25,7 +25,7 @@ const PLATFORM_FAMILY = {
   tiktok:        { family: 'social', label: 'TikTok',   pill: 'bg-violet-50 text-violet-700'   },
   youtube:       { family: 'social', label: 'YouTube',  pill: 'bg-violet-50 text-violet-700'   },
   pinterest:     { family: 'social', label: 'Pin',      pill: 'bg-violet-50 text-violet-700'   },
-  gbp:           { family: 'social', label: 'GBP',      pill: 'bg-violet-50 text-violet-700'   },
+  gbp:           { family: 'local',  label: 'GBP',      pill: 'bg-sky-50 text-sky-700'         },
   twitter:       { family: 'social', label: 'X',        pill: 'bg-violet-50 text-violet-700'   },
 }
 

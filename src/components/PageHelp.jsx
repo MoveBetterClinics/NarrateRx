@@ -53,7 +53,7 @@ export default function PageHelp({ pageKey, variant = 'default' }) {
         aria-label="Help"
       >
         <Icon as={HelpCircle} size="sm" />
-        <span>Help / How this works</span>
+        <span>How it works</span>
       </button>
 
       {open && createPortal(
