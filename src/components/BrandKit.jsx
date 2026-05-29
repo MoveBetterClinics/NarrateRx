@@ -646,10 +646,38 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
         picked.push({ role: role.id, asset: best.a, confidence: best.c })
       }
     }
+    // Onboarding must never dead-end. Assign whatever we confidently matched,
+    // then show a confirm strip of every filled role — including roles the
+    // upload webhook already auto-assigned server-side. If nothing is confident
+    // (common for SVG logos, which carry no sharp-derived attributes), drop the
+    // user into the manual roles panel instead of a dead-end toast.
+    if (isOnboarding) {
+      if (assets.length === 0) {
+        toast.info('Upload your logo files first')
+        return
+      }
+      if (Object.keys(newAssignments).length > 0) {
+        setAutoAssigning(true)
+        try { await ds.setBulkRoles(newAssignments) }
+        finally { setAutoAssigning(false) }
+      }
+      const filled = { ...roleAssignments, ...newAssignments }
+      if (Object.keys(filled).length > 0) {
+        const strip = Object.entries(filled).map(([role, assetId]) => {
+          const asset = assets.find((a) => a.id === assetId)
+          if (!asset) return null
+          const conf = asset.ai_classification?.role_candidates?.find((cc) => cc.role === role)?.confidence
+          return { role, asset, confidence: typeof conf === 'number' ? conf : undefined }
+        }).filter(Boolean)
+        setConfirmStrip(strip)
+      } else {
+        setAdjusting(true)
+      }
+      return
+    }
+
     if (Object.keys(newAssignments).length === 0) {
-      toast.info(assets.length === 0
-        ? 'Upload some assets first'
-        : 'No unassigned roles with confident matches — assign manually or re-tag assets')
+      toast.info('No unassigned roles with confident matches — assign manually or re-tag assets')
       return
     }
     setAutoAssigning(true)
@@ -658,11 +686,10 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
       // the live path from spamming the API and the mockup path from N
       // re-renders.
       await ds.setBulkRoles(newAssignments)
-      if (!isOnboarding) toast.success(`Assigned ${picked.length} role${picked.length === 1 ? '' : 's'}`)
+      toast.success(`Assigned ${picked.length} role${picked.length === 1 ? '' : 's'}`)
     } finally {
       setAutoAssigning(false)
     }
-    if (isOnboarding) setConfirmStrip(picked)
   }
 
   async function resetAssignments() {
@@ -731,7 +758,7 @@ export default function BrandKit({ variant = 'settings', mockup = false, onAdvan
                 <div className="w-16 shrink-0"><AssetPreview asset={asset} size="sm" /></div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium">{def?.label}</div>
-                  <div className="text-2xs text-muted-foreground truncate">{asset.filename} · {Math.round(confidence * 100)}% match</div>
+                  <div className="text-2xs text-muted-foreground truncate">{asset.filename}{typeof confidence === 'number' ? ` · ${Math.round(confidence * 100)}% match` : ''}</div>
                 </div>
               </div>
             )
