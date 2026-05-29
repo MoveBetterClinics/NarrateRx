@@ -37,6 +37,13 @@ const MAX_VIDEO_BYTES = 500 * 1024 * 1024
 // the function's ephemeral /tmp); beyond this we refuse rather than spend
 // minutes transcoding a pathological upload.
 const MAX_INGEST_BYTES = 4 * 1024 * 1024 * 1024 // 4GB
+// Cap each rendered clip (and the Whisper pass) to this many seconds. Social
+// video posts are short, and render cost scales with duration × channels — an
+// uncapped multi-minute source blew past the 300s function budget and left
+// packages stuck 'generating' (found 2026-05-29). Turning one long source into
+// SEVERAL distinct clips is the follow-up feature; this cap makes single-clip
+// rendering bounded and reliable today.
+const MAX_RENDER_SECONDS = 60
 
 /**
  * Channel specs for video rendering.
@@ -130,6 +137,7 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
       // Large or unknown-size source — downscale-on-ingest from the URL so the
       // full original never materializes on /tmp. ffmpeg fetches via HTTP range.
       await runFfmpeg([
+        '-t', String(MAX_RENDER_SECONDS),   // input-limit: only pull ~first 60s over HTTP range
         '-i', videoUrl,
         '-vf', 'scale=w=1920:h=1920:force_original_aspect_ratio=decrease:flags=lanczos',
         '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '26',
@@ -159,6 +167,7 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
         '-ar', '16000',                 // 16kHz — Whisper-optimal sample rate
         '-ac', '1',                     // mono
         '-b:a', '32k',
+        '-t', String(MAX_RENDER_SECONDS),  // only transcribe the rendered window
         '-y', tmpAudio,
       ])
 
@@ -236,6 +245,7 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
       '-c:a', 'aac',
       '-b:a', '128k',
       '-movflags', '+faststart',         // moov atom at start for streaming
+      '-t', String(MAX_RENDER_SECONDS),  // cap clip length; bounds render time vs the 300s budget
       '-y',                              // overwrite if exists
       tmpOutput,
     ]
