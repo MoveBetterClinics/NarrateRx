@@ -80,18 +80,29 @@ function verifyStripeSignature(rawBody, sigHeader, secret) {
   }
 }
 
-async function updateWorkspace(workspaceId, patch) {
+// Update a workspace. When stripeCustomerId is provided, the PATCH also
+// filters on stripe_customer_id so a forged event with a valid workspace_id
+// but wrong customer cannot modify another workspace's billing state.
+async function updateWorkspace(workspaceId, patch, stripeCustomerId = null) {
+  const customerFilter = stripeCustomerId
+    ? `&stripe_customer_id=eq.${encodeURIComponent(stripeCustomerId)}`
+    : ''
   const r = await sb(
-    `workspaces?id=eq.${encodeURIComponent(workspaceId)}`,
+    `workspaces?id=eq.${encodeURIComponent(workspaceId)}${customerFilter}`,
     {
       method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
+      headers: { Prefer: 'return=representation' },
       body: JSON.stringify(patch),
     },
   )
   if (!r.ok) {
     const text = await r.text().catch(() => '')
     console.error(`[billing/webhook] workspace patch failed (${r.status}):`, text)
+    return false
+  }
+  const rows = await r.json().catch(() => [])
+  if (stripeCustomerId && (!Array.isArray(rows) || rows.length === 0)) {
+    console.error(`[billing/webhook] workspace patch matched 0 rows — customer ID mismatch? workspace=${workspaceId} customer=${stripeCustomerId}`)
     return false
   }
   return true
@@ -180,12 +191,13 @@ async function handler(req, res) {
         }
         const priceId = sub?.items?.data?.[0]?.price?.id || null
         const planConfig = priceId ? PRICE_PLAN_MAP[priceId] : null
+        const subCustomerId = sub.customer || null
         if (planConfig) {
           await updateWorkspace(workspaceId, {
             stripe_price_id: priceId,
             plan: planConfig.plan,
             plan_seats: planConfig.seats,
-          })
+          }, subCustomerId)
           console.info(`[billing/webhook] updated workspace ${workspaceId} to plan ${planConfig.plan}`)
         } else {
           console.warn(`[billing/webhook] subscription.updated: unknown priceId ${priceId} for workspace ${workspaceId}`)
@@ -200,6 +212,7 @@ async function handler(req, res) {
           console.error('[billing/webhook] customer.subscription.deleted: no workspace_id in metadata')
           break
         }
+        const deletedCustomerId = sub.customer || null
         // Revert to trial with 14-day window.
         const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString()
         // Null out customer_id too so a stray late invoice.payment_failed for
@@ -211,7 +224,7 @@ async function handler(req, res) {
           stripe_subscription_id: null,
           stripe_price_id: null,
           trial_ends_at: trialEndsAt,
-        })
+        }, deletedCustomerId)
         console.info(`[billing/webhook] workspace ${workspaceId} subscription cancelled — reverted to trial`)
         break
       }
@@ -294,7 +307,7 @@ async function handler(req, res) {
             plan:       planConfig.plan,
             plan_seats: planConfig.seats,
             stripe_price_id: priceId,
-          })
+          }, customerId)
           console.info(`[billing/webhook] invoice.paid: workspace ${workspaceId} restored to ${planConfig.plan}`)
         } else {
           // Unknown priceId (env-var mismatch, mid-migration price, or a duplicate
