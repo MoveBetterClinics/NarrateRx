@@ -964,7 +964,7 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
         })}
       </div>
       <p className="text-xs text-muted-foreground">
-        Pick at least one. Every channel ships with a clean export, and the social channels can be pushed straight to <strong>Buffer</strong> — connect once and NarrateRx queues posts to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. Other direct integrations (Google Business Profile, website, newsletter) are reserved for the first-party Move Better workspaces in beta.
+        Pick at least one. Every channel ships with a clean export, and the social channels can be pushed straight to <strong>Buffer</strong> — connect once and NarrateRx queues posts to Instagram, Facebook, LinkedIn, Twitter/X, Threads, Pinterest, and more. Additional direct integrations (Google Business Profile, website, newsletter) are available on Growth and Multi-location plans.
       </p>
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>← Back</Button>
