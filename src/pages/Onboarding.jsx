@@ -79,7 +79,7 @@ export default function Onboarding() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <Header />
-      <main className="max-w-2xl mx-auto px-6 py-10 space-y-6">
+      <main className="w-full px-6 sm:px-10 lg:px-16 py-10 space-y-6">
         <ProgressBar step={step} />
 
         {step === 'loading' && <LoadingScreen />}
@@ -223,7 +223,7 @@ export default function Onboarding() {
 function Header() {
   return (
     <header className="border-b">
-      <div className="max-w-2xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="w-full px-6 sm:px-10 lg:px-16 py-4 flex items-center justify-between">
         <a href="/" className="font-semibold text-lg">
           <span>narrate</span>
           <span className="text-orange-600">Rx</span>
@@ -672,10 +672,11 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
         <Input type="url" value={form.website} onChange={e => setField('website')(e.target.value)} placeholder="https://yourpractice.com" autoComplete="url" />
       </FieldRow>
       <div className="space-y-2">
-        <Label className="text-xs">Location *</Label>
+        <Label className="text-xs">Where is your practice? *</Label>
         <p className="text-2xs text-muted-foreground">
-          City and state — used in &quot;near me&quot; SEO copy. If your practice has more than one
-          location, add each one so each post can target the right city and hashtag.
+          Your city and state. We use this so your posts mention the right area
+          and help nearby patients find you. Have more than one office? Add each
+          one below.
         </p>
         <div className="space-y-2">
           {form.locations.map((loc, idx) => (
@@ -825,16 +826,21 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
   const canContinue = form.clinic_context.trim().length >= 10
   return (
     <Card
-      title="Brand voice"
-      subtitle="This is what makes the AI sound like you. Write it as if briefing a copywriter. You can edit any of it later."
+      title="How you sound"
+      subtitle="This is the most important step — it's what makes every draft sound like you and not generic AI. Don't worry about getting it perfect; you can change all of it later."
     >
       {/* Voice-fidelity promise — sets the right expectation before the user
           touches any fields. Everything generated traces back to these inputs. */}
-      <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-start gap-3 -mt-1">
-        <span className="text-base mt-0.5 shrink-0">🎙</span>
-        <p className="text-xs text-orange-900 leading-relaxed">
-          <span className="font-semibold">Voice fidelity is the promise.</span> Everything NarrateRx generates traces back to what your clinicians actually said. These voice inputs make sure every draft sounds like your clinic — not generic AI content. When you review a draft, you&apos;ll see exactly which phrases came from the interview and which the AI filled in.
-        </p>
+      <div className="rounded-xl border-2 border-orange-300 bg-orange-50 px-4 py-4 flex items-start gap-3 -mt-1 shadow-sm">
+        <span className="text-2xl mt-0.5 shrink-0">🎙</span>
+        <div className="space-y-1">
+          <p className="text-sm font-semibold text-orange-900">
+            Why this matters most
+          </p>
+          <p className="text-xs text-orange-900 leading-relaxed">
+            Everything NarrateRx writes traces back to what you and your team actually say. The few lines below are what keep your drafts sounding like your practice — your words, your tone — instead of generic AI content. When you review a draft, you&apos;ll see exactly which phrases came from your own answers and which the AI filled in.
+          </p>
+        </div>
       </div>
 
       <FieldRow label="What you do" hint="1–3 sentences. Your method, who you serve, what makes you distinct.">
@@ -887,6 +893,10 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
           Add a bit more detail about what you do (at least 10 characters).
         </p>
       )}
+      <p className="text-2xs text-muted-foreground">
+        You can edit all of this any time in Settings — and the quick founder
+        interview after setup sharpens it for you automatically.
+      </p>
       <div className="flex items-center justify-between pt-2">
         <Button variant="ghost" onClick={onBack}>← Back</Button>
         <Button onClick={onContinue} disabled={!canContinue}>
@@ -937,18 +947,18 @@ function SubdomainScreen({ form, setField, slugCheck, setSlugCheck, onBack, onCo
     'too-short': 'At least 3 characters',
     'too-long': 'At most 32 characters',
     'invalid-format': 'Lowercase letters, numbers, and hyphens only',
-    'reserved': 'That subdomain is reserved',
-    'taken': 'That subdomain is taken',
+    'reserved': 'That address is reserved',
+    'taken': 'That address is taken',
     'db-error': 'Could not check — try again',
     'network-error': 'Network error — try again',
   }
 
   return (
     <Card
-      title="Choose your subdomain"
-      subtitle="This is your workspace's URL. You can't change it later — pick something stable."
+      title="Pick your private workspace address"
+      subtitle="This is the web address you and your team use to sign in — like your own private login page. Patients and the public never see it. Pick something stable: it can't be changed later."
     >
-      <FieldRow label="Subdomain *">
+      <FieldRow label="Your workspace address *">
         <div className="flex items-stretch border rounded-md overflow-hidden focus-within:ring-2 focus-within:ring-ring">
           <input
             value={form.slug}
@@ -1008,9 +1018,9 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
   const ok = form.enabled_outputs.length > 0
   // Human label for the export affordance each channel produces by default.
   const EXPORT_LABEL = {
-    markdown: 'Copy as markdown',
-    html_email: 'Copy as HTML email',
-    social_compose: 'Copy caption + download image',
+    markdown: 'Copy & paste anywhere',
+    html_email: 'Copy a ready-to-send email',
+    social_compose: 'Copy the caption + download the image',
   }
   // Channels whose publishMode can be upgraded to one-click publishing once an
   // integration is connected (Buffer for social/GBP, WordPress/Astro for blog,
@@ -1046,7 +1056,7 @@ function ChannelsScreen({ form, setForm, onBack, onContinue }) {
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium leading-tight">{channel.label}</div>
                 <div className="text-2xs text-muted-foreground mt-0.5">
-                  {EXPORT_LABEL[channel.exportShape] || 'Clean export'}
+                  {EXPORT_LABEL[channel.exportShape] || 'Copy & paste anywhere'}
                   {upgrade ? ` · ${upgrade}` : ''}
                 </div>
               </div>
@@ -1095,9 +1105,9 @@ function CaptureScreen({ form, setField, onBack, onContinue }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {[
           { icon: Smartphone, label: 'iPhone capture app', body: 'Add to Home Screen via Safari — opens straight to camera.' },
-          { icon: Clapperboard, label: 'Daily story slate', body: 'Your clips become approachable drafts, ready to review each morning.' },
-          { icon: CheckCircle2, label: 'You approve every post', body: 'Nothing publishes without your sign-off. Auto-publish is opt-in per channel.' },
-          { icon: Sparkles, label: 'Voice-faithful by default', body: 'AI keeps your words, your stances, your tone — flags drift before it ships.' },
+          { icon: Clapperboard, label: 'Fresh drafts each day', body: 'Your clips turn into ready-to-review draft posts you can check each morning.' },
+          { icon: CheckCircle2, label: 'You approve every post', body: 'Nothing publishes without your sign-off. Auto-publish is opt-in, channel by channel.' },
+          { icon: Sparkles, label: 'Sounds like you, by default', body: 'Drafts keep your words, your views, and your tone — and point out anything that doesn\'t sound like you before it goes out.' },
         ].map(({ icon: Icon, label, body }) => (
           <div key={label} className="flex gap-3 rounded-lg border bg-muted/30 p-3">
             <Icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
@@ -1116,7 +1126,7 @@ function CaptureScreen({ form, setField, onBack, onContinue }) {
           id="capture-name"
           value={form.capture_name}
           onChange={e => setField('capture_name')(e.target.value)}
-          placeholder="e.g. Dr. Cullen"
+          placeholder="e.g. Dr. Smith"
           maxLength={80}
         />
         <p className="text-xs text-muted-foreground">

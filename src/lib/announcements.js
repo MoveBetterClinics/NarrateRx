@@ -23,13 +23,13 @@ export const ANNOUNCEMENTS = [
       {
         icon: Mic,
         title: 'Start with a conversation',
-        body: 'Pick a clinician and a topic, then run a 15–30 minute interview. The AI asks the questions, you (or your clinician) just talk. No writing required.',
+        body: 'Pick a topic and start talking. NarrateRx asks the questions in a 15–30 minute interview — you (or a teammate) just answer out loud. No writing required.',
         accent: 'bg-amber-100 text-amber-700',
       },
       {
         icon: FileText,
-        title: 'AI drafts patient-facing content',
-        body: 'Each completed interview produces a full content set — long-form article, social posts, email, and ad copy — written in your clinician’s voice from the recorded answers.',
+        title: 'AI drafts your content',
+        body: 'Each completed interview produces a full content set — long-form article, social posts, email, and ad copy — written in your own voice from the recorded answers.',
         accent: 'bg-sky-100 text-sky-700',
       },
       {
@@ -41,7 +41,7 @@ export const ANNOUNCEMENTS = [
       {
         icon: Send,
         title: 'Review, schedule, and publish',
-        body: 'Edit drafts in Stories, move them through the pipeline, and publish to your connected channels. You stay in control of every word that ships.',
+        body: 'Review and edit each draft, then publish it to your connected channels. You stay in control of every word that ships.',
         accent: 'bg-violet-100 text-violet-700',
       },
     ],
