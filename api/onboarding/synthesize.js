@@ -408,7 +408,7 @@ export default async function handler(req, res) {
     synthesized_at: new Date().toISOString(),
   }
 
-  const markR = await sb(`workspace_onboarding_interviews?id=eq.${id}&workspace_id=eq.${ws.id}`, {
+  const markR = await sb(`workspace_onboarding_interviews?id=eq.${encodeURIComponent(id)}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({
       status: 'synthesized',
