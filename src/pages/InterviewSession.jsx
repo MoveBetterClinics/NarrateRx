@@ -1349,7 +1349,7 @@ export default function InterviewSession() {
           </span>
         )}
         {interviewComplete
-          ? <Badge variant="secondary" className="text-xs">Interview Complete</Badge>
+          ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-4 w-4" />Interview complete</span>
           : isOwner && (
             // Desktop header keeps the action buttons. On mobile they live
             // in the bottom dock so they're within thumb reach next to the
@@ -1633,17 +1633,23 @@ export default function InterviewSession() {
             </button>
 
             {/* Mobile-only Finish — labeled button, right of the mic */}
-            <Button
-              onClick={() => setInterviewComplete(true)}
-              disabled={!canFinish}
-              title={canFinish ? undefined : finishHelper}
-              aria-label={canFinish ? 'Finish interview' : finishHelper}
-              className="md:hidden gap-1.5 min-h-[44px] shrink-0"
-              size="sm"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Finish
-            </Button>
+            <div className="md:hidden flex flex-col items-center gap-1">
+              <Button
+                onClick={() => setInterviewComplete(true)}
+                disabled={!canFinish}
+                aria-label={canFinish ? 'Finish interview' : finishHelper}
+                className="gap-1.5 min-h-[44px] shrink-0"
+                size="sm"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Finish
+              </Button>
+              {!canFinish && (
+                <span className="text-2xs text-muted-foreground text-center leading-tight px-1">
+                  {finishHelper}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}

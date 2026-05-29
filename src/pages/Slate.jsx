@@ -322,8 +322,13 @@ export default function Slate() {
         <p className="font-semibold text-lg">Story Slate is coming soon</p>
         <p className="text-sm text-muted-foreground max-w-sm">
           {"The video pipeline isn't enabled for this workspace yet."}
-          {" Contact your workspace admin to turn it on."}
         </p>
+        <a
+          href="/settings/workspace"
+          className="text-sm text-primary underline underline-offset-2 hover:opacity-80"
+        >
+          Open workspace settings to enable it
+        </a>
       </div>
     )
   }

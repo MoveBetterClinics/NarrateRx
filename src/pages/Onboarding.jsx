@@ -358,14 +358,14 @@ function AuthScreen({ capacity, onSignedIn }) {
           <button
             type="button"
             onClick={() => setMode('signup')}
-            className={`px-3 py-1.5 rounded-md ${mode === 'signup' ? 'bg-orange-600 text-white' : 'bg-muted text-muted-foreground'}`}
+            className={`px-3 py-1.5 rounded-md ${mode === 'signup' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
           >
             Sign up
           </button>
           <button
             type="button"
             onClick={() => setMode('signin')}
-            className={`px-3 py-1.5 rounded-md ${mode === 'signin' ? 'bg-orange-600 text-white' : 'bg-muted text-muted-foreground'}`}
+            className={`px-3 py-1.5 rounded-md ${mode === 'signin' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
           >
             I already have an account
           </button>
@@ -768,9 +768,9 @@ function VoiceScreen({ form, setField, scanState, onBack, onContinue }) {
     >
       {/* Voice-fidelity promise — sets the right expectation before the user
           touches any fields. Everything generated traces back to these inputs. */}
-      <div className="rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-3 flex items-start gap-3 -mt-1">
+      <div className="rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 flex items-start gap-3 -mt-1">
         <span className="text-base mt-0.5 shrink-0">🎙</span>
-        <p className="text-xs text-indigo-800 leading-relaxed">
+        <p className="text-xs text-orange-900 leading-relaxed">
           <span className="font-semibold">Voice fidelity is the promise.</span> Everything NarrateRx generates traces back to what your clinicians actually said. These voice inputs make sure every draft sounds like your clinic — not generic AI content. When you review a draft, you&apos;ll see exactly which phrases came from the interview and which the AI filled in.
         </p>
       </div>
@@ -1183,7 +1183,7 @@ function LaunchingScreen({ redirectUrl }) {
       >
         <div className="text-xs text-destructive flex items-center gap-1">
           <AlertCircle className="h-3.5 w-3.5" />
-          Generation is taking longer than expected — try again or check your connection.
+          Subdomain activation is taking longer than expected — try again or check your connection.
         </div>
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <Button
