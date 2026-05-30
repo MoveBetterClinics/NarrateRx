@@ -75,7 +75,8 @@ export default function AccessMatrix() {
         ids.map((id) =>
           apiFetch('/api/staff/capabilities', {
             method: 'PATCH',
-            body: { id, overrides: localOverrides[id] || {} },
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, overrides: localOverrides[id] || {} }),
           })
         )
       )
