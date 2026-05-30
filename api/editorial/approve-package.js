@@ -40,6 +40,7 @@ function sb(path, init = {}) {
 const CHANNEL_TO_PLATFORM = {
   linkedin_feed:         'linkedin',
   linkedin_video:        'linkedin',
+  linkedin_native:       'linkedin',   // keep-whole long-form (16:9 landscape video)
   instagram_reel_still:  'instagram',
   instagram_reel:        'instagram',
   instagram_feed:        'instagram',
@@ -48,9 +49,13 @@ const CHANNEL_TO_PLATFORM = {
   tiktok_still:          'tiktok',
   tiktok:                'tiktok',
   youtube_short:         'youtube',
+  youtube:               'youtube',     // keep-whole long-form (16:9 landscape video)
   facebook_feed:         'facebook',
   facebook_video:        'facebook',
   gbp_post:              'gbp',
+  // NOTE: 'website_embed' is intentionally unmapped — the long-form website
+  // version is a download-only render (no auto-publish target). Routing it to
+  // the website/blog path is a deferred follow-up.
 }
 
 export default async function handler(req, res) {
@@ -141,7 +146,15 @@ export default async function handler(req, res) {
     platform,
     content:        pkg.caption_text,
     overlay_text:   pkg.caption_text,
-    media_urls:     pRenders.map((r) => r.blobUrl),
+    // Canonical media_urls shape is [{url, type, kind}] — NOT bare strings.
+    // The Buffer publish path (prepareMediaForBuffer / buildAssets) keys video
+    // detection off `m.type`, and the Drafts UI reads `m.url`. Bare strings
+    // would publish a long-form (.mp4) render as a broken image. Derive video
+    // vs image from the render extension (video renders are .mp4, photos .jpg).
+    media_urls:     pRenders.map((r) => {
+      const isVideo = String(r.blobUrl || '').toLowerCase().endsWith('.mp4')
+      return { url: r.blobUrl, type: isVideo ? 'video' : 'image', kind: isVideo ? 'video' : 'image' }
+    }),
     status:         'approved',
     approved_at:    now,
     notes:          `Approved from Story Slate (package ${packageId})`,

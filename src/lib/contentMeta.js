@@ -24,7 +24,7 @@ export const PLATFORM_META = {
   google_ads:   { label: 'Google Ads',      icon: MousePointer2, color: 'text-yellow-700', bg: 'bg-yellow-50' },
   instagram_ads:{ label: 'Instagram Ads',   icon: Megaphone,  color: 'text-rose-600',   bg: 'bg-rose-50' },
   landing_page: { label: 'Landing Page',    icon: LayoutTemplate, color: 'text-purple-600', bg: 'bg-purple-50' },
-  youtube:      { label: 'YouTube Script',  icon: Youtube,       color: 'text-red-600',    bg: 'bg-red-50' },
+  youtube:      { label: 'YouTube',         icon: Youtube,       color: 'text-red-600',    bg: 'bg-red-50' },
   tiktok:       { label: 'TikTok / Reels', icon: Music2,        color: 'text-fuchsia-600', bg: 'bg-fuchsia-50' },
   email:        { label: 'Email',           icon: Mail,       color: 'text-teal-600',   bg: 'bg-teal-50' },
   pinterest:    { label: 'Pinterest',       icon: Pin,        color: 'text-red-500',    bg: 'bg-red-50' },

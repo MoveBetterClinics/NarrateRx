@@ -117,6 +117,12 @@ export const OUTPUT_CHANNELS = Object.freeze({
     exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
     publishMode: PUBLISH_MODES.BUFFER,
   },
+  youtube: {
+    id: 'youtube',
+    label: 'YouTube video',   // long-form, landscape (keep-whole lane)
+    exportShape: EXPORT_SHAPES.SOCIAL_COMPOSE,
+    publishMode: PUBLISH_MODES.BUFFER,
+  },
   pinterest: {
     id: 'pinterest',
     label: 'Pinterest pin',
@@ -200,7 +206,9 @@ export function canDirectPublish(workspace, channelId) {
 // matches the registry key 1:1.
 const PLATFORM_TO_CHANNEL = Object.freeze({
   instagram:     'instagram_post',
-  youtube:       'youtube_short',
+  // 'youtube' now resolves 1:1 to its own registry channel (long-form landscape
+  // video). The old youtube→youtube_short alias predated a real 'youtube'
+  // channel; youtube_short stays a distinct channel for vertical shorts.
   instagram_ads: 'ig_ads',
 })
 
