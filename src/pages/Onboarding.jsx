@@ -675,8 +675,9 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
         <Label className="text-xs">Where is your practice? *</Label>
         <p className="text-2xs text-muted-foreground">
           Your city and state. We use this so your posts mention the right area
-          and help nearby patients find you. Have more than one office? Add each
-          one below.
+          and help nearby patients find you. The optional short name is just a
+          nickname for the location (like &quot;PDX&quot;) we use as shorthand.
+          Have more than one office? Add each one below.
         </p>
         <div className="space-y-2">
           {form.locations.map((loc, idx) => (
@@ -707,10 +708,10 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
                 <Input
                   value={loc.label}
                   onChange={e => updateLocation(idx, 'label', e.target.value)}
-                  placeholder="optional"
+                  placeholder={idx === 0 ? 'e.g. PDX' : 'e.g. Vancouver'}
                 />
                 {idx === 0 && (
-                  <p className="text-3xs text-muted-foreground mt-1">Label (optional)</p>
+                  <p className="text-3xs text-muted-foreground mt-1">Short name (optional)</p>
                 )}
               </div>
               <div className="col-span-1 flex items-center justify-end pt-1">
@@ -1104,10 +1105,10 @@ function CaptureScreen({ form, setField, onBack, onContinue }) {
       {/* Feature bullets */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {[
-          { icon: Smartphone, label: 'iPhone capture app', body: 'Add to Home Screen via Safari — opens straight to camera.' },
-          { icon: Clapperboard, label: 'Fresh drafts each day', body: 'Your clips turn into ready-to-review draft posts you can check each morning.' },
-          { icon: CheckCircle2, label: 'You approve every post', body: 'Nothing publishes without your sign-off. Auto-publish is opt-in, channel by channel.' },
-          { icon: Sparkles, label: 'Sounds like you, by default', body: 'Drafts keep your words, your views, and your tone — and point out anything that doesn\'t sound like you before it goes out.' },
+          { icon: Smartphone, label: 'Capture', body: 'Add NarrateRx to your iPhone home screen via Safari — it opens straight to the camera.' },
+          { icon: Clapperboard, label: 'Drafts', body: 'Your clips turn into ready-to-review draft posts you can check each morning.' },
+          { icon: CheckCircle2, label: 'Approval', body: 'Nothing publishes without your sign-off. Auto-publish is opt-in, channel by channel.' },
+          { icon: Sparkles, label: 'Your voice', body: 'Drafts keep your words, your views, and your tone — and point out anything that doesn\'t sound like you before it goes out.' },
         ].map(({ icon: Icon, label, body }) => (
           <div key={label} className="flex gap-3 rounded-lg border bg-muted/30 p-3">
             <Icon className="h-4 w-4 text-primary mt-0.5 shrink-0" />
