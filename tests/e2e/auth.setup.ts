@@ -93,6 +93,18 @@ setup('authenticate fixture user', async ({ page }) => {
       .first(),
   ).toBeVisible({ timeout: 30_000 })
 
+  // Suppress PageHelp first-visit auto-open modals so they don't block test
+  // interactions. PageHelp checks a per-page localStorage key (set by its
+  // useEffect) — but the effect fires asynchronously after React paint, so it
+  // may not have run yet when we save storageState. Setting the keys here
+  // ensures the saved state always carries the suppression into every spec.
+  await page.evaluate(() => {
+    const ts = new Date().toISOString()
+    ;['home', 'slate', 'stories'].forEach(k => {
+      localStorage.setItem(`pagehelp:${k}:welcomed:v1`, ts)
+    })
+  })
+
   fs.mkdirSync(path.dirname(authFile), { recursive: true })
   await page.context().storageState({ path: authFile })
 })

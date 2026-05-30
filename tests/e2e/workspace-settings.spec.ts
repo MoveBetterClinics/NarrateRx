@@ -64,7 +64,19 @@ test('workspace settings page resolves the role guard correctly', async ({ page 
   ).toBeVisible({ timeout: 30_000 })
 
   // ── 2. Branch on which terminal state we hit ────────────────────────────
-  if (await settingsHeading.isVisible()) {
+  // The Settings h2 lives in SettingsLayout, which renders for ALL users
+  // while WorkspaceSettings waits for role data. A non-admin user sees the
+  // heading transiently before <Navigate to="/" replace /> fires. Using
+  // settingsHeading.isVisible() as the branch signal races that transition.
+  // Wait for the URL to leave /settings/workspace (redirect) OR for a form
+  // input to appear (admin path fully loaded), then branch on the URL.
+  await page.waitForFunction(
+    () => !window.location.pathname.startsWith('/settings/workspace') ||
+          !!document.querySelector('input[type="text"]'),
+    { timeout: 10_000 },
+  ).catch(() => { /* if neither fires, URL check below makes the call */ })
+
+  if (page.url().includes('/settings/workspace')) {
     // Admin path — verify the form bound workspace data correctly.
     const nameInput = page
       .locator('div')
