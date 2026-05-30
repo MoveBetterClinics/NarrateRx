@@ -6,11 +6,22 @@ Usage:
     python3 scripts/make-capture-shortcut.py --token cct_YOUR_TOKEN
 
 Output:
-    ~/Desktop/NarrateRx Capture.shortcut
+    ~/Desktop/NarrateRx Capture.shortcut  (signed, ready to double-click)
 
-Double-click the output file to import into Shortcuts.
 Then: right-click the shortcut → Share → Copy iCloud Link
 Paste that URL into VITE_SHORTCUT_INSTALL_URL in Vercel.
+
+Design notes (hard-won):
+  • Named variables (created by Set Variable) are referenced with
+    {'Type': 'Variable', 'VariableName': name}. Using OutputName renders as
+    "Unknown Variable" in Shortcuts.
+  • Each producing action carries an explicit UUID, and the Set Variable that
+    captures it wires WFInput to that action's output as
+    {'Type': 'ActionOutput', 'OutputUUID': uuid, 'OutputName': label}. Relying
+    on the implicit input chain showed "to Input" (the shortcut's own input,
+    which is empty) and broke the data flow.
+  • The "Get Dictionary Value" action identifier is
+    is.workflow.actions.getvalueforkey (NOT getdictionaryvalue).
 """
 
 import plistlib
@@ -35,26 +46,32 @@ def text_token(s):
     }
 
 
-def var_token(name):
-    """Reference a named variable inline (single token replacement)."""
+def named_var(name):
+    """Full-attachment reference to a NAMED variable (from Set Variable)."""
+    return {
+        'Value': {'Type': 'Variable', 'VariableName': name},
+        'WFSerializationType': 'WFTextTokenAttachment',
+    }
+
+
+def named_var_inline(name):
+    """Inline (within-a-string) reference to a NAMED variable."""
     return {
         'Value': {
-            'attachmentsByRange': {
-                '{0, 1}': {'OutputName': name, 'Type': 'Variable'},
-            },
+            'attachmentsByRange': {'{0, 1}': {'Type': 'Variable', 'VariableName': name}},
             'string': '￼',
         },
         'WFSerializationType': 'WFTextTokenString',
     }
 
 
-def prefix_var_token(prefix, name):
-    """Text like "Bearer <var>" — prefix is literal, var is substituted."""
+def prefix_named_var(prefix, name):
+    """Inline text like "Bearer <var>" — literal prefix + named variable."""
     start = len(prefix)
     return {
         'Value': {
             'attachmentsByRange': {
-                f'{{{start}, 1}}': {'OutputName': name, 'Type': 'Variable'},
+                f'{{{start}, 1}}': {'Type': 'Variable', 'VariableName': name},
             },
             'string': prefix + '￼',
         },
@@ -62,10 +79,10 @@ def prefix_var_token(prefix, name):
     }
 
 
-def var_attachment(name):
-    """Variable reference used as a full action input (not inside a string)."""
+def action_output(out_uuid, label):
+    """Full-attachment reference to a specific action's output (magic var)."""
     return {
-        'Value': {'OutputName': name, 'Type': 'Variable'},
+        'Value': {'Type': 'ActionOutput', 'OutputUUID': out_uuid, 'OutputName': label},
         'WFSerializationType': 'WFTextTokenAttachment',
     }
 
@@ -82,107 +99,114 @@ def dict_value(pairs):
     }
 
 
-# ── individual actions ───────────────────────────────────────────────────────
+# ── producing actions (carry an explicit UUID + output label) ────────────────
 
-def a_take_video():
+def a_take_video(out_uuid):
+    # Param keys verified against electrikmilk/cherri actions/media.cherri:
+    # WFCameraCaptureDevice (Front/Back), WFCameraCaptureQuality (Low/Medium/High),
+    # WFRecordingStart (On Tap/Immediately).
     return {
         'WFWorkflowActionIdentifier': 'is.workflow.actions.takevideo',
         'WFWorkflowActionParameters': {
-            'WFCameraPosition': 'Back',
-            'WFVideoQuality': 'High',
+            'UUID': out_uuid,
+            'CustomOutputName': 'Recorded Video',
+            'WFCameraCaptureDevice': 'Back',
+            'WFCameraCaptureQuality': 'High',
             'WFRecordingStart': 'Immediately',
         },
     }
 
 
-def a_take_photo():
+def a_take_photo(out_uuid):
+    # WFPhotoCount, WFCameraCaptureShowPreview (verified in media.cherri).
     return {
         'WFWorkflowActionIdentifier': 'is.workflow.actions.takephoto',
         'WFWorkflowActionParameters': {
-            'WFCameraPosition': 'Back',
+            'UUID': out_uuid,
+            'CustomOutputName': 'Taken Photo',
             'WFPhotoCount': 1,
-            'WFShouldShowCamera': True,
+            'WFCameraCaptureShowPreview': True,
         },
     }
 
 
-def a_select_photos(videos=True):
+def a_select_photos(out_uuid, videos=True):
+    # Select Photos has no media-type filter param (only WFSelectMultiplePhotos);
+    # the menu branch sets the matching contentType. `videos` is accepted for
+    # call-site readability but unused.
     return {
         'WFWorkflowActionIdentifier': 'is.workflow.actions.selectphoto',
         'WFWorkflowActionParameters': {
+            'UUID': out_uuid,
+            'CustomOutputName': 'Selected Media',
             'WFSelectMultiplePhotos': False,
-            'WFSelectMediaType': 'Videos' if videos else 'Images',
         },
     }
 
 
-def a_text(s):
+def a_text(out_uuid, s):
     return {
         'WFWorkflowActionIdentifier': 'is.workflow.actions.gettext',
-        'WFWorkflowActionParameters': {'WFTextActionText': text_token(s)},
+        'WFWorkflowActionParameters': {
+            'UUID': out_uuid,
+            'CustomOutputName': 'Content Type Text',
+            'WFTextActionText': text_token(s),
+        },
     }
 
 
-def a_set_var(name):
-    """Set named variable to output of the immediately preceding action."""
-    return {
-        'WFWorkflowActionIdentifier': 'is.workflow.actions.setvariable',
-        'WFWorkflowActionParameters': {'WFVariableName': name},
-    }
-
-
-def a_get_dict_value(key, dict_var):
+def a_get_dict_value(out_uuid, key, dict_var):
     return {
         'WFWorkflowActionIdentifier': 'is.workflow.actions.getvalueforkey',
         'WFWorkflowActionParameters': {
+            'UUID': out_uuid,
+            'CustomOutputName': f'{key} value',
             'WFDictionaryKey': text_token(key),
             'WFGetDictionaryValueType': 'Value',
-            'WFInput': var_attachment(dict_var),
+            'WFInput': named_var(dict_var),
         },
     }
 
 
-def a_current_date():
-    return {
-        'WFWorkflowActionIdentifier': 'is.workflow.actions.date',
-        'WFWorkflowActionParameters': {},
-    }
-
-
-def a_format_date_iso():
-    return {
-        'WFWorkflowActionIdentifier': 'is.workflow.actions.formatdate',
-        'WFWorkflowActionParameters': {
-            'WFDateFormatStyle': 'Custom',
-            'WFDateFormat': "yyyy-MM-dd'T'HH:mm:ssZZZZZ",
-        },
-    }
-
-
-def a_http_post_json(url_str, header_pairs, body_pairs):
+def a_http_post_json(out_uuid, url_str, header_pairs, body_pairs):
     return {
         'WFWorkflowActionIdentifier': 'is.workflow.actions.downloadurl',
         'WFWorkflowActionParameters': {
+            'UUID': out_uuid,
+            'CustomOutputName': 'API Response',
             'WFURL': text_token(url_str),
             'WFHTTPMethod': 'POST',
             'WFHTTPBodyType': 'JSON',
             'WFHTTPHeaders': dict_value(header_pairs),
-            'WFHTTPRequestBodyValues': dict_value(body_pairs),
-            'WFShowHeaders': False,
+            'WFJSONValues': dict_value(body_pairs),
         },
     }
 
 
-def a_http_put_file(url_var, header_pairs, file_var):
+def a_http_put_file(out_uuid, url_value, header_pairs, file_var):
     return {
         'WFWorkflowActionIdentifier': 'is.workflow.actions.downloadurl',
         'WFWorkflowActionParameters': {
-            'WFURL': var_token(url_var),
+            'UUID': out_uuid,
+            'CustomOutputName': 'Upload Response',
+            'WFURL': url_value,
             'WFHTTPMethod': 'PUT',
             'WFHTTPBodyType': 'File',
             'WFHTTPHeaders': dict_value(header_pairs),
-            'WFInput': var_attachment(file_var),
-            'WFShowHeaders': False,
+            'WFRequestVariable': named_var(file_var),
+        },
+    }
+
+
+# ── consuming / control actions ──────────────────────────────────────────────
+
+def a_set_var_from_output(name, src_uuid, src_label):
+    """Set a named variable to a specific action's output (explicit wiring)."""
+    return {
+        'WFWorkflowActionIdentifier': 'is.workflow.actions.setvariable',
+        'WFWorkflowActionParameters': {
+            'WFVariableName': name,
+            'WFInput': action_output(src_uuid, src_label),
         },
     }
 
@@ -193,12 +217,9 @@ def a_notify(title, body):
         'WFWorkflowActionParameters': {
             'WFNotificationActionTitle': title,
             'WFNotificationActionBody': body,
-            'WFNotificationActionSound': True,
         },
     }
 
-
-# ── menu control flow ────────────────────────────────────────────────────────
 
 def a_menu_start(group_id, prompt, items):
     return {
@@ -235,44 +256,43 @@ def a_menu_end(group_id):
 
 # ── assemble ─────────────────────────────────────────────────────────────────
 
+def capture_case(actions, menu_id, title, capture_action_fn, content_type):
+    """One menu branch: capture media → set Media; set ContentType text."""
+    actions.append(a_menu_case(menu_id, title))
+
+    media_uuid = uid()
+    actions.append(capture_action_fn(media_uuid))
+    actions.append(a_set_var_from_output('Media', media_uuid, 'Captured Media'))
+
+    ct_uuid = uid()
+    actions.append(a_text(ct_uuid, content_type))
+    actions.append(a_set_var_from_output('ContentType', ct_uuid, 'Content Type Text'))
+
+
 def build(token):
     bearer = f'Bearer {token}'
     menu_id = uid()
     actions = []
 
-    # Menu
     actions.append(a_menu_start(menu_id, 'What do you want to capture?', [
         'Record video', 'Take photo', 'Pick video', 'Pick photo',
     ]))
 
-    actions.append(a_menu_case(menu_id, 'Record video'))
-    actions.append(a_take_video())
-    actions.append(a_set_var('Media'))
-    actions.append(a_text('video/quicktime'))
-    actions.append(a_set_var('ContentType'))
-
-    actions.append(a_menu_case(menu_id, 'Take photo'))
-    actions.append(a_take_photo())
-    actions.append(a_set_var('Media'))
-    actions.append(a_text('image/jpeg'))
-    actions.append(a_set_var('ContentType'))
-
-    actions.append(a_menu_case(menu_id, 'Pick video'))
-    actions.append(a_select_photos(videos=True))
-    actions.append(a_set_var('Media'))
-    actions.append(a_text('video/quicktime'))
-    actions.append(a_set_var('ContentType'))
-
-    actions.append(a_menu_case(menu_id, 'Pick photo'))
-    actions.append(a_select_photos(videos=False))
-    actions.append(a_set_var('Media'))
-    actions.append(a_text('image/jpeg'))
-    actions.append(a_set_var('ContentType'))
+    capture_case(actions, menu_id, 'Record video',
+                 a_take_video, 'video/quicktime')
+    capture_case(actions, menu_id, 'Take photo',
+                 a_take_photo, 'image/jpeg')
+    capture_case(actions, menu_id, 'Pick video',
+                 lambda u: a_select_photos(u, videos=True), 'video/quicktime')
+    capture_case(actions, menu_id, 'Pick photo',
+                 lambda u: a_select_photos(u, videos=False), 'image/jpeg')
 
     actions.append(a_menu_end(menu_id))
 
-    # Get upload URL
+    # Step 1 — get upload URL
+    upload_info_uuid = uid()
     actions.append(a_http_post_json(
+        upload_info_uuid,
         'https://narraterx.ai/api/capture/upload-url',
         header_pairs=[
             ('Authorization', text_token(bearer)),
@@ -280,54 +300,50 @@ def build(token):
         ],
         body_pairs=[
             ('filename', text_token('capture.mov')),
-            ('contentType', var_token('ContentType')),
+            ('contentType', named_var_inline('ContentType')),
         ],
     ))
-    actions.append(a_set_var('UploadInfo'))
+    actions.append(a_set_var_from_output('UploadInfo', upload_info_uuid, 'API Response'))
 
-    # Extract fields
-    actions.append(a_get_dict_value('uploadUrl', 'UploadInfo'))
-    actions.append(a_set_var('UploadUrl'))
+    # Step 1b — pull fields out of the JSON response
+    for key, varname in [('uploadUrl', 'UploadUrl'),
+                         ('clientToken', 'ClientToken'),
+                         ('blobPathname', 'BlobPathname')]:
+        gv_uuid = uid()
+        actions.append(a_get_dict_value(gv_uuid, key, 'UploadInfo'))
+        actions.append(a_set_var_from_output(varname, gv_uuid, f'{key} value'))
 
-    actions.append(a_get_dict_value('clientToken', 'UploadInfo'))
-    actions.append(a_set_var('ClientToken'))
-
-    actions.append(a_get_dict_value('blobPathname', 'UploadInfo'))
-    actions.append(a_set_var('BlobPathname'))
-
-    # Upload directly to Vercel Blob
+    # Step 2 — upload the media directly to Vercel Blob
+    put_uuid = uid()
     actions.append(a_http_put_file(
-        url_var='UploadUrl',
+        put_uuid,
+        url_value=named_var('UploadUrl'),
         header_pairs=[
-            ('Authorization', prefix_var_token('Bearer ', 'ClientToken')),
+            ('Authorization', prefix_named_var('Bearer ', 'ClientToken')),
             ('x-api-version', text_token('12')),
             ('x-vercel-blob-access', text_token('public')),
-            ('x-content-type', var_token('ContentType')),
+            ('x-content-type', named_var_inline('ContentType')),
         ],
         file_var='Media',
     ))
 
-    # Timestamp
-    actions.append(a_current_date())
-    actions.append(a_format_date_iso())
-    actions.append(a_set_var('CapturedAt'))
-
-    # Register
+    # Step 3 — register the upload. capturedAt omitted on purpose; the endpoint
+    # defaults it to now() server-side (within seconds of capture here).
+    reg_uuid = uid()
     actions.append(a_http_post_json(
+        reg_uuid,
         'https://narraterx.ai/api/capture/register',
         header_pairs=[
             ('Authorization', text_token(bearer)),
             ('Content-Type', text_token('application/json')),
         ],
         body_pairs=[
-            ('blobPathname', var_token('BlobPathname')),
+            ('blobPathname', named_var_inline('BlobPathname')),
             ('filename', text_token('capture.mov')),
-            ('contentType', var_token('ContentType')),
-            ('capturedAt', var_token('CapturedAt')),
+            ('contentType', named_var_inline('ContentType')),
         ],
     ))
 
-    # Done
     actions.append(a_notify('NarrateRx', 'Uploaded ✓'))
 
     return {
@@ -374,23 +390,28 @@ def main():
         sys.exit(1)
 
     # macOS refuses to import unsigned .shortcut files. Sign against Apple's
-    # servers so the file imports with a double-click. Requires network.
-    sign = subprocess.run(
-        ['shortcuts', 'sign', '--mode', 'anyone',
-         '--input', str(unsigned), '--output', str(out)],
-        capture_output=True, text=True,
-    )
-    if sign.returncode != 0:
-        print(f'shortcuts sign error: {sign.stderr or sign.stdout}')
-        print('(The unsigned file is at: ' + str(unsigned) + ')')
-        sys.exit(1)
+    # servers (mode=anyone). Apple's signing endpoint is occasionally flaky
+    # (HTTP 500) — retry a few times.
+    last_err = ''
+    for attempt in range(4):
+        sign = subprocess.run(
+            ['shortcuts', 'sign', '--mode', 'anyone',
+             '--input', str(unsigned), '--output', str(out)],
+            capture_output=True, text=True,
+        )
+        if sign.returncode == 0:
+            print(f'✓  {out}  (signed)')
+            print()
+            print('Next steps:')
+            print('  1. Double-click the file to import into Shortcuts')
+            print('  2. Right-click the shortcut → Share → Copy iCloud Link')
+            print('  3. Paste that URL into VITE_SHORTCUT_INSTALL_URL in Vercel env vars')
+            return
+        last_err = sign.stderr or sign.stdout
 
-    print(f'✓  {out}  (signed)')
-    print()
-    print('Next steps:')
-    print('  1. Double-click the file to import into Shortcuts')
-    print('  2. Right-click the shortcut → Share → Copy iCloud Link')
-    print('  3. Paste that URL into VITE_SHORTCUT_INSTALL_URL in Vercel env vars')
+    print(f'shortcuts sign failed after retries: {last_err}')
+    print('(The unsigned file is at: ' + str(unsigned) + ')')
+    sys.exit(1)
 
 
 if __name__ == '__main__':
