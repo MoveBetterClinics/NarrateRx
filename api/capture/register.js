@@ -113,7 +113,9 @@ export default async function handler(req, res) {
       mime_type: contentType,
       size_bytes: typeof sizeBytes === 'number' ? sizeBytes : null,
       captured_at: capturedAtIso,
-      asset_purpose: 'capture_moment',
+      // asset_purpose is CHECK-constrained to interview|broll|photo|brand.
+      // Video field-capture maps to broll; photos to photo.
+      asset_purpose: kind === 'video' ? 'broll' : 'photo',
       notes: caption || null,
       tags: locationHint ? [locationHint] : [],
       created_by: auth.staffMember.user_id || null,
