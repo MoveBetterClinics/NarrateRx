@@ -97,11 +97,18 @@ export default async function handler(req, res) {
     ? new Date(capturedAt).toISOString()
     : new Date().toISOString()
 
-  // The Shortcut sends a generic "capture.mov"/"capture.jpg". Give it a
-  // timestamped name so the Library title isn't a wall of identical "capture.mov".
+  // The Shortcut sends a generic "capture.mov" for every file type — even
+  // photos, which come with contentType=image/jpeg but filename=capture.mov.
+  // Derive the extension from the MIME type so photos don't end up labeled .mov.
+  const MIME_EXT = {
+    'image/jpeg': 'jpg', 'image/png': 'png', 'image/heic': 'heic',
+    'image/heif': 'heif', 'image/webp': 'webp', 'image/gif': 'gif',
+    'video/mp4': 'mp4', 'video/quicktime': 'mov',
+    'video/webm': 'webm', 'video/x-m4v': 'm4v',
+  }
   let displayFilename = filename
   if (/^capture\.(mov|mp4|m4v|webm|jpg|jpeg|png|heic|heif|webp|gif)$/i.test(filename)) {
-    const ext = filename.split('.').pop().toLowerCase()
+    const ext = MIME_EXT[contentType] || filename.split('.').pop().toLowerCase()
     const stamp = capturedAtIso.slice(0, 16).replace('T', ' ').replace(':', '-')
     displayFilename = `Capture ${stamp}.${ext}`
   }
