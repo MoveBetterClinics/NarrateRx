@@ -17,6 +17,12 @@ function mmss(sec) {
   return `${m}:${String(s % 60).padStart(2, '0')}`
 }
 
+const POLL_INTERVAL_MS = 3000
+// Hard cap so a hard-killed detection (segmentDetect.js hitting the 300s wall —
+// its catch never runs, so segment_status stays 'detecting' forever) can't keep
+// the drawer polling 3 req/s until the tab closes. Mirrors Book.jsx's cap.
+const POLL_CAP_MS = 5 * 60 * 1000
+
 export default function ClipFinder({ asset, canEdit }) {
   const assetId = asset.id
   const [finding, setFinding] = useState(false)
@@ -25,12 +31,19 @@ export default function ClipFinder({ asset, canEdit }) {
   // Track which detection batch we've already seeded the default selection for,
   // so a poll round-trip doesn't re-check boxes the user just unchecked.
   const seededRef = useRef(null)
+  // Track when polling began so we can cap it — see POLL_CAP_MS above.
+  const pollStartRef = useRef({ at: 0 })
 
   const { data, refetch, isLoading } = useQuery({
     queryKey: ['video-segments', assetId],
     queryFn: () => getSegments(assetId),
-    // Poll while detection runs; stop once ready/failed/idle.
-    refetchInterval: (q) => (q.state.data?.status === 'detecting' ? 3000 : false),
+    // Poll while detection runs; stop once ready/failed/idle, or after the hard cap.
+    refetchInterval: (q) => {
+      if (q.state.data?.status !== 'detecting') return false
+      if (!pollStartRef.current.at) pollStartRef.current.at = Date.now()
+      if (Date.now() - pollStartRef.current.at > POLL_CAP_MS) return false
+      return POLL_INTERVAL_MS
+    },
     refetchOnWindowFocus: false,
   })
 
@@ -39,6 +52,11 @@ export default function ClipFinder({ asset, canEdit }) {
   const segments = data?.segments || []
   const proposed = segments.filter((s) => s.status === 'proposed')
   const rendered = segments.filter((s) => s.status === 'rendered')
+
+  // Reset the poll cap whenever detection stops, so a later re-run gets a fresh window.
+  useEffect(() => {
+    if (status !== 'detecting') pollStartRef.current = { at: 0 }
+  }, [status])
 
   // Default-select every proposed segment when a fresh detection batch lands.
   useEffect(() => {
@@ -51,6 +69,7 @@ export default function ClipFinder({ asset, canEdit }) {
 
   async function handleFind() {
     setFinding(true)
+    pollStartRef.current = { at: Date.now() }
     try {
       await findClips(assetId)
       toast('Finding clips… transcribing the source — this can take a few minutes.')
