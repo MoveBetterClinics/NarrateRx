@@ -71,7 +71,7 @@ export default async function handler(req, res) {
   const inList = segmentIds.map((id) => `"${id}"`).join(',')
   const segRes = await sb(
     `video_segments?id=in.(${inList})&workspace_id=eq.${ws.id}` +
-      `&select=id,source_asset_id,staff_id,start_sec,end_sec,hook,status,story_package_id,` +
+      `&select=id,source_asset_id,staff_id,start_sec,end_sec,hook,status,story_package_id,campaign_id,` +
       `source_asset:media_assets(id,kind,blob_url,filename,archived_at)`,
   )
   if (!segRes.ok) return res.status(500).json({ error: 'db_error' })
@@ -112,6 +112,8 @@ export default async function handler(req, res) {
 
     // Create the story package row (status='generating') so the Slate card
     // appears immediately with a spinner. topic = the segment hook.
+    // campaign_id is threaded from the video_segments row (set by repurpose-video.js
+    // when clips are part of a Repurpose campaign; null for standalone clip renders).
     const insRes = await sb('story_packages', {
       method: 'POST',
       body: JSON.stringify({
@@ -124,6 +126,7 @@ export default async function handler(req, res) {
         channels: DEFAULT_VIDEO_CHANNELS,
         renders: [],
         status: 'generating',
+        ...(seg.campaign_id ? { campaign_id: seg.campaign_id } : {}),
       }),
     })
     if (!insRes.ok) {

@@ -242,9 +242,10 @@ function normalizeSegments(proposed, maxSegments, sourceDuration) {
  * @param {Object} p.workspace   — workspace row (id, brand voice/context fields)
  * @param {Object} p.asset       — media_assets row (id, blob_url, staff_id, duration_s)
  * @param {number} [p.maxSegments]
+ * @param {string|null} [p.campaignId] — optional campaign to tag proposed segments with
  * @returns {Promise<{ status: string, count: number, note: string|null }>}
  */
-export async function detectSegmentsForAsset({ workspace, asset, maxSegments = DEFAULT_MAX_SEGMENTS }) {
+export async function detectSegmentsForAsset({ workspace, asset, maxSegments = DEFAULT_MAX_SEGMENTS, campaignId = null }) {
   const ws = workspace
   const where = `id=eq.${asset.id}&workspace_id=eq.${ws.id}`
 
@@ -286,6 +287,7 @@ export async function detectSegmentsForAsset({ workspace, asset, maxSegments = D
         order_index: i,
         status: 'proposed',
         detection_model: MODEL,
+        ...(campaignId ? { campaign_id: campaignId } : {}),
       }))
       const ins = await sb('video_segments', { method: 'POST', body: JSON.stringify(rows) })
       if (!ins.ok) {

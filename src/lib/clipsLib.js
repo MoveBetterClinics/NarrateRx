@@ -73,3 +73,20 @@ export function renderWholeVideo(assetId) {
     body: JSON.stringify({ assetId }),
   })
 }
+
+/**
+ * Repurpose A2 — one-click campaign-bundled repurpose. Creates (or reuses) a
+ * "Repurpose: <filename>" campaign, kicks the keep-whole long-form master render
+ * AND social-clip detection — both tagged to the same campaign. Returns 202 with
+ * { campaignId, campaignName, masterPackageId, clipsStatus, mode, channels }.
+ * Track the master in the Story Slate; review proposed clips in the ClipFinder panel.
+ * @param {string} assetId
+ * @param {number} [maxSegments]
+ */
+export function repurposeVideo(assetId, maxSegments) {
+  return apiFetch('/api/editorial/repurpose-video', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ assetId, ...(maxSegments ? { maxSegments } : {}) }),
+  })
+}

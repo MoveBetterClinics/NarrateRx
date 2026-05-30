@@ -2,42 +2,41 @@ import { useState } from 'react'
 import { Loader2, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from '@/lib/toast'
-import { renderWholeVideo, findClips } from '@/lib/clipsLib'
+import { repurposeVideo } from '@/lib/clipsLib'
 
-// One-click "repurpose" for a long source video (social-trickle, increment A1).
-// Fires BOTH lanes at once: the keep-whole full-length master render (→ Story
-// Slate) AND social-clip detection (→ the "Find clips" panel below, for review).
-// This is the "long format on YouTube, short cuts trickle to social" workflow as
-// a single action, sitting above the two granular actions which stay available.
+// Repurpose A2 — one-click campaign-bundled repurpose. Calls the single
+// /api/editorial/repurpose-video endpoint which: creates (or reuses) a
+// "Repurpose: <filename>" campaign, kicks the keep-whole master render, and
+// kicks social-clip detection — all tagged to the same campaign so the Story
+// Slate's campaign chip groups master + clips together.
 //
-// Pure client orchestration of the two existing endpoints — the two background
-// jobs are independent, so we fire both and report per-lane outcomes (a clips
-// hiccup, e.g. a detection already running, must not hide the master kicking off).
+// The granular "Full-length video" and "Find clips" buttons remain available in
+// MediaDetail for one-off use; this card is the "do both + bundle" shortcut.
 export default function RepurposeAction({ asset, canEdit }) {
   const [running, setRunning] = useState(false)
 
   async function handleRepurpose() {
     setRunning(true)
     try {
-      const [masterRes, clipsRes] = await Promise.allSettled([
-        renderWholeVideo(asset.id),
-        findClips(asset.id),
-      ])
-      const masterOk = masterRes.status === 'fulfilled'
-      // A 409 (detection already running) is a benign "already started", not a failure.
-      const clipsOk = clipsRes.status === 'fulfilled' || clipsRes.reason?.status === 409
+      const result = await repurposeVideo(asset.id)
+      const clipsAlreadyDetecting = result?.clipsStatus === 'already_detecting'
+      const clipsSkipped = result?.clipsStatus === 'detection_skipped'
 
-      if (masterOk && clipsOk) {
-        toast('Repurposing — rendering the full video and finding social clips. Track the full video in the Story Slate; review clips below.', {
+      if (clipsAlreadyDetecting) {
+        toast('Repurposing — rendering the full video. Clip detection is already running; review clips below when it finishes.', {
           action: { label: 'Open Slate', onClick: () => { window.location.href = '/slate' } },
         })
-      } else if (masterOk) {
-        toast('Full video is rendering (track it in the Story Slate), but finding clips didn’t start: ' + (clipsRes.reason?.message || 'unknown error'))
-      } else if (clipsOk) {
-        toast('Finding social clips below, but the full-video render didn’t start: ' + (masterRes.reason?.message || 'unknown error'))
+      } else if (clipsSkipped) {
+        toast('Full video is rendering (track it in the Story Slate). Clip detection could not start this time — try "Find clips" below.', {
+          action: { label: 'Open Slate', onClick: () => { window.location.href = '/slate' } },
+        })
       } else {
-        toast.error(masterRes.reason?.message || 'Could not start repurposing.')
+        toast('Repurposing — rendering the full video and finding social clips, all grouped under one campaign. Track the full video in the Story Slate; review clips below.', {
+          action: { label: 'Open Slate', onClick: () => { window.location.href = '/slate' } },
+        })
       }
+    } catch (err) {
+      toast.error(err?.message || 'Could not start repurposing.')
     } finally {
       setRunning(false)
     }
@@ -52,14 +51,14 @@ export default function RepurposeAction({ asset, canEdit }) {
             Repurpose this video
           </div>
           <div className="text-2xs text-muted-foreground">
-            One click: render the full-length video <em>and</em> find short social clips from it.
+            One click: render the full-length video <em>and</em> find short social clips — grouped as one campaign.
           </div>
         </div>
         {canEdit && (
           <Button
             size="sm" onClick={handleRepurpose} disabled={running}
             className="h-7 gap-1.5 text-2xs"
-            title="Render the whole source as one long-form video AND detect short social clips to review"
+            title="Render the whole source as one long-form video AND detect short social clips, all tagged to one campaign"
           >
             {running
               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
