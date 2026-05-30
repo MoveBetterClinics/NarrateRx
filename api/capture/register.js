@@ -78,7 +78,7 @@ export default async function handler(req, res) {
 
   // Validate the blobPathname belongs to this workspace to prevent cross-workspace
   // registration of another workspace's uploaded blob.
-  const expectedPrefix = `media/capture/${auth.workspace.slug}/`
+  const expectedPrefix = `media/capture/${auth.workspace.id}/`
   if (!blobPathname.startsWith(expectedPrefix)) {
     return res.status(403).json({ error: 'pathname_workspace_mismatch' })
   }
