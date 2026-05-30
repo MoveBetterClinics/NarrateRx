@@ -12,6 +12,7 @@ import {
   inferImageAttributes,
 } from '../_lib/brandKitClassifier.js'
 import { extractBrandGuidelines } from '../_lib/brandGuidelinesExtractor.js'
+import { downloadImageCapped } from '../_lib/imageSource.js'
 
 // Brand-asset upload — same two-phase Vercel Blob pattern as /api/media/upload
 // (handshake at body.type='blob.generate-client-token', server-side insert at
@@ -124,10 +125,17 @@ async function handler(req, res) {
         let attrs = { width: null, height: null, has_alpha: null, shape: null, background: 'unknown', color_mode: 'unknown' }
         if (blob.contentType?.startsWith('image/') && blob.contentType !== 'image/svg+xml') {
           try {
-            const buf = Buffer.from(await (await fetch(blob.url)).arrayBuffer())
-            attrs = await inferImageAttributes(buf, blob.contentType)
+            // Probe size before buffering — a HEAD Content-Length check skips
+            // an oversized original instead of spiking RAM via arrayBuffer().
+            const dl = await downloadImageCapped(blob.url, MAX_BRAND_ASSET_BYTES)
+            if (dl.tooLarge) {
+              console.warn(`brand-kit classify: ${filename} is ${dl.size} bytes (> ${MAX_BRAND_ASSET_BYTES} cap); skipping pixel analysis`)
+            } else {
+              attrs = await inferImageAttributes(dl.buffer, blob.contentType)
+            }
           } catch (e) {
-            console.error(`brand-kit classify: ${filename} attribute inference failed:`, e?.message)
+            // Log e.stack — sharp native crashes often have an empty .message.
+            console.error(`brand-kit classify: ${filename} attribute inference failed:`, e?.stack || e?.message)
           }
         }
 

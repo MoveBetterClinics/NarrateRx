@@ -27,6 +27,7 @@ import sharp from 'sharp'
 import heicConvert from 'heic-convert'
 import { put as blobPut } from '@vercel/blob'
 import { generateText } from 'ai'
+import { downloadImageCapped } from './imageSource.js'
 
 const MAX_LONG_EDGE = 2000
 const JPEG_QUALITY  = 80
@@ -174,15 +175,17 @@ export async function processImageUpload({ assetId, blobUrl, declaredMime }) {
     throw new Error('processImageUpload: assetId + blobUrl are required')
   }
 
-  const sourceRes = await fetch(blobUrl)
-  if (!sourceRes.ok) {
-    throw new Error(`processImageUpload: source fetch failed ${sourceRes.status}`)
-  }
-  const sourceBytes = Buffer.from(await sourceRes.arrayBuffer())
-  if (sourceBytes.length > MAX_DECODE_BYTES) {
-    console.warn(`[imagePipeline] asset ${assetId}: source ${sourceBytes.length} bytes exceeds ${MAX_DECODE_BYTES} cap; skipping resize`)
+  // Probe size BEFORE buffering: a HEAD Content-Length check rejects an
+  // oversized original up front so a 40 MB+ HEIC never spikes the heap via
+  // arrayBuffer() ahead of the cap (CLAUDE.md large-file rule). When the
+  // server omits Content-Length the body streams to disk and the cap is
+  // enforced on the materialized file.
+  const dl = await downloadImageCapped(blobUrl, MAX_DECODE_BYTES)
+  if (dl.tooLarge) {
+    console.warn(`[imagePipeline] asset ${assetId}: source ${dl.size} bytes exceeds ${MAX_DECODE_BYTES} cap; skipping resize`)
     return null
   }
+  const sourceBytes = dl.buffer
 
   const heic = isHeicMime(declaredMime) || isHeicBuffer(sourceBytes)
   const target = chooseWebFormat(declaredMime, heic)

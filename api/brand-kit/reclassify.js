@@ -12,9 +12,16 @@ import {
   scoreRoleCandidates,
   inferImageAttributes,
 } from '../_lib/brandKitClassifier.js'
+import { downloadImageCapped } from '../_lib/imageSource.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+
+// Mirrors MAX_BRAND_ASSET_BYTES in api/brand-kit/upload.js — assets were
+// uploaded under a 25 MB ceiling, so anything above it is skipped here rather
+// than spiking RAM. Re-running over a whole library batches many downloads;
+// capping each one keeps peak memory bounded.
+const MAX_DECODE_BYTES = 25 * 1024 * 1024
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -56,10 +63,18 @@ export default async function handler(req, res) {
       // Re-run sharp analysis for raster images (skip SVG and PDF — no useful pixel data)
       if (asset.mime_type?.startsWith('image/') && asset.mime_type !== 'image/svg+xml') {
         try {
-          const buf = Buffer.from(await (await fetch(asset.blob_url)).arrayBuffer())
-          attrs = await inferImageAttributes(buf, asset.mime_type)
+          // Probe size before buffering — skip an oversized original instead
+          // of spiking RAM via arrayBuffer() (matters most here: this loops
+          // over the whole library, so per-asset caps bound peak memory).
+          const dl = await downloadImageCapped(asset.blob_url, MAX_DECODE_BYTES)
+          if (dl.tooLarge) {
+            console.warn(`reclassify: ${filename} is ${dl.size} bytes (> ${MAX_DECODE_BYTES} cap); skipping pixel analysis`)
+          } else {
+            attrs = await inferImageAttributes(dl.buffer, asset.mime_type)
+          }
         } catch (e) {
-          console.error(`reclassify: ${filename} attr inference failed:`, e?.message)
+          // Log e.stack — sharp native crashes often have an empty .message.
+          console.error(`reclassify: ${filename} attr inference failed:`, e?.stack || e?.message)
         }
       }
 

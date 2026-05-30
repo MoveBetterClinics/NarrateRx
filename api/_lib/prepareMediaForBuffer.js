@@ -9,6 +9,7 @@ import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import ffmpegStaticPath from 'ffmpeg-static'
 import sharp from 'sharp'
+import { downloadImageToTemp } from './imageSource.js'
 
 // Per-platform caps used by Buffer's media validator:
 //   Instagram: 5000px image, 1920px video, 60s reel
@@ -23,26 +24,31 @@ const FFMPEG_BIN      = process.env.FFMPEG_PATH || ffmpegStaticPath || 'ffmpeg'
 // ─── Images ──────────────────────────────────────────────────────────────────
 
 async function resizeImageIfNeeded(url) {
-  const r = await fetch(url)
-  if (!r.ok) throw new Error(`download failed: ${r.status}`)
-  const buf = Buffer.from(await r.arrayBuffer())
+  // Stream the original to a temp file rather than buffering it in the JS heap
+  // via arrayBuffer() — a 40 MB+ HEIC/raw original would spike RAM before the
+  // width check fires. sharp reads the file path lazily; decode memory then
+  // scales with pixel dimensions, not file bytes. (CLAUDE.md large-file rule.)
+  const { path, cleanup } = await downloadImageToTemp(url, 'buf-img-')
+  try {
+    const img  = sharp(path, { failOn: 'none' }).rotate() // auto-orient from EXIF
+    const meta = await img.metadata().catch(() => ({}))
+    if (!meta.width || meta.width <= IMG_MAX_WIDTH) return url
 
-  const img  = sharp(buf, { failOn: 'none' }).rotate() // auto-orient from EXIF
-  const meta = await img.metadata().catch(() => ({}))
-  if (!meta.width || meta.width <= IMG_MAX_WIDTH) return url
+    const resized = await img
+      .resize({ width: IMG_MAX_WIDTH, withoutEnlargement: true })
+      .jpeg({ quality: 88 })
+      .toBuffer()
 
-  const resized = await img
-    .resize({ width: IMG_MAX_WIDTH, withoutEnlargement: true })
-    .jpeg({ quality: 88 })
-    .toBuffer()
-
-  const hash = createHash('sha256').update(url).digest('hex').slice(0, 16)
-  const { url: blobUrl } = await blobPut(
-    `${RESIZED_PREFIX}/${hash}-img${IMG_MAX_WIDTH}.jpg`,
-    resized,
-    { access: 'public', contentType: 'image/jpeg', addRandomSuffix: false, allowOverwrite: true },
-  )
-  return blobUrl
+    const hash = createHash('sha256').update(url).digest('hex').slice(0, 16)
+    const { url: blobUrl } = await blobPut(
+      `${RESIZED_PREFIX}/${hash}-img${IMG_MAX_WIDTH}.jpg`,
+      resized,
+      { access: 'public', contentType: 'image/jpeg', addRandomSuffix: false, allowOverwrite: true },
+    )
+    return blobUrl
+  } finally {
+    await cleanup()
+  }
 }
 
 // ─── Video ───────────────────────────────────────────────────────────────────
@@ -128,7 +134,9 @@ export async function prepareMediaForBuffer(mediaUrls) {
         return { ...m, url: newUrl }
       } catch (e) {
         const kind = isVideo ? 'video transcode' : 'image resize'
-        console.error(`[publish/buffer] ${kind} failed`, m.url, e?.message)
+        // Log e.stack, not e.message — sharp/ffmpeg native crashes often have
+        // an empty .message and only a useful .stack (CLAUDE.md).
+        console.error(`[publish/buffer] ${kind} failed`, m.url, e?.stack || e?.message)
         return m
       }
     }),
