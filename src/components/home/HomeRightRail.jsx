@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CalendarClock, Sparkles, Bot, RefreshCw, MapPin, TrendingUp } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTopicSuggestions, useLocations, useTopPerformers, queryKeys } from '@/lib/queries'
+import { apiFetch } from '@/lib/api'
 import { toast } from '@/lib/toast'
 
 const PLATFORM_LABELS = {
@@ -40,6 +42,7 @@ function SuggestionSkeleton() {
 export default function HomeRightRail({ stories = [], isAdmin = false }) {
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
   const { data, isLoading, isFetching } = useTopicSuggestions()
   const { data: topPerformers = [] } = useTopPerformers()
 
@@ -69,16 +72,27 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
   }
 
   async function handleRefresh() {
-    // Invalidate client cache and hit the server with ?refresh=true to bust
-    // the 7-day server-side cache. The query refetch will call the normal
-    // endpoint; we separately ping the refresh URL so the next cache write
-    // gets fresh data without blocking the UI.
+    // Hit ?refresh=true to bust the 7-day server-side cache and regenerate.
+    // Use apiFetch so the Clerk Bearer token is attached — requireRole() in
+    // api/topic-suggestions.js reads only the Authorization header (no cookie
+    // fallback), so a raw credentials:'include' fetch 401s and the cache is
+    // never busted. apiFetch also throws on non-2xx, so HTTP failures surface
+    // as a toast instead of being silently swallowed.
+    //
+    // The refresh response IS the freshly-generated payload — seed the query
+    // cache with it directly rather than firing a follow-up refetch. A refetch
+    // of the plain endpoint can land on a sibling instance whose 60s
+    // workspaceContext cache still holds the old ai_topics_cache, re-serving
+    // the stale topics the user just tried to replace.
+    setRefreshing(true)
     try {
-      await fetch('/api/topic-suggestions?refresh=true', { credentials: 'include' })
+      const fresh = await apiFetch('/api/topic-suggestions?refresh=true')
+      qc.setQueryData(queryKeys.topicSuggestions, fresh)
     } catch (err) {
       toast.error('Failed to refresh suggestions', { description: err.message })
+    } finally {
+      setRefreshing(false)
     }
-    qc.invalidateQueries({ queryKey: queryKeys.topicSuggestions })
   }
 
   return (
@@ -166,11 +180,11 @@ export default function HomeRightRail({ stories = [], isAdmin = false }) {
           <button
             type="button"
             onClick={handleRefresh}
-            disabled={isLoading || isFetching}
+            disabled={isLoading || isFetching || refreshing}
             title="Refresh suggestions"
             className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors disabled:opacity-40"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching || refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
