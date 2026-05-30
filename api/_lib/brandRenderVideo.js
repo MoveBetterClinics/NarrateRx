@@ -44,6 +44,14 @@ const MAX_INGEST_BYTES = 4 * 1024 * 1024 * 1024 // 4GB
 // SEVERAL distinct clips is the follow-up feature; this cap makes single-clip
 // rendering bounded and reliable today.
 const MAX_RENDER_SECONDS = 60
+// Long-form / "keep whole" lane: a teaching explanation runs as long as the
+// idea needs — we do NOT trim it to a social norm. Its render is lighter
+// (landscape, fit-not-crop), but render cost is decode-bound, so a multi-minute
+// source still can't finish inside the 300s function budget on a single pass.
+// This interim cap is what renders reliably TODAY; the deferred chunked/stitched
+// render is what removes the ceiling for genuinely long pieces. Measured basis:
+// a 60s 4K downscale ≈ 135s wall, so ~2 min is the safe single-pass edge.
+const LONGFORM_MAX_SECONDS = 120
 
 /**
  * Channel specs for video rendering.
@@ -57,6 +65,13 @@ export const VIDEO_CHANNEL_SPECS = {
   youtube_short:   { width: 1080, height: 1920, aspect: '9:16', captionPos: 'top' },
   blog_hero_video: { width: 1920, height: 1080, aspect: '16:9', captionPos: 'bottom' },
   facebook_video:  { width: 1080, height: 1350, aspect: '4:5',  captionPos: 'top' },
+  // Long-form / "keep whole" channels — landscape masters for teaching content
+  // that should NOT be cropped into a reel. fit:'contain' letterboxes to keep
+  // the WHOLE frame (a teaching video must never crop the speaker out of frame);
+  // longform:true selects the higher duration budget (LONGFORM_MAX_SECONDS).
+  youtube:         { width: 1920, height: 1080, aspect: '16:9', captionPos: 'bottom', fit: 'contain', longform: true },
+  linkedin_native: { width: 1920, height: 1080, aspect: '16:9', captionPos: 'bottom', fit: 'contain', longform: true },
+  website_embed:   { width: 1920, height: 1080, aspect: '16:9', captionPos: 'bottom', fit: 'contain', longform: true },
 }
 
 /**
@@ -109,7 +124,11 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
   // proposed segment, startSec/durationSec carve one ≤60s moment out of a long
   // source via ffmpeg input seeking.
   const clipStart = Math.max(0, Number(startSec) || 0)
-  const clipDur = Math.min(Math.max(1, Number(durationSec) || MAX_RENDER_SECONDS), MAX_RENDER_SECONDS)
+  // Per-lane duration budget: clips stay tight (60s, intentional); long-form
+  // "keep whole" channels get the higher budget (~2 min single-pass today,
+  // unbounded once chunked render lands). Length follows the content, not a norm.
+  const maxDur = spec.longform ? LONGFORM_MAX_SECONDS : MAX_RENDER_SECONDS
+  const clipDur = Math.min(Math.max(1, Number(durationSec) || maxDur), maxDur)
 
   // Initialise fontconfig before any Sharp SVG work. No-op after first call.
   await ensureFontconfig()
@@ -243,8 +262,15 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
     // The PNG was rendered at exactly spec.width × spec.height so overlay=0:0 fits perfectly.
     const W = spec.width
     const H = spec.height
+    // fit:'contain' (long-form/landscape) letterboxes — scales to fit and pads,
+    // preserving the WHOLE frame so a teaching video never crops the speaker
+    // out. Default (clips) uses cover — scale-to-fill + crop — to fill the
+    // vertical/square format edge-to-edge.
+    const scaleFilter = spec.fit === 'contain'
+      ? `[0:v]scale=${W}:${H}:force_original_aspect_ratio=decrease:flags=lanczos,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1[scaled]`
+      : `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}[scaled]`
     let filterComplex = [
-      `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase:flags=lanczos,crop=${W}:${H}[scaled]`,
+      scaleFilter,
       `[scaled][1:v]overlay=0:0[branded]`,
     ]
 
