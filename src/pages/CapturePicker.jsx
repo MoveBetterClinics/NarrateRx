@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, Mic, MessageSquareText, Phone, Presentation, Link as LinkIcon, FileText } from 'lucide-react'
+import { ArrowLeft, Mic, MessageSquareText, Phone, Presentation, Link as LinkIcon, FileText, Camera } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -97,6 +97,32 @@ export default function CapturePicker() {
                 <p className="text-sm text-muted-foreground mt-1">
                   Quick capture. Hit record, say what happened, save. For real
                   moments between patients or end-of-day reflections.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </button>
+
+        {/* Photos & Video — universal browser capture page (PWA). Routes to
+            /capture, which resolves the signed-in staff id internally via
+            useSelfStaffId (no params needed). This is the discoverable in-app
+            entry point for the capture page, which otherwise was only reachable
+            by direct URL or the StaffProfile help link. */}
+        <button
+          type="button"
+          onClick={() => go('/capture')}
+          className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-lg"
+        >
+          <Card className="h-full transition hover:border-primary hover:shadow-sm">
+            <CardContent className="p-5 space-y-3">
+              <div className="h-10 w-10 rounded-md bg-primary/10 text-primary flex items-center justify-center">
+                <Camera className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="font-medium">Photos &amp; Video</div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Snap or upload photos and clips from any device — phone,
+                  tablet, or computer. For in-clinic moments and b-roll.
                 </p>
               </div>
             </CardContent>
