@@ -22,6 +22,7 @@ import { canDirectPublishPlatform, exportShapeForPlatform, EXPORT_SHAPES } from 
 import {
   useComments,
   useAddComment,
+  useStaff,
   useUpdateContentItem,
   useUpdateContentItemStatus,
   useRegenerateContentItem,
@@ -98,7 +99,18 @@ function StatusBadge({ status }) {
 function CommentThread({ pieceId }) {
   const { data: comments = [], isLoading } = useComments(pieceId)
   const addComment = useAddComment(pieceId)
+  const { data: staff = [] } = useStaff()
   const [draft, setDraft] = useState('')
+
+  // Resolve a comment's author to a human display name. Prefer a matching
+  // clinician row (by Clerk user id) so threads read "Q" rather than
+  // "drq@narraterx.ai"; fall back to the email local-part.
+  const authorLabel = (c) => {
+    const match = c.user_id && staff.find((s) => s?.user_id === c.user_id)
+    if (match?.name) return match.name
+    const email = c.user_email || ''
+    return email.includes('@') ? email.split('@')[0] : (email || 'Someone')
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -131,7 +143,7 @@ function CommentThread({ pieceId }) {
           }`}
         >
           <div className="flex items-center gap-1.5 mb-1">
-            <span className="font-medium text-foreground">{c.user_email}</span>
+            <span className="font-medium text-foreground">{authorLabel(c)}</span>
             <span className="text-muted-foreground">
               {timeAgo(c.created_at)}
             </span>
