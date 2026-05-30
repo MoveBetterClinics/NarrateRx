@@ -133,7 +133,7 @@ def a_set_var(name):
 
 def a_get_dict_value(key, dict_var):
     return {
-        'WFWorkflowActionIdentifier': 'is.workflow.actions.getdictionaryvalue',
+        'WFWorkflowActionIdentifier': 'is.workflow.actions.getvalueforkey',
         'WFWorkflowActionParameters': {
             'WFDictionaryKey': text_token(key),
             'WFGetDictionaryValueType': 'Value',
