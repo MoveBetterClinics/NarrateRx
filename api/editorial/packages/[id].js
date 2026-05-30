@@ -27,6 +27,7 @@ import { requireRole } from '../../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../../_lib/roles.js'
 import { workspaceContext } from '../../_lib/workspaceContext.js'
 import { scoreCaptionFidelity } from '../../_lib/captionFidelity.js'
+import { cancelableStatusFilter } from '../../_lib/packageStatus.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -45,10 +46,6 @@ function sb(path, init = {}) {
 }
 
 const ALLOWED_STATUS_TRANSITIONS = new Set(['skipped', 'complete', 'canceled'])
-
-// A package can only be canceled while it's still generating. PostgREST `in.`
-// list — kept in sync with the guard in renderPackageChannels.js / syntheticBroll.js.
-const CANCELABLE_STATUSES = 'generating,pending,pending_broll'
 
 export default async function handler(req, res) {
   if (req.method !== 'PATCH') {
@@ -101,7 +98,7 @@ export default async function handler(req, res) {
   // zero rows → 409 already_settled, so we never "uncomplete" a finished package.
   const isCancel = status === 'canceled'
   const filter = isCancel
-    ? `story_packages?id=eq.${id}&workspace_id=eq.${ws.id}&status=in.(${CANCELABLE_STATUSES})`
+    ? `story_packages?id=eq.${id}&workspace_id=eq.${ws.id}&${cancelableStatusFilter()}`
     : `story_packages?id=eq.${id}&workspace_id=eq.${ws.id}`
 
   const patchRes = await sb(filter, {
