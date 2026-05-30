@@ -16,6 +16,7 @@ import PageHelp from '@/components/PageHelp'
 
 const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
+const POLL_CAP_MS = 5 * 60 * 1000  // hard cap so a dead render job (status stuck 'generating') can't poll forever
 const TRIAGE_CONFIDENCE_THRESHOLD = 0.65  // packages below this need clinician attention
 const STALE_HOURS = 36  // unaddressed complete packages older than this land in triage
 // Phase 4 PR 3 — Brand QC threshold. Packages scoring below this on voice fidelity
@@ -120,6 +121,14 @@ export default function Slate() {
     }
   }, [needsOnboarding])
 
+  // Track when pending-poll began so we can cap it. Without this, a render job
+  // that dies after writing status='generating' but before the terminal PATCH
+  // (OOM, or the 300s function wall where `finally` never runs) leaves the
+  // package stuck pending forever — and every open Slate session hammers the
+  // endpoint at 3 req/s indefinitely until page reload. Resets to { at: 0 }
+  // whenever nothing is pending, so a fresh generation restarts the clock.
+  const pollStartRef = useRef({ at: 0 })
+
   const {
     data,
     isLoading,
@@ -135,10 +144,25 @@ export default function Slate() {
       const anyPending = pkgs.some((p) =>
         p.status === 'generating' || p.status === 'pending' || p.status === 'pending_broll'
       )
-      return anyPending ? REFETCH_INTERVAL_MS : false
+      if (!anyPending) return false
+      if (!pollStartRef.current.at) pollStartRef.current.at = Date.now()
+      if (Date.now() - pollStartRef.current.at > POLL_CAP_MS) return false
+      return REFETCH_INTERVAL_MS
     },
     refetchOnWindowFocus: false,
   })
+
+  // Reset the poll cap once nothing is pending, so the next generation gets a
+  // fresh 5-min window instead of inheriting an expired clock.
+  const anyPending = useMemo(
+    () => (data?.packages || []).some((p) =>
+      p.status === 'generating' || p.status === 'pending' || p.status === 'pending_broll'
+    ),
+    [data]
+  )
+  useEffect(() => {
+    if (!anyPending) pollStartRef.current = { at: 0 }
+  }, [anyPending])
 
   const allPackages = useMemo(() => {
     const pkgs = data?.packages || []
