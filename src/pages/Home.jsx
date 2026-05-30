@@ -188,7 +188,7 @@ export default function Home() {
   // PipelineKanban lane palette so the same semantics carry across pages.
   // primary orange flags the "do this now" surface (Awaiting review).
   const ACCENT = {
-    myStories:    '#7c3aed', // violet
+    myStories:    '#64748b', // slate — reference surface, not an action queue
     ready:        '#d97706', // amber  — drafting needed
     review:       '#e36525', // primary orange — your action queue
     distribute:   '#e36525', // primary orange — "act now" publisher surface (was emerald; green read as "done")
@@ -286,6 +286,13 @@ export default function Home() {
             />
           )}
 
+          {/* Drafts ready for review — others' work needing your action.
+              Sits above "Ready for content" so the most-urgent action
+              queue (someone waiting on review) lands before editorial
+              drafting work. Piece-level (not story-level) so the user can
+              see "this blog · this email · this social" at a glance. */}
+          {canReview ? <DraftsReadyRow stories={stories} /> : null}
+
           <TaskBucketCard
             id="ready"
             title="Ready for content"
@@ -309,15 +316,6 @@ export default function Home() {
               </Link>
             )}
           />
-
-          {/* Drafts ready for review — replaces the old vertical TaskBucket
-              with the mockup's horizontal 3-card row. Piece-level (not
-              story-level) so the user can see "this blog · this email ·
-              this social" at a glance. Auto-hides when nothing is in
-              review. The `awaitingReview` memo above stays in scope for
-              parity with the bucket index but is no longer rendered here —
-              DraftsReadyRow re-derives pieces from `stories` directly. */}
-          {canReview ? <DraftsReadyRow stories={stories} /> : null}
 
           {readyToDistribute.length > 0 && (
             <TaskBucketCard
