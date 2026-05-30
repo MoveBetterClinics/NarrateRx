@@ -434,7 +434,7 @@ def main():
 
     if args.distributable:
         data = build(distributable=True)
-        out_name = 'NarrateRx Capture (Distributable).shortcut'
+        out_name = 'NarrateRx Capture.shortcut'
     else:
         if not args.token:
             print('Error: pass --token cct_... (personal) or --distributable (team install).')
