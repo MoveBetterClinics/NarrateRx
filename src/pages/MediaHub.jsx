@@ -106,6 +106,8 @@ export default function MediaHub() {
   const [collectionId, setCollectionId] = useState(null)
   const [collectionRefreshKey, setCollectionRefreshKey] = useState(0)
   const [selected, setSelected] = useState(null)  // full asset row
+  const selectedRef = useRef(null)
+  useEffect(() => { selectedRef.current = selected }, [selected])
   const [briefRefreshKey, setBriefRefreshKey] = useState(0)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
@@ -821,17 +823,19 @@ export default function MediaHub() {
           asset={selected}
           onClose={() => setSelected(null)}
           onChange={async () => {
+            const openId = selectedRef.current?.id
             refresh()
             setBriefRefreshKey((k) => k + 1)
             setCollectionRefreshKey((k) => k + 1)
             // Re-pull the open row so an in-place edit (rotate, retag,
             // make-thumbnail) shows the new blob_url / thumbnail_url in
-            // the still-open drawer. Without this the drawer kept rendering
-            // the stale prop and edits looked silent.
-            if (selected?.id) {
+            // the still-open drawer. Guard: only apply if the drawer is
+            // still open for the same asset (onClose sets selectedRef to
+            // null before this async fetch resolves for archive/purge).
+            if (openId) {
               try {
-                const fresh = await getMediaAsset(selected.id)
-                if (fresh) setSelected(fresh)
+                const fresh = await getMediaAsset(openId)
+                if (fresh && selectedRef.current?.id === openId) setSelected(fresh)
               } catch { /* empty */ }
             }
           }}

@@ -358,8 +358,8 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setArchiving(true); setError('')
     try {
       await archiveMediaAsset(asset.id)
-      onChange?.()
       onClose?.()
+      onChange?.()
     } catch (e) {
       setError(e.message)
       setArchiving(false)
@@ -370,8 +370,8 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setRestoring(true); setError('')
     try {
       await restoreMediaAsset(asset.id, asset.ai_tags?.length ? 'tagged' : 'raw')
-      onChange?.()
       onClose?.()
+      onChange?.()
     } catch (e) {
       setError(e.message)
       setRestoring(false)
@@ -386,8 +386,8 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setPurging(true); setError('')
     try {
       await purgeMediaAsset(asset.id, purgeConfirm)
-      onChange?.()
       onClose?.()
+      onChange?.()
     } catch (e) {
       setError(e.message)
       setPurging(false)
