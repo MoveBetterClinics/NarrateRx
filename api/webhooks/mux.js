@@ -160,6 +160,22 @@ export default async function handler(req, res) {
     if (playbackId) patch.mux_playback_id = playbackId
     if (typeof durationS === 'number') patch.duration_s = durationS
 
+    // Capture display dimensions + aspect ratio from Mux. The local ffmpeg
+    // probe fails on non-faststart .mov (moov at tail), leaving width/height
+    // null — which means the player has no aspect info and crops portrait
+    // videos to fill a landscape box. Mux always knows the true DISPLAY
+    // dimensions (rotation already applied), so this is the reliable source.
+    const videoTrack = Array.isArray(event?.data?.tracks)
+      ? event.data.tracks.find((t) => t?.type === 'video')
+      : null
+    if (videoTrack?.max_width && videoTrack?.max_height) {
+      patch.width  = videoTrack.max_width
+      patch.height = videoTrack.max_height
+    }
+    if (typeof event?.data?.aspect_ratio === 'string') {
+      patch.aspect_ratio = event.data.aspect_ratio
+    }
+
     // Backfill a poster frame from Mux when the local ffmpeg pass didn't
     // produce one (truncated download, codec gap on iPhone .mov, etc.). Look
     // up the row's current thumbnail_url first so we never clobber a good

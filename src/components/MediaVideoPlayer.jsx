@@ -76,10 +76,33 @@ function MuxPlayer({ asset, playbackToken }) {
     else ref.current.removeAttribute('playback-token')
   }, [asset.mux_playback_id, asset.filename, playbackToken])
 
+  // Derive the display aspect ratio so the player box matches the video's
+  // shape — otherwise a portrait clip gets cropped to fill a landscape box
+  // (the "very zoomed in" bug). Prefer numeric dimensions (set from the Mux
+  // webhook, which knows the rotation-applied display size); fall back to the
+  // "W:H" aspect_ratio string.
+  const ar = asset.width && asset.height
+    ? `${asset.width} / ${asset.height}`
+    : (typeof asset.aspect_ratio === 'string' && asset.aspect_ratio.includes(':')
+        ? asset.aspect_ratio.replace(':', ' / ')
+        : null)
+
   return (
     <mux-player
       ref={ref}
-      style={{ maxHeight: '60vh', maxWidth: '100%', width: '100%', '--media-object-fit': 'contain' }}
+      style={{
+        // With aspect-ratio set and BOTH width/height auto, the element
+        // preserves the video's shape and shrinks to fit within the max
+        // bounds — correct for portrait and landscape alike. A hardcoded
+        // width:100% breaks this for portrait video (forces a wide box that
+        // then crops). Only fall back to width:100% when we don't yet know
+        // the aspect ratio (legacy rows missing dimensions).
+        ...(ar ? { aspectRatio: ar } : { width: '100%' }),
+        maxHeight: '70vh',
+        maxWidth: '100%',
+        margin: '0 auto',
+        '--media-object-fit': 'contain',
+      }}
     />
   )
 }
