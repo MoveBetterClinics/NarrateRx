@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useNavigate, useSearchParams, Link } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom'
 import { useUser } from '@clerk/react'
 import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Check, RefreshCw, Send, Keyboard } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -138,7 +138,12 @@ export default function InterviewSession() {
   useDocumentTitle('Interview')
   const { staffId, interviewId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
+  // When the user reaches this page from NewInterview, the audio (mic +
+  // speaker) check already ran BEFORE the interview row was created, so we
+  // skip the in-session mic-check gate. Resumes and direct links still see it.
+  const cameFromMicCheck = !!location.state?.micChecked
   // wrap=1 is set by PhoneCall (Live Interview) when the user clicks End.
   // Treated as a strong signal that the call is complete even if the
   // realtime client's final PATCH to inject COMPLETE_TOKEN failed — without
@@ -210,8 +215,11 @@ export default function InterviewSession() {
   const [audioInterrupted, setAudioInterrupted] = useState(false)
   const [showInstructions, setShowInstructions] = useState(true)
   // micCheckPassed gates the mic check screen shown after the pre-interview
-  // instructions but before the AI sends its first question.
-  const [micCheckPassed, setMicCheckPassed] = useState(false)
+  // instructions but before the AI sends its first question. Pre-passed when
+  // the audio check already ran in NewInterview (see cameFromMicCheck) so we
+  // don't double-prompt and so the interview row only exists once the user
+  // has cleared the audio gate.
+  const [micCheckPassed, setMicCheckPassed] = useState(cameFromMicCheck)
   const [saveStatus, setSaveStatus] = useState('') // '' | 'saving' | 'saved' | 'error'
   // Resume banner: true for 1.5s when returning to a session with saved state
   const [showResumeBanner, setShowResumeBanner] = useState(false)
@@ -1312,7 +1320,17 @@ export default function InterviewSession() {
             />
           </div>
 
-          <Button className="w-full" size="lg" onClick={() => setShowInstructions(false)}>
+          <Button
+            className="w-full"
+            size="lg"
+            onClick={() => {
+              // When the mic check ran in NewInterview, this "I'm ready" tap is
+              // the last user gesture before the first TTS plays — prime audio
+              // here so iOS audio-unlock (which decays out of gesture) is fresh.
+              if (cameFromMicCheck) primeAudioPlayback()
+              setShowInstructions(false)
+            }}
+          >
             <Mic className="h-4 w-4 mr-2" />
             I&apos;m ready &mdash; start the interview
           </Button>
