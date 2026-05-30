@@ -72,12 +72,13 @@ function videoRenderSignature(channel) {
  * @param {string}   [p.staffId] — for caption-fidelity scoring
  * @param {number}   [p.startSec]    — clip start offset (multi-clip v1; video only). Default 0.
  * @param {number}   [p.durationSec] — clip length, clamped to MAX_RENDER_SECONDS. Default full cap.
+ * @param {boolean}  [p.subtitles]   — burn Whisper captions (video only). Default true; long-form passes false.
  * @returns {Promise<{finalStatus: string, renders: object[], errors: object[]}>}
  */
 export async function renderAndPatchPackage({
   workspace, packageId, sourceUrl, sourceAssetId, kind,
   channels, captionText, staffName, filename, topic, staffId,
-  startSec, durationSec,
+  startSec, durationSec, subtitles = true,
 }) {
   const ws = workspace
   const isVideo = kind === 'video'
@@ -115,7 +116,7 @@ export async function renderAndPatchPackage({
         try {
           const { buffer, width, height, hadSubtitles } = await renderVideoChannel({
             videoUrl: sourceUrl, channel: repChannel, captionText, workspace: ws, staffName,
-            startSec, durationSec,
+            startSec, durationSec, subtitles,
           })
           // Key by packageId, not just sourceAssetId — multi-clip v1 renders
           // several packages (segments) from ONE source asset; keying by source

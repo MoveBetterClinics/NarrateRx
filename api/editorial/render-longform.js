@@ -30,6 +30,9 @@ import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { renderAndPatchPackage } from '../_lib/renderPackageChannels.js'
 import { generateCaption } from '../_lib/captionGen.js'
+import { probeDurationSec } from '../_lib/ffprobeDuration.js'
+import { planChunks, SINGLE_PASS_MAX_SECONDS } from '../_lib/renderChunkPlan.js'
+import { runChunkPass } from '../_lib/longformEngine.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -153,10 +156,55 @@ export default async function handler(req, res) {
   const packageId = (await insRes.json())?.[0]?.id
   if (!packageId) return res.status(500).json({ error: 'insert_no_id' })
 
-  // Render off the request path. NO startSec/durationSec → renders from 0 up to
-  // the long-form cap (LONGFORM_MAX_SECONDS = 120s for these channels). Anything
-  // over ~2 min is trimmed until the chunked-render follow-up. The Slate polls
-  // story_packages until status flips complete/failed.
+  // Origin for the chunk engine's self-continuation POSTs (Node runtime headers).
+  const proto = req.headers['x-forwarded-proto'] || 'https'
+  const baseUrl = req.headers.host ? `${proto}://${req.headers.host}` : null
+
+  // Decide single-pass vs chunked from the source duration. Probing reads only
+  // the container header (no download), so it's cheap even for a multi-GB talk.
+  const durationSec = await probeDurationSec(asset.blob_url)
+
+  // Long sources (> the single-pass cap) render piece-by-piece across many
+  // function invocations and are concatenated into one master — this is what
+  // removes the old ~2–4 min ceiling for 30–60 min talks. We plan the pieces +
+  // create their rows here, then kick the first engine pass off the request
+  // path; the chain self-continues and a cron net resumes any dropped hand-off.
+  const wantsChunked = durationSec && durationSec > SINGLE_PASS_MAX_SECONDS
+  let chunkRowsCreated = 0
+  if (wantsChunked) {
+    const plan = planChunks(durationSec)
+    const rows = plan.map((c) => ({
+      workspace_id: ws.id,
+      package_id: packageId,
+      idx: c.idx,
+      start_sec: c.startSec,
+      dur_sec: c.durSec,
+      status: 'pending',
+    }))
+    const chunkRes = await sb('story_package_chunks', { method: 'POST', body: JSON.stringify(rows) })
+    if (chunkRes.ok) {
+      chunkRowsCreated = rows.length
+    } else {
+      // Graceful degradation: if piece-row creation fails (e.g. migration not
+      // applied), fall back to the capped single-pass render rather than 500.
+      // The producer still gets the first ~4 min instead of a hard failure.
+      const errText = await chunkRes.text().catch(() => '')
+      console.error('[render-longform] chunk insert failed, falling back to single-pass:', chunkRes.status, errText)
+    }
+  }
+
+  if (chunkRowsCreated > 0) {
+    // Chunked path — the engine renders pieces, then stitches + completes.
+    waitUntil(runChunkPass({ packageId, baseUrl }))
+    return res.status(202).json({
+      packageId, status: 'generating', channels: LONGFORM_CHANNELS,
+      mode: 'chunked', chunks: chunkRowsCreated, durationSec,
+    })
+  }
+
+  // Single-pass path — short source (≤ cap) or chunk setup unavailable. Renders
+  // from 0 up to LONGFORM_MAX_SECONDS. Captions off (long-form default). The
+  // Slate polls story_packages until status flips complete/failed.
   waitUntil(
     renderAndPatchPackage({
       workspace: ws,
@@ -170,8 +218,12 @@ export default async function handler(req, res) {
       filename: asset.filename,
       topic,
       staffId,
+      subtitles: false,
     }),
   )
 
-  return res.status(202).json({ packageId, status: 'generating', channels: LONGFORM_CHANNELS })
+  return res.status(202).json({
+    packageId, status: 'generating', channels: LONGFORM_CHANNELS,
+    mode: 'single', durationSec: durationSec ?? null,
+  })
 }

@@ -119,9 +119,13 @@ function runFfmpeg(args) {
  * @param {string} params.staffName — display name for lower-third
  * @param {number} [params.startSec]    — clip start offset in the source (multi-clip v1). Default 0.
  * @param {number} [params.durationSec] — clip length in seconds; clamped to MAX_RENDER_SECONDS. Default MAX_RENDER_SECONDS.
+ * @param {boolean} [params.subtitles]  — burn Whisper spoken-word captions. Default true (clip lanes).
+ *                                         The keep-whole long-form lane passes false: a 30–60 min talk
+ *                                         would add a Whisper pass per ~2 min piece, and captions are
+ *                                         opt-in there (PR4 toggle). Brand overlay still burns regardless.
  * @returns {Promise<{buffer: Buffer, width: number, height: number, channel: string, hadSubtitles: boolean}>}
  */
-export async function renderVideoChannel({ videoUrl, channel, captionText, workspace, staffName, startSec, durationSec }) {
+export async function renderVideoChannel({ videoUrl, channel, captionText, workspace, staffName, startSec, durationSec, subtitles = true }) {
   const spec = VIDEO_CHANNEL_SPECS[channel]
   if (!spec) throw new Error(`Unknown video channel: ${channel}`)
 
@@ -206,34 +210,38 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
       throw new Error(`Source video too large to render: ${Math.round(actualSize / 1e6)}MB after downscale`)
     }
 
-    // ── 2. Whisper transcription (best-effort) ───────────────────────────────
+    // ── 2. Whisper transcription (best-effort, opt-out) ──────────────────────
     // ALWAYS extract audio to MP3 first — sidesteps the Whisper "Invalid file format"
     // error we saw in prod 2026-05-27 when sending MP4 directly. MP3 is well-tested,
     // smaller to upload, and works for any input size.
+    // When subtitles=false (keep-whole long-form default) the whole pass is
+    // skipped — no audio extract, no Whisper — and only the brand overlay burns.
     let hadSubtitles = false
-    try {
-      const audioArgs = []
-      if (downstreamStart > 0) audioArgs.push('-ss', String(downstreamStart))
-      audioArgs.push(
-        '-i', tmpInput,
-        '-vn',                          // no video
-        '-acodec', 'libmp3lame',
-        '-ar', '16000',                 // 16kHz — Whisper-optimal sample rate
-        '-ac', '1',                     // mono
-        '-b:a', '32k',
-        '-t', String(clipDur),          // only transcribe the rendered clip window
-        '-y', tmpAudio,
-      )
-      await runFfmpeg(audioArgs)
+    if (subtitles) {
+      try {
+        const audioArgs = []
+        if (downstreamStart > 0) audioArgs.push('-ss', String(downstreamStart))
+        audioArgs.push(
+          '-i', tmpInput,
+          '-vn',                          // no video
+          '-acodec', 'libmp3lame',
+          '-ar', '16000',                 // 16kHz — Whisper-optimal sample rate
+          '-ac', '1',                     // mono
+          '-b:a', '32k',
+          '-t', String(clipDur),          // only transcribe the rendered clip window
+          '-y', tmpAudio,
+        )
+        await runFfmpeg(audioArgs)
 
-      const srt = await transcribeToSrt(tmpAudio)
-      if (srt && srt.trim()) {
-        await writeFileP(tmpSrt, srt, 'utf8')
-        hadSubtitles = true
+        const srt = await transcribeToSrt(tmpAudio)
+        if (srt && srt.trim()) {
+          await writeFileP(tmpSrt, srt, 'utf8')
+          hadSubtitles = true
+        }
+      } catch (e) {
+        // Non-fatal: continue with brand overlay only, no spoken-word captions.
+        console.error(`[brandRenderVideo] whisper skip (${channel}):`, e.message)
       }
-    } catch (e) {
-      // Non-fatal: continue with brand overlay only, no spoken-word captions.
-      console.error(`[brandRenderVideo] whisper skip (${channel}):`, e.message)
     }
 
     // ── 3. Build brand overlay PNG via Sharp + SVG ───────────────────────────
