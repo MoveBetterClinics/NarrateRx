@@ -83,7 +83,9 @@ export default async function handler(req, res) {
     return res.status(403).json({ error: 'pathname_workspace_mismatch' })
   }
 
-  const storeId = (process.env.BLOB_READ_WRITE_TOKEN || '').split('_')[3] || ''
+  // Vercel Blob CDN hostnames are always lowercase; the token's storeId
+  // segment may preserve original case — lowercase it to avoid Mux fetch failures.
+  const storeId = ((process.env.BLOB_READ_WRITE_TOKEN || '').split('_')[3] || '').toLowerCase()
   const publicUrl = storeId
     ? `https://${storeId}.public.blob.vercel-storage.com/${blobPathname}`
     : null

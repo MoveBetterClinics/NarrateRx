@@ -136,18 +136,8 @@ export default async function handler(req, res) {
     const reason = Array.isArray(errors) && errors[0]
       ? (errors[0].messages?.join('; ') || errors[0].type || 'unknown')
       : 'unknown'
-    const stamp = new Date().toISOString()
-    // Append the failure into notes so it surfaces in the detail view
-    // without needing a separate column.
-    const noteLine = `[mux ${stamp}] transcode errored: ${reason}`
-    // PostgREST doesn't support concatenation in PATCH, so we fetch the
-    // current notes value first and merge.
-    const lookup = await sb(`media_assets?${filterByAsset}&select=notes`).catch(() => null)
-    const existingNotes = lookup?.ok
-      ? ((await lookup.json().catch(() => []))?.[0]?.notes || null)
-      : null
-    const merged = existingNotes ? `${existingNotes}\n${noteLine}` : noteLine
-    await patchByAssetOrPassthrough({ transcode_status: 'errored', notes: merged })
+    console.error(`[mux/webhook] transcode errored for asset ${assetId}: ${reason}`)
+    await patchByAssetOrPassthrough({ transcode_status: 'errored' })
     return res.status(200).json({ received: true })
   }
 

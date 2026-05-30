@@ -270,11 +270,7 @@ export async function tagAndPersist(asset, scope) {
 
     return after
   } catch (e) {
-    const message = e?.message || 'Tagging failed'
-    const stamp = new Date().toISOString()
-    const noteLine = `[ai-tag ${stamp}] ${message}`
-    const merged = asset.notes ? `${asset.notes}\n${noteLine}` : noteLine
-    await sb(`media_assets?${where}`, { method: 'PATCH', body: JSON.stringify({ notes: merged }) }).catch(() => {})
+    console.error(`[tagAsset] tagging failed for ${asset.id}: ${e?.stack || e?.message}`)
     throw e
   }
 }
