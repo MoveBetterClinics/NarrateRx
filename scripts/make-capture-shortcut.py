@@ -147,6 +147,27 @@ def a_select_photos(out_uuid, videos=True):
     }
 
 
+def a_encode_media(out_uuid, input_var):
+    # Forces iOS to export the picked Photos asset to a concrete file. Library
+    # picks return a PHAsset *reference*; passing that straight to the HTTP File
+    # body fails with PHPhotosErrorDomain error 3169 when the iCloud original
+    # isn't downloaded locally ("Optimize iPhone Storage"). Encode Media fetches
+    # + materializes the original, clearing 3169. Size 'Passthrough' keeps the
+    # native resolution; Mux re-transcodes on its end regardless, so this single
+    # pass is not a meaningful quality hit for social clips. Camera-capture
+    # branches already produce a real file and skip this.
+    return {
+        'WFWorkflowActionIdentifier': 'is.workflow.actions.encodemedia',
+        'WFWorkflowActionParameters': {
+            'UUID': out_uuid,
+            'CustomOutputName': 'Encoded Media',
+            'WFInput': named_var(input_var),
+            'WFMediaAudioOnly': False,
+            'WFMediaSize': 'Passthrough',
+        },
+    }
+
+
 def a_text(out_uuid, s):
     return {
         'WFWorkflowActionIdentifier': 'is.workflow.actions.gettext',
@@ -259,13 +280,23 @@ def a_menu_end(group_id):
 
 # ── assemble ─────────────────────────────────────────────────────────────────
 
-def capture_case(actions, menu_id, title, capture_action_fn, content_type):
-    """One menu branch: capture media → set Media; set ContentType text."""
+def capture_case(actions, menu_id, title, capture_action_fn, content_type, encode=False):
+    """One menu branch: capture media → set Media; set ContentType text.
+
+    encode=True inserts an Encode Media step that materializes a picked Photos
+    asset into a real file before upload — required for library picks, which
+    otherwise fail with PHPhotosErrorDomain 3169 on iCloud-optimized originals.
+    """
     actions.append(a_menu_case(menu_id, title))
 
     media_uuid = uid()
     actions.append(capture_action_fn(media_uuid))
     actions.append(a_set_var_from_output('Media', media_uuid, 'Captured Media'))
+
+    if encode:
+        enc_uuid = uid()
+        actions.append(a_encode_media(enc_uuid, 'Media'))
+        actions.append(a_set_var_from_output('Media', enc_uuid, 'Encoded Media'))
 
     ct_uuid = uid()
     actions.append(a_text(ct_uuid, content_type))
@@ -312,9 +343,11 @@ def build(token=None, distributable=False):
     capture_case(actions, menu_id, 'Take photo',
                  a_take_photo, 'image/jpeg')
     capture_case(actions, menu_id, 'Pick video',
-                 lambda u: a_select_photos(u, videos=True), 'video/quicktime')
+                 lambda u: a_select_photos(u, videos=True), 'video/quicktime',
+                 encode=True)
     capture_case(actions, menu_id, 'Pick photo',
-                 lambda u: a_select_photos(u, videos=False), 'image/jpeg')
+                 lambda u: a_select_photos(u, videos=False), 'image/jpeg',
+                 encode=True)
 
     actions.append(a_menu_end(menu_id))
 
