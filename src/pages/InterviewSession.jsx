@@ -959,6 +959,18 @@ export default function InterviewSession() {
     navigate('/')
   }
 
+  // Back returns to wherever the user came from (Home → New → Interview, or
+  // the staff profile). navigate(-1) preserves that origin; for direct-link
+  // entries with no in-app history (history idx 0), fall back to Home so we
+  // never step off the app into the browser's previous site.
+  const handleBack = () => {
+    if (window.history.state?.idx > 0) {
+      navigate(-1)
+    } else {
+      navigate('/')
+    }
+  }
+
   // Verbatim flag helpers. The transcript-substring check guarantees flagged
   // text is something the clinician actually said — selecting an assistant
   // question or a sentence that spans multiple bubbles fails validation and
@@ -1336,10 +1348,8 @@ export default function InterviewSession() {
     >
       <div className="flex flex-col min-w-0 flex-1">
       <div className="flex items-center gap-3 pb-4 shrink-0">
-        <Button variant="ghost" size="icon" asChild>
-          <Link to={`/staff/${staffId}`}>
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
+        <Button variant="ghost" size="icon" onClick={handleBack} aria-label="Go back">
+          <ArrowLeft className="h-4 w-4" />
         </Button>
         <Avatar className="h-8 w-8">
           <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
@@ -1390,18 +1400,25 @@ export default function InterviewSession() {
             // Desktop header keeps the action buttons. On mobile they live
             // in the bottom dock so they're within thumb reach next to the
             // mic — see InterviewDock below.
-            <div className="hidden md:flex items-center gap-1 shrink-0">
-              <Button
-                size="sm"
-                onClick={() => setInterviewComplete(true)}
-                disabled={!canFinish}
-                title={canFinish ? undefined : finishHelper}
-                aria-label={canFinish ? 'Finish interview' : finishHelper}
-                className="gap-1.5"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Finish
-              </Button>
+            <div className="hidden md:flex items-start gap-1 shrink-0">
+              <div className="flex flex-col items-center">
+                <Button
+                  size="sm"
+                  onClick={() => setInterviewComplete(true)}
+                  disabled={!canFinish}
+                  title={canFinish ? undefined : finishHelper}
+                  aria-label={canFinish ? 'Finish interview' : finishHelper}
+                  className="gap-1.5"
+                >
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Finish
+                </Button>
+                {!canFinish && (
+                  <p className="text-xs text-muted-foreground mt-1 max-w-[10rem] text-center leading-tight">
+                    {finishHelper}
+                  </p>
+                )}
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
@@ -1762,17 +1779,23 @@ export default function InterviewSession() {
               <PauseCircle className="h-4 w-4" />
               <span className="text-xs">Pause</span>
             </Button>
-            <Button
-              size="sm"
-              onClick={() => setInterviewComplete(true)}
-              disabled={!canFinish}
-              title={canFinish ? undefined : finishHelper}
-              aria-label={canFinish ? 'Finish interview' : finishHelper}
-              className="gap-1.5 min-h-[44px]"
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Finish
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                size="sm"
+                onClick={() => setInterviewComplete(true)}
+                disabled={!canFinish}
+                aria-label={canFinish ? 'Finish interview' : finishHelper}
+                className="gap-1.5 min-h-[44px]"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Finish
+              </Button>
+              {!canFinish && (
+                <span className="text-2xs text-muted-foreground text-right leading-tight max-w-[10rem]">
+                  {finishHelper}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       )}
