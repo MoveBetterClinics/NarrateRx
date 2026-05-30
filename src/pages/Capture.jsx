@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Camera, FolderOpen, Loader2, Upload, X, Check,
-  Image as ImageIcon, AlertCircle, Smartphone,
+  Image as ImageIcon, AlertCircle, Smartphone, Zap, Copy, RotateCcw,
+  ChevronDown, ChevronUp, ExternalLink,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -11,7 +12,12 @@ import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { toast } from '@/lib/toast'
 import { uploadMedia } from '@/lib/mediaLib'
 import { useSelfStaffId } from '@/lib/useSelfStaffId'
+import { apiFetch } from '@/lib/api'
 import ShotListCard from '@/components/capture/ShotListCard'
+
+// Published iCloud Shortcut URL — set to null until the Shortcut is published.
+const SHORTCUT_INSTALL_URL = import.meta.env.VITE_SHORTCUT_INSTALL_URL || null
+
 
 // Universal capture page — PWA. Works on any device with a browser:
 //   • Mobile: "Take photo or video" opens the device's native camera
@@ -179,6 +185,58 @@ export default function Capture() {
   const allDone = pendingFiles.length > 0 && pendingFiles.every((f) => f.status === 'done')
   const hasPending = pendingFiles.some((f) => f.status === 'pending' || f.status === 'failed')
   const hasUploading = pendingFiles.some((f) => f.status === 'uploading')
+
+  // ── iOS Shortcut token panel ─────────────────────────────────────────────
+  const [shortcutOpen, setShortcutOpen] = useState(false)
+  const [tokenState, setTokenState] = useState(null)   // null | { hasToken, expiresAt, lastUsedAt }
+  const [newToken, setNewToken] = useState(null)        // shown once after generate/rotate
+  const [tokenLoading, setTokenLoading] = useState(false)
+  const [tokenCopied, setTokenCopied] = useState(false)
+
+  const loadTokenState = useCallback(async () => {
+    try {
+      const data = await apiFetch('/api/capture/token')
+      setTokenState(data)
+    } catch { /* non-critical — panel just stays blank */ }
+  }, [])
+
+  useEffect(() => {
+    if (shortcutOpen && tokenState === null) loadTokenState()
+  }, [shortcutOpen, tokenState, loadTokenState])
+
+  const generateToken = async () => {
+    setTokenLoading(true)
+    try {
+      const data = await apiFetch('/api/capture/token', { method: 'POST' })
+      setNewToken(data.token)
+      setTokenState({ hasToken: true, expiresAt: data.expiresAt, lastUsedAt: null })
+      setTokenCopied(false)
+    } catch {
+      toast.error('Could not generate token — try again')
+    } finally {
+      setTokenLoading(false)
+    }
+  }
+
+  const revokeToken = async () => {
+    setTokenLoading(true)
+    try {
+      await apiFetch('/api/capture/token', { method: 'DELETE' })
+      setTokenState({ hasToken: false, expiresAt: null, lastUsedAt: null })
+      setNewToken(null)
+    } catch {
+      toast.error('Could not revoke token — try again')
+    } finally {
+      setTokenLoading(false)
+    }
+  }
+
+  const copyToken = async () => {
+    if (!newToken) return
+    await navigator.clipboard.writeText(newToken).catch(() => {})
+    setTokenCopied(true)
+    setTimeout(() => setTokenCopied(false), 2000)
+  }
 
   return (
     <div className="container mx-auto max-w-2xl px-4 py-6">
@@ -387,6 +445,157 @@ export default function Capture() {
           )}
         </>
       )}
+      {/* ── iOS Shortcut panel ──────────────────────────────────────────── */}
+      <div className="mt-8 border-t pt-6">
+        <button
+          type="button"
+          onClick={() => setShortcutOpen((v) => !v)}
+          className="w-full flex items-center justify-between gap-2 text-left"
+        >
+          <div className="flex items-center gap-2">
+            <Zap className="w-4 h-4 text-primary shrink-0" />
+            <div>
+              <p className="text-sm font-medium">Get iOS Shortcut</p>
+              <p className="text-xs text-muted-foreground">
+                Native 4K · one tap · no browser
+              </p>
+            </div>
+          </div>
+          {shortcutOpen
+            ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" />
+            : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />}
+        </button>
+
+        {shortcutOpen && (
+          <div className="mt-4 space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Install a Shortcut on your iPhone home screen. Tap it → record or pick → uploads at full
+              quality directly from the Camera app, no Safari re-compression.
+            </p>
+
+            {/* Step 1 — token */}
+            <Card>
+              <CardContent className="pt-4 pb-4 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Step 1 — Get your upload token
+                </p>
+
+                {newToken ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Copy this token now — you won&apos;t see it again.
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 truncate text-xs bg-muted px-2 py-1.5 rounded font-mono">
+                        {newToken}
+                      </code>
+                      <Button
+                        size="sm"
+                        variant={tokenCopied ? 'default' : 'outline'}
+                        onClick={copyToken}
+                        className="shrink-0"
+                      >
+                        {tokenCopied
+                          ? <><Check className="w-3 h-3 mr-1" /> Copied</>
+                          : <><Copy className="w-3 h-3 mr-1" /> Copy</>}
+                      </Button>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-muted-foreground text-xs h-7"
+                      onClick={generateToken}
+                      disabled={tokenLoading}
+                    >
+                      {tokenLoading
+                        ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                        : <RotateCcw className="w-3 h-3 mr-1" />}
+                      Rotate token
+                    </Button>
+                  </div>
+                ) : tokenState?.hasToken ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      You have an active token.
+                      {tokenState.lastUsedAt && (
+                        <> Last used {new Date(tokenState.lastUsedAt).toLocaleDateString()}.</>
+                      )}
+                      {tokenState.expiresAt && (
+                        <> Expires {new Date(tokenState.expiresAt).toLocaleDateString()}.</>
+                      )}
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={generateToken}
+                        disabled={tokenLoading}
+                      >
+                        {tokenLoading
+                          ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
+                          : <RotateCcw className="w-3 h-3 mr-1" />}
+                        Rotate token
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-muted-foreground"
+                        onClick={revokeToken}
+                        disabled={tokenLoading}
+                      >
+                        Revoke
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Generate a personal token the Shortcut uses to upload on your behalf.
+                    </p>
+                    <Button
+                      size="sm"
+                      onClick={generateToken}
+                      disabled={tokenLoading}
+                    >
+                      {tokenLoading
+                        ? <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Generating…</>
+                        : 'Generate token'}
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Step 2 — install */}
+            <Card>
+              <CardContent className="pt-4 pb-4 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Step 2 — Install the Shortcut
+                </p>
+                {SHORTCUT_INSTALL_URL ? (
+                  <a
+                    href={SHORTCUT_INSTALL_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+                  >
+                    Install NarrateRx Capture
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Shortcut coming soon — check back after the next update.
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  On first run it will ask for your token. Paste the one you copied above.
+                  After that: tap the Shortcut → record or pick → done.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
