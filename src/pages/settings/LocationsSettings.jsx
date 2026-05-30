@@ -13,6 +13,7 @@ import { useUserRole } from '@/lib/useUserRole'
 import { usePermission } from '@/lib/usePermission'
 import { CAP_SETTINGS_EDIT } from '@/lib/capabilities'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { apiFetch } from '@/lib/api'
 
 // Per-location CRUD lifted from the General tab. The server mirrors the
 // primary location's city/state/keyword/hashtag back to the umbrella columns
@@ -26,10 +27,11 @@ export default function LocationsSettings() {
   const [ws, setWs] = useState(undefined)
 
   useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
+    // Authenticated load — needs the bearer token to get the full row
+    // (with `locations`); a tokenless fetch returns the slim branding shape.
+    apiFetch('/api/workspace/me')
       .then(setWs)
+      .catch(() => setWs(null))
   }, [])
 
   if (roleLoading || ws === undefined) {

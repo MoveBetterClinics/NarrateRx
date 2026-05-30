@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { FIXTURE_ASSETS, ROLE_DEFS, FIXTURE_STYLE } from '@/components/brandKitFixtures'
 import { ColorPickerPopover } from '@/components/ColorPickerPopover'
 import { uploadBrandAsset } from '@/lib/brandKitLib'
+import { apiFetch } from '@/lib/api'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   useBrandKit,
@@ -1165,9 +1166,9 @@ function BrandBookReference() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
+    // Authenticated load — needs the bearer token to get the full row
+    // (with `brandbook`); a tokenless fetch returns the slim branding shape.
+    apiFetch('/api/workspace/me')
       .then((ws) => {
         const u = ws?.brandbook?.url   ?? ''
         const n = ws?.brandbook?.notes ?? ''
@@ -1175,6 +1176,7 @@ function BrandBookReference() {
         setNotes(n)
         setPristine({ url: u, notes: n })
       })
+      .catch(() => setPristine({ url: '', notes: '' }))
   }, [])
 
   const isDirty = pristine && (url !== pristine.url || notes !== pristine.notes)

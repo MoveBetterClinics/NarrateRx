@@ -6,6 +6,7 @@ import { useUserRole } from '@/lib/useUserRole'
 import { usePermission } from '@/lib/usePermission'
 import { CAP_BILLING_VIEW } from '@/lib/capabilities'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
+import { apiFetch } from '@/lib/api'
 
 // Billing tab lifted from WorkspaceSettings. Pure UI — plan changes flow
 // through PricingCards' Stripe checkout. The return-from-Stripe toasts
@@ -25,10 +26,11 @@ export default function BillingSettings() {
   const isOnboarding = searchParams.get('onboarding') === '1'
 
   useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
+    // Authenticated load — needs the bearer token to get the full row
+    // (with `plan`); a tokenless fetch returns the slim branding shape.
+    apiFetch('/api/workspace/me')
       .then(setWs)
+      .catch(() => setWs(null))
   }, [])
 
   // Internal workspaces don't pay — skip straight to home after onboarding.

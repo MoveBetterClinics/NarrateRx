@@ -16,6 +16,7 @@ import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { OUTPUT_CHANNELS, EXPORT_SHAPES, PUBLISH_MODES } from '@/lib/outputChannels'
 import { SaveBar } from '@/components/settings/helpers'
+import { apiFetch } from '@/lib/api'
 
 // Icon per channel id. Falls back to Radio for any new channel we forget to map.
 const CHANNEL_ICONS = {
@@ -87,9 +88,11 @@ export default function ChannelsSettings() {
   const [error, setError]     = useState(null)
 
   useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
+    // Authenticated load: apiFetch attaches the Clerk bearer token so the
+    // server returns the FULL workspace row. A tokenless fetch gets the slim
+    // public-branding shape (me.js), which omits enabled_outputs — that made
+    // saved channels reappear unchecked on every reload. See WorkspaceContext.
+    apiFetch('/api/workspace/me')
       .then(data => {
         setWs(data)
         if (data) {
@@ -98,6 +101,7 @@ export default function ChannelsSettings() {
           setPristine(initial)
         }
       })
+      .catch(() => setWs(null))
   }, [])
 
   const isDirty = !!form && !!pristine && JSON.stringify(form) !== JSON.stringify(pristine)

@@ -16,6 +16,7 @@ import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import SchedulePrefsSection from '@/components/settings/SchedulePrefsSection'
+import { apiFetch } from '@/lib/api'
 
 // General tab — identity, web presence, social handles, approval workflow,
 // and content strings. Logos / colors / brandbook moved to Brand Kit;
@@ -101,9 +102,10 @@ export default function WorkspaceSettings() {
   }, [searchParams, navigate])
 
   useEffect(() => {
-    fetch('/api/workspace/me')
-      .then(r => r.ok ? r.json() : null)
-      .catch(() => null)
+    // Authenticated load — needs the bearer token to get the full row.
+    // A tokenless fetch returns the slim branding shape (display_name/logo
+    // only), which left every other field on this tab blank on load.
+    apiFetch('/api/workspace/me')
       .then(data => {
         setWs(data)
         if (data) {
@@ -112,6 +114,7 @@ export default function WorkspaceSettings() {
           setPristineForm(initial)
         }
       })
+      .catch(() => setWs(null))
   }, [])
 
   const isDirty = !!form && !!pristineForm && JSON.stringify(form) !== JSON.stringify(pristineForm)
