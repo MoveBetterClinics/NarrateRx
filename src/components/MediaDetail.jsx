@@ -23,6 +23,7 @@ import { toast, runWithToast } from '@/lib/toast'
 import ContentBriefDetail from './ContentBriefDetail'
 import ClipFinder from './ClipFinder'
 import WholeVideoAction from './WholeVideoAction'
+import RepurposeAction from './RepurposeAction'
 import CollectionPicker from './CollectionPicker'
 import MediaEditModal from './MediaEditModal'
 import MediaVideoPlayer from './MediaVideoPlayer'
@@ -825,9 +826,13 @@ export default function MediaDetail({ asset, onClose, onChange }) {
             {/* Collections — editorial groupings (campaigns, series, etc.) */}
             <CollectionPicker assetId={asset.id} onChange={() => onChange?.()} />
 
-            {/* Two explicit, opt-in video choices — segment vs keep-whole. */}
+            {/* Video repurposing. The one-click combo (full video + social clips)
+                sits above the two granular, opt-in choices (segment vs keep-whole),
+                which stay available for finer control. */}
             {asset.kind === 'video' && (
               <>
+                {/* Combo: render the full-length master AND find social clips at once */}
+                <RepurposeAction asset={a} canEdit={canEdit} />
                 {/* Multi-clip: turn one long source into several standalone clips */}
                 <ClipFinder asset={a} canEdit={canEdit} />
                 {/* Keep-whole: render the entire source as one landscape package */}
