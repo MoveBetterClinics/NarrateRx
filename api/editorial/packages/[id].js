@@ -1,13 +1,21 @@
 // PATCH /api/editorial/packages/:id
 //
 // Update a single story package. Supports:
-//   - status transitions (skip)
+//   - status transitions (skip / cancel)
 //   - caption_text edits (inline edit from Story Slate)
 //
 // Body (PATCH):
-//   { status?: 'skipped' | 'complete' }
+//   { status?: 'skipped' | 'complete' | 'canceled' }
 //   { captionText?: string }   — caption edit; marks renders stale
 //   Both fields may be present simultaneously.
+//
+// Cancel ('canceled') is cooperative: it only applies while the package is
+// still generating (status in generating/pending/pending_broll). It can't kill
+// the in-flight Vercel waitUntil render, but it (a) unblocks the producer
+// immediately — the Slate drops canceled cards — and (b) the background render's
+// terminal PATCH is guarded (renderPackageChannels.js / syntheticBroll.js) so a
+// late finish can't resurrect a canceled card to complete/failed. Canceling a
+// package that has already settled returns 409 already_settled.
 //
 // Auth: Clerk JWT + workspace org-id + video_pipeline_enabled.
 // Only the owning workspace's packages are accessible.
@@ -36,7 +44,11 @@ function sb(path, init = {}) {
   })
 }
 
-const ALLOWED_STATUS_TRANSITIONS = new Set(['skipped', 'complete'])
+const ALLOWED_STATUS_TRANSITIONS = new Set(['skipped', 'complete', 'canceled'])
+
+// A package can only be canceled while it's still generating. PostgREST `in.`
+// list — kept in sync with the guard in renderPackageChannels.js / syntheticBroll.js.
+const CANCELABLE_STATUSES = 'generating,pending,pending_broll'
 
 export default async function handler(req, res) {
   if (req.method !== 'PATCH') {
@@ -84,13 +96,18 @@ export default async function handler(req, res) {
     patch.caption_text = captionText.trim().slice(0, 1000)
   }
 
-  const patchRes = await sb(
-    `story_packages?id=eq.${id}&workspace_id=eq.${ws.id}`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify(patch),
-    }
-  )
+  // Cancel is guarded: only flips a still-generating row. The extra status
+  // filter means a row that already settled (complete/failed/approved) matches
+  // zero rows → 409 already_settled, so we never "uncomplete" a finished package.
+  const isCancel = status === 'canceled'
+  const filter = isCancel
+    ? `story_packages?id=eq.${id}&workspace_id=eq.${ws.id}&status=in.(${CANCELABLE_STATUSES})`
+    : `story_packages?id=eq.${id}&workspace_id=eq.${ws.id}`
+
+  const patchRes = await sb(filter, {
+    method: 'PATCH',
+    body: JSON.stringify(patch),
+  })
 
   if (!patchRes.ok) {
     const text = await patchRes.text().catch(() => '')
@@ -100,6 +117,11 @@ export default async function handler(req, res) {
 
   const updated = await patchRes.json()
   if (!updated?.length) {
+    // For a cancel, zero rows almost always means the render already finished
+    // between the producer clicking Stop and this request landing.
+    if (isCancel) {
+      return res.status(409).json({ error: 'already_settled' })
+    }
     return res.status(404).json({ error: 'package_not_found' })
   }
 

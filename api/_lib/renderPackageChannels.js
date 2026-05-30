@@ -111,19 +111,35 @@ export async function renderAndPatchPackage({
     const finalStatus = renders.length > 0 ? 'complete' : 'failed'
     const errorMessage = errors.length ? errors.map((e) => `${e.channel}: ${e.error}`).join('; ') : null
 
-    const patchRes = await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        caption_text:  captionText,
-        renders,
-        status:        finalStatus,
-        error_message: errorMessage,
-        updated_at:    new Date().toISOString(),
-      }),
-    })
+    // Guard the terminal write against a cooperative cancel. The producer may
+    // have hit "Stop" (packages/[id].js → status='canceled') while this render
+    // ran; the &status=in.(...) filter means a canceled row matches zero rows,
+    // so a late finish can't resurrect the card to complete/failed. Keep the
+    // status list in sync with CANCELABLE_STATUSES in packages/[id].js.
+    const patchRes = await sb(
+      `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}` +
+        `&status=in.(generating,pending,pending_broll)`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          caption_text:  captionText,
+          renders,
+          status:        finalStatus,
+          error_message: errorMessage,
+          updated_at:    new Date().toISOString(),
+        }),
+      },
+    )
     if (!patchRes.ok) {
       const text = await patchRes.text().catch(() => '')
       console.error('[renderPackageChannels] patch failed:', patchRes.status, text)
+    }
+    // Zero rows updated = the package was canceled mid-render. Discard the
+    // output silently — don't score, don't resurrect the card.
+    const patched = patchRes.ok ? await patchRes.json().catch(() => []) : []
+    if (!patched.length) {
+      console.info(`[renderPackageChannels] package ${packageId} canceled mid-render — output discarded`)
+      return { finalStatus: 'canceled', renders, errors }
     }
 
     // Background voice-fidelity scoring once renders + caption are settled.
@@ -143,14 +159,19 @@ export async function renderAndPatchPackage({
     // Defensive: never let the background task reject unhandled. Mark the row
     // failed so the Slate shows an actionable error instead of spinning forever.
     console.error('[renderPackageChannels] fatal:', e?.stack || e?.message || e)
-    await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        status: 'failed',
-        error_message: `render crashed: ${e?.message || 'unknown'}`,
-        updated_at: new Date().toISOString(),
-      }),
-    }).catch(() => {})
+    // Same cancel guard as the success path — don't flip a canceled card to failed.
+    await sb(
+      `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}` +
+        `&status=in.(generating,pending,pending_broll)`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'failed',
+          error_message: `render crashed: ${e?.message || 'unknown'}`,
+          updated_at: new Date().toISOString(),
+        }),
+      },
+    ).catch(() => {})
     return { finalStatus: 'failed', renders, errors }
   }
 }

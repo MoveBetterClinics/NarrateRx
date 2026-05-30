@@ -142,8 +142,8 @@ export default function Slate() {
 
   const allPackages = useMemo(() => {
     const pkgs = data?.packages || []
-    // Filter out explicitly skipped + approved packages from BOTH views
-    return pkgs.filter((p) => p.status !== 'skipped' && p.status !== 'approved')
+    // Filter out explicitly skipped + canceled + approved packages from BOTH views
+    return pkgs.filter((p) => p.status !== 'skipped' && p.status !== 'canceled' && p.status !== 'approved')
   }, [data])
 
   const todayPackages = useMemo(() => allPackages.filter(isTodayPackage), [allPackages])
@@ -308,6 +308,29 @@ export default function Slate() {
       qc.invalidateQueries({ queryKey: ['story-packages'] })
     } catch (_err) {
       toast.error('Failed to skip package.')
+    }
+  }
+
+  // Cooperative stop for a still-generating package. Frees the producer
+  // immediately (the canceled card drops out of every view); the background
+  // render's terminal write is guarded server-side so it can't resurrect it.
+  async function handleStop(pkg) {
+    try {
+      await apiFetch(`/api/editorial/packages/${pkg.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'canceled' }),
+      })
+      qc.invalidateQueries({ queryKey: ['story-packages'] })
+      toast('Stopped. This one won\'t finish — start another whenever you\'re ready.')
+    } catch (err) {
+      // 409 already_settled = the render finished a beat before Stop landed.
+      if (err?.status === 409) {
+        qc.invalidateQueries({ queryKey: ['story-packages'] })
+        toast('This one already finished rendering.')
+      } else {
+        toast.error(err?.message || 'Failed to stop generating.')
+      }
     }
   }
 
@@ -609,6 +632,7 @@ export default function Slate() {
               triageReason={view === 'triage' ? triageReasonFor(pkg) : null}
               onApprove={handleApprove}
               onSkip={handleSkip}
+              onStop={handleStop}
               onUpdate={() => qc.invalidateQueries({ queryKey: ['story-packages'] })}
             />
           ))}

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target, Zap, Clapperboard } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target, Zap, Clapperboard, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
@@ -148,12 +148,13 @@ function TriageBadge({ reason }) {
  * onUpdate(updatedPkg) — called when caption or renders change so parent can refresh.
  * triageReason — optional badge text shown above the thumbnail (e.g. "Low confidence").
  */
-export default function PackageCard({ pkg, staffName, triageReason, onApprove, onSkip, onUpdate }) {
+export default function PackageCard({ pkg, staffName, triageReason, onApprove, onSkip, onStop, onUpdate }) {
   const [approving, setApproving]           = useState(false)
   const [editing, setEditing]               = useState(false)
   const [caption, setCaption]               = useState(pkg.caption_text || '')
   const [saving, setSaving]                 = useState(false)
   const [rerendering, setRerendering]       = useState(false)
+  const [stopping, setStopping]             = useState(false)
   const [refreshingContext, setRefreshingContext] = useState(false)
 
   // pending_broll = Runway job submitted, renders will arrive async
@@ -235,6 +236,15 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
     }
   }
 
+  async function handleStop() {
+    setStopping(true)
+    try {
+      await onStop?.(pkg)
+    } finally {
+      setStopping(false)
+    }
+  }
+
   async function handleRefreshContext() {
     setRefreshingContext(true)
     try {
@@ -271,6 +281,21 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
               <span className="text-2xs text-white/60 max-w-[120px] text-center">
                 Runway AI is creating footage — usually ready in 1–2 min
               </span>
+            )}
+            {/* Stop a real in-flight render (not the transient re-render POST).
+                Cooperative: frees the card now; the background job's output is
+                discarded server-side. */}
+            {isGenerating && onStop && !rerendering && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleStop}
+                disabled={stopping}
+                className="mt-1 h-7 gap-1.5 text-2xs border-white/30 bg-white/10 text-white hover:bg-white/20 hover:text-white"
+              >
+                {stopping ? <Loader2 className="h-3 w-3 animate-spin" /> : <Ban className="h-3 w-3" />}
+                Stop
+              </Button>
             )}
           </div>
         ) : isFailed ? (

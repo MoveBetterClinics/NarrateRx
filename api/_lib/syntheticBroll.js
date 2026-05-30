@@ -226,9 +226,16 @@ async function uploadGeneratedVideo({ videoUrl, workspace, staffId, topic }) {
 
 // ── Package patch helpers ─────────────────────────────────────────────────────
 
-async function patchPackage(packageId, workspaceId, patch) {
+// `guardGenerating` appends a status filter so a TERMINAL write (status →
+// complete/failed) only lands while the package is still generating. If the
+// producer hit "Stop" (packages/[id].js → status='canceled') mid-job, the row
+// no longer matches and the late finish is discarded instead of resurrecting a
+// canceled card. Intermediate patches (broll_prompt/task_id) pass false — they
+// don't touch status, so they're harmless on a canceled row.
+async function patchPackage(packageId, workspaceId, patch, { guardGenerating = false } = {}) {
+  const guard = guardGenerating ? '&status=in.(generating,pending,pending_broll)' : ''
   const r = await sb(
-    `story_packages?id=eq.${encodeURIComponent(packageId)}&workspace_id=eq.${encodeURIComponent(workspaceId)}`,
+    `story_packages?id=eq.${encodeURIComponent(packageId)}&workspace_id=eq.${encodeURIComponent(workspaceId)}${guard}`,
     { method: 'PATCH', body: JSON.stringify(patch) }
   )
   if (!r.ok) {
@@ -327,6 +334,7 @@ export async function generateSyntheticBroll({
     const errorMsg    = errors.length ? errors.map((e) => `${e.channel}: ${e.error}`).join('; ') : null
 
     // ── 7. Patch package to complete ────────────────────────────────────────
+    // Guarded: a producer "Stop" (status='canceled') mid-job wins over this.
     await patchPackage(packageId, workspace.id, {
       status:           finalStatus,
       broll_status:     finalStatus === 'complete' ? 'complete' : 'failed',
@@ -334,7 +342,7 @@ export async function generateSyntheticBroll({
       source_asset_id:  assetId,
       renders,
       error_message:    errorMsg,
-    })
+    }, { guardGenerating: true })
 
     console.info(`[syntheticBroll] package ${packageId} → ${finalStatus} (${renders.length} renders)`)
 
@@ -344,7 +352,7 @@ export async function generateSyntheticBroll({
       status:       'failed',
       broll_status: 'failed',
       error_message: `broll: ${err?.message || 'unknown error'}`,
-    }).catch(() => {})
+    }, { guardGenerating: true }).catch(() => {})
   }
 }
 
