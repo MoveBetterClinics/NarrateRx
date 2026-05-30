@@ -1065,12 +1065,24 @@ export default function InterviewSession() {
     leaveInterview()
   }
 
-  // Live token count surfaced in the "Writing blog post…" card so the user
-  // sees forward progress on a 60-120s generation instead of an opaque
-  // spinner. Stays in a ref between tokens, snapshotted into React state
-  // every flush so the count number updates smoothly without thrashing.
+  // Progress % for the "Writing blog post…" card. Animates 0→95% over ~90s
+  // (exponential ease) and resets to 0 when generation ends. The user never
+  // sees 100% because navigation fires on completion.
   const blogStreamingTextRef = useRef('')
-  const [blogStreamingTokens, setBlogStreamingTokens] = useState(0)
+  const [genProgress, setGenProgress] = useState(0)
+
+  useEffect(() => {
+    if (!isGenerating) {
+      setGenProgress(0)
+      return
+    }
+    const startTime = Date.now()
+    const id = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000
+      setGenProgress(Math.min(95, Math.round(95 * (1 - Math.exp(-elapsed / 30)))))
+    }, 500)
+    return () => clearInterval(id)
+  }, [isGenerating])
 
   // "What you covered" recap — a fast 3-line summary generated in parallel
   // with the blog draft. It finishes in a few seconds (the blog takes 60-120s),
@@ -1102,7 +1114,6 @@ export default function InterviewSession() {
     setIsGenerating(true)
     setError('')
     blogStreamingTextRef.current = ''
-    setBlogStreamingTokens(0)
     setCoveredSummary('')
     ttsRef.current?.cancel()
     window.speechSynthesis?.cancel()
@@ -1125,11 +1136,10 @@ export default function InterviewSession() {
       const interviewLocation = (runtimeWorkspace?.locations || []).find(l => l.id === interview.location_id)
       const overlaidWorkspace = applyLocationOverlay(runtimeWorkspace, interviewLocation)
 
-      // Stream the blog generation so the user gets live feedback. The
-      // server-side /api/stream endpoint already SSEs Anthropic-shaped
-      // deltas (see src/lib/claude.js#streamMessage), so we just consume
-      // them and accumulate. We update the token counter once every 5
-      // chunks to avoid a setState per delta.
+      // Stream the blog generation into blogStreamingTextRef. The
+      // server-side /api/stream endpoint SSEs Anthropic-shaped deltas
+      // (see src/lib/claude.js#streamMessage); progress is shown via the
+      // time-seeded genProgress bar, not a token count.
       // Persist style change if the user changed it since the interview loaded.
       // If the save fails, log + flip the visible save indicator. The
       // user's selection still drives this generation; the persistence
@@ -1178,13 +1188,9 @@ export default function InterviewSession() {
         },
       ]
 
-      let chunks = 0
       for await (const delta of streamMessage(streamMessages, systemPrompt, { model: 'claude-opus-4-7', maxOutputTokens: 4096 })) {
         blogStreamingTextRef.current += delta
-        chunks += 1
-        if (chunks % 5 === 0) setBlogStreamingTokens(chunks)
       }
-      setBlogStreamingTokens(chunks)
 
       // Separate the voice-fidelity provenance trailer from the visible
       // content body. The trailer (if present) is the model's per-paragraph
@@ -1605,13 +1611,14 @@ export default function InterviewSession() {
             <div className="flex-1">
               <p className="text-base font-semibold">
                 {generationStyle === 'minimal_edits' ? 'Cleaning transcript…' : 'Writing your blog post…'}
-                {blogStreamingTokens > 0 && (
-                  <span className="ml-1.5 text-sm font-normal text-muted-foreground">
-                    ({blogStreamingTokens} words)
-                  </span>
-                )}
               </p>
-              <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+              <div className="mt-2 h-1.5 w-full rounded-full bg-muted-foreground/20 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${genProgress}%` }}
+                />
+              </div>
+              <p className="text-sm text-muted-foreground mt-2 leading-relaxed">
                 {generationStyle === 'minimal_edits'
                   ? 'Removing filler words while preserving your exact phrasing. We\'ll open the story view when it\'s ready.'
                   : 'Turning your interview into a full blog post. We\'ll open the story view when it\'s ready — social, video, and marketing content will generate on demand from there.'}
