@@ -23,7 +23,7 @@
 // (PATCH ?status=eq.pending → 0 rows = already claimed), and a stale 'rendering'
 // piece (dead worker) is reclaimed to 'pending' after STALE_RENDERING_MS.
 
-import { put as blobPut } from '@vercel/blob'
+import { put as blobPut, del as blobDel } from '@vercel/blob'
 import { workspaceById } from './workspaceContext.js'
 import { renderVideoChannel } from './brandRenderVideo.js'
 import { stitchLongform } from './stitchLongform.js'
@@ -223,6 +223,16 @@ export async function runChunkPass({ packageId, baseUrl }) {
       if (!landed) {
         console.info(`[longformEngine] package ${packageId} canceled mid-stitch — master discarded`)
         return
+      }
+      // Tidy up: the per-piece MP4s are pure intermediates — only the stitched
+      // master is published. Now that the master is committed to the row, reclaim
+      // the piece blobs (~one per ~90s of source). Best-effort: a cleanup miss
+      // just leaves orphaned blobs, never affects the finished package. Chunk
+      // ROWS are kept (cheap; preserve the progress/audit trail).
+      const pieceUrls = chunks.map((c) => c.blob_url).filter(Boolean)
+      if (pieceUrls.length) {
+        await blobDel(pieceUrls).catch((e) =>
+          console.error('[longformEngine] piece cleanup failed (non-fatal):', e?.message || e))
       }
       await scoreCaptionFidelity({
         packageId, workspaceId: ws.id, workspaceName: ws.display_name,
