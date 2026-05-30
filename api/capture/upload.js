@@ -39,9 +39,6 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 // Generous cap; will be tuned based on real iPhone capture sizes during dogfood.
 const MAX_UPLOAD_BYTES = 200 * 1024 * 1024 // 200 MB
 
-const ALLOWED_IMAGE_MIME = new Set([
-  'image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'image/gif',
-])
 const ALLOWED_VIDEO_MIME = new Set([
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v',
 ])
@@ -71,15 +68,12 @@ function mimeFromFilename(filename) {
   if (!filename) return 'application/octet-stream'
   const ext = filename.toLowerCase().split('.').pop()
   const map = {
-    jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
-    heic: 'image/heic', heif: 'image/heif', webp: 'image/webp', gif: 'image/gif',
     mp4: 'video/mp4', mov: 'video/quicktime', m4v: 'video/x-m4v', webm: 'video/webm',
   }
   return map[ext] || 'application/octet-stream'
 }
 
 function kindFromMime(mime) {
-  if (ALLOWED_IMAGE_MIME.has(mime)) return 'photo'
   if (ALLOWED_VIDEO_MIME.has(mime)) return 'video'
   return null
 }
