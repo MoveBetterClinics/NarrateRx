@@ -37,11 +37,11 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   if (!(await enforceLimit(req, res, 'media'))) return
 
-  const auth = await requireRole(req, null)
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
+
+  const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   const { name } = req.body || {}
   if (!name?.trim()) return res.status(400).json({ error: 'Name required' })

@@ -81,11 +81,15 @@ export default async function handler(req, res) {
   // burst upload and silently re-strand the user without a staff profile.
   if (!(await enforceLimit(req, res, 'generic'))) return
 
-  const auth = await requireRole(req, null)
-  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
-
+  // Resolve workspace first so we can pass clerk_org_id to requireRole.
+  // This is safe: by the time ensure-self fires, OrgGate has already called
+  // setActive({ organization }), so the JWT carries org_id for the current
+  // workspace subdomain. The orgId check confirms membership, not just login.
   const ws = await workspaceContext(req)
   if (!ws) return res.status(400).json({ error: 'Workspace not resolved' })
+
+  const auth = await requireRole(req, null, { orgId: ws.clerk_org_id })
+  if (!auth.ok) return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
 
   const wsFilter = `workspace_id=eq.${ws.id}`
   const userId = auth.userId

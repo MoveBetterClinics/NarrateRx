@@ -31,6 +31,7 @@ export const config = {
 import { put as blobPut } from '@vercel/blob'
 import { waitUntil } from '@vercel/functions'
 import { indexMediaAsset } from '../_lib/visualMemoryIndex.js'
+import { authByCaptureToken } from '../_lib/captureAuth.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -81,42 +82,6 @@ function kindFromMime(mime) {
   if (ALLOWED_IMAGE_MIME.has(mime)) return 'photo'
   if (ALLOWED_VIDEO_MIME.has(mime)) return 'video'
   return null
-}
-
-/**
- * Authenticate the Bearer capture_upload_token.
- * Returns the matching staff member + workspace row, or null on failure.
- */
-async function authByCaptureToken(token) {
-  if (!token || !token.startsWith('cct_')) return null
-
-  const r = await sb(
-    `staff?capture_upload_token=eq.${encodeURIComponent(token)}` +
-      `&select=id,workspace_id,name,user_id,permission_tier,staff_type,capture_upload_token_expires_at`,
-  )
-  if (!r.ok) return null
-  const rows = await r.json()
-  const staffMember = rows?.[0]
-  if (!staffMember) return null
-
-  // Expiry check
-  if (staffMember.capture_upload_token_expires_at) {
-    const exp = new Date(staffMember.capture_upload_token_expires_at).getTime()
-    if (Date.now() > exp) return null
-  }
-
-  // Check workspace exists, is active, and has video_pipeline_enabled.
-  // status=eq.active guard ensures archived workspaces can't receive uploads
-  // from still-valid capture tokens.
-  const wr = await sb(
-    `workspaces?id=eq.${staffMember.workspace_id}&status=eq.active&select=id,slug,video_pipeline_enabled`,
-  )
-  if (!wr.ok) return null
-  const wsRows = await wr.json()
-  const workspace = wsRows?.[0]
-  if (!workspace?.video_pipeline_enabled) return null
-
-  return { staffMember, workspace }
 }
 
 async function readBodyToBuffer(req) {
@@ -178,7 +143,7 @@ export default async function handler(req, res) {
 
   // --- Upload to Blob ---
   const safeFilename = filename.replace(/[^\w.-]/g, '_')
-  const blobPathname = `media/capture/${auth.workspace.slug}/${Date.now()}-${safeFilename}`
+  const blobPathname = `media/capture/${auth.workspace.id}/${Date.now()}-${safeFilename}`
   let blobResult
   try {
     blobResult = await blobPut(blobPathname, body, {

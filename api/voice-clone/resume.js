@@ -55,9 +55,11 @@ export default async function handler(req, res) {
   }
 
   // Guard: the URL must be in our blob storage AND under the expected
-  // voice-clone-samples/<workspace-slug>/<staff-id>- prefix. This stops
+  // voice-clone-samples/<workspace-id>/<staff-id>- prefix. This stops
   // a caller from cloning arbitrary URLs at our ElevenLabs expense.
-  const expectedPrefix = `voice-clone-samples/${ws.slug}/${staffId}-`
+  // Note: old slug-based blobs (written before this change) no longer pass
+  // this guard. Callers stashing pre-change sample URLs must re-record.
+  const expectedPrefix = `voice-clone-samples/${ws.id}/${staffId}-`
   const looksOk = /^https:\/\/[^/]+\.public\.blob\.vercel-storage\.com\//.test(sampleUrl)
     && sampleUrl.includes(expectedPrefix)
   if (!looksOk) {

@@ -54,7 +54,7 @@ export default async function handler(req, res) {
   }
 
   const safeFilename = filename.replace(/[^\w.-]/g, '_')
-  const blobPathname = `media/capture/${auth.workspace.slug}/${Date.now()}-${safeFilename}`
+  const blobPathname = `media/capture/${auth.workspace.id}/${Date.now()}-${safeFilename}`
 
   // Extract store ID from RW token (format: vercel_blob_rw_STOREID_SECRET)
   const storeId = (process.env.BLOB_READ_WRITE_TOKEN || '').split('_')[3] || ''

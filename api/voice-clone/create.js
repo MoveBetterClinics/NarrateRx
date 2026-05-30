@@ -113,7 +113,7 @@ export default async function handler(req, res) {
 
   // ── Upload to Blob ──────────────────────────────────────────────────────────
   const safeName = rawFilename.replace(/[^a-z0-9._-]/gi, '_').slice(0, 80)
-  const blobPath = `voice-clone-samples/${ws.slug}/${staffId}-${Date.now()}-${safeName}`
+  const blobPath = `voice-clone-samples/${ws.id}/${staffId}-${Date.now()}-${safeName}`
   let blobResult
   try {
     blobResult = await blobPut(blobPath, audioBuffer, {
