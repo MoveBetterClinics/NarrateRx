@@ -44,18 +44,29 @@ NarrateRx becomes the **clinic showrunner** — capture once on iPhone, AI brain
 |---|---|---|---|---|---|
 | 0 — Setup + safety scaffolding | 1 | **✅ Day 1** (2026-05-27) | `video-phase-0-setup` | Migrations 083–085, owner/producer backfill, kit ordered, roadmap doc — shipped via PR #871 | (none — Phase 0 itself) |
 | 1 — Capture Companion + ingest | 2–4 | **✅ Day 1–2** | `video-phase-1-capture` + `video-pwa-capture` + `video-wire-vmi-into-upload` | Capture endpoint + visual memory index (#872), PWA universal upload (#879), buy-list+token UI (#880), VMI wiring (#881). **Distribution change: iOS Shortcut path retired (#890), PWA Add-to-Home-Screen is the universal pathway.** | G1 |
-| 1.5 — Non-clinical interview mode + Team UI rename | 5–7 | **🔜 Day 3 (projected)** | `video-phase-1.5-team-as-talent` | Non-clinical staff prompt mode, new content lanes, Team tab UI | (folded into G2) |
+| 1.5 — Non-clinical interview mode + Team UI rename | 5–7 | **✅ Shipped** | `video-phase-1.5-team-as-talent` | Non-clinical staff prompt mode, new content lanes, Team tab UI (Clinician→Staff rename, #943) | (folded into G2) |
 | 2 — Editorial brain | 5–9 | **✅ Day 2** | `video-phase-2-*` series | AI Gateway migration, clip-pull AI, caption + per-channel render (#882), story packages (#883), brand visual identity via Claude Vision (#884), render-quality fixes (#885 / #888 / #892 / #895) | G2 |
 | 3 — Clinician + Producer surfaces | 10–15 | **✅ Day 2** | `phase3-story-director` + `phase3-slate-clean` | Story Director Slate (#893), Approve → Drafts + Edit-in-place (#894), Triage + Consent + Coverage tabs (#899). **Distribution change: per-source-asset consent is now a first-class gate on auto-publish, not just confidence.** | G3 |
-| 4 — Producer tier features | 16–19 | **🔜 Day 4–5 (projected)** | `video-phase-4-producer` | Permission middleware, Weekly Engagement Digest cron, Tentpole Planner, Brand QC tools | G4 |
-| 5 — Integration + auto-publish | 20–23 | **🔜 Day 6–8 (projected)** | `video-phase-5-integration` | Wire packages into existing generation, auto-publish confidence gate (paired w/ consent gate from Phase 3), UTM engagement loop | G5 |
-| 6 — Launch + productize | 24–30 | **🔜 Day 9–13 (projected)** | `video-phase-6-launch` | PWA polish, kit productized as tenant artifact, onboarding wizard integration, final chaos harness | G6 |
+| 4 — Producer tier features | 16–19 | **✅ Shipped (#933–936)** | `video-phase-4-producer` | Permission middleware/capability gates, Weekly Engagement Digest cron (Mon→Fri), Tentpole producer access, Brand QC tab | G4 |
+| 5 — Integration + auto-publish | 20–23 | **✅ Shipped (#914–918)** | `video-phase-5-integration` | Auto-publish (GBP-first, per-channel opt-in, UTM loop); migs 100–102. Wired packages into existing generation. | G5 |
+| 6 — Launch + productize | 24–30 | **✅ Shipped (#950–952)** | `video-phase-6-launch` | Video pipeline on by default + onboarding capture step (#950), PWA manifest + Add-to-Home-Screen (#951), G6 chaos harness video-onboarding smoke (#952) | G6 |
 
 ### Empirical velocity recalibration (2026-05-27)
 
 **Phases 0–3 shipped in 2 calendar days against a planned 13–15.** Velocity is ~7× the planned estimate. This isn't an outlier — it's the new baseline for this build. The remaining phases re-time accordingly (Phase 6 likely closes ~Day 13 vs Day 30), leaving **~13–18 days of velocity surplus** inside the 30-day window.
 
 The surplus is deliberately spent on the **"Deepen the video build" extension set (V-series)** below — extending the existing pipeline against the same constraints (single-surface, brand-faithful, consent-gated, no patient-facing AI). Not a new direction; depth over breadth.
+
+### Status snapshot — 2026-05-29 (~Day 4 of 30)
+
+**The entire core build (Phases 0–6) and every planned V-series extension (V1/V3/V5/V6/V10) are SHIPPED to `main` and live.** The "deepen" half of "deepen, then invite" is complete in ~4 calendar days against a 30-day plan.
+
+Shipped beyond the original plan:
+
+- **Multi-clip video v1 — SHIPPED (#979 transcript segmentation, #981 render kept segments, #982 segment-picker UI in the media detail drawer).** One long source → multiple reviewable clips. ⚠️ *Not yet verified end-to-end on a real long source.* Forward path: a Twelve Labs *visual*-moment v2 (optional) — see `.claude/feature-multiclip-video.md`. (Note: a 2026-05-29 spec/build-task pass briefly re-scoped this as net-new before catching that v1 already existed — v1 stands; the spec's value is the v2 buy-vs-build decision.)
+- **Video-pipeline hardening (2026-05-29 smoke test)** — surfaced + fixed launch-blockers the static gates couldn't catch: `pending_broll` status constraint that was 500-ing *all* slate generation (mig 104), large-source downscale-on-ingest (#967), synchronous-render token race → async+202+polling (#969), 60s render duration cap (#972) + ultrafast proxy (#973), and the OrgGate false "No access" flash on the PWA entry (#965). Plus the overnight audit P0/P1/P2 sweep (#957–960).
+
+**Remaining open item: D9 — widen to the chiro-friend cohort (the deferred V2).** The pipeline is deepened; "invite" is now the live strategic decision. Everything else in this plan is done.
 
 ## V-series extensions (post-Phase-6 surplus capacity)
 
@@ -64,10 +75,10 @@ Decision 2026-05-27: spend the velocity surplus deepening the video pipeline bef
 | # | Extension | Why | Worktree | Days | Status |
 |---|---|---|---|---|---|
 | **V1** | Caption + thumbnail title voice-fidelity CI gate | Captions are now the highest-volume text output. Must pass the same voice bar as blog/atom or "sounds like you" breaks at widest distribution. Load-bearing for D7. | `video-v1-caption-fidelity-gate` | 1 | **✅ Shipped 2026-05-27** — see V1 section below |
-| V3 | AI b-roll generation (Runway/Veo) for visual memory gaps | Story packages fail when visual memory is thin. Brand-faithful synthetic b-roll keeps the pipeline running on sparse-capture clinics. | `video-v3-ai-broll` | 3 | Queued |
-| V5 | UTM engagement loop closing — per-channel performance back into the Slate | Phase 5 sketched it; make it the post-D7 priority so auto-publish learns from what worked. | `video-v5-engagement-loop` | 2 | Queued |
-| V6 | Practice memory RAG layer feeding clip-pull AI | Replace hot-tier injection with pgvector embeddings. Clip-pull gets dramatically sharper on "the clip about X." | `video-v6-rag-clip-pull` | 3 | Queued |
-| V10 | Live "shooting director" guided capture | Slate reads coverage gaps → tells the clinician what to capture next. Closes the loop between distribution demand and capture supply. | `video-v10-shooting-director` | 2 | Queued |
+| V3 | AI b-roll generation (Runway/Veo) for visual memory gaps | Story packages fail when visual memory is thin. Brand-faithful synthetic b-roll keeps the pipeline running on sparse-capture clinics. | `video-v3-ai-broll` | 3 | **✅ Shipped (#953/#954)** + hardened 2026-05-29 (#957 stream-to-Blob + poll fail-fast) |
+| V5 | UTM engagement loop closing — per-channel performance back into the Slate | Phase 5 sketched it; make it the post-D7 priority so auto-publish learns from what worked. | `video-v5-engagement-loop` | 2 | **✅ Shipped (#955)** — human winner signal → Coverage rollup + proven-topic slate bias |
+| V6 | Practice memory RAG layer feeding clip-pull AI | Replace hot-tier injection with pgvector embeddings. Clip-pull gets dramatically sharper on "the clip about X." | `video-v6-rag-clip-pull` | 3 | **✅ Shipped (#907)** — framing-aware RAG fusion; migs 097–099 |
+| V10 | Live "shooting director" guided capture | Slate reads coverage gaps → tells the clinician what to capture next. Closes the loop between distribution demand and capture supply. | `video-v10-shooting-director` | 2 | **✅ Shipped (#956)** — coverage gaps → capture directives on Capture |
 
 **Sequence:** V1 → V6 → V3 → V5 → V10. V1 first because it's load-bearing for D7's auto-publish decision. V6 next because the RAG layer makes V3 + V5 + V10 sharper. V3 before V5 because b-roll fills gaps the engagement loop is otherwise measuring as failures. V10 last because it depends on both V6 (semantic gap detection) and V3 (offering synthetic alternatives when capture isn't possible).
 

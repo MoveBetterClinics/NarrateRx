@@ -1,7 +1,8 @@
 # Feature: Multi-clip video — one long source → many posts
 
-Status: **Spec + Phase-0 (buy-vs-build) complete. v1 = BUILD, ready to scope.**
-Authored 2026-05-29 (came out of the V-series video-render smoke test).
+Status: **v1 SHIPPED (#979 detection · #981 render · #982 picker UI). Phase-0 done.**
+Forward path = (a) **verify v1 end-to-end on a real long source** (not yet done), (b) optional **Twelve Labs visual-moment v2**.
+Authored 2026-05-29. ⚠️ Correction (2026-05-29): a later pass this day re-scoped this as a net-new build and spawned a build-v1 task before catching that v1 had already shipped earlier the same day. v1 stands — **the spawned build-v1 task is redundant and should be dismissed (or repurposed to "verify v1 end-to-end").** This doc's lasting value is the Phase-0 buy-vs-build decision and the v2 path below.
 
 ## Problem
 One long recording (seminar, talk, voice-memo video) currently becomes **one** post.
@@ -65,16 +66,17 @@ bakes its own captions/styling.
 | Phase | Scope | Est. Days | Est. Claude Cost |
 |---|---|---|---|
 | 0 — Buy-vs-build eval | ✅ DONE — build core, Twelve Labs as optional visual v2 | — | done |
-| 1 — Own transcript segmentation | Whisper → LLM segment proposals (`{start,end,hook,why}`, ≤60s) → store as draft segments on the source asset | 2–3d | $10–18 (Sonnet) |
-| 2 — Slate review UX | Segment picker on the source asset; keep/discard → each kept → story package rendered with `-ss/-t` | 1.5–2d | $6–12 |
-| v2 (optional) — Visual moments | Pilot Twelve Labs (600 free min) for visually-driven segments; add only if v1 misses them | 1–2d + pilot | $4–8 + usage |
+| 1 — Own transcript segmentation | ✅ **SHIPPED (#979)** — transcript-based segment detection + persistence | — | done |
+| 2 — Slate review UX | ✅ **SHIPPED (#981 render kept segments, #982 segment-picker UI in media detail drawer / ClipFinder)** | — | done |
+| **Verify** — end-to-end on a real long source | ⏳ **NOT DONE** — run a real multi-minute source through detect→pick→render; confirm clips land correctly. The render-pipeline hardening (async + 60s cap) shipped 2026-05-29 is the prerequisite that makes this viable. | 0.5d | $1–3 |
+| v2 (optional) — Visual moments | Pilot Twelve Labs (600 free min) for visually-driven segments; add only if transcript-only v1 misses them | 1–2d + pilot | $4–8 + usage |
 
 ## Open product questions (for the owner)
 - (a) Auto-propose on upload of a long source, or clinician-triggered ("find clips")?
 - (b) Cap segments-per-source (e.g. top 8) to avoid review fatigue?
 - (c) Does v1 also cover long **audio** (seminar voice memos → audiograms), or video-only first?
 
-## Build-v1 entry points (for the spawned session)
+## Entry points (v1 is already built here — use for verification / v2)
 - Transcription + render: `api/_lib/brandRenderVideo.js` (Whisper via `transcribeToSrt`, ffmpeg with `-ss`/`-t`).
 - Shared render-and-patch: `api/_lib/renderPackageChannels.js` (each segment → one package render).
 - Package creation pattern + status lifecycle: `api/editorial/generate-package.js` (status `generating` → `complete`; `story_packages` row shape; `MAX_RENDER_SECONDS=60` cap already in place).
