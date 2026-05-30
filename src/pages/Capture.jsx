@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import {
   ArrowLeft, Camera, FolderOpen, Loader2, Upload, X, Check,
   Image as ImageIcon, AlertCircle, Smartphone, Zap, Copy, RotateCcw,
-  ChevronDown, ChevronUp, ExternalLink,
+  ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -236,6 +236,44 @@ export default function Capture() {
     await navigator.clipboard.writeText(newToken).catch(() => {})
     setTokenCopied(true)
     setTimeout(() => setTokenCopied(false), 2000)
+  }
+
+  // One-tap install: generate a fresh token, copy it to the clipboard, and open
+  // the install link — so the user only has to paste during Apple's install
+  // prompt. On iOS Safari a plain `clipboard.writeText` AFTER an await loses the
+  // user gesture and silently fails, so we hand `clipboard.write` a Promise<Blob>
+  // (the gesture-safe pattern) that resolves once the token POST returns. The
+  // token is also shown below as a manual-copy fallback if the clipboard is blocked.
+  const [installing, setInstalling] = useState(false)
+  const installShortcut = async () => {
+    if (!SHORTCUT_INSTALL_URL || installing) return
+    setInstalling(true)
+    let captured = null
+    try {
+      const blobPromise = apiFetch('/api/capture/token', { method: 'POST' }).then((d) => {
+        captured = d
+        return new Blob([d.token], { type: 'text/plain' })
+      })
+      // Gesture-safe async clipboard write (Safari/iOS 13.4+).
+      await navigator.clipboard.write([new window.ClipboardItem({ 'text/plain': blobPromise })])
+    } catch {
+      // Clipboard blocked or ClipboardItem unsupported — fall back to generating
+      // the token (if not already) so it can be copied manually below.
+      if (!captured) {
+        try { captured = await apiFetch('/api/capture/token', { method: 'POST' }) } catch { /* surfaced below */ }
+      }
+    }
+    if (captured?.token) {
+      setNewToken(captured.token)
+      setTokenState({ hasToken: true, expiresAt: captured.expiresAt, lastUsedAt: null })
+      setTokenCopied(true)
+      setTimeout(() => setTokenCopied(false), 4000)
+      toast.success('Token copied — paste it when the Shortcut asks for it')
+      window.open(SHORTCUT_INSTALL_URL, '_blank', 'noopener,noreferrer')
+    } else {
+      toast.error('Could not generate token — try again')
+    }
+    setInstalling(false)
   }
 
   return (
@@ -473,17 +511,39 @@ export default function Capture() {
               quality directly from the Camera app, no Safari re-compression.
             </p>
 
-            {/* Step 1 — token */}
+            {/* One-tap install: generate token + copy + open installer */}
             <Card>
               <CardContent className="pt-4 pb-4 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Step 1 — Get your upload token
-                </p>
-
-                {newToken ? (
-                  <div className="space-y-2">
+                {SHORTCUT_INSTALL_URL ? (
+                  <>
+                    <Button
+                      size="lg"
+                      className="w-full"
+                      onClick={installShortcut}
+                      disabled={installing}
+                    >
+                      {installing
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Preparing…</>
+                        : <><Zap className="w-4 h-4 mr-2" /> Generate token &amp; Install</>}
+                    </Button>
                     <p className="text-xs text-muted-foreground">
-                      Copy this token now — you won&apos;t see it again.
+                      One tap: we generate your personal token, copy it to your clipboard, and open
+                      Apple&apos;s installer. When the Shortcut asks for your token on install,
+                      just <span className="font-medium">paste</span> — it&apos;s already copied.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground italic">
+                    Shortcut coming soon — check back after the next update.
+                  </p>
+                )}
+
+                {/* Fallback: token shown for manual copy if the clipboard was blocked */}
+                {newToken && (
+                  <div className="space-y-2 pt-1 border-t">
+                    <p className="text-xs text-muted-foreground">
+                      {tokenCopied ? '✓ Copied to clipboard.' : 'Your token'} — if pasting doesn&apos;t
+                      work, copy it manually:
                     </p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 truncate text-xs bg-muted px-2 py-1.5 rounded font-mono">
@@ -500,97 +560,33 @@ export default function Capture() {
                           : <><Copy className="w-3 h-3 mr-1" /> Copy</>}
                       </Button>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="text-muted-foreground text-xs h-7"
+                  </div>
+                )}
+
+                {/* Power-user: rotate / revoke an existing token */}
+                {(tokenState?.hasToken || newToken) && (
+                  <div className="flex items-center gap-3 pt-1">
+                    <button
+                      type="button"
                       onClick={generateToken}
                       disabled={tokenLoading}
+                      className="inline-flex items-center text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
                     >
                       {tokenLoading
                         ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
                         : <RotateCcw className="w-3 h-3 mr-1" />}
                       Rotate token
-                    </Button>
-                  </div>
-                ) : tokenState?.hasToken ? (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      You have an active token.
-                      {tokenState.lastUsedAt && (
-                        <> Last used {new Date(tokenState.lastUsedAt).toLocaleDateString()}.</>
-                      )}
-                      {tokenState.expiresAt && (
-                        <> Expires {new Date(tokenState.expiresAt).toLocaleDateString()}.</>
-                      )}
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={generateToken}
-                        disabled={tokenLoading}
-                      >
-                        {tokenLoading
-                          ? <Loader2 className="w-3 h-3 animate-spin mr-1" />
-                          : <RotateCcw className="w-3 h-3 mr-1" />}
-                        Rotate token
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-muted-foreground"
-                        onClick={revokeToken}
-                        disabled={tokenLoading}
-                      >
-                        Revoke
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Generate a personal token the Shortcut uses to upload on your behalf.
-                    </p>
-                    <Button
-                      size="sm"
-                      onClick={generateToken}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={revokeToken}
                       disabled={tokenLoading}
+                      className="text-xs text-muted-foreground hover:text-destructive disabled:opacity-50"
                     >
-                      {tokenLoading
-                        ? <><Loader2 className="w-3 h-3 animate-spin mr-1" /> Generating…</>
-                        : 'Generate token'}
-                    </Button>
+                      Revoke
+                    </button>
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            {/* Step 2 — install */}
-            <Card>
-              <CardContent className="pt-4 pb-4 space-y-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  Step 2 — Install the Shortcut
-                </p>
-                {SHORTCUT_INSTALL_URL ? (
-                  <a
-                    href={SHORTCUT_INSTALL_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-                  >
-                    Install NarrateRx Capture
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                ) : (
-                  <p className="text-xs text-muted-foreground italic">
-                    Shortcut coming soon — check back after the next update.
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground">
-                  On first run it will ask for your token. Paste the one you copied above.
-                  After that: tap the Shortcut → record or pick → done.
-                </p>
               </CardContent>
             </Card>
           </div>
