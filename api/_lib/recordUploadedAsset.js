@@ -167,6 +167,14 @@ export async function recordUploadedAsset({ blob, tokenPayload }) {
     speaker_role: speakerRole,
     parent_id: meta.parentId || null,
     staff_id: meta.staffId || null,
+    // Seed videos as 'pending' when Mux will transcode them, so the player
+    // shows the "Transcoding…" placeholder immediately instead of falling
+    // back to a native <video> that can't play a non-faststart .mov (moov
+    // atom at the tail — common for iPhone captures). Flipped to 'processing'
+    // once the Mux asset is created, then 'ready' by the webhook.
+    transcode_status: kind === 'video' && !isReturnUpload && muxConfigured()
+      ? 'pending'
+      : null,
   }
 
   const ins = await sb('media_assets', { method: 'POST', body: JSON.stringify(row) })

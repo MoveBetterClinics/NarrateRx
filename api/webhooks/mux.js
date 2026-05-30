@@ -23,10 +23,41 @@
 
 export const config = { runtime: 'nodejs' }
 
-import { verifyWebhookSignature } from '../_lib/muxClient.js'
+import { verifyWebhookSignature, mintPlaybackToken, muxSignedConfigured } from '../_lib/muxClient.js'
+import { put as blobPut } from '@vercel/blob'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+
+// Pull a poster frame from Mux's image service and rehost it to our Blob store
+// so thumbnail_url is a permanent public URL (Mux signed URLs expire). Mux
+// decodes any codec/container reliably — H.264, HEVC, non-faststart .mov —
+// where the local ffmpeg-static path is fragile (truncated downloads, codec
+// gaps). Returns the rehosted URL, or null on any failure (non-fatal).
+async function rehostMuxThumbnail(playbackId, assetId) {
+  try {
+    const token = muxSignedConfigured()
+      ? mintPlaybackToken({ playbackId, audience: 't', expiresInSec: 300 })
+      : null
+    const url = `https://image.mux.com/${playbackId}/thumbnail.jpg${token ? `?token=${token}` : ''}`
+    const res = await fetch(url)
+    if (!res.ok) {
+      console.error(`[mux/webhook] Mux thumbnail fetch failed: ${res.status}`)
+      return null
+    }
+    const buf = Buffer.from(await res.arrayBuffer())
+    const uploaded = await blobPut(`media/thumbs/${assetId}.jpg`, buf, {
+      access: 'public',
+      contentType: 'image/jpeg',
+      addRandomSuffix: true,
+      allowOverwrite: false,
+    })
+    return uploaded.url
+  } catch (e) {
+    console.error(`[mux/webhook] rehostMuxThumbnail failed: ${e?.message}`)
+    return null
+  }
+}
 
 function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
@@ -128,6 +159,27 @@ export default async function handler(req, res) {
     const patch = { transcode_status: 'ready' }
     if (playbackId) patch.mux_playback_id = playbackId
     if (typeof durationS === 'number') patch.duration_s = durationS
+
+    // Backfill a poster frame from Mux when the local ffmpeg pass didn't
+    // produce one (truncated download, codec gap on iPhone .mov, etc.). Look
+    // up the row's current thumbnail_url first so we never clobber a good
+    // ffmpeg thumbnail or a user-chosen frame.
+    if (playbackId) {
+      const lookup = await sb(`media_assets?${filterByAsset}&select=id,thumbnail_url`).catch(() => null)
+      let rowId = null
+      let hasThumb = false
+      if (lookup?.ok) {
+        const r = (await lookup.json().catch(() => []))?.[0]
+        rowId = r?.id || null
+        hasThumb = !!r?.thumbnail_url
+      }
+      if (!rowId && passthrough) rowId = passthrough
+      if (rowId && !hasThumb) {
+        const thumbUrl = await rehostMuxThumbnail(playbackId, rowId)
+        if (thumbUrl) patch.thumbnail_url = thumbUrl
+      }
+    }
+
     await patchByAssetOrPassthrough(patch)
     return res.status(200).json({ received: true })
   }
