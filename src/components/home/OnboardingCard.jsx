@@ -120,41 +120,45 @@ export default function OnboardingCard() {
 
   return (
     <Card className="border-primary/30 bg-primary/5">
-      <CardContent className="pt-5 pb-5 flex items-start gap-4 flex-wrap sm:flex-nowrap">
-        <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-          <Sparkles className="h-5 w-5 text-primary" />
+      <CardContent className="pt-5 pb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+        {/* Icon + text group — fills full width on mobile so text can wrap */}
+        <div className="flex items-start gap-4 flex-1 min-w-0">
+          <div className="h-10 w-10 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+            <Sparkles className="h-5 w-5 text-primary" />
+          </div>
+
+          <div className="flex-1 min-w-0 space-y-1">
+            {isSynthesizing ? (
+              <>
+                <p className="font-semibold text-sm">Synthesizing your workspace voice…</p>
+                <p className="text-sm text-muted-foreground">
+                  We&apos;re reading your transcript and writing your voice guidance, patient archetype, topic queue, and phrase bank. About a minute.
+                </p>
+              </>
+            ) : isContinuing ? (
+              <>
+                <p className="font-semibold text-sm">
+                  Continue your onboarding interview — {turnsIn} answer{turnsIn === 1 ? '' : 's'} in
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Pick up where you left off. Once finished, NarrateRx will use your voice instead of the paradigm defaults.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold text-sm">
+                  Tell NarrateRx about {workspace?.display_name || 'your practice'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  ~15 minutes. We&apos;ll learn your voice, patient type, and the topics you wish more people understood — then every piece NarrateRx generates will sound like you, not a template.
+                </p>
+              </>
+            )}
+          </div>
         </div>
 
-        <div className="flex-1 min-w-0 space-y-1">
-          {isSynthesizing ? (
-            <>
-              <p className="font-semibold text-sm">Synthesizing your workspace voice…</p>
-              <p className="text-sm text-muted-foreground">
-                We&apos;re reading your transcript and writing your voice guidance, patient archetype, topic queue, and phrase bank. About a minute.
-              </p>
-            </>
-          ) : isContinuing ? (
-            <>
-              <p className="font-semibold text-sm">
-                Continue your onboarding interview — {turnsIn} answer{turnsIn === 1 ? '' : 's'} in
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Pick up where you left off. Once finished, NarrateRx will use your voice instead of the paradigm defaults.
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="font-semibold text-sm">
-                Tell NarrateRx about {workspace?.display_name || 'your practice'}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                ~15 minutes. We&apos;ll learn your voice, patient type, and the topics you wish more people understood — then every piece NarrateRx generates will sound like you, not a template.
-              </p>
-            </>
-          )}
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0 sm:self-center">
+        {/* Buttons — below text on mobile (indented to align under text), inline on sm+ */}
+        <div className="flex items-center gap-2 shrink-0 pl-14 sm:pl-0 sm:self-center">
           {isSynthesizing ? (
             <Button asChild variant="outline" size="sm">
               <Link to={interviewHref}>
