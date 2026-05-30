@@ -167,6 +167,7 @@ export function buildStories(staff, contentItems) {
         workspace_id: interview.workspace_id || staffMember.workspace_id || null,
         staff_id: staffMember.id,
         staff_name: staffMember.name,
+        staff_preferred_length: staffMember.preferred_length ?? null,
         topic: interview.topic,
         status: interview.status,
         capture_mode: interview.capture_mode || 'interview',

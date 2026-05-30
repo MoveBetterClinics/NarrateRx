@@ -20,6 +20,14 @@ Before scoping a change to an "existing" feature, confirm it's actually wired. P
 
 Rule: before estimating a change, grep for callers of the core function(s) and confirm the path is live end-to-end (UI → API → prompt → model). "Function exists" ≠ "Function runs." A 5-minute `grep -rn '<funcName>' src/ api/` saves hours of building against a dead path. If you find the wiring is broken, surface that as part of the scope before coding.
 
+## A preview is not the published artifact
+
+When a feature renders something to a `<canvas>` (or any in-memory/preview-only surface) and the user can *see* it, that is NOT evidence the same artifact ships at publish/export. The render and the publish are different code paths. This codebase has several preview-vs-output surfaces — carousel on-screen text (`renderFreeformSlide`), the email-template iframe, image/video overlays — and they're easy to get wrong in the same way: the preview looks perfect, the live output is raw.
+
+The 2026-05-29 carousel bug (PR #980) was exactly this: per-slide overlay text (`content_items.slides`) was drawn to a preview canvas via `renderFreeformSlide` but never turned into an image file or uploaded; publish sent the raw `media_urls` photos, so the on-screen text vanished from the live post.
+
+Rule: for any feature that renders a derived artifact (overlay image, composited graphic, baked text, watermark), grep the renderer's callers. If it's called only in `*Preview` / `*Editor` components and never in a publish/upload/export path, the published output is stale or raw — the renderer needs a real produce-and-upload step on the publish path (reuse the SAME renderer so it stays WYSIWYG), not just a canvas. Confirm the live output, not the editor preview, before calling it done.
+
 ## Multi-tenant SaaS
 NarrateRx runs as a single shared deployment that serves multiple workspaces by subdomain (`<slug>.narraterx.ai`). Move Better People, Equine, and Animals are the three seed workspaces; external tenants self-onboard at `narraterx.ai/onboard`. All tenant-editable config — display name, voice/tone modifiers, interview/patient context, topic suggestions, output channels, publish credentials — lives in the `workspaces` row in the shared narraterx Supabase, edited via `/settings/workspace`.
 
@@ -129,6 +137,8 @@ const { data: liveAsset } = useQuery({
 
 `pipelinePending` is a row-shape predicate (`!web_blob_url` for photos, `transcode_status in ('pending', 'processing')` for videos, etc.). The 60s hard cap matters — silent pipeline failures must not produce an infinite polling loop. Editable form state stays seeded from the original `asset` prop on `asset.id` change so in-progress user edits aren't clobbered by a poll round-trip.
 
+**Hard cap is universal — not just for MediaDetail.** Every `useQuery` with a `refetchInterval` that polls while a status is pending MUST have a time-based hard cap, regardless of where it lives. A Vercel function killed at the 300s wall does not run its `finally` block, so `catch`-based terminal status writes never fire — any "in-progress" status can strand permanently. The `MediaDetail` 60s cap is the reference implementation; page-level polling (Slate packages, ClipFinder segments, Book generation) must apply the same pattern with an appropriate ceiling (60s–5min depending on expected job duration). No cap = silent infinite-poll loop until the tab closes. Found in 2026-05-29 audit: Slate.jsx and ClipFinder.jsx both omitted the cap.
+
 ## Streaming chat (/api/stream) conventions
 
 The shared `/api/stream` endpoint and its client wrapper `streamMessage()` in `src/lib/claude.js` are used by every conversational page (InterviewSession, OnboardingInterview, future variants). Two rules to follow when building a NEW page that calls them, or `AI_InvalidPromptError` and retry storms will eat your day:
@@ -195,7 +205,9 @@ All production media lives in a single Vercel Blob store (`narraterx-prod`, pref
 
 **Legacy stores are gone.** Three per-brand blob stores (`gmrxcvv1cauu7ksf`, `jl52kpqqmvyxuhpr`, `ep9i5v4jhxekujri`) were detached from Vercel when the per-brand projects were deleted on 2026-05-10. All 908 `media_assets.blob_url` values were migrated to the current store by `scripts/migrate-legacy-blobs.mjs` (2026-05-12, PR #325). Legacy public URLs may continue to resolve for a time but are not relied upon.
 
-**Thumbnail uploads** go to `media/thumbs/<uuid>.jpg`; originals go to `media/raw/<workspace-slug>/...`. Both live in the same store.
+**Thumbnail uploads** go to `media/thumbs/<uuid>.jpg`; originals go to `media/raw/<workspace-id>/...`. Both live in the same store.
+
+**Blob path namespacing: use `ws.id`, not `ws.slug`.** Blob keys must use the immutable workspace UUID as the primary namespace component, not the mutable slug. Using `ws.slug` creates two failure modes: (1) a workspace rename silently orphans existing blobs and breaks any handler that validates a blob URL against an expected prefix (see `api/voice-clone/resume.js`), (2) a slug reuse window (however brief) creates a path collision. The slug may appear as a secondary human-readable component, but `ws.id` must be the primary key. Five handlers were found using slug-based paths in the 2026-05-29 audit — fix tracked in `fix-tenant-defense-in-depth` worktree.
 
 **Re-running the migration** is safe (idempotent): `node scripts/migrate-legacy-blobs.mjs --dry-run` shows what would migrate; without `--dry-run` it skips rows already on the current store. Requires `MULTITENANT_DATABASE_URL` + `BLOB_READ_WRITE_TOKEN` in `.env.local`.
 
