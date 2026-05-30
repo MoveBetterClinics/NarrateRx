@@ -23,6 +23,7 @@ import { put as blobPut } from '@vercel/blob'
 import { renderPhotoChannel, CHANNEL_SPECS } from './brandRender.js'
 import { renderVideoChannel, VIDEO_CHANNEL_SPECS } from './brandRenderVideo.js'
 import { scoreCaptionFidelity } from './captionFidelity.js'
+import { cancelableStatusFilter } from './packageStatus.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -114,11 +115,11 @@ export async function renderAndPatchPackage({
     // Guard the terminal write against a cooperative cancel. The producer may
     // have hit "Stop" (packages/[id].js → status='canceled') while this render
     // ran; the &status=in.(...) filter means a canceled row matches zero rows,
-    // so a late finish can't resurrect the card to complete/failed. Keep the
-    // status list in sync with CANCELABLE_STATUSES in packages/[id].js.
+    // so a late finish can't resurrect the card to complete/failed. The status
+    // list lives in _lib/packageStatus.js.
     const patchRes = await sb(
       `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}` +
-        `&status=in.(generating,pending,pending_broll)`,
+        `&${cancelableStatusFilter()}`,
       {
         method: 'PATCH',
         body: JSON.stringify({
@@ -162,7 +163,7 @@ export async function renderAndPatchPackage({
     // Same cancel guard as the success path — don't flip a canceled card to failed.
     await sb(
       `story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}` +
-        `&status=in.(generating,pending,pending_broll)`,
+        `&${cancelableStatusFilter()}`,
       {
         method: 'PATCH',
         body: JSON.stringify({

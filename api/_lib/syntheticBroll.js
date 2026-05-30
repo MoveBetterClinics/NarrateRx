@@ -32,6 +32,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { renderVideoChannel, VIDEO_CHANNEL_SPECS } from './brandRenderVideo.js'
+import { cancelableStatusFilter } from './packageStatus.js'
 
 const RUNWAY_API_BASE = 'https://api.runwayml.com/v1'
 const RUNWAY_VERSION  = '2024-11-06'
@@ -233,7 +234,7 @@ async function uploadGeneratedVideo({ videoUrl, workspace, staffId, topic }) {
 // canceled card. Intermediate patches (broll_prompt/task_id) pass false — they
 // don't touch status, so they're harmless on a canceled row.
 async function patchPackage(packageId, workspaceId, patch, { guardGenerating = false } = {}) {
-  const guard = guardGenerating ? '&status=in.(generating,pending,pending_broll)' : ''
+  const guard = guardGenerating ? `&${cancelableStatusFilter()}` : ''
   const r = await sb(
     `story_packages?id=eq.${encodeURIComponent(packageId)}&workspace_id=eq.${encodeURIComponent(workspaceId)}${guard}`,
     { method: 'PATCH', body: JSON.stringify(patch) }
