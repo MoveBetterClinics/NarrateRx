@@ -45,6 +45,7 @@ const AutoPublishSettings = lazy(() => import('@/pages/settings/AutoPublishSetti
 import SettingsLayout from '@/components/SettingsLayout'
 const OnboardingBrandKit = lazy(() => import('@/pages/OnboardingBrandKit'))
 const Members = lazy(() => import('@/pages/Members'))
+const AccessMatrix = lazy(() => import('@/pages/AccessMatrix'))
 const Account = lazy(() => import('@/pages/Account'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
 const Stories = lazy(() => import('@/pages/Stories'))
@@ -554,6 +555,7 @@ function AppRoutes() {
               <Route path="/settings/workspace/auto-publish" element={guarded(<AutoPublishSettings />)} />
               {/* Clerk-mounted pages use routing="path" so their deep links resolve. */}
               <Route path="/settings/members/*" element={guarded(<Members />)} />
+              <Route path="/settings/access" element={guarded(<AccessMatrix />)} />
             </Route>
             <Route path="/pre-visit" element={guarded(<PreVisitMessage />)} />
             <Route path="/account/*" element={guarded(<Account />)} />

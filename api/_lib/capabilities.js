@@ -67,6 +67,17 @@ export const ALL_CAPABILITIES = [
   CAP_CAMPAIGNS_EDIT,
 ]
 
+// Capabilities that can NEVER be granted to a non-owner staff row via a
+// per-person override (they unlock the workspace-admin surface). Enforced in
+// the PATCH /api/staff/capabilities handler.
+export const OWNER_ONLY_CAPABILITIES = new Set([
+  CAP_SETTINGS_VIEW,
+  CAP_SETTINGS_EDIT,
+  CAP_BILLING_VIEW,
+  CAP_BILLING_EDIT,
+  CAP_MEMBERS_INVITE,
+])
+
 // ─── Default templates ───────────────────────────────────────────────────────
 // One per known permission_tier. Workspaces.role_templates can override any
 // of these (partial merge — see resolveTemplate below).
@@ -133,10 +144,21 @@ export function resolveTemplate(tier, workspace) {
  *
  * @param {string} tier
  * @param {object} workspace
+ * @param {Object<string, boolean>} [staffOverrides] — per-person delta
  * @returns {string[]}
  */
-export function resolveCapabilities(tier, workspace) {
-  return resolveTemplate(tier, workspace).capabilities
+export function resolveCapabilities(tier, workspace, staffOverrides = {}) {
+  const base = new Set(resolveTemplate(tier, workspace).capabilities)
+  // Per-person deltas: true = custom grant, false = custom revoke. Unknown
+  // keys are ignored so a stale client can't inject arbitrary strings.
+  if (staffOverrides && typeof staffOverrides === 'object') {
+    for (const [cap, granted] of Object.entries(staffOverrides)) {
+      if (!ALL_CAPABILITIES.includes(cap)) continue
+      if (granted) base.add(cap)
+      else base.delete(cap)
+    }
+  }
+  return [...base]
 }
 
 /**

@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Outlet, NavLink, useLocation } from 'react-router-dom'
 import {
   Settings, Mic2, Radio, Puzzle, Palette, Users, CreditCard, MapPin,
-  Sliders, Stethoscope, Target, Zap, LayoutGrid,
+  Sliders, Stethoscope, Target, Zap, LayoutGrid, Shield,
 } from 'lucide-react'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -52,6 +52,7 @@ const GROUPS = [
     label: 'People',
     items: [
       { to: '/settings/members',            label: 'Members & roles',    icon: Users },
+      { to: '/settings/access',             label: 'Access matrix',      icon: Shield },
     ],
   },
   {
