@@ -3,9 +3,9 @@
 // Returns top workspace concepts as a formatted block + raw array, plus
 // agreement and gap probe suggestions for the active interview session.
 //
-// agreement_probes: concepts covered by ≥2 distinct clinicians — Bernard can
+// agreement_probes: concepts covered by ≥2 distinct staff — Bernard can
 //   surface these as "others here have said X — is that your experience?"
-// gap_probes: concepts relevant to the topic not yet mentioned by THIS clinician
+// gap_probes: concepts relevant to the topic not yet mentioned by THIS staff member
 //   — Bernard can surface these as "no one has told us about Y yet — can you?"
 export const config = { runtime: 'nodejs' }
 
@@ -27,11 +27,11 @@ function sb(path) {
 }
 
 // ── Agreement probes ─────────────────────────────────────────────────────────
-// Concepts mentioned by 2+ distinct clinicians, sorted by distinct-clinician
+// Concepts mentioned by 2+ distinct staff, sorted by distinct-staff
 // count desc. These are the practice's "shared knowledge" — agreement territory.
 
 async function fetchAgreementProbes(workspaceId, topic, limit = 3) {
-  // Pull mentions grouped by concept + clinician (distinct pairs).
+  // Pull mentions grouped by concept + staff (distinct pairs).
   // Filter to topic-relevant concepts via the concept label (simple ilike).
   let qs = `concept_mentions?workspace_id=eq.${workspaceId}&staff_id=not.is.null`
   qs += `&select=concept_id,staff_id,workspace_concepts(kind,label,weight)`
@@ -46,29 +46,29 @@ async function fetchAgreementProbes(workspaceId, topic, limit = 3) {
   if (!r.ok) return []
   const rows = await r.json()
 
-  // Group by concept_id → count distinct clinicians
+  // Group by concept_id → count distinct staff
   const map = new Map()
   for (const row of rows) {
     const concept = row.workspace_concepts
     if (!concept) continue
     if (!map.has(row.concept_id)) {
-      map.set(row.concept_id, { label: concept.label, kind: concept.kind, weight: concept.weight, clinicians: new Set() })
+      map.set(row.concept_id, { label: concept.label, kind: concept.kind, weight: concept.weight, staff: new Set() })
     }
-    map.get(row.concept_id).clinicians.add(row.staff_id)
+    map.get(row.concept_id).staff.add(row.staff_id)
   }
 
   const topicLower = (topic || '').toLowerCase()
 
   return [...map.values()]
-    .filter(c => c.clinicians.size >= 2)
+    .filter(c => c.staff.size >= 2)
     .filter(c => !topicLower || c.label.toLowerCase().includes(topicLower.split(/\s+/)[0] || '') || true)
-    .sort((a, b) => b.clinicians.size - a.clinicians.size || b.weight - a.weight)
+    .sort((a, b) => b.staff.size - a.staff.size || b.weight - a.weight)
     .slice(0, limit)
-    .map(c => ({ label: c.label, kind: c.kind, count: c.clinicians.size }))
+    .map(c => ({ label: c.label, kind: c.kind, count: c.staff.size }))
 }
 
 // ── Gap probes ───────────────────────────────────────────────────────────────
-// Concepts in the graph not yet mentioned by THIS specific clinician.
+// Concepts in the graph not yet mentioned by THIS specific staff member.
 // These represent coverage gaps — stories the practice hasn't heard from them.
 
 async function fetchGapProbes(workspaceId, staffId, topic, limit = 3) {
@@ -78,7 +78,7 @@ async function fetchGapProbes(workspaceId, staffId, topic, limit = 3) {
   const allConcepts = await getRawConcepts({ workspaceId, topic, limit: 20 })
   if (!allConcepts.length) return []
 
-  // Concepts already mentioned by this clinician
+  // Concepts already mentioned by this staff member
   const mentionedRes = await sb(
     `concept_mentions?workspace_id=eq.${workspaceId}&staff_id=eq.${staffId}&select=concept_id&limit=200`
   )

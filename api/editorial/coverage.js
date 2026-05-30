@@ -4,7 +4,7 @@
 //
 // Two parallel rollups for the Slate's Coverage tab:
 //
-//   1. Per-clinician capture activity — total assets, assets in last 14 days,
+//   1. Per-staff capture activity — total assets, assets in last 14 days,
 //      last capture timestamp. Drives "Who needs to capture more?"
 //
 //   2. Per-topic package coverage — for each workspace.topic_suggestions entry,
@@ -15,13 +15,13 @@
 //
 // Response 200:
 //   {
-//     clinicians: [{ id, name, asset_count, asset_count_14d, last_capture_at, winner_count }],
+//     staff:      [{ id, name, asset_count, asset_count_14d, last_capture_at, winner_count }],
 //     topics:     [{ topic, priority, package_count, winner_count }],
 //   }
 //
 // V5 (engagement loop): `winner_count` is the number of published content_items
 // flagged `performed_well` (the audience responded) attributed to that topic /
-// clinician. The flag is set by a human "winner" toggle in the story-detail view
+// staff member. The flag is set by a human "winner" toggle in the story-detail view
 // and, when GA4/Buffer metrics flow, auto-set by the refresh-engagement cron.
 // Surfacing it here lets the story director double down on what's working.
 
@@ -66,11 +66,11 @@ export default async function handler(req, res) {
 
   const since14d = new Date(Date.now() - FOURTEEN_DAYS_MS).toISOString()
 
-  // --- Pull clinicians + their assets in one fetch each (small workspaces) ---
-  // 1. Workspace clinicians
+  // --- Pull staff + their assets in one fetch each (small workspaces) ---
+  // 1. Workspace staff
   const staffRes = await sb(`staff?workspace_id=eq.${ws.id}&select=id,name&order=name.asc`)
   if (!staffRes.ok) return res.status(500).json({ error: 'db_error_staff' })
-  const clinicians = await staffRes.json()
+  const staff = await staffRes.json()
 
   // 2. Non-archived assets in workspace (id, staff_id, captured_at, created_at)
   // We aggregate client-side rather than PostgREST group-by because the result
@@ -96,9 +96,9 @@ export default async function handler(req, res) {
   )
   const winners = winnersRes.ok ? await winnersRes.json() : []
 
-  // --- Per-clinician rollup ---
+  // --- Per-staff rollup ---
   const byStaff = new Map()
-  for (const c of clinicians) byStaff.set(c.id, { id: c.id, name: c.name, asset_count: 0, asset_count_14d: 0, last_capture_at: null, winner_count: 0 })
+  for (const c of staff) byStaff.set(c.id, { id: c.id, name: c.name, asset_count: 0, asset_count_14d: 0, last_capture_at: null, winner_count: 0 })
 
   for (const w of winners) {
     if (!w.staff_id) continue
@@ -109,7 +109,7 @@ export default async function handler(req, res) {
   for (const a of assets) {
     if (!a.staff_id) continue
     const bucket = byStaff.get(a.staff_id)
-    if (!bucket) continue  // asset orphaned to a deleted clinician
+    if (!bucket) continue  // asset orphaned to a deleted staff member
     bucket.asset_count++
     const when = a.captured_at || a.created_at
     if (when && when >= since14d) bucket.asset_count_14d++
@@ -160,7 +160,7 @@ export default async function handler(req, res) {
   })
 
   return res.status(200).json({
-    clinicians: Array.from(byStaff.values()).sort((a, b) => b.asset_count - a.asset_count),
+    staff:      Array.from(byStaff.values()).sort((a, b) => b.asset_count - a.asset_count),
     topics:     topics.sort((a, b) => {
       // Gaps first (package_count=0), then by priority desc, then by name
       if ((a.package_count === 0) !== (b.package_count === 0)) {

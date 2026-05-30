@@ -3,7 +3,7 @@ import { Camera, Loader2, AlertCircle, TrendingDown, CheckCircle2, Clock, Lightb
 import { apiFetch } from '@/lib/api'
 
 const RECENT_DAYS = 14
-const STALE_CAPTURE_DAYS = 21  // clinician hasn't captured in 3 weeks → flag
+const STALE_CAPTURE_DAYS = 21  // staff member hasn't captured in 3 weeks → flag
 
 function daysSince(iso) {
   if (!iso) return Infinity
@@ -125,21 +125,21 @@ export default function CoveragePanel() {
     )
   }
 
-  const clinicians = data?.clinicians || []
+  const staff = data?.staff || []
   const topics = data?.topics || []
   const gapsCount = topics.filter((t) => t.package_count === 0).length
-  const staleStaffCount = clinicians.filter(
+  const staleStaffCount = staff.filter(
     (c) => c.asset_count === 0 || daysSince(c.last_capture_at) > STALE_CAPTURE_DAYS
   ).length
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      {/* Per-clinician panel */}
+      {/* Per-staff panel */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-2">
             <Camera className="h-3.5 w-3.5" />
-            Clinician capture activity
+            Staff capture activity
           </h2>
           {staleStaffCount > 0 && (
             <span className="text-2xs font-semibold text-amber-700">
@@ -147,13 +147,13 @@ export default function CoveragePanel() {
             </span>
           )}
         </div>
-        {clinicians.length === 0 ? (
+        {staff.length === 0 ? (
           <div className="rounded-lg border-2 border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-            No clinicians in this workspace yet.
+            No staff in this workspace yet.
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {clinicians.map((c) => <StaffRow key={c.id} c={c} />)}
+            {staff.map((c) => <StaffRow key={c.id} c={c} />)}
           </div>
         )}
       </section>

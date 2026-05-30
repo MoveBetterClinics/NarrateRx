@@ -2,9 +2,9 @@
 //
 // Returns the full cross-staff knowledge picture for the /synthesis admin page:
 //   concepts  — all workspace concepts with per-kind grouping, weight, and
-//               clinician coverage (who has / hasn't mentioned each)
-//   clinicians — all clinicians who have at least one completed interview at
-//                this workspace (name + id)
+//               staff coverage (who has / hasn't mentioned each)
+//   staff     — all staff who have at least one completed interview at
+//               this workspace (name + id)
 //   coverage   — summary stats (total concepts, total mentions, coverage %)
 //
 // Admin-only: enforced via workspaceContext role check.
@@ -49,10 +49,10 @@ export default async function handler(req, res) {
   if (!conceptsRes.ok) return res.status(500).json({ error: 'Failed to fetch concepts' })
   const rawConcepts = await conceptsRes.json()
   if (!rawConcepts.length) {
-    return res.status(200).json({ concepts: [], clinicians: [], coverage: { total: 0, totalMentions: 0, coveragePercent: 0 } })
+    return res.status(200).json({ concepts: [], staff: [], coverage: { total: 0, totalMentions: 0, coveragePercent: 0 } })
   }
 
-  // ── Fetch all clinician×concept mention pairs ────────────────────────────────
+  // ── Fetch all staff×concept mention pairs ────────────────────────────────────
   const mentionsRes = await sb(
     `concept_mentions?workspace_id=eq.${ws.id}&staff_id=not.is.null` +
     `&select=concept_id,staff_id&limit=2000`
@@ -66,10 +66,10 @@ export default async function handler(req, res) {
     conceptStaff.get(m.concept_id).add(m.staff_id)
   }
 
-  // All distinct clinician IDs who have mentioned anything
+  // All distinct staff IDs who have mentioned anything
   const allStaffIds = [...new Set(mentions.map(m => m.staff_id))]
 
-  // ── Fetch clinician names ────────────────────────────────────────────────────
+  // ── Fetch staff names ────────────────────────────────────────────────────────
   let staffById = {}
   if (allStaffIds.length) {
     const cRes = await sb(
@@ -86,7 +86,7 @@ export default async function handler(req, res) {
     .map(id => ({ id, name: staffById[id] || 'Unknown' }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
-  // ── Assemble concept objects with per-clinician coverage ─────────────────────
+  // ── Assemble concept objects with per-staff coverage ─────────────────────────
   const concepts = rawConcepts.map(c => {
     const mentioned  = conceptStaff.get(c.id) ?? new Set()
     const missingIds = allStaffIds.filter(id => !mentioned.has(id))
@@ -110,7 +110,7 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     concepts,
-    clinicians: staffList,
+    staff: staffList,
     coverage: {
       total:           rawConcepts.length,
       totalMentions:   totalMentioned,

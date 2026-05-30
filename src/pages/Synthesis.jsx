@@ -94,7 +94,7 @@ function ConceptRow({ concept, totalStaff, onDraft }) {
 
         <CoverageBar mentionedCount={agreed} totalCount={totalStaff} />
 
-        {/* Clinician chips */}
+        {/* Staff chips */}
         <div className="flex flex-wrap gap-1 mt-2">
           {concept.mentionedBy.map(c => (
             <span key={c.id} className="inline-flex items-center gap-1 text-2xs bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5">
@@ -232,7 +232,7 @@ export default function Synthesis() {
     )
   }
 
-  const { concepts, clinicians, coverage } = data
+  const { concepts, staff, coverage } = data
 
   // Group by kind in preferred order
   const grouped = {}
@@ -245,7 +245,7 @@ export default function Synthesis() {
     ...Object.keys(grouped).filter(k => !KIND_ORDER.includes(k)),
   ]
 
-  // Gap summary — concepts where ≥1 clinician hasn't mentioned it (high-value gaps first)
+  // Gap summary — concepts where ≥1 staff member hasn't mentioned it (high-value gaps first)
   const topGaps = concepts
     .filter(c => c.notMentionedBy.length > 0)
     .sort((a, b) => b.notMentionedBy.length - a.notMentionedBy.length || b.weight - a.weight)
@@ -279,20 +279,20 @@ export default function Synthesis() {
       {/* Coverage legend — above stats so readers learn the color code
           before they see the numbers it grades. */}
       <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400 inline-block" /> Mentioned by ≥2 clinicians (agreement territory)</span>
-        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400 inline-block" /> Mentioned by 1 clinician only</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-emerald-400 inline-block" /> Mentioned by ≥2 staff (agreement territory)</span>
+        <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-amber-400 inline-block" /> Mentioned by 1 staff member only</span>
         <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-gray-300 inline-block" /> Not yet covered</span>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <StatCard icon={BookOpen}  label="Concepts learned"   value={coverage.total} />
-        <StatCard icon={Users}     label="Clinicians with data" value={clinicians.length} />
+        <StatCard icon={Users}     label="Staff with data" value={staff.length} />
         <StatCard
           icon={BarChart3}
           label="Coverage score"
           value={`${coverage.coveragePercent}%`}
-          sub="concepts × clinicians mentioned"
+          sub="concepts × staff mentioned"
         />
       </div>
 
@@ -304,7 +304,7 @@ export default function Synthesis() {
             <span className="text-sm font-medium text-amber-800">Coverage gaps to close</span>
           </div>
           <p className="text-xs text-amber-700">
-            These concepts have clinicians who haven&apos;t shared their perspective yet — good candidates for Bernard to surface as gap probes.
+            These concepts have staff who haven&apos;t shared their perspective yet — good candidates for Bernard to surface as gap probes.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             {topGaps.map(c => (
@@ -331,7 +331,7 @@ export default function Synthesis() {
             key={kind}
             kind={kind}
             concepts={grouped[kind]}
-            totalStaff={clinicians.length}
+            totalStaff={staff.length}
             onDraft={handleDraft}
           />
         ))}
