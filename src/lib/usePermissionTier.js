@@ -25,7 +25,7 @@ import {
  * @property {string|null} tier            Raw tier string or null.
  * @property {boolean}     isOwner         tier === 'owner'
  * @property {boolean}     isProducer      tier === 'producer'
- * @property {boolean}     isClinician     tier === 'clinician'
+ * @property {boolean}     isStaff     tier === 'clinician'
  * @property {boolean}     isViewer        tier === 'viewer'
  * @property {boolean}     isProducerOnly  True iff this user should get the
  *                                         restricted producer-only UX (Slate
@@ -45,7 +45,7 @@ export function usePermissionTier() {
     tier,
     isOwner:           tier === TIER_OWNER,
     isProducer:        tier === TIER_PRODUCER,
-    isClinician:       tier === TIER_CLINICIAN,
+    isStaff:       tier === TIER_CLINICIAN,
     isViewer:          tier === TIER_VIEWER,
     isProducerOnly:    tier === TIER_PRODUCER,
     canManageSettings: tier !== TIER_PRODUCER && tier !== TIER_VIEWER,

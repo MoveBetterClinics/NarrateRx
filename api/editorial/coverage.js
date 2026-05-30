@@ -69,7 +69,7 @@ export default async function handler(req, res) {
   // --- Pull clinicians + their assets in one fetch each (small workspaces) ---
   // 1. Workspace clinicians
   const staffRes = await sb(`staff?workspace_id=eq.${ws.id}&select=id,name&order=name.asc`)
-  if (!staffRes.ok) return res.status(500).json({ error: 'db_error_clinicians' })
+  if (!staffRes.ok) return res.status(500).json({ error: 'db_error_staff' })
   const clinicians = await staffRes.json()
 
   // 2. Non-archived assets in workspace (id, staff_id, captured_at, created_at)

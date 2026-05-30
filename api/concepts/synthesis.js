@@ -60,20 +60,20 @@ export default async function handler(req, res) {
   const mentions = mentionsRes.ok ? await mentionsRes.json() : []
 
   // Build concept → Set<staffId> map
-  const conceptClinicians = new Map()
+  const conceptStaff = new Map()
   for (const m of mentions) {
-    if (!conceptClinicians.has(m.concept_id)) conceptClinicians.set(m.concept_id, new Set())
-    conceptClinicians.get(m.concept_id).add(m.staff_id)
+    if (!conceptStaff.has(m.concept_id)) conceptStaff.set(m.concept_id, new Set())
+    conceptStaff.get(m.concept_id).add(m.staff_id)
   }
 
   // All distinct clinician IDs who have mentioned anything
-  const allClinicianIds = [...new Set(mentions.map(m => m.staff_id))]
+  const allStaffIds = [...new Set(mentions.map(m => m.staff_id))]
 
   // ── Fetch clinician names ────────────────────────────────────────────────────
   let staffById = {}
-  if (allClinicianIds.length) {
+  if (allStaffIds.length) {
     const cRes = await sb(
-      `staff?id=in.(${allClinicianIds.join(',')})&workspace_id=eq.${ws.id}` +
+      `staff?id=in.(${allStaffIds.join(',')})&workspace_id=eq.${ws.id}` +
       `&select=id,name&limit=100`
     )
     if (cRes.ok) {
@@ -82,14 +82,14 @@ export default async function handler(req, res) {
     }
   }
 
-  const staffList = allClinicianIds
+  const staffList = allStaffIds
     .map(id => ({ id, name: staffById[id] || 'Unknown' }))
     .sort((a, b) => a.name.localeCompare(b.name))
 
   // ── Assemble concept objects with per-clinician coverage ─────────────────────
   const concepts = rawConcepts.map(c => {
-    const mentioned  = conceptClinicians.get(c.id) ?? new Set()
-    const missingIds = allClinicianIds.filter(id => !mentioned.has(id))
+    const mentioned  = conceptStaff.get(c.id) ?? new Set()
+    const missingIds = allStaffIds.filter(id => !mentioned.has(id))
     return {
       id:             c.id,
       kind:           c.kind,
@@ -104,7 +104,7 @@ export default async function handler(req, res) {
   })
 
   // ── Coverage stats ───────────────────────────────────────────────────────────
-  const totalPossible = rawConcepts.length * Math.max(allClinicianIds.length, 1)
+  const totalPossible = rawConcepts.length * Math.max(allStaffIds.length, 1)
   const totalMentioned = concepts.reduce((sum, c) => sum + c.mentionedBy.length, 0)
   const coveragePercent = Math.round((totalMentioned / totalPossible) * 100)
 

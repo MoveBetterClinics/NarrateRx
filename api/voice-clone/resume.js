@@ -64,15 +64,15 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'sampleUrl does not match expected workspace/clinician path' })
   }
 
-  const clinicianRes = await sb(
+  const staffRes = await sb(
     `staff?id=eq.${encodeURIComponent(staffId)}` +
     `&workspace_id=eq.${ws.id}` +
     `&select=id,name,eleven_voice_id,voice_clone_revoked_at&limit=1`
   )
-  if (!clinicianRes.ok) {
+  if (!staffRes.ok) {
     return res.status(502).json({ error: 'Could not look up clinician' })
   }
-  const [clinician] = await clinicianRes.json()
+  const [clinician] = await staffRes.json()
   if (!clinician) return res.status(404).json({ error: 'Clinician not found in this workspace' })
 
   // Verify the blob is actually reachable before we call ElevenLabs — fail

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { useUploadProgress } from '@/lib/UploadProgressContext'
 import { listCollections } from '@/lib/collectionsLib'
-import { fetchClinicians } from '@/lib/api'
+import { fetchStaff } from '@/lib/api'
 
 // Asset purpose is the primary fork — it decides which downstream pipeline
 // the upload feeds. We render the choice as deliberate cards (not a dropdown)
@@ -185,7 +185,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   const [speakerRole, setSpeakerRole] = useState('clinician')
   const [collectionId, setCollectionId] = useState('')
   const [collections, setCollections] = useState([])
-  const [staffId, setClinicianId] = useState('')
+  const [staffId, setStaffId] = useState('')
   const [clinicians, setStaff] = useState([])
   // Smart-preview tray — files pending upload, with detected duration + any
   // purpose mismatch flags. Cleared after a successful upload kick-off.
@@ -205,7 +205,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
   // role → clinician → collection → drop zone.
   let stepCounter = 2
   const stepSpeakerRole = showSpeakerRole ? stepCounter++ : null
-  const stepClinician = showStaffPicker ? stepCounter++ : null
+  const stepStaff = showStaffPicker ? stepCounter++ : null
   const stepCollection = collections.length > 0 ? stepCounter++ : null
   const stepDrop = stepCounter
 
@@ -215,7 +215,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
     listCollections({ status: 'active', limit: 100 })
       .then((rows) => { if (!cancelled) setCollections(Array.isArray(rows) ? rows : []) })
       .catch(() => { if (!cancelled) setCollections([]) })
-    fetchClinicians()
+    fetchStaff()
       .then((rows) => { if (!cancelled) setStaff(Array.isArray(rows) ? rows : []) })
       .catch(() => { if (!cancelled) setStaff([]) })
     return () => { cancelled = true }
@@ -390,7 +390,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
         <div className="mb-3 rounded-xl border bg-card p-4">
           <div className="flex items-center gap-2 mb-2.5">
             <span className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-primary text-white text-xs font-semibold">
-              {stepClinician}
+              {stepStaff}
             </span>
             <div>
               <div className="text-sm font-semibold">
@@ -407,7 +407,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
           <div className="flex flex-wrap items-center gap-1.5">
             <button
               type="button"
-              onClick={() => setClinicianId('')}
+              onClick={() => setStaffId('')}
               className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
                 !staffId
                   ? 'bg-primary text-white border-primary'
@@ -420,7 +420,7 @@ export default function MediaUploader({ onUploaded, createdBy }) {
               <button
                 type="button"
                 key={c.id}
-                onClick={() => setClinicianId(c.id === staffId ? '' : c.id)}
+                onClick={() => setStaffId(c.id === staffId ? '' : c.id)}
                 className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-colors ${
                   staffId === c.id
                     ? 'bg-primary text-white border-primary'

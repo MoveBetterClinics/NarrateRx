@@ -66,7 +66,7 @@ async function clearOtherDefaults(workspaceId, staffId, exceptId = null) {
 // Confirms a clinician id belongs to the current workspace before any
 // operation accepts it as input. Prevents POSTing a staffId from
 // another workspace and triggering cross-tenant mutations.
-async function clinicianInWorkspace(workspaceId, staffId) {
+async function staffInWorkspace(workspaceId, staffId) {
   const r = await sb(`staff?id=eq.${staffId}&workspace_id=eq.${workspaceId}&select=id&limit=1`)
   if (!r.ok) return false
   const rows = await r.json().catch(() => [])
@@ -104,7 +104,7 @@ export default async function handler(req, res) {
     // current workspace. Without this, a logged-in user from tenant A could
     // POST with a staffId from tenant B and clearOtherDefaults would
     // flip is_default across tenant B's rows.
-    if (!(await clinicianInWorkspace(ws.id, body.staffId))) {
+    if (!(await staffInWorkspace(ws.id, body.staffId))) {
       return err(res, 'Clinician not found', 404)
     }
 

@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
-import { useClinician, useInterview, queryKeys } from '@/lib/queries'
-import { updateInterview, populateContentItemProvenance, fetchClinician, fetchClinicianRecentContent } from '@/lib/api'
+import { useStaffMember, useInterview, queryKeys } from '@/lib/queries'
+import { updateInterview, populateContentItemProvenance, fetchStaffMember, fetchStaffMemberRecentContent } from '@/lib/api'
 import { buildOwnHistoryBlock, pickPriorInterviews } from '@/lib/practiceMemory'
 import { streamMessage } from '@/lib/claude'
 import { extractProvenanceBlock } from '@/lib/provenance'
@@ -35,7 +35,7 @@ export default function CaptureReview() {
   const ws = useWorkspace()
 
   const { data: interview, isLoading: ivLoading, isError: ivError } = useInterview(interviewId)
-  const { data: clinician, isLoading: clLoading } = useClinician(staffId)
+  const { data: clinician, isLoading: clLoading } = useStaffMember(staffId)
 
   // Editable transcript — seeded from the Whisper output on first load.
   const [transcript, setTranscript] = useState(null) // null = not yet seeded
@@ -100,16 +100,16 @@ export default function CaptureReview() {
       let ownHistoryBlock = ''
       try {
         const { apiFetch } = await import('@/lib/api')
-        const [vp, clinicianRow, recentContent] = await Promise.all([
+        const [vp, staffRow, recentContent] = await Promise.all([
           apiFetch(`/api/staff/voice-phrases?staff_id=${staffId}&limit=8`).catch(() => null),
-          fetchClinician(staffId).catch(() => null),
-          fetchClinicianRecentContent(staffId, 3).catch(() => []),
+          fetchStaffMember(staffId).catch(() => null),
+          fetchStaffMemberRecentContent(staffId, 3).catch(() => []),
         ])
         voicePhrases = Array.isArray(vp?.phrases) ? vp.phrases : []
-        if (clinicianRow) {
+        if (staffRow) {
           ownHistoryBlock = buildOwnHistoryBlock({
-            staffName: clinicianRow.name || 'this clinician',
-            priorInterviews: pickPriorInterviews(clinicianRow.interviews || [], interviewId),
+            staffName: staffRow.name || 'this clinician',
+            priorInterviews: pickPriorInterviews(staffRow.interviews || [], interviewId),
             priorContent: Array.isArray(recentContent) ? recentContent : [],
           })
         }

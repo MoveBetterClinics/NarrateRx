@@ -84,7 +84,7 @@ const { validateSlug } = await import('../api/_lib/onboardingValidation.js')
 // ═══════════════════════════════════════════════════════════════════════════════
 console.log('\n🔍 Block 1 — Schema guards\n')
 
-let workspaceColumns, clinicianColumns
+let workspaceColumns, staffColumns
 try {
   workspaceColumns = await sbGet(
     "rpc/get_columns?table_name=workspaces"
@@ -124,7 +124,7 @@ try {
   assert(
     'clinicians.user_id column exists',
     probe.ok,
-    probe.ok ? '' : `→ got HTTP ${probe.status} — run migration 051_clinician_user_id.sql`
+    probe.ok ? '' : `→ got HTTP ${probe.status} — run migration 051_staff_user_id.sql`
   )
 }
 

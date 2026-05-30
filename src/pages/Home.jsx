@@ -37,7 +37,7 @@ export default function Home() {
   // Slim clinician summaries — free cache hit when Stories has loaded first
   // (useStories populates the card cache as a side-effect). Includes
   // session_state so we can identify in-progress interviews for the resume strip.
-  const { data: clinicians = [], isLoading: cliniciansLoading } = useStaffSummaries()
+  const { data: clinicians = [], isLoading: staffLoading } = useStaffSummaries()
 
   // ?bucket= deep-link scroll
   useEffect(() => {
@@ -148,7 +148,7 @@ export default function Home() {
 
   // ── Task bucket 4: Due for an interview ─────────────────────────────────────
   // Clinicians with 0 interviews OR most recent interview > 30 days ago
-  const overdueClinicianItems = useMemo(() => {
+  const overdueStaffItems = useMemo(() => {
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
     return clinicians.filter((c) => {
       const interviews = c.interviews || []
@@ -161,7 +161,7 @@ export default function Home() {
     })
   }, [clinicians])
 
-  const isLoading = storiesLoading || cliniciansLoading
+  const isLoading = storiesLoading || staffLoading
 
   if (isLoading) return <LoadingState />
 
@@ -356,7 +356,7 @@ export default function Home() {
             title="Due for an interview"
             icon={<Clock className="h-4 w-4" />}
             accent={ACCENT.overdue}
-            items={overdueClinicianItems}
+            items={overdueStaffItems}
             emptyMessage="Everyone has been interviewed recently — great cadence."
             renderItem={(c) => (
               <Link

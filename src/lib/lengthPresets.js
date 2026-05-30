@@ -47,8 +47,8 @@ export function getLengthPreset(id) {
 
 // Resolve the preset to apply for a piece, given per-piece override and
 // clinician default. Returns the preset id (never null).
-export function resolveLengthPreset(pieceLevel, clinicianDefault) {
+export function resolveLengthPreset(pieceLevel, staffDefault) {
   if (pieceLevel && LENGTH_PRESETS.some((p) => p.id === pieceLevel)) return pieceLevel
-  if (clinicianDefault && LENGTH_PRESETS.some((p) => p.id === clinicianDefault)) return clinicianDefault
+  if (staffDefault && LENGTH_PRESETS.some((p) => p.id === staffDefault)) return staffDefault
   return DEFAULT_LENGTH_PRESET
 }

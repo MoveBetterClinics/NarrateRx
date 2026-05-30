@@ -26,7 +26,7 @@ function fmtDate(raw) {
  * Speaker label: clinician name (or "Clinician") for role===user, "Interviewer" otherwise.
  */
 function buildPlainText(story, messages) {
-  const clinicianLabel = story.staff_name || 'Clinician'
+  const staffLabel = story.staff_name || 'Clinician'
   const header = [
     'NarrateRx — Interview Transcript',
     `Clinician: ${story.staff_name || 'Unknown'}`,
@@ -39,7 +39,7 @@ function buildPlainText(story, messages) {
 
   const body = messages
     .map((m) => {
-      const speaker = m.role === 'user' ? clinicianLabel : 'Interviewer'
+      const speaker = m.role === 'user' ? staffLabel : 'Interviewer'
       return `${speaker}: ${m.content || ''}`
     })
     .join('\n\n')
@@ -52,14 +52,14 @@ function buildPlainText(story, messages) {
  * Opens in a new window and auto-triggers window.print() on load.
  */
 function buildPrintHtml(story, messages) {
-  const clinicianLabel = story.staff_name || 'Clinician'
+  const staffLabel = story.staff_name || 'Clinician'
 
   const escape = (s) =>
     String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
   const rows = messages
     .map((m) => {
-      const speaker = m.role === 'user' ? clinicianLabel : 'Interviewer'
+      const speaker = m.role === 'user' ? staffLabel : 'Interviewer'
       const cls     = m.role === 'user' ? 'clinician' : 'interviewer'
       return `<div class="msg"><span class="label ${cls}">${escape(speaker)}:</span> ${escape(m.content || '')}</div>`
     })

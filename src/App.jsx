@@ -457,7 +457,7 @@ function LegacyReviewRedirect() {
 // Legacy redirect: /clinician/:staffId → /staff/:staffId. The roster entity was
 // renamed clinician→staff (2026-05-29); preserve old bookmarked profile links
 // (and any ?tab=voice query) so in-flight links don't 404.
-function LegacyClinicianRedirect() {
+function LegacyStaffRedirect() {
   const { staffId } = useParams()
   const { search } = useLocation()
   return <Navigate to={`/staff/${staffId}${search}`} replace />
@@ -516,7 +516,7 @@ function AppRoutes() {
             <Route path="/interview/:staffId/:interviewId/output" element={<LegacyOutputRedirect />} />
             <Route path="/output/:staffId/:interviewId" element={<LegacyOutputRedirect />} />
             <Route path="/staff/:staffId" element={guarded(<StaffProfile />)} />
-            <Route path="/clinician/:staffId" element={<LegacyClinicianRedirect />} />
+            <Route path="/clinician/:staffId" element={<LegacyStaffRedirect />} />
             <Route path="/stories" element={guarded(<Stories />)} />
             <Route path="/stories/:storyId" element={guarded(<StoryDetail />)} />
             <Route path="/synthesis" element={guarded(<Synthesis />)} />

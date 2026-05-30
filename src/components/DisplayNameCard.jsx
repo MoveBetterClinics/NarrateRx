@@ -16,7 +16,7 @@ import { useUser } from '@clerk/react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { syncClinicianName } from '@/lib/api'
+import { syncStaffName } from '@/lib/api'
 import { toast } from '@/lib/toast'
 
 export function DisplayNameCard() {
@@ -39,7 +39,7 @@ export function DisplayNameCard() {
       const effective = value.trim() || user.fullName || ''
       if (effective) {
         try {
-          await syncClinicianName(effective)
+          await syncStaffName(effective)
         } catch {
           // Non-fatal — the display name itself saved successfully; the
           // clinician row will pick up the new name on the next interview

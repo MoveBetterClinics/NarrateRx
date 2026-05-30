@@ -16,7 +16,7 @@ export const config = { runtime: 'nodejs' }
 import { evaluate } from '../_lib/autoPublishGate.js'
 import { getCredential } from '../_lib/getCredential.js'
 import { prepareMediaForBuffer } from '../_lib/prepareMediaForBuffer.js'
-import { filterCampaignsForClinician } from '../_lib/tentpoleCampaignContext.js'
+import { filterCampaignsForStaff } from '../_lib/tentpoleCampaignContext.js'
 import { getActiveCampaigns } from '../_lib/activeCampaigns.js'
 
 const SUPABASE_URL  = process.env.SUPABASE_URL
@@ -190,8 +190,8 @@ async function processWorkspace(ws, summary) {
     // clinician (i.e. all campaigns have target restrictions that exclude them),
     // hold the package rather than publishing under the wrong campaign window.
     if (activeCampaigns.length > 0) {
-      const campaignsForClinician = filterCampaignsForClinician(activeCampaigns, pkg.staff_id)
-      if (campaignsForClinician.length === 0) {
+      const campaignsForStaff = filterCampaignsForStaff(activeCampaigns, pkg.staff_id)
+      if (campaignsForStaff.length === 0) {
         held.push({ id: pkg.id, reasons: [{ signal: 'campaign_targeting', detail: 'No active campaigns target this clinician' }] })
         continue
       }

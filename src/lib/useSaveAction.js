@@ -20,7 +20,7 @@
 //   <SaveButton saving={saving} saved={!!savedAt} onClick={save} />
 //
 //   const { run: confirmDelete, saving: deleting } = useSaveAction(
-//     async () => { await deleteClinician(id, user.id); navigate('/') },
+//     async () => { await deleteStaff(id, user.id); navigate('/') },
 //     { successMessage: 'Clinician deleted' },
 //   )
 

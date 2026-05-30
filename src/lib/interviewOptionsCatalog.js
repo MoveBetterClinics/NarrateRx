@@ -38,7 +38,7 @@ export const AUDIENCE_CATALOG = [
   { key: 'athletes_performance', label: 'Athletes & performance', emoji: '🏅', description: 'Competitive or elite training' },
   { key: 'referring_providers',  label: 'Referring providers',    emoji: '🩺', description: 'GPs, orthos, sports med' },
   { key: 'surgeons',             label: 'Surgeons',               emoji: '🔪', description: 'Surgical specialists' },
-  { key: 'other_clinicians',     label: 'Other clinicians',       emoji: '🧑‍⚕️', description: 'Peer PTs, chiros, DOs' },
+  { key: 'other_staff',     label: 'Other clinicians',       emoji: '🧑‍⚕️', description: 'Peer PTs, chiros, DOs' },
   { key: 'coaches_trainers',     label: 'Coaches & trainers',     emoji: '🧑‍🏫', description: 'S&C coaches, trainers, instructors' },
   { key: 'automotive_accident',  label: 'Automotive accident',    emoji: '🚗', description: 'Post-MVA patients' },
   { key: 'fibromyalgia',         label: 'Fibromyalgia',           emoji: '🌿', description: 'Patients managing fibromyalgia' },
@@ -70,7 +70,7 @@ export const DEFAULT_AUDIENCE_SLOT_KEYS = [
   'general_public',
   'active_adults',
   'referring_providers',
-  'other_clinicians',
+  'other_staff',
 ]
 
 export const DEFAULT_STORY_TYPE_SLOT_KEYS = [

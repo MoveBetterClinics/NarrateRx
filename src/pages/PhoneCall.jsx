@@ -11,10 +11,10 @@ import { useWorkspace } from '@/lib/WorkspaceContext'
 import {
   apiFetch,
   createInterview,
-  getOrCreateClinician,
+  getOrCreateStaff,
   updateInterview,
   fetchSimilarInterviews,
-  fetchClinician,
+  fetchStaffMember,
 } from '@/lib/api'
 import { getInterviewSystemPrompt } from '@/lib/prompts'
 
@@ -279,7 +279,7 @@ export default function PhoneCall() {
         user.fullName ||
         user.primaryEmailAddress?.emailAddress?.split('@')[0] ||
         'Me'
-      const clinician = await getOrCreateClinician({
+      const clinician = await getOrCreateStaff({
         name: displayName,
         createdById: user.id,
         createdByEmail: user.primaryEmailAddress?.emailAddress,
@@ -289,7 +289,7 @@ export default function PhoneCall() {
 
       // 2. Create the interview row. capture_mode='realtime_voice' marks it
       //    so analytics can split realtime vs. chat. Tone uses the clinician's
-      //    saved default (getOrCreateClinician returns default_tone); falls
+      //    saved default (getOrCreateStaff returns default_tone); falls
       //    back to 'smart' for a brand-new clinician with no preference set.
       const interview = await createInterview({
         staffId: clinician.id,
@@ -308,18 +308,18 @@ export default function PhoneCall() {
       //    (similar interviews, learned concepts, prior session) so the AI
       //    has the same backstory it would in chat mode. Each individual
       //    fetch failure degrades gracefully — we still start the call.
-      const ctxClinicianParam = `&staff_id=${encodeURIComponent(clinician.id)}`
-      const [pastInterviews, conceptCtx, clinicianRow] = await Promise.all([
+      const ctxStaffParam = `&staff_id=${encodeURIComponent(clinician.id)}`
+      const [pastInterviews, conceptCtx, staffRow] = await Promise.all([
         fetchSimilarInterviews(topic.trim(), interview.id).catch(() => []),
         apiFetch(
-          `/api/concepts/context?topic=${encodeURIComponent(topic.trim())}${ctxClinicianParam}`,
+          `/api/concepts/context?topic=${encodeURIComponent(topic.trim())}${ctxStaffParam}`,
         ).catch(() => ({})),
-        fetchClinician(clinician.id).catch(() => null),
+        fetchStaffMember(clinician.id).catch(() => null),
       ])
 
       // Build the prior-session reference exactly the way InterviewSession does.
       let priorSessionContext = null
-      const priorInterviews = (clinicianRow?.interviews || [])
+      const priorInterviews = (staffRow?.interviews || [])
         .filter((iv) => iv.status === 'completed' && iv.id !== interview.id)
         .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
       if (priorInterviews.length > 0) {
@@ -338,7 +338,7 @@ export default function PhoneCall() {
         pastInterviews || [],
         null, // prototypeId — none for realtime spike
         {
-          tone: clinicianRow?.default_tone || clinician.default_tone || 'smart',
+          tone: staffRow?.default_tone || clinician.default_tone || 'smart',
           isFirstMessage: true,
           priorSessionContext,
           conceptBlock:   conceptCtx?.block || '',
@@ -346,7 +346,7 @@ export default function PhoneCall() {
           gapBlock:       conceptCtx?.gapBlock || '',
           // Team-as-talent (Phase 1.5): branch to non-clinical staff prompt when applicable.
           // Default 'clinician' keeps existing behavior byte-identical.
-          staffType:      clinicianRow?.staff_type || clinician?.staff_type || 'clinician',
+          staffType:      staffRow?.staff_type || clinician?.staff_type || 'clinician',
         },
       )
       // Voice-mode patience override sits ABOVE the standard prompt so the

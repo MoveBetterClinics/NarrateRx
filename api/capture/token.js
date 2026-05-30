@@ -91,7 +91,7 @@ async function resolveTarget(req) {
     clinician = rows?.[0]
   }
 
-  if (!clinician) return { ok: false, status: 404, reason: 'clinician_not_found' }
+  if (!clinician) return { ok: false, status: 404, reason: 'staff_not_found' }
 
   // Permission gate: self (matching user_id), or producer/owner in same workspace.
   const isSelf = clinician.user_id && clinician.user_id === auth.userId

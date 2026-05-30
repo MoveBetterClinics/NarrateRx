@@ -228,12 +228,12 @@ export async function apiFetch(path, init = {}) {
 // ── Clinicians ──────────────────────────────────────────────────────────────
 
 /** @returns {Promise<unknown[]>} */
-export function fetchClinicians() {
+export function fetchStaff() {
   return /** @type {Promise<unknown[]>} */ (apiFetch('/api/db/staff'))
 }
 
 /** @param {string} id @returns {Promise<unknown>} */
-export function fetchClinician(id) {
+export function fetchStaffMember(id) {
   return apiFetch(`/api/db/staff?id=${encodeURIComponent(id)}`)
 }
 
@@ -246,7 +246,7 @@ export function fetchClinician(id) {
  * @param {{ name: string, createdById: string, createdByEmail: string, userId?: string }} opts
  * @returns {Promise<unknown>}
  */
-export function getOrCreateClinician({ name, createdById, createdByEmail, userId }) {
+export function getOrCreateStaff({ name, createdById, createdByEmail, userId }) {
   return apiFetch('/api/db/staff', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -260,7 +260,7 @@ export function getOrCreateClinician({ name, createdById, createdByEmail, userId
  * @param {string} name
  * @returns {Promise<{ updated: number }>}
  */
-export function syncClinicianName(name) {
+export function syncStaffName(name) {
   return /** @type {Promise<{updated:number}>} */ (apiFetch('/api/staff/sync-name', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -269,7 +269,7 @@ export function syncClinicianName(name) {
 }
 
 /** @param {string} id @param {string} userId @returns {Promise<unknown>} */
-export function deleteClinician(id, userId) {
+export function deleteStaff(id, userId) {
   return apiFetch(`/api/db/staff?id=${encodeURIComponent(id)}`, {
     method: 'DELETE',
     headers: { 'x-user-id': userId },
@@ -277,7 +277,7 @@ export function deleteClinician(id, userId) {
 }
 
 /** @param {string} id @param {Record<string, unknown>} patch @param {string} userId @returns {Promise<unknown>} */
-export function patchClinician(id, patch, userId) {
+export function patchStaff(id, patch, userId) {
   return apiFetch(`/api/db/staff?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', 'x-user-id': userId },
@@ -306,7 +306,7 @@ export function fetchSimilarInterviews(topic, excludeId) {
  * @param {number} [limit]
  * @returns {Promise<unknown>}
  */
-export function fetchClinicianRecentContent(staffId, limit = 3) {
+export function fetchStaffMemberRecentContent(staffId, limit = 3) {
   const params = new URLSearchParams({
     staffId,
     status: 'approved,published',
@@ -332,7 +332,7 @@ export function createInterview({ staffId, topic, ownerEmail, tone, voiceMode, p
 // ── Clinician Recipes ───────────────────────────────────────────────────────
 
 /** @param {string} staffId @returns {Promise<unknown[]>} */
-export function fetchClinicianRecipes(staffId) {
+export function fetchStaffMemberRecipes(staffId) {
   return /** @type {Promise<unknown[]>} */ (
     apiFetch(`/api/db/staff-recipes?staffId=${encodeURIComponent(staffId)}`)
   )
@@ -342,7 +342,7 @@ export function fetchClinicianRecipes(staffId) {
  * @param {{ staffId: string, name: string, emoji?: string, is_default?: boolean, audience?: string|null, story_type?: string|null, tone?: string|null, voice_mode?: string|null, cleanup_level?: string|null }} body
  * @returns {Promise<unknown>}
  */
-export function createClinicianRecipe(body) {
+export function createStaffRecipe(body) {
   return apiFetch('/api/db/staff-recipes', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -351,7 +351,7 @@ export function createClinicianRecipe(body) {
 }
 
 /** @param {string} id @param {Record<string, unknown>} patch @returns {Promise<unknown>} */
-export function patchClinicianRecipe(id, patch) {
+export function patchStaffRecipe(id, patch) {
   return apiFetch(`/api/db/staff-recipes?id=${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
@@ -360,7 +360,7 @@ export function patchClinicianRecipe(id, patch) {
 }
 
 /** @param {string} id @returns {Promise<unknown>} */
-export function deleteClinicianRecipe(id) {
+export function deleteStaffRecipe(id) {
   return apiFetch(`/api/db/staff-recipes?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
 }
 
@@ -496,7 +496,7 @@ export function deleteInterview(id) {
 // computed from data already reachable via existing endpoints.
 //
 // interviews: the clinician row's embedded interviews array (already fetched by
-//   useClinician) — passed in to avoid a second network request.
+//   useStaffMember) — passed in to avoid a second network request.
 // Published content: fetched from /api/db/content?staffId=<id>&status=published
 //   which now accepts staffId filtering (api/db/content.js, added 2026-05-13).
 /**
@@ -504,7 +504,7 @@ export function deleteInterview(id) {
  * @param {any[]} [interviews]
  * @returns {Promise<{ stats: { interviews: number, posts: number, streak: number }, recentPosts: any[], standoutQuote: { text: string, interviewTopic: string } | null }>}
  */
-export async function fetchClinicianArc(staffId, interviews = []) {
+export async function fetchStaffMemberArc(staffId, interviews = []) {
   // Fetch published content items for this clinician
   const posts = /** @type {any[]} */ (await apiFetch(
     `/api/db/content?staffId=${encodeURIComponent(staffId)}&status=published&limit=100`

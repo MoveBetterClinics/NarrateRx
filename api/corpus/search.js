@@ -36,7 +36,7 @@ export default async function handler(req, res) {
   }
 
   // Resolve the clinician row so results are scoped to this user's corpus.
-  const clinicianRes = await fetch(
+  const staffRes = await fetch(
     `${SUPABASE_URL}/rest/v1/staff?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}&select=id&limit=1`,
     {
       headers: {
@@ -46,8 +46,8 @@ export default async function handler(req, res) {
     }
   )
   let staffId = null
-  if (clinicianRes.ok) {
-    const rows = await clinicianRes.json().catch(() => [])
+  if (staffRes.ok) {
+    const rows = await staffRes.json().catch(() => [])
     staffId = rows[0]?.id ?? null
   }
 

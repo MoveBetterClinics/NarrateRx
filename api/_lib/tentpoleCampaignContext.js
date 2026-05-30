@@ -36,7 +36,7 @@ function formatEventDate(iso) {
  *   • non-empty AND missing staffId → does NOT apply (a targeted campaign
  *     can't bind without a target)
  */
-export function filterCampaignsForClinician(campaigns, staffId) {
+export function filterCampaignsForStaff(campaigns, staffId) {
   if (!Array.isArray(campaigns)) return []
   return campaigns.filter((c) => {
     const targets = Array.isArray(c.target_staff_ids) ? c.target_staff_ids : []
@@ -62,7 +62,7 @@ export function filterCampaignsForClinician(campaigns, staffId) {
 export async function loadCurrentTentpole(workspaceId, staffId = null) {
   if (!workspaceId) return null
   const all = await getActiveCampaigns(workspaceId)
-  const campaigns = filterCampaignsForClinician(all, staffId)
+  const campaigns = filterCampaignsForStaff(all, staffId)
   if (!campaigns.length) return null
   const now = Date.now()
   const ranked = campaigns

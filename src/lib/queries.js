@@ -22,17 +22,17 @@ import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-quer
 import { useAppMutation } from './useAppMutation'
 import {
   apiFetch,
-  fetchClinicians,
-  fetchClinician,
-  deleteClinician,
-  patchClinician,
+  fetchStaff,
+  fetchStaffMember,
+  deleteStaff,
+  patchStaff,
   deleteInterview,
   updateInterview,
   fetchInterview,
-  fetchClinicianRecipes,
-  createClinicianRecipe,
-  patchClinicianRecipe,
-  deleteClinicianRecipe,
+  fetchStaffMemberRecipes,
+  createStaffRecipe,
+  patchStaffRecipe,
+  deleteStaffRecipe,
 } from './api'
 import {
   fetchContentItems,
@@ -111,9 +111,9 @@ export const queryKeys = {
     all:  ['campaigns'],
     list: () => ['campaigns', 'list'],
   },
-  clinicianRecipes: {
-    all:                ['clinicianRecipes'],
-    forClinician: (id) => ['clinicianRecipes', 'forClinician', id],
+  staffRecipes: {
+    all:                ['staffRecipes'],
+    forStaff: (id) => ['staffRecipes', 'forStaff', id],
   },
   references: {
     all:           ['references'],
@@ -211,28 +211,28 @@ export function useUpdateBrandStyle() {
 
 // ── Clinicians ──────────────────────────────────────────────────────────────
 
-export function useClinicians(options = {}) {
+export function useStaff(options = {}) {
   return useQuery({
     queryKey: queryKeys.staff.list(),
-    queryFn: fetchClinicians,
+    queryFn: fetchStaff,
     ...options,
   })
 }
 
-export function useClinician(id, options = {}) {
+export function useStaffMember(id, options = {}) {
   return useQuery({
     queryKey: queryKeys.staff.detail(id),
-    queryFn: () => fetchClinician(id),
+    queryFn: () => fetchStaffMember(id),
     enabled: !!id,
     ...options,
   })
 }
 
-export function useDeleteClinician() {
+export function useDeleteStaff() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't delete clinician",
-    mutationFn: ({ id, userId }) => deleteClinician(id, userId),
+    mutationFn: ({ id, userId }) => deleteStaff(id, userId),
     onSuccess: (_data, { id }) => {
       // Wipe the list cache + the specific detail so a re-fetch sees fresh
       // state. Also flush anything interview-shaped since deleted clinicians
@@ -244,11 +244,11 @@ export function useDeleteClinician() {
   })
 }
 
-export function usePatchClinician() {
+export function usePatchStaff() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't save clinician",
-    mutationFn: ({ id, patch, userId }) => patchClinician(id, patch, userId),
+    mutationFn: ({ id, patch, userId }) => patchStaff(id, patch, userId),
     onSuccess: (_data, { id }) => {
       qc.invalidateQueries({ queryKey: queryKeys.staff.detail(id) })
       qc.invalidateQueries({ queryKey: queryKeys.staff.list() })
@@ -904,42 +904,42 @@ export function useUpsertCampaign() {
 
 // ── Clinician Recipes ──────────────────────────────────────────────────────
 
-export function useClinicianRecipes(staffId, options = {}) {
+export function useStaffRecipes(staffId, options = {}) {
   return useQuery({
-    queryKey: queryKeys.clinicianRecipes.forClinician(staffId),
-    queryFn: () => fetchClinicianRecipes(staffId),
+    queryKey: queryKeys.staffRecipes.forStaff(staffId),
+    queryFn: () => fetchStaffMemberRecipes(staffId),
     enabled: !!staffId,
     staleTime: 1000 * 30,
     ...options,
   })
 }
 
-export function useCreateClinicianRecipe() {
+export function useCreateStaffRecipe() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't save recipe",
-    mutationFn: (body) => createClinicianRecipe(body),
+    mutationFn: (body) => createStaffRecipe(body),
     onSuccess: (_data, body) => {
-      qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.forClinician(body.staffId) })
+      qc.invalidateQueries({ queryKey: queryKeys.staffRecipes.forStaff(body.staffId) })
     },
   })
 }
 
-export function usePatchClinicianRecipe() {
+export function usePatchStaffRecipe() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't save recipe",
-    mutationFn: ({ id, patch }) => patchClinicianRecipe(id, patch),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.all }),
+    mutationFn: ({ id, patch }) => patchStaffRecipe(id, patch),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.staffRecipes.all }),
   })
 }
 
-export function useDeleteClinicianRecipe() {
+export function useDeleteStaffRecipe() {
   const qc = useQueryClient()
   return useAppMutation({
     errorMessage: "Couldn't delete recipe",
-    mutationFn: ({ id }) => deleteClinicianRecipe(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.clinicianRecipes.all }),
+    mutationFn: ({ id }) => deleteStaffRecipe(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: queryKeys.staffRecipes.all }),
   })
 }
 

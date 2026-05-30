@@ -67,7 +67,7 @@ export async function fetchFusedRagContext({
   let practiceMs = 0
   try {
     const tp0 = Date.now()
-    const perClinician = staffIds.length > 0
+    const perStaff = staffIds.length > 0
       ? staffIds.map((cid) => searchPracticeMemory({
           workspaceId,
           staffId: cid,
@@ -76,7 +76,7 @@ export async function fetchFusedRagContext({
         }))
       : [searchPracticeMemory({ workspaceId, staffId: null, query: topic, topK: practiceK })]
 
-    const results = await Promise.all(perClinician)
+    const results = await Promise.all(perStaff)
     practiceMs = Date.now() - tp0
 
     // Merge, dedupe by chunk id, sort by similarity desc, cap at MAX_MERGED_CHUNKS

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/react'
 import { Mic, Target, User, X } from 'lucide-react'
-import { useStories, useOnboardingProgress, useCampaigns, useClinicians, useLocations } from '@/lib/queries'
+import { useStories, useOnboardingProgress, useCampaigns, useStaff, useLocations } from '@/lib/queries'
 import { useUserRole } from '@/lib/useUserRole'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getPatientPrototypesUi } from '@/lib/prompts'
@@ -66,7 +66,7 @@ export default function Stories() {
   }, [storiesAll, mineOnly, realOnly, user])
   const { data: progress } = useOnboardingProgress()
   const { data: campaigns = [] } = useCampaigns()
-  const { data: clinicians = [] } = useClinicians({ enabled: !!campaignFilter })
+  const { data: clinicians = [] } = useStaff({ enabled: !!campaignFilter })
   const { data: locations = [] } = useLocations()
   const workspace = useWorkspace()
   const currentPlan = progress?.plan

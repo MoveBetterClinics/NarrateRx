@@ -303,12 +303,12 @@ export default async function handler(req, res) {
     }
 
     // Resolve clinician name for render overlays (best-effort).
-    let brollClinicianName = ''
+    let brollStaffName = ''
     if (staffId) {
       const cRes = await sb(`staff?id=eq.${staffId}&workspace_id=eq.${ws.id}&select=name`)
       if (cRes.ok) {
         const cRows = await cRes.json()
-        brollClinicianName = cRows?.[0]?.name || ''
+        brollStaffName = cRows?.[0]?.name || ''
       }
     }
 
@@ -323,7 +323,7 @@ export default async function handler(req, res) {
         workspace:     ws,
         staffId:   staffId || null,
         channels:      brollChannels,
-        staffName: brollClinicianName,
+        staffName: brollStaffName,
       })
     )
 
@@ -331,7 +331,7 @@ export default async function handler(req, res) {
       packageId:    brollPackageId,
       topic,
       captionText,
-      staffName: brollClinicianName,
+      staffName: brollStaffName,
       status:       'pending_broll',
       broll_status: 'generating',
       broll_model:  'gen3a_turbo',
@@ -357,9 +357,9 @@ export default async function handler(req, res) {
 
   // --- 2. Look up clinician name ────────────────────────────────────────────
   let staffName = ''
-  const lookupClinicianId = clip.staffId || staffId
-  if (lookupClinicianId) {
-    const cRes = await sb(`staff?id=eq.${lookupClinicianId}&workspace_id=eq.${ws.id}&select=name`)
+  const lookupStaffId = clip.staffId || staffId
+  if (lookupStaffId) {
+    const cRes = await sb(`staff?id=eq.${lookupStaffId}&workspace_id=eq.${ws.id}&select=name`)
     if (cRes.ok) {
       const cRows = await cRes.json()
       staffName = cRows?.[0]?.name || ''
@@ -392,7 +392,7 @@ export default async function handler(req, res) {
       method: 'POST',
       body: JSON.stringify({
         workspace_id: ws.id,
-        staff_id: lookupClinicianId || null,
+        staff_id: lookupStaffId || null,
         source_asset_id: clip.assetId || null,
         topic,
         caption_text: captionText,
@@ -434,7 +434,7 @@ export default async function handler(req, res) {
       staffName,
       filename:      clip.filename,
       topic,
-      staffId:   lookupClinicianId || null,
+      staffId:   lookupStaffId || null,
     })
   )
 

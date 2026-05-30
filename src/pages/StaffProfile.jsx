@@ -16,9 +16,9 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import {
-  useClinician, useStaffSummaries, useDeleteClinician, useDeleteInterview,
-  useClinicianRecipes, usePatchClinicianRecipe, useDeleteClinicianRecipe,
-  usePatchClinician,
+  useStaffMember, useStaffSummaries, useDeleteStaff, useDeleteInterview,
+  useStaffRecipes, usePatchStaffRecipe, useDeleteStaffRecipe,
+  usePatchStaff,
 } from '@/lib/queries'
 import { resolveOwnerName } from '@/components/home/helpers'
 import { resolveAudienceSlot, resolveStoryTypeSlot } from '@/lib/interviewOptionsCatalog'
@@ -32,7 +32,7 @@ import { formatDate, formatRelativeDate } from '@/lib/utils'
 import { toast } from '@/lib/toast'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUserRole } from '@/lib/useUserRole'
-import { fetchClinicianArc, apiFetch } from '@/lib/api'
+import { fetchStaffMemberArc, apiFetch } from '@/lib/api'
 import { useAppMutation } from '@/lib/useAppMutation'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { TONES, getVoiceModes } from '@/lib/prompts'
@@ -73,7 +73,7 @@ export default function StaffProfile() {
   const navigate = useNavigate()
   const { user } = useUser()
   const { role } = useUserRole()
-  const { data: clinician, isLoading: loading, error: loadError } = useClinician(staffId)
+  const { data: clinician, isLoading: loading, error: loadError } = useStaffMember(staffId)
   const { data: clinicians = [] } = useStaffSummaries()
 
   // Initial tab can be deep-linked via ?tab=voice|settings|activity. Used by
@@ -90,9 +90,9 @@ export default function StaffProfile() {
   const [arc, setArc] = useState(null)
   const [voiceData, setVoiceData] = useState(null)
 
-  const deleteClinicianMut = useDeleteClinician()
+  const deleteStaffMut = useDeleteStaff()
   const deleteInterviewMut = useDeleteInterview()
-  const deleting = deleteClinicianMut.isPending || deleteInterviewMut.isPending
+  const deleting = deleteStaffMut.isPending || deleteInterviewMut.isPending
 
   useEffect(() => {
     if (!loading && (loadError || clinician === null)) navigate('/')
@@ -102,7 +102,7 @@ export default function StaffProfile() {
     if (!clinician) return
     const isOwner = clinician.created_by_id === user?.id
     if (!isOwner && role !== 'admin') return
-    fetchClinicianArc(staffId, clinician.interviews || [])
+    fetchStaffMemberArc(staffId, clinician.interviews || [])
       .then(setArc)
       .catch(() => {})
   }, [clinician, staffId, user?.id, role])
@@ -125,9 +125,9 @@ export default function StaffProfile() {
     }
   }
 
-  async function handleDeleteClinician() {
+  async function handleDeleteStaff() {
     try {
-      await deleteClinicianMut.mutateAsync({ id: staffId, userId: user.id })
+      await deleteStaffMut.mutateAsync({ id: staffId, userId: user.id })
       toast.success(`Deleted ${clinician?.name || 'staff member'}`)
       navigate('/')
     } catch (e) {
@@ -547,7 +547,7 @@ export default function StaffProfile() {
           {(isMyStaffProfile || role === 'admin') && (
             <CaptureCompanionCard clinician={clinician} />
           )}
-          {role === 'admin' && <ClinicianRecipeCard clinician={clinician} />}
+          {role === 'admin' && <StaffRecipeCard clinician={clinician} />}
         </div>
       )}
 
@@ -585,7 +585,7 @@ export default function StaffProfile() {
               disabled={deleting}
               onClick={() =>
                 deleteTarget?.type === 'clinician'
-                  ? handleDeleteClinician()
+                  ? handleDeleteStaff()
                   : handleDeleteInterview(deleteTarget.id)
               }
             >
@@ -670,7 +670,7 @@ function PublishedPostRow({ post }) {
 
 function DefaultToneCard({ clinician }) {
   const { user } = useUser()
-  const patchClinician = usePatchClinician()
+  const patchStaff = usePatchStaff()
   const tones = TONES
   const current = clinician.default_tone || 'smart'
   const [selected, setSelected] = useState(current)
@@ -679,7 +679,7 @@ function DefaultToneCard({ clinician }) {
   const isDirty = selected !== current
 
   async function handleSave() {
-    await patchClinician.mutateAsync({ id: clinician.id, patch: { default_tone: selected }, userId: user?.id })
+    await patchStaff.mutateAsync({ id: clinician.id, patch: { default_tone: selected }, userId: user?.id })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -713,10 +713,10 @@ function DefaultToneCard({ clinician }) {
         <div className="flex items-center gap-3 pt-1">
           <Button
             size="sm"
-            disabled={!isDirty || patchClinician.isPending}
+            disabled={!isDirty || patchStaff.isPending}
             onClick={handleSave}
           >
-            {patchClinician.isPending ? (
+            {patchStaff.isPending ? (
               <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Saving…</>
             ) : saved ? (
               'Saved ✓'
@@ -724,7 +724,7 @@ function DefaultToneCard({ clinician }) {
               'Save preference'
             )}
           </Button>
-          {isDirty && !patchClinician.isPending && (
+          {isDirty && !patchStaff.isPending && (
             <button
               type="button"
               className="text-xs text-muted-foreground hover:text-foreground"
@@ -964,11 +964,11 @@ function CaptureCompanionCard({ clinician }) {
 
 // ── Clinician recipe card ─────────────────────────────────────────────────────
 
-function ClinicianRecipeCard({ clinician }) {
+function StaffRecipeCard({ clinician }) {
   const workspace = useWorkspace()
-  const { data: recipes = [], isLoading } = useClinicianRecipes(clinician.id)
-  const patchMut  = usePatchClinicianRecipe()
-  const deleteMut = useDeleteClinicianRecipe()
+  const { data: recipes = [], isLoading } = useStaffRecipes(clinician.id)
+  const patchMut  = usePatchStaffRecipe()
+  const deleteMut = useDeleteStaffRecipe()
   const VOICE_MODES = getVoiceModes(workspace)
 
   async function handleSetDefault(recipe) {

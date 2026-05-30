@@ -26,7 +26,7 @@ import { useUnsavedChanges } from '@/lib/useUnsavedChanges'
 import { useSaveShortcut } from '@/lib/useSaveShortcut'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
-import { useClinicians } from '@/lib/queries'
+import { useStaff } from '@/lib/queries'
 import { StaffChip } from '@/components/StaffChip'
 import { SlotEditor } from '@/components/settings/SlotEditor'
 import {
@@ -185,7 +185,7 @@ export default function InterviewDefaultsPage() {
 // /staff/:id — this card is a fast scanner + nav shortcut.
 
 function VoiceMemoryRoster({ interviewerName }) {
-  const { data: clinicians = [], isLoading } = useClinicians()
+  const { data: clinicians = [], isLoading } = useStaff()
 
   return (
     <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-4 py-4">

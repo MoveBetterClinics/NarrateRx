@@ -94,7 +94,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
   const [status, setStatus]     = useState(asset.status || 'raw')
   const [assetPurpose, setAssetPurpose] = useState(defaultPurposeFor(asset))
   const [speakerRole, setSpeakerRole] = useState(asset.speaker_role || 'clinician')
-  const [staffId, setClinicianId] = useState(asset.staff_id || '')
+  const [staffId, setStaffId] = useState(asset.staff_id || '')
   const [aiTags, setAiTags]     = useState(asset.ai_tags || [])
   const [transcription, setTranscription] = useState(asset.transcription || '')
   const [visualNarrative, setVisualNarrative] = useState(asset.visual_narrative || '')
@@ -185,7 +185,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
     setStatus(asset.status || 'raw')
     setAssetPurpose(asset.asset_purpose || (asset.kind === 'video' ? 'interview' : 'photo'))
     setSpeakerRole(asset.speaker_role || 'clinician')
-    setClinicianId(asset.staff_id || '')
+    setStaffId(asset.staff_id || '')
     setAiTags(asset.ai_tags || [])
     setTranscription(asset.transcription || '')
     setVisualNarrative(asset.visual_narrative || '')
@@ -720,7 +720,7 @@ export default function MediaDetail({ asset, onClose, onChange }) {
               </div>
               <select
                 value={staffId}
-                onChange={(e) => setClinicianId(e.target.value)}
+                onChange={(e) => setStaffId(e.target.value)}
                 disabled={!canEdit}
                 className="text-sm h-8 px-2 rounded-md border border-border bg-background text-foreground w-full sm:max-w-xs"
               >

@@ -323,11 +323,11 @@ This is a personal-voice piece. Preserve ${staffName}'s first-person voice ("I",
 Brand attribution still applies: end the piece with a signature line on its own — "— ${staffName}, ${workspace.display_name}, ${workspace.location}". Internal links, paradigm vocabulary, and links to ${workspace.display_name} resources should still appear naturally.`
   }
   // Practice voice — current behavior, with explicit conversion guidance.
-  const clinicianMention = assetType === 'video'
+  const staffMention = assetType === 'video'
     ? `${staffName} is the on-camera clinician and expert, but the brand being promoted is ${workspace.display_name}. Scripts should introduce ${staffName} as "our clinician" or "part of the ${workspace.display_name} team." All CTAs, bookings, and references point to ${workspace.display_name}, not to ${staffName} personally.`
     : `The clinician's name may appear once or twice naturally (e.g., "one of our clinicians, ${staffName}, notes that…") but should never be in a headline, section header, or the main focus of a paragraph.`
   return `CRITICAL FRAMING RULE:
-This content is branded for ${workspace.display_name} as a clinic — NOT for the individual clinician. The subject is always "we at ${workspace.display_name}" or "our team" or "our approach." Even if the clinician used "I" or "me" in the interview, convert it to clinic voice in the output (e.g., "I see this in patients" → "We see this in patients at ${workspace.display_name}"). ${clinicianMention}`
+This content is branded for ${workspace.display_name} as a clinic — NOT for the individual clinician. The subject is always "we at ${workspace.display_name}" or "our team" or "our approach." Even if the clinician used "I" or "me" in the interview, convert it to clinic voice in the output (e.g., "I see this in patients" → "We see this in patients at ${workspace.display_name}"). ${staffMention}`
 }
 
 // Returns a block describing the target audience and story type so Bernard

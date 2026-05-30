@@ -6,10 +6,10 @@ import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Badge } from '@/components/ui/badge'
-import { apiFetch, fetchSimilarInterviews, fetchClinician, fetchClinicianRecentContent, updateInterview, cleanupTranscript, populateContentItemProvenance, runVoiceAuditForInterview } from '@/lib/api'
+import { apiFetch, fetchSimilarInterviews, fetchStaffMember, fetchStaffMemberRecentContent, updateInterview, cleanupTranscript, populateContentItemProvenance, runVoiceAuditForInterview } from '@/lib/api'
 import { buildOwnHistoryBlock, pickPriorInterviews } from '@/lib/practiceMemory'
 import { extractProvenanceBlock } from '@/lib/provenance'
-import { useClinician, useInterview, queryKeys } from '@/lib/queries'
+import { useStaffMember, useInterview, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { streamMessage } from '@/lib/claude'
 import { getInterviewSystemPrompt, getBlogPostSystemPrompt, getMinimalEditSystemPrompt, getCoveredSummarySystemPrompt, TONES, getVoiceModes, getPatientPrototypesUi, buildVerbatimBlock } from '@/lib/prompts'
@@ -36,7 +36,7 @@ function isShallowAnswer(text) {
   return !CONCRETE_NOUNS.some((noun) => lower.includes(noun))
 }
 
-// Token format: [CONTRAST][ClinicianlastName] or legacy [CONTRAST]
+// Token format: [CONTRAST][StafflastName] or legacy [CONTRAST]
 // Extract the embedded clinician name if present, e.g. [CONTRAST][Sarah] → "Sarah"
 function extractContrastName(text) {
   const m = text.match(/\[CONTRAST\]\[([^\]]+)\]/)
@@ -51,7 +51,7 @@ function hasContrastSignal(text) {
   return text.includes('[CONTRAST]')
 }
 
-// Token format: [AGREEMENT][ClinicianName] or legacy [AGREEMENT]
+// Token format: [AGREEMENT][StaffName] or legacy [AGREEMENT]
 // Extract the embedded clinician name if present, e.g. [AGREEMENT][Sarah] → "Sarah"
 function extractAgreementName(text) {
   const m = text.match(/\[AGREEMENT\]\[([^\]]+)\]/)
@@ -174,9 +174,9 @@ export default function InterviewSession() {
   // user navigates here from the clinician profile (already warm) or
   // returns to a previously-loaded interview within the gcTime window.
   const qc = useQueryClient()
-  const { data: clinicianData } = useClinician(staffId)
+  const { data: staffData } = useStaffMember(staffId)
   const { data: interviewData, isLoading: interviewLoading } = useInterview(interviewId)
-  const clinician = clinicianData ?? null
+  const clinician = staffData ?? null
   const [interview, setInterview] = useState(null)
   const loading = interviewLoading || !clinician || !interview
   const [messages, setMessages] = useState([])
@@ -483,8 +483,8 @@ export default function InterviewSession() {
 
     // Fetch learned practice knowledge for this topic — injected into every
     // system prompt for this session. Fails silently (empty block = graceful noop).
-    const clinicianParam = staffId ? `&staff_id=${encodeURIComponent(staffId)}` : ''
-    apiFetch(`/api/concepts/context?topic=${encodeURIComponent(interviewData.topic || '')}${clinicianParam}`)
+    const staffParam = staffId ? `&staff_id=${encodeURIComponent(staffId)}` : ''
+    apiFetch(`/api/concepts/context?topic=${encodeURIComponent(interviewData.topic || '')}${staffParam}`)
       .then((data) => {
         const { block, agreementBlock, gapBlock } = /** @type {{ block?: string, agreementBlock?: string, gapBlock?: string }} */ (data || {})
         conceptBlockRef.current   = block          || ''
@@ -503,13 +503,13 @@ export default function InterviewSession() {
     // Falls back silently when there's no signal. A later PR replaces the
     // recency-based pick with embedding-based RAG.
     Promise.all([
-      fetchClinician(staffId).catch(() => null),
-      fetchClinicianRecentContent(staffId, 3).catch(() => []),
+      fetchStaffMember(staffId).catch(() => null),
+      fetchStaffMemberRecentContent(staffId, 3).catch(() => []),
     ])
-      .then(([clinicianRow, recentContent]) => {
-        const priorInterviews = pickPriorInterviews(clinicianRow?.interviews || [], interviewId)
+      .then(([staffRow, recentContent]) => {
+        const priorInterviews = pickPriorInterviews(staffRow?.interviews || [], interviewId)
         ownHistoryBlockRef.current = buildOwnHistoryBlock({
-          staffName: clinicianRow?.name || 'this clinician',
+          staffName: staffRow?.name || 'this clinician',
           priorInterviews,
           priorContent: Array.isArray(recentContent) ? recentContent : [],
         })

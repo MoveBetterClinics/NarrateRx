@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { usePatchClinician } from '@/lib/queries'
+import { usePatchStaff } from '@/lib/queries'
 import { createTtsPlayer, primeAudioPlayback } from '@/lib/tts'
 import { toast } from '@/lib/toast'
 
@@ -36,7 +36,7 @@ export default function VoicePlaybackCard({ clinician }) {
   const [speed, setSpeed] = useState(initial)
   const [playing, setPlaying] = useState(false)
   const ttsRef = useRef(null)
-  const patchClinician = usePatchClinician()
+  const patchStaff = usePatchStaff()
 
   // Reset local state if the underlying clinician swaps (rare on this page,
   // but guards against stale slider values after cache invalidation).
@@ -72,7 +72,7 @@ export default function VoicePlaybackCard({ clinician }) {
   async function handleSave() {
     const next = { ...(clinician?.tts_settings || {}), speed }
     try {
-      await patchClinician.mutateAsync({
+      await patchStaff.mutateAsync({
         id: clinician.id,
         patch: { tts_settings: next },
         userId: clinician.created_by_id,
@@ -84,7 +84,7 @@ export default function VoicePlaybackCard({ clinician }) {
   }
 
   const dirty = Math.abs(speed - initial) > 0.001
-  const saving = patchClinician.isPending
+  const saving = patchStaff.isPending
 
   return (
     <Card>

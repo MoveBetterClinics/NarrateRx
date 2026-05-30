@@ -11,7 +11,7 @@
  *
  * Action: move ACL rehab onto winner, set user_id on winner, delete loser.
  * The retained label on the winner stays "Dr. Q" (matches the current
- * display name); a follow-up `syncClinicianName` from the Account page can
+ * display name); a follow-up `syncStaffName` from the Account page can
  * change it later.
  *
  * Usage:

@@ -79,9 +79,9 @@ export default async function handler(req, res) {
       return ok(res, data[0] ?? null)
     }
     // All clinicians with interview summaries
-    const clinicianSel = view === 'card' ? CLINICIAN_FIELDS_CARD : CLINICIAN_BASE_FIELDS
+    const staffSel = view === 'card' ? CLINICIAN_FIELDS_CARD : CLINICIAN_BASE_FIELDS
     const interviewSel = view === 'card' ? INTERVIEW_FIELDS_CARD : INTERVIEW_FIELDS
-    const r = await sb(`staff?${wsFilter}&select=${clinicianSel},interviews(${interviewSel})&order=name.asc`)
+    const r = await sb(`staff?${wsFilter}&select=${staffSel},interviews(${interviewSel})&order=name.asc`)
     if (!r.ok) return dbErr(res, r)
     return ok(res, await r.json())
   }

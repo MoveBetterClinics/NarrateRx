@@ -49,12 +49,12 @@ function sb(path, init = {}) {
   })
 }
 
-// Mirror src/lib/api.js → fetchClinician shape. Pulls the embedded
+// Mirror src/lib/api.js → fetchStaffMember shape. Pulls the embedded
 // interview list with summary_text so the builder can prefer summaries
 // over raw turns.
 const INTERVIEW_FIELDS = 'id,topic,status,created_at,messages,summary_text,summary_generated_at'
 
-async function fetchClinicianInterviews(workspaceId, staffId) {
+async function fetchStaffMemberInterviews(workspaceId, staffId) {
   const qs = `staff?id=eq.${staffId}&workspace_id=eq.${workspaceId}&select=name,interviews(${INTERVIEW_FIELDS})`
   const r = await sb(qs)
   if (!r.ok) {
@@ -95,12 +95,12 @@ async function fetchRecentApprovedContent(workspaceId, staffId, limit = 3) {
 export async function resolveOwnHistoryBlock({ workspaceId, staffId, excludeInterviewId, query }) {
   try {
     if (!workspaceId || !staffId) return ''
-    const [clinicianRow, recentContent] = await Promise.all([
-      fetchClinicianInterviews(workspaceId, staffId),
+    const [staffRow, recentContent] = await Promise.all([
+      fetchStaffMemberInterviews(workspaceId, staffId),
       fetchRecentApprovedContent(workspaceId, staffId),
     ])
-    if (!clinicianRow) return ''
-    const priorInterviews = pickPriorInterviews(clinicianRow.interviews || [], excludeInterviewId)
+    if (!staffRow) return ''
+    const priorInterviews = pickPriorInterviews(staffRow.interviews || [], excludeInterviewId)
 
     let relatedSnippets = []
     if (query && String(query).trim()) {
@@ -119,7 +119,7 @@ export async function resolveOwnHistoryBlock({ workspaceId, staffId, excludeInte
     }
 
     return buildOwnHistoryBlock({
-      staffName: clinicianRow.name || 'this clinician',
+      staffName: staffRow.name || 'this clinician',
       priorInterviews,
       priorContent: recentContent,
       relatedSnippets,
@@ -198,13 +198,13 @@ export async function buildTopicScopedHistoryBlock({ topic, workspaceId, staffId
 export async function resolvePriorCorpusSnippets({ workspaceId, staffId, excludeInterviewId }) {
   try {
     if (!workspaceId || !staffId) return []
-    const [clinicianRow, recentContent] = await Promise.all([
-      fetchClinicianInterviews(workspaceId, staffId),
+    const [staffRow, recentContent] = await Promise.all([
+      fetchStaffMemberInterviews(workspaceId, staffId),
       fetchRecentApprovedContent(workspaceId, staffId, 6),
     ])
-    if (!clinicianRow) return []
+    if (!staffRow) return []
     const snippets = []
-    for (const iv of (clinicianRow.interviews || [])) {
+    for (const iv of (staffRow.interviews || [])) {
       if (!iv || iv.id === excludeInterviewId) continue
       if (typeof iv.summary_text === 'string' && iv.summary_text.trim()) {
         snippets.push(iv.summary_text.trim())

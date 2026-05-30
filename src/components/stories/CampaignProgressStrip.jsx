@@ -37,7 +37,7 @@ export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
   }
 
   const pendingIds = targetIds.filter((id) => !contributedIds.has(id))
-  const pendingClinicians = pendingIds.map((id) => {
+  const pendingStaff = pendingIds.map((id) => {
     const match = clinicians.find((c) => c.id === id)
     return { id, name: match?.name || match?.full_name || 'Unknown clinician' }
   })
@@ -65,7 +65,7 @@ export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
           <span className="text-xs font-semibold opacity-90 tabular-nums">{pct}%</span>
         </div>
       </div>
-      {pendingClinicians.length > 0 ? (
+      {pendingStaff.length > 0 ? (
         <div className="mt-2">
           <button
             type="button"
@@ -79,7 +79,7 @@ export default function CampaignProgressStrip({ campaign, clinicians = [] }) {
           </button>
           {showPending ? (
             <ul className="mt-2 flex flex-wrap gap-2">
-              {pendingClinicians.map(({ id, name }) => (
+              {pendingStaff.map(({ id, name }) => (
                 <li key={id} className="flex items-center gap-2 bg-white/10 border border-white/15 rounded-full pl-1 pr-3 py-0.5">
                   <StaffChip id={id} name={name} size="sm" showName
                     nameClassName="text-white/95 text-xs font-medium"

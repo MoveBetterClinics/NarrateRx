@@ -19,7 +19,7 @@ import MediaHubHelp from '@/components/MediaHubHelp'
 import LibraryReadyStrip from '@/components/LibraryReadyStrip'
 import { getMediaAsset, backfillThumbnails } from '@/lib/mediaLib'
 import { toast } from '@/lib/toast'
-import { useMediaInfinite, useStories, useClinicians, queryKeys } from '@/lib/queries'
+import { useMediaInfinite, useStories, useStaff, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -80,7 +80,7 @@ export default function MediaHub() {
   const kind    = searchParams.get('kind')    || ''
   const purpose = searchParams.get('purpose') || ''
   const status  = searchParams.get('status')  || ''
-  const clinicianFilter = searchParams.get('clinician') || ''
+  const staffFilter = searchParams.get('clinician') || ''
 
   function setParam(key, value) {
     setSearchParams((prev) => {
@@ -94,7 +94,7 @@ export default function MediaHub() {
   const setKind      = (v) => setParam('kind', v)
   const setPurpose   = (v) => setParam('purpose', v)
   const setStatus    = (v) => setParam('status', v)
-  const setClinicianFilter = (v) => setParam('clinician', v)
+  const setStaffFilter = (v) => setParam('clinician', v)
 
   const [search, setSearch]     = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -136,7 +136,7 @@ export default function MediaHub() {
     // on source assets and prevents the same clip from appearing N+1 times.
     sources:      true,
   }), [kind, purpose, status, debouncedSearch, collectionId])
-  // clinicianFilter is a client-side filter (created_by value) — it isn't
+  // staffFilter is a client-side filter (created_by value) — it isn't
   // sent to the server since the server only accepts workspace-scoped filter
   // params. We post-filter the flat asset array below after fetching.
 
@@ -154,8 +154,8 @@ export default function MediaHub() {
   const allAssets = useMemo(() => mediaData?.pages?.flat() ?? [], [mediaData])
   // Client-side clinician filter (created_by is the Clerk user ID string).
   const assets = useMemo(
-    () => clinicianFilter ? allAssets.filter((a) => a.created_by === clinicianFilter) : allAssets,
-    [clinicianFilter, allAssets]
+    () => staffFilter ? allAssets.filter((a) => a.created_by === staffFilter) : allAssets,
+    [staffFilter, allAssets]
   )
 
   // Date-grouped buckets for the "Browse everything" chronological fallback.
@@ -202,19 +202,19 @@ export default function MediaHub() {
   // user id) → human name on the clinician filter chips. Falls back to the
   // last-6-chars Clerk id stub when we can't find a match (e.g. an admin
   // uploaded an asset and isn't in the clinicians table).
-  const { data: clinicianRoster = [] } = useClinicians()
+  const { data: staffRoster = [] } = useStaff()
   const staffNameByUserId = useMemo(() => {
     const m = new Map()
-    for (const c of clinicianRoster) {
+    for (const c of staffRoster) {
       if (c.created_by_id && c.name) m.set(c.created_by_id, c.name)
     }
     return m
-  }, [clinicianRoster])
+  }, [staffRoster])
 
   // Unique uploaders visible in the current (unfiltered) page set, for the
   // clinician chip row. We use allAssets so changing the clinician chip
   // doesn't hide the other chips.
-  const clinicianOptions = useMemo(() => {
+  const staffOptions = useMemo(() => {
     const seen = new Map()
     for (const a of allAssets) {
       if (a.created_by && !seen.has(a.created_by)) {
@@ -591,10 +591,10 @@ export default function MediaHub() {
             </button>
           ))}
 
-          {clinicianOptions.length > 1 && (
+          {staffOptions.length > 1 && (
             <>
               <span className="w-px h-4 bg-border mx-1" aria-hidden />
-              {clinicianOptions.map((uid) => {
+              {staffOptions.map((uid) => {
                 // Prefer the resolved clinician name; fall back to the last 6
                 // chars of a Clerk id when the uploader isn't in the roster
                 // (e.g. an admin without a clinicians row).
@@ -603,10 +603,10 @@ export default function MediaHub() {
                 return (
                   <button
                     key={uid}
-                    onClick={() => setClinicianFilter(uid === clinicianFilter ? '' : uid)}
+                    onClick={() => setStaffFilter(uid === staffFilter ? '' : uid)}
                     title={name ? `${name} · ${uid}` : uid}
                     className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
-                      clinicianFilter === uid ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
+                      staffFilter === uid ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
                     } ${name ? '' : 'font-mono'}`}
                   >
                     {label}
@@ -711,7 +711,7 @@ export default function MediaHub() {
         // the coaching matches the situation. hasActiveFilter is true whenever
         // any narrowing control is active.
         (() => {
-          const hasActiveFilter = !!(debouncedSearch || kind || purpose || status || collectionId || clinicianFilter)
+          const hasActiveFilter = !!(debouncedSearch || kind || purpose || status || collectionId || staffFilter)
           if (hasActiveFilter) {
             return (
               <EmptyState
@@ -727,7 +727,7 @@ export default function MediaHub() {
                       setKind('')
                       setPurpose('')
                       setStatus('')
-                      setClinicianFilter('')
+                      setStaffFilter('')
                       setCollectionId(null)
                     }}
                   >

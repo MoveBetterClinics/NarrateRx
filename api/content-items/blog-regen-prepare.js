@@ -102,7 +102,7 @@ export default async function handler(req, res) {
   let staffName = ''
   let voiceNotes = ''
   let voicePhrases = []
-  let clinicianPreferredLength = null
+  let staffPreferredLength = null
   if (interview.staff_id) {
     const [clinRes, phrasesRes] = await Promise.all([
       sb(`staff?id=eq.${interview.staff_id}&${wsFilter}&select=name,voice_notes,preferred_length`),
@@ -115,7 +115,7 @@ export default async function handler(req, res) {
       const rows = await clinRes.json()
       staffName            = rows[0]?.name ?? ''
       voiceNotes               = rows[0]?.voice_notes ?? ''
-      clinicianPreferredLength = rows[0]?.preferred_length ?? null
+      staffPreferredLength = rows[0]?.preferred_length ?? null
     }
     if (phrasesRes.ok) voicePhrases = await phrasesRes.json()
   }
@@ -131,7 +131,7 @@ export default async function handler(req, res) {
 
   const effectiveLengthPreset = resolveLengthPreset(
     bodyLengthPreset ?? item.length_preset,
-    clinicianPreferredLength,
+    staffPreferredLength,
   )
 
   let interviewLocation = null

@@ -80,25 +80,25 @@ export async function syncAuthorCorpus({ log = false, dryRun = false } = {}) {
     `staff?workspace_id=eq.${srcWs.id}&user_id=not.is.null&select=id,name,user_id&order=created_at.asc&limit=1`
   )
   if (!srcClRes.ok) throw new Error(`source clinician fetch ${srcClRes.status}`)
-  const [srcClinician] = await srcClRes.json()
-  if (!srcClinician) throw new Error(`No Self-clinician in ${SOURCE_SLUG}`)
+  const [srcStaff] = await srcClRes.json()
+  if (!srcStaff) throw new Error(`No Self-clinician in ${SOURCE_SLUG}`)
 
   // Find matching clinician in target by the same user_id
   const tgtClRes = await sb(
-    `staff?workspace_id=eq.${tgtWs.id}&user_id=eq.${srcClinician.user_id}&select=id&limit=1`
+    `staff?workspace_id=eq.${tgtWs.id}&user_id=eq.${srcStaff.user_id}&select=id&limit=1`
   )
   if (!tgtClRes.ok) throw new Error(`target clinician fetch ${tgtClRes.status}`)
-  const [tgtClinician] = await tgtClRes.json()
-  if (!tgtClinician) {
+  const [tgtStaff] = await tgtClRes.json()
+  if (!tgtStaff) {
     emit(`[sync-author-corpus] Q's clinician not found in "${TARGET_SLUG}" — complete onboarding first`)
     return { synced: 0, skipped: 0, note: 'qbook clinician not found — finish workspace setup' }
   }
 
-  emit(`[sync-author-corpus] ${srcClinician.name}: ${srcWs.slug} (${srcClinician.id}) → ${tgtWs.slug} (${tgtClinician.id})`)
+  emit(`[sync-author-corpus] ${srcStaff.name}: ${srcWs.slug} (${srcStaff.id}) → ${tgtWs.slug} (${tgtStaff.id})`)
 
   // ── Fetch completed interviews in source ───────────────────────────────
   const ivRes = await sb(
-    `interviews?workspace_id=eq.${srcWs.id}&staff_id=eq.${srcClinician.id}` +
+    `interviews?workspace_id=eq.${srcWs.id}&staff_id=eq.${srcStaff.id}` +
     `&status=eq.completed&select=id,staff_id,topic,messages,cleaned_messages,created_at` +
     `&order=created_at.desc`
   )
@@ -136,7 +136,7 @@ export async function syncAuthorCorpus({ log = false, dryRun = false } = {}) {
   for (const iv of toIndex) {
     await indexInterviewTranscriptFull({
       workspaceId:     tgtWs.id,          // ← target workspace, not source
-      staffId:     tgtClinician.id,   // ← target clinician record
+      staffId:     tgtStaff.id,   // ← target clinician record
       interviewId:     iv.id,             // source_id stays the original interview id
       messages:        iv.messages,
       cleanedMessages: iv.cleaned_messages,

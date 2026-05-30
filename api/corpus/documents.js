@@ -44,7 +44,7 @@ export default async function handler(req, res) {
   if (!ALLOWED_DOC_TYPES.has(docType)) return err(res, 'Invalid docType')
 
   // Resolve clinician row for the authenticated user.
-  const clinicianRes = await fetch(
+  const staffRes = await fetch(
     `${SUPABASE_URL}/rest/v1/staff?workspace_id=eq.${ws.id}&user_id=eq.${auth.userId}&select=id&limit=1`,
     {
       headers: {
@@ -53,8 +53,8 @@ export default async function handler(req, res) {
       },
     }
   )
-  if (!clinicianRes.ok) return dbErr(res, clinicianRes, 'Clinician lookup failed')
-  const staffRows = await clinicianRes.json().catch(() => [])
+  if (!staffRes.ok) return dbErr(res, staffRes, 'Clinician lookup failed')
+  const staffRows = await staffRes.json().catch(() => [])
   if (!staffRows.length) return res.status(200).json([])
   const staffId = staffRows[0].id
 

@@ -12,8 +12,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
-import { getOrCreateClinician, createInterview } from '@/lib/api'
-import { useClinicians, useClinicianRecipes, useCreateClinicianRecipe } from '@/lib/queries'
+import { getOrCreateStaff, createInterview } from '@/lib/api'
+import { useStaff, useStaffRecipes, useCreateStaffRecipe } from '@/lib/queries'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
@@ -39,7 +39,7 @@ export default function NewInterview() {
   const PATIENT_PROTOTYPES_UI = getPatientPrototypesUi(workspace)
 
   const preferredName = user?.unsafeMetadata?.display_name || user?.fullName || ''
-  const [staffName, setClinicianName] = useState(preferredName)
+  const [staffName, setStaffName] = useState(preferredName)
   const [condition, setCondition] = useState(searchParams.get('topic') || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -64,7 +64,7 @@ export default function NewInterview() {
   // Pre-fill clinician name from Clerk once it hydrates
   useEffect(() => {
     const name = user?.unsafeMetadata?.display_name || user?.fullName || ''
-    if (name && !staffName) setClinicianName(name)
+    if (name && !staffName) setStaffName(name)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.unsafeMetadata?.display_name, user?.fullName])
 
@@ -76,16 +76,16 @@ export default function NewInterview() {
   // Resolve typed clinician name → existing clinician row (case-insensitive)
   // so we can fetch their recipes. If they don't exist yet (first interview),
   // recipes stay empty and the UI uses generic defaults.
-  const { data: cliniciansForSuggestions = [], isLoading: cliniciansLoading } = useClinicians()
-  const resolvedClinician = useMemo(() => {
+  const { data: staffForSuggestions = [], isLoading: staffLoading } = useStaff()
+  const resolvedStaff = useMemo(() => {
     const name = staffName.trim().toLowerCase()
     if (!name) return null
-    return cliniciansForSuggestions.find(
+    return staffForSuggestions.find(
       (c) => c.name.trim().toLowerCase() === name
     )
-  }, [cliniciansForSuggestions, staffName])
+  }, [staffForSuggestions, staffName])
 
-  const { data: recipes = [], isLoading: recipesLoading } = useClinicianRecipes(resolvedClinician?.id)
+  const { data: recipes = [], isLoading: recipesLoading } = useStaffRecipes(resolvedStaff?.id)
 
   // Apply a recipe's levers + clear the "drift from recipe" flag by setting
   // selectedRecipeId. Sticky: levers stay until the user either picks another
@@ -104,18 +104,18 @@ export default function NewInterview() {
   // the tone picker reflects their saved preference instead of hardcoded 'smart'.
   const [autoAppliedFor, setAutoAppliedFor] = useState(null)
   useEffect(() => {
-    if (!resolvedClinician || recipesLoading) return
-    if (autoAppliedFor === resolvedClinician.id) return
+    if (!resolvedStaff || recipesLoading) return
+    if (autoAppliedFor === resolvedStaff.id) return
     const defaultRecipe = recipes.find((r) => r.is_default) || recipes[0]
     if (defaultRecipe) {
       applyRecipe(defaultRecipe)
-    } else if (resolvedClinician.default_tone) {
+    } else if (resolvedStaff.default_tone) {
       // No saved recipe — use the clinician's preferred tone
-      setTone(resolvedClinician.default_tone)
+      setTone(resolvedStaff.default_tone)
     }
-    setAutoAppliedFor(resolvedClinician.id)
+    setAutoAppliedFor(resolvedStaff.id)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resolvedClinician?.id, recipes.length, recipesLoading])
+  }, [resolvedStaff?.id, recipes.length, recipesLoading])
 
   // When the user edits any lever in Tune, mark the recipe as "drifted" so
   // they can save the new combo as a new recipe.
@@ -130,7 +130,7 @@ export default function NewInterview() {
     (condition.trim() !== initialTopic)
   useUnsavedChanges(isDirty)
 
-  const existingTopics = cliniciansForSuggestions.flatMap((c) =>
+  const existingTopics = staffForSuggestions.flatMap((c) =>
     (c.interviews || []).map((i) => i.topic),
   )
   const [localAddedSuggestions, setLocalAddedSuggestions] = useState([])
@@ -141,7 +141,7 @@ export default function NewInterview() {
     ] },
     existingTopics,
   )
-  const suggestionsLoading = cliniciansLoading
+  const suggestionsLoading = staffLoading
 
   async function handleStart(selectedCondition) {
     const topic = (selectedCondition ?? condition).trim()
@@ -158,7 +158,7 @@ export default function NewInterview() {
     setLoading(true)
     setError('')
     try {
-      const clinician = await getOrCreateClinician({
+      const clinician = await getOrCreateStaff({
         name: staffName.trim(),
         createdById: user.id,
         createdByEmail: user.primaryEmailAddress?.emailAddress,
@@ -275,7 +275,7 @@ export default function NewInterview() {
               id="clinician"
               placeholder="e.g. Dr. Quasney"
               value={staffName}
-              onChange={(e) => setClinicianName(e.target.value)}
+              onChange={(e) => setStaffName(e.target.value)}
               autoComplete="name"
             />
           </div>
@@ -354,7 +354,7 @@ export default function NewInterview() {
               }
               return next
             })}
-            canSaveRecipe={!selectedRecipeId && !!resolvedClinician}
+            canSaveRecipe={!selectedRecipeId && !!resolvedStaff}
             onSaveRecipe={() => setSaveRecipeOpen(true)}
           />
 
@@ -489,7 +489,7 @@ export default function NewInterview() {
       <SaveRecipeDialog
         open={saveRecipeOpen}
         onClose={() => setSaveRecipeOpen(false)}
-        clinician={resolvedClinician}
+        clinician={resolvedStaff}
         levers={{ tone, voice_mode: voiceMode, cleanup_level: cleanupLevel }}
         existingRecipeCount={recipes.length}
         onSaved={(recipe) => {
@@ -602,7 +602,7 @@ function SaveRecipeDialog({ open, onClose, clinician, levers, existingRecipeCoun
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState('⭐')
   const [isDefault, setIsDefault] = useState(false)
-  const createMut = useCreateClinicianRecipe()
+  const createMut = useCreateStaffRecipe()
 
   useEffect(() => {
     if (open) {

@@ -110,11 +110,11 @@ export async function detectInterviewThreads(ws, contentItemId) {
 
   const voiceMode = interview.voice_mode === 'personal' ? 'personal' : 'practice'
   const raw = interview.cleaned_messages || interview.messages || []
-  const clinicianTurns = (Array.isArray(raw) ? raw : [])
+  const staffTurns = (Array.isArray(raw) ? raw : [])
     .filter((m) => m?.role === 'user' && typeof m?.content === 'string')
     .map((m) => m.content.trim())
     .filter(Boolean)
-  const transcript = clinicianTurns.join('\n\n---\n\n')
+  const transcript = staffTurns.join('\n\n---\n\n')
   const wordCount = countWords(transcript)
 
   // WORD GATE — too short to ever be more than one post.

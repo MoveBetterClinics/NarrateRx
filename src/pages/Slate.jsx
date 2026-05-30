@@ -101,7 +101,7 @@ export default function Slate() {
   )
 
   const [view, setView] = useState('today')  // 'today' | 'triage' | 'consent' | 'qc' | 'coverage'
-  const [activeClinicianId, setActiveClinicianId] = useState(null)
+  const [activeStaffId, setActiveStaffId] = useState(null)
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 })
   const generatingRef = useRef(false)  // guard against double-fire
@@ -191,12 +191,12 @@ export default function Slate() {
                          todayPackages
 
   const filteredPackages = useMemo(() => {
-    if (!activeClinicianId) return basePackages
-    return basePackages.filter((p) => p.staff_id === activeClinicianId)
-  }, [basePackages, activeClinicianId])
+    if (!activeStaffId) return basePackages
+    return basePackages.filter((p) => p.staff_id === activeStaffId)
+  }, [basePackages, activeStaffId])
 
   // Clinicians who appear in the current view (for filter chips)
-  const activeClinicianIds = useMemo(
+  const activeStaffIds = useMemo(
     () => [...new Set(basePackages.map((p) => p.staff_id).filter(Boolean))],
     [basePackages]
   )
@@ -421,7 +421,7 @@ export default function Slate() {
       {/* View tabs */}
       <div className="flex items-center gap-1 border-b border-border">
         <button
-          onClick={() => { setView('today'); setActiveClinicianId(null) }}
+          onClick={() => { setView('today'); setActiveStaffId(null) }}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
             view === 'today'
               ? 'border-primary text-primary'
@@ -433,7 +433,7 @@ export default function Slate() {
           <span className="ml-2 text-2xs font-bold opacity-70">{todayPackages.length}</span>
         </button>
         <button
-          onClick={() => { setView('triage'); setActiveClinicianId(null) }}
+          onClick={() => { setView('triage'); setActiveStaffId(null) }}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
             view === 'triage'
               ? 'border-primary text-primary'
@@ -451,7 +451,7 @@ export default function Slate() {
           )}
         </button>
         <button
-          onClick={() => { setView('consent'); setActiveClinicianId(null) }}
+          onClick={() => { setView('consent'); setActiveStaffId(null) }}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
             view === 'consent'
               ? 'border-primary text-primary'
@@ -469,7 +469,7 @@ export default function Slate() {
           )}
         </button>
         <button
-          onClick={() => { setView('qc'); setActiveClinicianId(null) }}
+          onClick={() => { setView('qc'); setActiveStaffId(null) }}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
             view === 'qc'
               ? 'border-primary text-primary'
@@ -487,7 +487,7 @@ export default function Slate() {
           )}
         </button>
         <button
-          onClick={() => { setView('coverage'); setActiveClinicianId(null) }}
+          onClick={() => { setView('coverage'); setActiveStaffId(null) }}
           className={`px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors -mb-px ${
             view === 'coverage'
               ? 'border-primary text-primary'
@@ -506,25 +506,25 @@ export default function Slate() {
       <>
 
       {/* Clinician filter chips */}
-      {activeClinicianIds.length > 1 && (
+      {activeStaffIds.length > 1 && (
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs text-muted-foreground font-medium">Filter:</span>
           <button
-            onClick={() => setActiveClinicianId(null)}
+            onClick={() => setActiveStaffId(null)}
             className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
-              activeClinicianId === null
+              activeStaffId === null
                 ? 'bg-primary text-primary-foreground border-primary'
                 : 'border-border text-muted-foreground hover:border-primary/40'
             }`}
           >
             All staff
           </button>
-          {activeClinicianIds.map((cid) => (
+          {activeStaffIds.map((cid) => (
             <button
               key={cid}
-              onClick={() => setActiveClinicianId(cid === activeClinicianId ? null : cid)}
+              onClick={() => setActiveStaffId(cid === activeStaffId ? null : cid)}
               className={`text-xs px-3 py-1.5 rounded-full font-medium border transition-colors ${
-                activeClinicianId === cid
+                activeStaffId === cid
                   ? 'bg-primary text-primary-foreground border-primary'
                   : 'border-border text-muted-foreground hover:border-primary/40'
               }`}

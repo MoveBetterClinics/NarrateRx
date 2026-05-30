@@ -40,7 +40,7 @@ const SELECT_COLS = 'id,workspace_id,staff_id,owner_id,messages,session_state,st
 
 // Look up the founder's Self-clinician row by Clerk user_id; create one if
 // missing. Returns { staffId } or { error, status } on failure.
-async function findOrCreateFounderClinician(ws, userId, fallbackName) {
+async function findOrCreateFounderStaff(ws, userId, fallbackName) {
   const lookup = await sb(
     `staff?workspace_id=eq.${ws.id}&user_id=eq.${encodeURIComponent(userId)}&select=id&limit=1`
   )
@@ -106,7 +106,7 @@ export default async function handler(req, res) {
     if (!(await enforceLimit(req, res, 'media'))) return
 
     const { founderName } = req.body || {}
-    const found = await findOrCreateFounderClinician(ws, auth.userId, founderName)
+    const found = await findOrCreateFounderStaff(ws, auth.userId, founderName)
     if (found.error) return err(res, found.error, found.status || 500)
 
     const r = await sb('workspace_onboarding_interviews', {

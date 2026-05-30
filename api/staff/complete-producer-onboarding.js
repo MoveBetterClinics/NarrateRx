@@ -56,7 +56,7 @@ export default async function handler(req, res) {
   const rows = await lookup.json().catch(() => [])
   const clinician = rows?.[0]
   if (!clinician) {
-    return res.status(404).json({ error: 'no_clinician_row' })
+    return res.status(404).json({ error: 'no_staff_row' })
   }
 
   // Idempotent: if already set, return existing timestamp.
