@@ -330,12 +330,13 @@ async function handler(req, res) {
       const ctr = await sb(
         `staff?user_id=eq.${encodeURIComponent(auth.userId)}` +
         `&workspace_id=eq.${encodeURIComponent(workspace.id)}` +
-        `&select=permission_tier,producer_onboarded_at&limit=1`
+        `&select=permission_tier,producer_onboarded_at,capability_overrides&limit=1`
       )
       if (ctr.ok) {
         const rows = await ctr.json().catch(() => [])
         current_user_tier = rows?.[0]?.permission_tier || null
         current_user_producer_onboarded_at = rows?.[0]?.producer_onboarded_at || null
+        current_user_capability_overrides = rows?.[0]?.capability_overrides || {}
       }
     } catch (e) {
       console.error('[workspace/me] tier fetch failed:', e?.message)

@@ -6,11 +6,12 @@
 // Body: { id: <staff uuid>, overrides: { [capId]: boolean } }
 //
 // The staff id travels in the BODY (not the URL) because Vercel's file-based
-// routing treats `[id]` path segments literally for Node handlers — keeping the
-// id in the body avoids a vercel.json rewrite. Gated on members.invite.
+// routing treats `[id]` path segments literally for Node handlers. Gated on
+// members.invite.
 
-import { requireRole } from '../_lib/roles.js'
+import { withSentry } from '../_lib/sentry.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
 import {
   resolveCapabilities,
   ALL_CAPABILITIES,
@@ -21,18 +22,25 @@ import { enforceLimit } from '../_lib/ratelimit.js'
 
 export const config = { runtime: 'nodejs' }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'PATCH') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const auth = await requireRole(req, res, null)
-  if (!auth) return
+  const workspace = await workspaceContext(req)
+  if (!workspace) return res.status(404).json({ error: 'Workspace not found' })
+
+  const auth = await requireRole(req, null, { orgId: workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
+  const capAuth = await requireCapability(req, workspace, [CAP_MEMBERS_INVITE])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
+  }
 
   if (!(await enforceLimit(req, res, 'staff-capabilities'))) return
-
-  const { workspace } = await workspaceContext(req)
-  if (!workspace) return res.status(404).json({ error: 'Workspace not found' })
 
   const body = req.body || {}
   const targetId = body.id
@@ -51,25 +59,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Resolve caller capabilities — must have members.invite.
-    let callerRow = null
-    if (!auth.isOrgAdmin) {
-      const cres = await fetch(
-        `${SUPA}/rest/v1/staff?workspace_id=eq.${workspace.id}&user_id=eq.${encodeURIComponent(auth.userId)}&select=permission_tier,capability_overrides&limit=1`,
-        { headers: { apikey: SROLE, Authorization: `Bearer ${SROLE}` } }
-      )
-      if (cres.ok) {
-        const rows = await cres.json()
-        callerRow = rows[0] || null
-      }
-    }
-    const callerCaps = auth.isOrgAdmin
-      ? resolveCapabilities('owner', workspace)
-      : resolveCapabilities(callerRow?.permission_tier || 'clinician', workspace, callerRow?.capability_overrides)
-    if (!callerCaps.includes(CAP_MEMBERS_INVITE)) {
-      return res.status(403).json({ error: 'Insufficient permissions' })
-    }
-
     // Load the target staff row — must belong to the same workspace.
     const tres = await fetch(
       `${SUPA}/rest/v1/staff?id=eq.${encodeURIComponent(targetId)}&workspace_id=eq.${workspace.id}&select=id,permission_tier,user_id&limit=1`,
@@ -136,3 +125,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Database error' })
   }
 }
+
+export default withSentry(handler)

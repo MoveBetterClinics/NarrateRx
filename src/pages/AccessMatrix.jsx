@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
 import { Shield, Lock, Check, Minus } from 'lucide-react'
-import { apiFetch, useAppMutation } from '../lib/api.js'
-import { useWorkspace } from '../lib/workspaceContext.jsx'
+import { apiFetch } from '../lib/api.js'
+import { useAppMutation } from '../lib/useAppMutation.js'
+import { toast } from '../lib/toast'
+import { useWorkspace } from '../lib/WorkspaceContext'
 import { usePermission } from '../lib/usePermission.js'
 import {
   CAPABILITY_GROUPS,
@@ -31,10 +33,8 @@ function avatarFor(person, i) {
   return { initials: initials || '?', color: AVATAR_COLORS[i % AVATAR_COLORS.length] }
 }
 
-const ALL_GROUP_CAPS = CAPABILITY_GROUPS.flatMap((g) => g.caps)
-
 export default function AccessMatrix() {
-  const { workspace } = useWorkspace()
+  const ws = useWorkspace()
   const { has } = usePermission()
   const queryClient = useQueryClient()
 
@@ -48,15 +48,15 @@ export default function AccessMatrix() {
   const [localOverrides, setLocalOverrides] = useState({})
   const seededRef = useRef(false)
 
+  const staff = useMemo(() => data?.staff || [], [data])
+
   useEffect(() => {
-    if (seededRef.current || !data?.staff) return
+    if (seededRef.current || !staff.length) return
     const seed = {}
-    for (const s of data.staff) seed[s.id] = { ...(s.capability_overrides || {}) }
+    for (const s of staff) seed[s.id] = { ...(s.capability_overrides || {}) }
     setLocalOverrides(seed)
     seededRef.current = true
-  }, [data])
-
-  const staff = data?.staff || []
+  }, [staff])
 
   // Per-person dirty check vs the server's original overrides.
   const dirtyIds = useMemo(() => {
@@ -69,8 +69,8 @@ export default function AccessMatrix() {
     return set
   }, [staff, localOverrides])
 
-  const saveMutation = useAppMutation(
-    async (ids) => {
+  const saveMutation = useAppMutation({
+    mutationFn: async (ids) => {
       await Promise.all(
         ids.map((id) =>
           apiFetch('/api/staff/capabilities', {
@@ -80,14 +80,13 @@ export default function AccessMatrix() {
         )
       )
     },
-    {
-      successMessage: 'Permissions saved',
-      onSuccess: () => {
-        seededRef.current = false // re-seed from the refetched server state
-        queryClient.invalidateQueries({ queryKey: ['access-matrix'] })
-      },
-    }
-  )
+    errorMessage: 'Could not save permissions',
+    onSuccess: () => {
+      toast.success('Permissions saved')
+      seededRef.current = false // re-seed from the refetched server state
+      queryClient.invalidateQueries({ queryKey: ['access-matrix'] })
+    },
+  })
 
   if (!has('members.invite')) return <Navigate to="/settings" replace />
 
@@ -99,7 +98,7 @@ export default function AccessMatrix() {
     const hasOverride = ovr !== undefined
     const effective = hasOverride ? ovr : tierDefault
     const ownerOnly = OWNER_ONLY_CAPABILITIES.has(cap)
-    const locked = isOwner || (ownerOnly && !isOwner)
+    const locked = isOwner || ownerOnly
     const clickable = !person.pending && !person.is_self && !isOwner && !ownerOnly
     return { effective, hasOverride, locked, clickable, isOwner, tierDefault }
   }
@@ -130,31 +129,31 @@ export default function AccessMatrix() {
     })
   }
 
-  const wsName = workspace?.display_name || workspace?.name || 'Workspace'
+  const wsName = ws?.display_name || ws?.name || 'Workspace'
 
   return (
     <div className="space-y-5">
       {/* Header */}
       <div>
-        <p className="text-2xs text-muted-foreground/80">Settings · {wsName} · Access matrix</p>
+        <p className="text-2xs text-muted-foreground/80">Settings &middot; {wsName} &middot; Access matrix</p>
         <h1 className="text-2xl font-bold tracking-tight mt-0.5 flex items-center">
           <span className="inline-block w-1 h-6 rounded-full shrink-0 mr-2.5" style={{ background: 'hsl(var(--primary))' }} aria-hidden="true" />
           Team access matrix
         </h1>
         <p className="text-muted-foreground text-sm mt-1.5 leading-relaxed max-w-2xl">
           One row per person, one column per capability. Click any cell to grant or revoke.
-          An <span className="text-[#d97706] font-semibold">amber dot</span> marks a cell that differs from the person's tier default —
-          easy to spot custom access as your team grows.
+          An <span className="text-[#d97706] font-semibold">amber dot</span> marks a cell that differs from the tier default for that person &mdash;
+          easy to spot custom access as the team grows.
         </p>
       </div>
 
       {/* Scale note */}
       <div className="rounded-xl border border-[#fde0d2] bg-[#faf0eb] px-4 py-3.5 flex items-start gap-3">
         <Shield className="h-4 w-4 text-[#c04d18] shrink-0 mt-0.5" />
-        <p className="text-[13px] text-[#7c3a18] leading-relaxed">
-          <b>Built to grow.</b> At 3 people, tiers are enough. At 10, "all clinicians get X" breaks down —
-          one publishes, another doesn't, a new hire is somewhere in between. This matrix shows the
-          <em> actual</em> per-person state so you never have to guess who can do what.
+        <p className="text-2xs text-[#7c3a18] leading-relaxed">
+          <b>Built to grow.</b> At 3 people, tiers are enough. At 10, a blanket rule like all-clinicians-get-everything breaks down &mdash;
+          one publishes, another does not, a new hire sits in between. This matrix shows the
+          <em> actual</em> per-person state, so nobody has to guess who can do what.
         </p>
       </div>
 
@@ -167,8 +166,8 @@ export default function AccessMatrix() {
         <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#f59f0a] inline-block" /> custom override</span>
       </div>
 
-      {isLoading && <div className="text-sm text-muted-foreground py-8 text-center">Loading team…</div>}
-      {error && <div className="text-sm text-destructive py-8 text-center">Couldn't load the access matrix. Try refreshing.</div>}
+      {isLoading && <div className="text-sm text-muted-foreground py-8 text-center">Loading team&hellip;</div>}
+      {error && <div className="text-sm text-destructive py-8 text-center">Could not load the access matrix. Try refreshing.</div>}
 
       {/* Matrix */}
       {!isLoading && !error && (
@@ -182,7 +181,7 @@ export default function AccessMatrix() {
                   <th
                     key={g.label}
                     colSpan={g.caps.length}
-                    className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground text-center px-2 py-2.5 border-b-2 border-border border-l-2 border-l-border bg-card"
+                    className="text-3xs font-bold uppercase tracking-wider text-muted-foreground text-center px-2 py-2.5 border-b-2 border-border border-l-2 border-l-border bg-card"
                   >
                     {g.label}
                   </th>
@@ -200,7 +199,7 @@ export default function AccessMatrix() {
                       style={{ height: 110 }}
                     >
                       <span
-                        className="text-[11px] font-semibold text-foreground inline-block whitespace-nowrap"
+                        className="text-2xs font-semibold text-foreground inline-block whitespace-nowrap"
                         style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
                       >
                         {capabilityShortLabel(cap)}
@@ -225,17 +224,17 @@ export default function AccessMatrix() {
                           {av.initials}
                         </span>
                         <div className="min-w-0">
-                          <div className="font-semibold text-[13px] leading-tight flex items-center gap-1.5 truncate">
+                          <div className="font-semibold text-xs leading-tight flex items-center gap-1.5 truncate">
                             <span className={person.pending ? 'opacity-60' : ''}>{person.name}</span>
-                            {person.is_self && <span className="text-[10px] text-muted-foreground">· you</span>}
-                            {person.pending && <span className="px-1.5 py-px rounded-full text-[9px] font-bold bg-[#fff7ed] text-[#d97706]">invite pending</span>}
+                            {person.is_self && <span className="text-3xs text-muted-foreground">&middot; you</span>}
+                            {person.pending && <span className="px-1.5 py-px rounded-full text-3xs font-bold bg-[#fff7ed] text-[#d97706]">invite pending</span>}
                           </div>
                           <div className="mt-1 flex items-center gap-1.5">
-                            <span className={`px-2 py-px rounded-full text-[10px] font-bold ${TIER_PILL[person.permission_tier] || TIER_PILL.viewer}`}>
+                            <span className={`px-2 py-px rounded-full text-3xs font-bold ${TIER_PILL[person.permission_tier] || TIER_PILL.viewer}`}>
                               {TIER_LABEL[person.permission_tier] || person.permission_tier}
                             </span>
                             {dirtyIds.has(person.id) && (
-                              <button onClick={() => resetPerson(person.id)} className="text-[10px] text-[#c04d18] hover:underline">reset</button>
+                              <button onClick={() => resetPerson(person.id)} className="text-3xs text-[#c04d18] hover:underline">reset</button>
                             )}
                           </div>
                         </div>
@@ -270,19 +269,19 @@ export default function AccessMatrix() {
         <div className="sticky bottom-0 z-20 -mx-6 md:mx-0 px-4 py-3 flex items-center gap-3 border md:rounded-lg border-x-0 md:border-x border-border bg-background/95 backdrop-blur">
           {dirtyIds.size > 0 ? (
             <span className="text-xs text-[#d97706] font-semibold flex items-center gap-1.5">
-              ⚠ {dirtyIds.size} {dirtyIds.size === 1 ? 'person' : 'people'} changed
+              {dirtyIds.size} {dirtyIds.size === 1 ? 'person' : 'people'} changed
             </span>
           ) : (
             <span className="text-xs text-muted-foreground">No unsaved changes.</span>
           )}
-          <span className="flex-1 text-xs text-muted-foreground hidden md:inline">Changes take effect on that person's next session.</span>
-          <button onClick={resetAll} className="px-3.5 py-2 rounded-[10px] text-[13px] font-semibold border border-border bg-white text-foreground hover:bg-[#f8fafc]" disabled={saveMutation.isPending}>
+          <span className="flex-1 text-xs text-muted-foreground hidden md:inline">Changes take effect on the next session for that person.</span>
+          <button onClick={resetAll} className="px-3.5 py-2 rounded-[10px] text-xs font-semibold border border-border bg-white text-foreground hover:bg-[#f8fafc]" disabled={saveMutation.isPending}>
             Reset all to defaults
           </button>
           <button
             onClick={() => saveMutation.mutate([...dirtyIds])}
             disabled={dirtyIds.size === 0 || saveMutation.isPending}
-            className="px-4 py-2 rounded-[10px] text-[13px] font-semibold text-white disabled:opacity-50"
+            className="px-4 py-2 rounded-[10px] text-xs font-semibold text-white disabled:opacity-50"
             style={{ background: 'hsl(var(--primary))' }}
           >
             {saveMutation.isPending ? 'Saving…' : 'Save changes'}
@@ -304,7 +303,7 @@ function Legend({ swatch, icon, label }) {
 
 function Cell({ person, st, onClick }) {
   if (person.pending) {
-    return <span className="inline-flex items-center justify-center rounded-full bg-[#fafafa] text-[#d1d5db]" style={{ width: 30, height: 30, fontSize: 12 }} title="Not yet accepted invite"><Minus className="h-3.5 w-3.5" /></span>
+    return <span className="inline-flex items-center justify-center rounded-full bg-[#fafafa] text-[#d1d5db]" style={{ width: 30, height: 30 }} title="Not yet accepted invite"><Minus className="h-3.5 w-3.5" /></span>
   }
   if (st.locked) {
     return (
@@ -317,12 +316,11 @@ function Cell({ person, st, onClick }) {
       </span>
     )
   }
-  // unlocked, possibly self (not clickable but show state)
-  let cls, icon
+  let cls
   if (st.hasOverride && st.effective) cls = 'bg-[#faf0eb] text-[#c04d18] ring-2 ring-[#fde0d2]'
   else if (st.effective) cls = 'bg-[#ecfdf5] text-[#059669]'
   else cls = 'bg-[#f8fafc] text-[#cbd5e1]'
-  icon = st.effective ? <Check className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />
+  const icon = st.effective ? <Check className="h-3.5 w-3.5" /> : <Minus className="h-3.5 w-3.5" />
 
   return (
     <button
@@ -332,7 +330,7 @@ function Cell({ person, st, onClick }) {
       style={{ width: 30, height: 30 }}
       title={
         person.is_self
-          ? "You can't change your own access"
+          ? 'You cannot change your own access'
           : st.hasOverride
             ? (st.effective ? 'Custom grant (tier default: off)' : 'Custom revoke (tier default: on)')
             : (st.effective ? 'On — tier default' : 'Off — tier default')

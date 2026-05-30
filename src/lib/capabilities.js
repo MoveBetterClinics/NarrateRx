@@ -45,6 +45,48 @@ export const ALL_CAPABILITIES = [
   CAP_CAMPAIGNS_EDIT,
 ]
 
+// Owner-only capabilities — mirror of api/_lib/capabilities.js. The matrix UI
+// renders these as locked (🔒) for any non-owner row; they can't be granted via
+// a per-person override (the server enforces this too).
+export const OWNER_ONLY_CAPABILITIES = new Set([
+  CAP_SETTINGS_VIEW,
+  CAP_SETTINGS_EDIT,
+  CAP_BILLING_VIEW,
+  CAP_BILLING_EDIT,
+  CAP_MEMBERS_INVITE,
+])
+
+// Column grouping for the capability matrix. Presentation only — the canonical
+// capability list is ALL_CAPABILITIES above.
+export const CAPABILITY_GROUPS = [
+  { label: 'Interviews',          caps: [CAP_INTERVIEW_START, CAP_INTERVIEW_EDIT_OTHERS] },
+  { label: 'Content',             caps: [CAP_CONTENT_APPROVE, CAP_CONTENT_PUBLISH] },
+  { label: 'Story Slate',         caps: [CAP_SLATE_GENERATE, CAP_SLATE_APPROVE] },
+  { label: 'Brand & Campaigns',   caps: [CAP_BRAND_KIT_EDIT, CAP_CAMPAIGNS_EDIT, CAP_INTEGRATIONS_CONNECT] },
+  { label: 'Workspace & Billing', caps: [CAP_SETTINGS_VIEW, CAP_SETTINGS_EDIT, CAP_BILLING_VIEW, CAP_BILLING_EDIT, CAP_MEMBERS_INVITE] },
+]
+
+// Short column-header labels for the matrix (capabilityLabel() text is too wide
+// for vertical column headers).
+export function capabilityShortLabel(cap) {
+  return {
+    [CAP_SETTINGS_VIEW]:        'View settings',
+    [CAP_SETTINGS_EDIT]:        'Edit settings',
+    [CAP_BILLING_VIEW]:         'View billing',
+    [CAP_BILLING_EDIT]:         'Manage billing',
+    [CAP_INTEGRATIONS_CONNECT]: 'Connect channels',
+    [CAP_BRAND_KIT_EDIT]:       'Edit Brand Kit',
+    [CAP_MEMBERS_INVITE]:       'Invite members',
+    [CAP_INTERVIEW_START]:      'Start interviews',
+    [CAP_INTERVIEW_EDIT_OTHERS]:'Edit others’ interviews',
+    [CAP_CONTENT_APPROVE]:      'Approve content',
+    [CAP_CONTENT_PUBLISH]:      'Publish content',
+    [CAP_SLATE_GENERATE]:       'Generate slate',
+    [CAP_SLATE_APPROVE]:        'Approve slate',
+    [CAP_CAMPAIGNS_EDIT]:       'Plan campaigns',
+  }[cap] || cap
+}
+
 // ─── Default templates (UI display only — server is authoritative) ───────────
 
 export const DEFAULT_TEMPLATES = Object.freeze({

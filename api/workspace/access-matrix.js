@@ -7,26 +7,35 @@
 //
 // Powers /settings/access (the capability matrix). Gated on members.invite.
 
-import { requireRole } from '../_lib/roles.js'
+import { withSentry } from '../_lib/sentry.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { requireRole, requireCapability } from '../_lib/auth.js'
 import { resolveCapabilities, CAP_MEMBERS_INVITE } from '../_lib/capabilities.js'
 import { enforceLimit } from '../_lib/ratelimit.js'
 
 export const config = { runtime: 'nodejs' }
 
-export default async function handler(req, res) {
+async function handler(req, res) {
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  // Authenticate any org member; capability gating happens below.
-  const auth = await requireRole(req, res, null)
-  if (!auth) return // requireRole already wrote the 401/403
+  const workspace = await workspaceContext(req)
+  if (!workspace) return res.status(404).json({ error: 'Workspace not found' })
+
+  const auth = await requireRole(req, null, { orgId: workspace.clerk_org_id })
+  if (!auth.ok) {
+    return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
+  }
+
+  // Gate on members.invite — owner-only by default; requireCapability handles
+  // the org-admin bypass and per-tier resolution internally.
+  const capAuth = await requireCapability(req, workspace, [CAP_MEMBERS_INVITE])
+  if (!capAuth.ok) {
+    return res.status(403).json({ error: capAuth.reason, missing: capAuth.missing })
+  }
 
   if (!(await enforceLimit(req, res, 'access-matrix'))) return
-
-  const { workspace } = await workspaceContext(req)
-  if (!workspace) return res.status(404).json({ error: 'Workspace not found' })
 
   const SUPA = (process.env.SUPABASE_URL || '').replace(/\/$/, '')
   const SROLE = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY
@@ -35,7 +44,6 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Fetch all staff for this workspace.
     const sres = await fetch(
       `${SUPA}/rest/v1/staff?workspace_id=eq.${workspace.id}` +
         `&select=id,name,legal_name,permission_tier,staff_type,capability_overrides,user_id,producer_onboarded_at,active_voice_clone_id` +
@@ -47,15 +55,6 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'Failed to load staff' })
     }
     const staffRows = await sres.json()
-
-    // Resolve the caller's own capabilities to gate the response.
-    const callerRow = staffRows.find((s) => s.user_id === auth.userId)
-    const callerCaps = auth.isOrgAdmin
-      ? resolveCapabilities('owner', workspace)
-      : resolveCapabilities(callerRow?.permission_tier || 'clinician', workspace, callerRow?.capability_overrides)
-    if (!callerCaps.includes(CAP_MEMBERS_INVITE)) {
-      return res.status(403).json({ error: 'Insufficient permissions' })
-    }
 
     const staff = staffRows.map((s) => ({
       id: s.id,
@@ -70,17 +69,16 @@ export default async function handler(req, res) {
       pending: false,
       // tier-only set (no overrides) — lets the client diff each cell
       tier_capabilities: resolveCapabilities(s.permission_tier || 'clinician', workspace),
-      // effective set (tier + overrides) — the source of truth for "what they have now"
+      // effective set (tier + overrides)
       resolved_capabilities: resolveCapabilities(
         s.permission_tier || 'clinician',
         workspace,
         s.capability_overrides
       ),
-      is_self: s.user_id === auth.userId,
+      is_self: !!s.user_id && s.user_id === auth.userId,
     }))
 
-    // Pending Clerk invitations — surfaced so admins see who's been invited but
-    // hasn't accepted yet. Non-fatal: [] degrades gracefully.
+    // Pending Clerk invitations — non-fatal: [] degrades gracefully.
     let pending = []
     try {
       if (auth.orgId && process.env.CLERK_SECRET_KEY) {
@@ -118,3 +116,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'Database error' })
   }
 }
+
+export default withSentry(handler)
