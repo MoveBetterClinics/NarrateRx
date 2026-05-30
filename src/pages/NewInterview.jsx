@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useNavigate, useSearchParams, Link } from 'react-router-dom'
 import { useUser, useAuth } from '@clerk/react'
 import {
@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog'
 import { getOrCreateStaff, createInterview } from '@/lib/api'
+import MicCheck from '@/components/MicCheck'
 import { useStaff, useStaffRecipes, useCreateStaffRecipe } from '@/lib/queries'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
@@ -43,6 +44,16 @@ export default function NewInterview() {
   const [condition, setCondition] = useState(searchParams.get('topic') || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // Two-step flow: 'form' collects setup, then 'miccheck' runs the audio gate
+  // BEFORE the interview row is created. Creating the row only after the mic
+  // check passes prevents phantom status='in_progress' interviews with zero
+  // turns when a user fails or abandons the audio check.
+  const [step, setStep] = useState('form')
+  // Topic + self-detection captured at the moment "Start" was tapped (the topic
+  // can come from a suggestion chip rather than the input), consumed once the
+  // mic check passes.
+  const pendingStartRef = useRef(null)
 
   // Lever state — each starts at a sensible default, gets overridden when a
   // recipe is applied or the user opens Tune and edits manually.
@@ -143,7 +154,10 @@ export default function NewInterview() {
   )
   const suggestionsLoading = staffLoading
 
-  async function handleStart(selectedCondition) {
+  // Step 1: validate the setup and advance to the audio check. No DB write yet —
+  // the interview row is created only after the mic check passes (createAndStart),
+  // so a failed/abandoned audio check never leaves a phantom interview behind.
+  function handleStart(selectedCondition) {
     const topic = (selectedCondition ?? condition).trim()
     if (!staffName.trim() || !topic || !user) return
 
@@ -155,6 +169,18 @@ export default function NewInterview() {
     const full    = (user?.fullName || '').trim().toLowerCase()
     const isSelf  = !!typed && (typed === display || typed === full)
 
+    pendingStartRef.current = { topic, isSelf }
+    setError('')
+    setStep('miccheck')
+  }
+
+  // Step 2: the mic check passed — now create the clinician + interview rows and
+  // navigate into the live session. `micChecked` in nav state tells
+  // InterviewSession to skip its own (now-redundant) mic-check gate.
+  async function createAndStart() {
+    const pending = pendingStartRef.current
+    if (!pending || !user || loading) return
+
     setLoading(true)
     setError('')
     try {
@@ -162,11 +188,11 @@ export default function NewInterview() {
         name: staffName.trim(),
         createdById: user.id,
         createdByEmail: user.primaryEmailAddress?.emailAddress,
-        userId: isSelf ? user.id : undefined,
+        userId: pending.isSelf ? user.id : undefined,
       })
       const interview = await createInterview({
         staffId: staffMember.id,
-        topic,
+        topic: pending.topic,
         ownerEmail: user.primaryEmailAddress?.emailAddress,
         tone,
         voiceMode,
@@ -175,10 +201,13 @@ export default function NewInterview() {
         cleanupLevel,
         topicBacklogId: searchParams.get('topicBacklogId') || undefined,
       })
-      navigate(`/interview/${staffMember.id}/${interview.id}`)
+      navigate(`/interview/${staffMember.id}/${interview.id}`, { state: { micChecked: true } })
     } catch (e) {
+      // Drop back to the form so the user can retry without re-running the
+      // mic check from a broken state.
       setError(e.message)
       setLoading(false)
+      setStep('form')
     }
   }
 
@@ -236,6 +265,36 @@ export default function NewInterview() {
   // not duplicated in the pill row.
   const toneSlot       = TONES.find((t) => t.id === tone)
   const cleanupSlot    = getCleanupLevel(cleanupLevel)
+
+  // Audio-check step — runs the mic + speaker check BEFORE any interview row is
+  // created. Passing it calls createAndStart(); backing out leaves no DB trace.
+  if (step === 'miccheck') {
+    return (
+      <div className="max-w-xl mx-auto space-y-3">
+        {error && (
+          <div className="text-sm text-destructive bg-destructive/10 rounded-lg px-4 py-3">{error}</div>
+        )}
+        {loading ? (
+          <div className="rounded-xl border bg-card p-10 flex flex-col items-center gap-4">
+            <Loader2 className="h-7 w-7 text-primary animate-spin" aria-hidden="true" />
+            <p className="text-sm text-muted-foreground">Setting up your interview&hellip;</p>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => { setStep('form'); pendingStartRef.current = null }}
+              className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to setup
+            </button>
+            <MicCheck onContinue={createAndStart} ttsSettings={resolvedStaff?.tts_settings} />
+          </>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-lg mx-auto space-y-5">
