@@ -28,6 +28,7 @@ const CHANNEL_ICONS = {
   linkedin:       Linkedin,
   tiktok:         Music2,
   youtube_short:  Youtube,
+  youtube:        Youtube,
   pinterest:      Pin,
   twitter:        Twitter,
   threads:        MessageCircle,
@@ -56,7 +57,7 @@ const GROUPS = [
   { id: 'long', label: 'Long-form',  members: ['blog', 'email'] },
   { id: 'local', label: 'Local',      members: ['gbp'] },
   { id: 'social', label: 'Social',    members: ['instagram_post', 'facebook', 'linkedin', 'twitter', 'threads', 'bluesky', 'mastodon', 'pinterest'] },
-  { id: 'video',  label: 'Short video', members: ['instagram_reel', 'tiktok', 'youtube_short'] },
+  { id: 'video',  label: 'Video',       members: ['instagram_reel', 'tiktok', 'youtube_short', 'youtube'] },
   { id: 'paid',   label: 'Paid',     members: ['google_ads', 'ig_ads'] },
   { id: 'web',    label: 'Web',      members: ['landing_page'] },
 ]
