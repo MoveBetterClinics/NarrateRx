@@ -134,6 +134,24 @@ function detectAndStripStopPhrase(transcript) {
   return null
 }
 
+// Derive rough "clinician's voice %" from the raw provenanceJson blocks string.
+// verbatim + close_paraphrase blocks = paragraphs that came from the clinician's
+// own words. Returns 0–100 or null when data is absent / unparseable.
+function deriveVoicePct(provenanceJson) {
+  if (!provenanceJson) return null
+  try {
+    const parsed = JSON.parse(provenanceJson)
+    const blocks = Array.isArray(parsed.blocks) ? parsed.blocks : []
+    if (blocks.length === 0) return null
+    const voiceBlocks = blocks.filter(
+      (b) => b.source_type === 'verbatim' || b.source_type === 'close_paraphrase',
+    ).length
+    return Math.round((voiceBlocks / blocks.length) * 100)
+  } catch {
+    return null
+  }
+}
+
 export default function InterviewSession() {
   useDocumentTitle('Interview')
   const { staffId, interviewId } = useParams()
@@ -1071,6 +1089,10 @@ export default function InterviewSession() {
   const blogStreamingTextRef = useRef('')
   const [genProgress, setGenProgress] = useState(0)
 
+  // Completion card — shown for ~3s between generation finishing and StoryDetail navigation.
+  const [completionData, setCompletionData] = useState(null)
+  const completionNavTimerRef = useRef(null)
+
   useEffect(() => {
     if (!isGenerating) {
       setGenProgress(0)
@@ -1083,6 +1105,10 @@ export default function InterviewSession() {
     }, 500)
     return () => clearInterval(id)
   }, [isGenerating])
+
+  useEffect(() => () => {
+    if (completionNavTimerRef.current) clearTimeout(completionNavTimerRef.current)
+  }, [])
 
   // "What you covered" recap — a fast 3-line summary generated in parallel
   // with the blog draft. It finishes in a few seconds (the blog takes 60-120s),
@@ -1245,11 +1271,16 @@ export default function InterviewSession() {
         console.warn('[interview] audio upload failed (non-fatal):', e?.message)
       })
 
-      // Generation done — hand the user off to the Story Detail page. The
-      // server-side cascade triggered by the PATCH above has created the
-      // content_items rows; the invalidated queries make Stories Detail show
-      // the new draft on first render.
-      navigate(`/stories/${interviewId}`, { replace: true })
+      // Generation done — show a brief completion card, then navigate.
+      // voicePct is derived client-side from the provenance block (raw count of
+      // verbatim + paraphrase paragraphs / total paragraphs). Server computes the
+      // authoritative pct later; this is just a first impression for the card.
+      const voicePct = deriveVoicePct(provenanceJson || '')
+      setIsGenerating(false)
+      setCompletionData({ voicePct, staffName: staffMember.name, topic: interview.topic })
+      completionNavTimerRef.current = setTimeout(() => {
+        navigate(`/stories/${interviewId}`, { replace: true })
+      }, 3000)
     } catch (err) {
       setError(`Failed to generate content: ${err.message}`)
       setIsGenerating(false)
@@ -1495,7 +1526,7 @@ export default function InterviewSession() {
         ref={conversationRef}
         onMouseUp={handleSelectionUp}
         onTouchEnd={handleSelectionUp}
-        className={`flex-1 relative pr-4 -mr-4 overflow-hidden ${isGenerating ? 'hidden' : ''}`}
+        className={`flex-1 relative pr-4 -mr-4 overflow-hidden ${isGenerating || completionData ? 'hidden' : ''}`}
       >
         {selectionTip && (
           <button
@@ -1635,6 +1666,37 @@ export default function InterviewSession() {
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {completionData && !isGenerating && (
+        <div className="flex-1 flex items-center justify-center py-6">
+          <button
+            type="button"
+            className="rounded-xl border bg-card p-6 max-w-md w-full text-left space-y-3 hover:border-primary/30 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            onClick={() => {
+              if (completionNavTimerRef.current) clearTimeout(completionNavTimerRef.current)
+              navigate(`/stories/${interviewId}`, { replace: true })
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" aria-hidden="true" />
+              <div className="min-w-0">
+                <p className="font-semibold text-foreground truncate">{completionData.staffName}</p>
+                {completionData.topic && (
+                  <p className="text-sm text-muted-foreground line-clamp-1">{completionData.topic}</p>
+                )}
+              </div>
+            </div>
+            <p className="text-base font-medium text-foreground">
+              {completionData.voicePct != null
+                ? `Your words made up ${completionData.voicePct}% of this draft.`
+                : 'Voice-faithful draft complete.'}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Opening your story… <span className="italic">tap to go now</span>
+            </p>
+          </button>
         </div>
       )}
 

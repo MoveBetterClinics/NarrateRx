@@ -236,11 +236,18 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
     ? extractProvenanceBlock(rawInitial).content
     : rawInitial
 
+  const hasProvenance = !!(piece.provenance?.blocks?.length)
   const [value, setValue] = useState(initial)
-  const [viewMode, setViewMode] = useState('edit')
+  const [viewMode, setViewMode] = useState(() => {
+    if (!hasProvenance) return 'edit'
+    try {
+      const saved = localStorage.getItem('narraterx:readMode')
+      if (saved === 'plain') return 'edit'
+    } catch { /* private browsing */ }
+    return 'attributed'
+  })
   const taRef = useRef(null)
   const updateItem = useUpdateContentItem()
-  const hasProvenance = !!(piece.provenance?.blocks?.length)
 
   // Re-sync local buffer when the saved row changes from elsewhere
   // (regenerate, server roundtrip after Save). Without this the textarea
@@ -298,18 +305,23 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
           Read-aloud (Phase 5 F#3 audio caller) sits on the right; uses this
           piece's staff_id so the voice clone is auto-resolved server-side. */}
       <div className="flex items-center gap-1">
-        {(['edit', ...(hasProvenance ? ['attributed'] : []), 'assets']).map((mode) => (
+        {([...(hasProvenance ? ['attributed'] : []), 'edit', 'assets']).map((mode) => (
           <button
             key={mode}
             type="button"
-            onClick={() => setViewMode(mode)}
-            className={`px-2 py-0.5 rounded text-xs capitalize transition-colors ${
+            onClick={() => {
+              setViewMode(mode)
+              try {
+                localStorage.setItem('narraterx:readMode', mode === 'edit' ? 'plain' : mode)
+              } catch { /* private browsing */ }
+            }}
+            className={`px-2 py-0.5 rounded text-xs transition-colors ${
               viewMode === mode
                 ? 'bg-muted text-foreground font-medium'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {mode}
+            {mode === 'edit' ? 'Plain Text' : mode === 'attributed' ? 'Attributed' : 'Assets'}
           </button>
         ))}
         <div className="ml-auto">

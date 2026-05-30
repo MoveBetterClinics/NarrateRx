@@ -62,6 +62,8 @@ function summarizePiece(row) {
     published_at: row.published_at ?? null,
     updated_at: row.updated_at,
     provenance: row.provenance ?? null,
+    voice_fidelity_score: row.voice_fidelity_score ?? null,
+    voice_audit: row.voice_audit ?? null,
   }
 }
 

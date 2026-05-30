@@ -5,6 +5,7 @@ import { formatRelativeDate } from '@/lib/utils'
 import { queryKeys, fetchStory } from '@/lib/queries'
 import { getStageToken } from '@/lib/stageTokens'
 import { StaffChip } from '@/components/StaffChip'
+import VoiceFidelityBadge from '@/components/story-detail/VoiceFidelityBadge'
 
 // Short labels for platform chips shown on the card.
 const PLATFORM_SHORT = {
@@ -60,6 +61,8 @@ export default function StoryCard({ story }) {
 
   // Unique platforms represented in this story's pieces.
   const platforms = [...new Set((pieces || []).map((p) => p.platform).filter(Boolean))]
+  // Blog piece for voice fidelity badge — only show when audit data is present.
+  const blogPiece = (pieces || []).find((p) => p.platform === 'blog' && p.voice_audit)
 
   const { badge: badgeClass, label: stageLabel } = getStageToken(story_stage || '')
 
@@ -94,6 +97,13 @@ export default function StoryCard({ story }) {
           nameClassName="text-xs text-muted-foreground leading-tight"
         />
       </div>
+
+      {/* Voice fidelity badge — blog only, renders nothing if no audit data */}
+      {blogPiece && (
+        <div className="mb-3">
+          <VoiceFidelityBadge piece={blogPiece} />
+        </div>
+      )}
 
       {/* Platform chips */}
       {platforms.length > 0 ? (
