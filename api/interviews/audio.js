@@ -78,12 +78,18 @@ export default async function handler(req, res) {
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {
         // Blob is now stored. Patch the interview row with the URL.
-        const { interviewId } = JSON.parse(tokenPayload || '{}')
+        const { interviewId, workspaceId } = JSON.parse(tokenPayload || '{}')
         if (!interviewId) {
           console.error('[interviews/audio] missing interviewId in tokenPayload')
           return
         }
-        const r = await sb(`interviews?id=eq.${interviewId}`, {
+        if (!workspaceId) {
+          console.error('[interviews/audio] missing workspaceId in tokenPayload')
+          return
+        }
+        // workspace_id filter IS the authorization check (no RLS) — keep the
+        // completion write tenant-scoped, matching the token-mint validation.
+        const r = await sb(`interviews?id=eq.${interviewId}&workspace_id=eq.${workspaceId}`, {
           method: 'PATCH',
           body:   JSON.stringify({ audio_recording_url: blob.url }),
         })
