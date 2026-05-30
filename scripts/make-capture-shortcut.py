@@ -272,10 +272,36 @@ def capture_case(actions, menu_id, title, capture_action_fn, content_type):
     actions.append(a_set_var_from_output('ContentType', ct_uuid, 'Content Type Text'))
 
 
-def build(token):
-    bearer = f'Bearer {token}'
+def build(token=None, distributable=False):
+    """
+    token         — bake this token in (personal single-user shortcut).
+    distributable — instead of baking a token, prepend a Text action whose
+                    content is filled by an Apple import question at install
+                    time ("Paste your NarrateRx upload token"), stored in a
+                    `Token` variable. Every installer supplies their own token,
+                    so uploads attribute to them. One published link, many users.
+    """
     menu_id = uid()
     actions = []
+
+    import_questions = []
+    if distributable:
+        # Action 0: Text holding the token. Its WFTextActionText is the target
+        # of the import question. Empty default → installer must fill it.
+        token_text_uuid = uid()
+        actions.append(a_text(token_text_uuid, ''))
+        actions.append(a_set_var_from_output('Token', token_text_uuid, 'Upload Token'))
+        import_questions.append({
+            'ParameterKey': 'WFTextActionText',
+            'Category': 'Parameter',
+            'ActionIndex': 0,
+            'Text': 'Paste your NarrateRx upload token (Capture page → Get iOS Shortcut)',
+            'DefaultValue': '',
+        })
+        auth_header = lambda: prefix_named_var('Bearer ', 'Token')
+    else:
+        bearer = f'Bearer {token}'
+        auth_header = lambda: text_token(bearer)
 
     actions.append(a_menu_start(menu_id, 'What do you want to capture?', [
         'Record video', 'Take photo', 'Pick video', 'Pick photo',
@@ -298,7 +324,7 @@ def build(token):
         upload_info_uuid,
         'https://narraterx.ai/api/capture/upload-url',
         header_pairs=[
-            ('Authorization', text_token(bearer)),
+            ('Authorization', auth_header()),
             ('Content-Type', text_token('application/json')),
         ],
         body_pairs=[
@@ -341,7 +367,7 @@ def build(token):
         reg_uuid,
         'https://narraterx.ai/api/capture/register',
         header_pairs=[
-            ('Authorization', text_token(bearer)),
+            ('Authorization', auth_header()),
             ('Content-Type', text_token('application/json')),
         ],
         body_pairs=[
@@ -357,7 +383,7 @@ def build(token):
         'WFWorkflowActions': actions,
         'WFWorkflowClientVersion': '1140.5',
         'WFWorkflowHasShortcutInputVariables': False,
-        'WFWorkflowImportQuestions': [],
+        'WFWorkflowImportQuestions': import_questions,
         'WFWorkflowInputContentItemClasses': [],
         'WFWorkflowMinimumClientVersion': 900,
         'WFWorkflowMinimumClientVersionString': '900',
@@ -372,18 +398,28 @@ def build(token):
 
 def main():
     p = argparse.ArgumentParser(description='Generate NarrateRx Capture.shortcut')
-    p.add_argument('--token', required=True, help='Your capture upload token (cct_...)')
+    p.add_argument('--token', help='Bake in this capture upload token (cct_...). Personal single-user shortcut.')
+    p.add_argument('--distributable', action='store_true',
+                   help='No baked-in token. Asks each installer for their own token via an Apple import '
+                        'question. This is the version to publish as VITE_SHORTCUT_INSTALL_URL for the team.')
     args = p.parse_args()
 
-    if not args.token.startswith('cct_'):
-        print('Error: token must start with cct_  — generate one at /capture in the app.')
-        sys.exit(1)
-
-    data = build(args.token)
+    if args.distributable:
+        data = build(distributable=True)
+        out_name = 'NarrateRx Capture (Distributable).shortcut'
+    else:
+        if not args.token:
+            print('Error: pass --token cct_... (personal) or --distributable (team install).')
+            sys.exit(1)
+        if not args.token.startswith('cct_'):
+            print('Error: token must start with cct_  — generate one at /capture in the app.')
+            sys.exit(1)
+        data = build(token=args.token)
+        out_name = 'NarrateRx Capture.shortcut'
 
     xml_tmp = Path('/tmp/narraterx_capture.plist')
     unsigned = Path('/tmp/NarrateRx Capture (unsigned).shortcut')
-    out = Path.home() / 'Desktop' / 'NarrateRx Capture.shortcut'
+    out = Path.home() / 'Desktop' / out_name
 
     with open(xml_tmp, 'wb') as f:
         plistlib.dump(data, f, fmt=plistlib.FMT_XML)
@@ -409,10 +445,19 @@ def main():
         if sign.returncode == 0:
             print(f'✓  {out}  (signed)')
             print()
-            print('Next steps:')
-            print('  1. Double-click the file to import into Shortcuts')
-            print('  2. Right-click the shortcut → Share → Copy iCloud Link')
-            print('  3. Paste that URL into VITE_SHORTCUT_INSTALL_URL in Vercel env vars')
+            if args.distributable:
+                print('TEAM install version — asks each user for their own token on install.')
+                print('Next steps:')
+                print('  1. Double-click to import into Shortcuts')
+                print('  2. Right-click the shortcut → Share → Copy iCloud Link')
+                print('  3. Set that URL as VITE_SHORTCUT_INSTALL_URL in Vercel → redeploy')
+                print('  Teammates install via the in-app "Install Shortcut" button and paste')
+                print('  THEIR own token (from their Capture page) when prompted on install.')
+            else:
+                print('PERSONAL version — your token is baked in.')
+                print('Next steps:')
+                print('  1. Double-click to import into Shortcuts')
+                print('  2. Syncs to your iPhone via iCloud → Add to Home Screen')
             return
         last_err = sign.stderr or sign.stdout
 
