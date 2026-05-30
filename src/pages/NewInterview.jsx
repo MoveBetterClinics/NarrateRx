@@ -624,13 +624,19 @@ function ActiveLeversRow({
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {pills.map((p) => (
-        <span
+        // Pills double as a shortcut into Tune — clicking one opens the drawer
+        // so the tone/cleanup controls are reachable without hunting for the
+        // (formerly low-contrast) Tune link.
+        <button
           key={p.key}
-          className="inline-flex items-center gap-1 text-xs bg-muted/60 text-foreground rounded-full px-2.5 py-1"
+          type="button"
+          onClick={() => { if (!tuneOpen) onTuneToggle() }}
+          title="Adjust in Tune"
+          className="inline-flex items-center gap-1 text-xs bg-muted/60 text-foreground rounded-full px-2.5 py-1 hover:bg-muted transition-colors"
         >
           <span className="text-2xs">{p.emoji}</span>
           <span>{p.label}</span>
-        </span>
+        </button>
       ))}
       <div className="ml-auto inline-flex items-center gap-2">
         {canSaveRecipe && (
@@ -642,14 +648,16 @@ function ActiveLeversRow({
             Save as recipe
           </button>
         )}
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={onTuneToggle}
-          className="inline-flex items-center gap-0.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="h-7 gap-1 px-2.5 text-xs"
         >
           Tune
           {tuneOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-        </button>
+        </Button>
       </div>
     </div>
   )
