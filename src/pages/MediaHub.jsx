@@ -16,7 +16,6 @@ import ContentBriefList from '@/components/ContentBriefList'
 import CollectionsBar from '@/components/CollectionsBar'
 import BulkActionBar from '@/components/BulkActionBar'
 import MediaHubHelp from '@/components/MediaHubHelp'
-import LibraryReadyStrip from '@/components/LibraryReadyStrip'
 import { getMediaAsset, backfillThumbnails } from '@/lib/mediaLib'
 import { toast } from '@/lib/toast'
 import { useMediaInfinite, useStories, useStaff, queryKeys } from '@/lib/queries'
@@ -60,12 +59,18 @@ function groupByDate(assets) {
 
 // Default ('Any active') excludes archived rows server-side. The explicit
 // 'Archived' option opts in to viewing the trash bin.
+//
+// The `id` values are the internal pipeline statuses persisted on each row;
+// the labels stay plain-language (CLAUDE.md "Plain-language default") because
+// raw/tagged/rendered read as opaque jargon — or worse, a quality judgment —
+// to a clinician scanning the filter. The trailing "— …" clause spells out
+// what each stage actually means.
 const STATUS_FILTERS = [
   { id: '',         label: 'Any active' },
-  { id: 'raw',      label: 'Raw' },
-  { id: 'tagged',   label: 'Tagged' },
-  { id: 'rendered', label: 'Rendered' },
-  { id: 'approved', label: 'Approved' },
+  { id: 'raw',      label: 'Just uploaded' },
+  { id: 'tagged',   label: 'Tagged — ready to use' },
+  { id: 'rendered', label: 'Used in a draft' },
+  { id: 'approved', label: 'Approved — cleared to publish' },
   { id: 'archived', label: 'Archived' },
 ]
 
@@ -429,9 +434,10 @@ export default function MediaHub() {
         </div>
       </div>
 
-      {/* Ready to distribute — staff-only inbox of approved pieces awaiting
-          media + publish. Hides itself when empty or for non-staff. */}
-      <LibraryReadyStrip />
+      {/* The "Ready to distribute" inbox of approved pieces lives on Home — it
+          duplicated that bucket here and split the Library between archive and
+          publisher-inbox jobs (audit 2026-05-29 P1). Library stays the media
+          pool; Home owns the publish queue. */}
 
       {/* Upload modal — triggered from the Upload button in the filter row */}
       {canUpload && (
