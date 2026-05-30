@@ -148,7 +148,9 @@ export async function recordUploadedAsset({ blob, tokenPayload }) {
     [scopeColumn]: scopeId,
     kind,
     status: isReturnUpload ? 'approved' : 'raw',
-    source: 'upload',
+    // Defaults to 'upload' (web uploader). The capture companion passes
+    // source: 'capture_companion' so field captures stay distinguishable.
+    source: meta.source || 'upload',
     blob_url: blob.url,
     blob_pathname: blob.pathname,
     filename: meta.filename || blob.pathname.split('/').pop(),

@@ -21,7 +21,7 @@ export const config = { runtime: 'nodejs' }
 
 import { waitUntil } from '@vercel/functions'
 import { authByCaptureToken } from '../_lib/captureAuth.js'
-import { indexMediaAsset } from '../_lib/visualMemoryIndex.js'
+import { recordUploadedAsset } from '../_lib/recordUploadedAsset.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -93,44 +93,60 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'blob_url_construction_failed' })
   }
 
-  const safeFilename = filename.replace(/[^\w.-]/g, '_')
   const capturedAtIso = capturedAt
     ? new Date(capturedAt).toISOString()
     : new Date().toISOString()
 
-  const insertRes = await sb('media_assets', {
-    method: 'POST',
-    body: JSON.stringify({
-      workspace_id: auth.workspace.id,
-      staff_id: auth.staffMember.id,
-      kind,
-      status: 'raw',
+  // The Shortcut sends a generic "capture.mov"/"capture.jpg". Give it a
+  // timestamped name so the Library title isn't a wall of identical "capture.mov".
+  let displayFilename = filename
+  if (/^capture\.(mov|mp4|m4v|webm|jpg|jpeg|png|heic|heif|webp|gif)$/i.test(filename)) {
+    const ext = filename.split('.').pop().toLowerCase()
+    const stamp = capturedAtIso.slice(0, 16).replace('T', ' ').replace(':', '-')
+    displayFilename = `Capture ${stamp}.${ext}`
+  }
+  const safeFilename = displayFilename.replace(/[^\w.\- ]/g, '_')
+
+  // Delegate to the canonical upload pipeline so capture uploads get the exact
+  // same downstream treatment as the web uploader: thumbnail generation, Mux
+  // transcode, dimension/faststart probes, AI tagging, and visual-memory index.
+  // Previously register did a bare insert (no thumbnail/transcode), which is why
+  // capture clips showed as a generic tile with no poster frame.
+  const asset = await recordUploadedAsset({
+    blob: {
+      url: publicUrl,
+      pathname: blobPathname,
+      contentType,
+      size: typeof sizeBytes === 'number' ? sizeBytes : null,
+    },
+    tokenPayload: {
+      scopeColumn: 'workspace_id',
+      scopeId: auth.workspace.id,
       source: 'capture_companion',
-      blob_url: publicUrl,
-      blob_pathname: blobPathname,
-      original_blob_url: publicUrl,
+      staffId: auth.staffMember.id,
       filename: safeFilename,
-      mime_type: contentType,
-      size_bytes: typeof sizeBytes === 'number' ? sizeBytes : null,
-      captured_at: capturedAtIso,
-      // asset_purpose is CHECK-constrained to interview|broll|photo|brand.
-      // Video field-capture maps to broll; photos to photo.
-      asset_purpose: kind === 'video' ? 'broll' : 'photo',
+      capturedAt: capturedAtIso,
       notes: caption || null,
-      tags: locationHint ? [locationHint] : [],
-      created_by: auth.staffMember.user_id || null,
-    }),
+      createdBy: auth.staffMember.user_id || null,
+      // asset_purpose is CHECK-constrained to interview|broll|photo|brand.
+      assetPurpose: kind === 'video' ? 'broll' : 'photo',
+    },
   })
 
-  if (!insertRes.ok) {
-    const body = await insertRes.text().catch(() => '')
-    console.error('[capture/register] insert_media_asset failed:', insertRes.status, body)
+  if (!asset?.id) {
+    console.error('[capture/register] recordUploadedAsset returned no row')
     return res.status(500).json({ error: 'db_error' })
   }
 
-  const rows = await insertRes.json()
-  const asset = rows?.[0]
-  if (!asset?.id) return res.status(500).json({ error: 'insert_returned_no_row' })
+  // Tag the location hint after insert (recordUploadedAsset doesn't take tags).
+  if (locationHint) {
+    waitUntil(
+      sb(`media_assets?id=eq.${asset.id}&workspace_id=eq.${auth.workspace.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ tags: [locationHint] }),
+      }).catch(() => {}),
+    )
+  }
 
   // Update token last-used (best effort)
   waitUntil(
@@ -138,13 +154,6 @@ export default async function handler(req, res) {
       method: 'PATCH',
       body: JSON.stringify({ capture_upload_token_last_used_at: new Date().toISOString() }),
     }).catch(() => {}),
-  )
-
-  // Visual memory index (async)
-  waitUntil(
-    indexMediaAsset({ assetId: asset.id }).catch((e) => {
-      console.error('[capture/register] visualMemoryIndex failed:', e?.message)
-    }),
   )
 
   return res.status(201).json({
