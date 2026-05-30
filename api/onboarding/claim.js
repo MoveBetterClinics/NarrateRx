@@ -151,7 +151,27 @@ async function handler(req, res) {
   const enabled_outputs = pickEnabledOutputs(body.enabled_outputs)
   if (enabled_outputs.length === 0) return res.status(400).json({ error: 'no-channels-selected' })
 
-  // Capacity check (founding cap)
+  // Capacity check (founding cap).
+  //
+  // ACCEPTED RACE (TOCTOU): this is read→check→insert with no DB-level guard,
+  // so two POSTs landing in the same sub-second window while `used === cap - 1`
+  // could both pass and create a (cap + 1)th founding workspace. Unlike slug
+  // uniqueness — which has a DB unique constraint backstop on insert — the cap
+  // has no serialization at the database.
+  //
+  // We accept this rather than fix it because the only robust DB-level guard
+  // here is a Postgres advisory-lock RPC (count + insert in one transaction):
+  // every write in this handler goes through PostgREST, where each REST call is
+  // its own connection/transaction, so a lock cannot span the count and the
+  // insert without a server-side function. That's a migration (function + GRANT
+  // to service_role + apply-to-prod-before-merge) whose cost isn't justified at
+  // current volume: FOUNDING_CAP is a lifetime cap of 10 external workspaces,
+  // signups are rare, and the worst case is one extra founding tenant —
+  // recoverable by flipping `is_founding`, with no data loss, corruption, or
+  // cross-tenant exposure. Revisit (build the RPC) if signup concurrency rises.
+  //
+  // To keep the window observable: we log on every claim within one slot of the
+  // cap, so the race actually firing leaves a trail in `vercel logs`.
   let used
   try {
     used = await externalCount()
@@ -160,7 +180,13 @@ async function handler(req, res) {
     return res.status(500).json({ error: 'db-error' })
   }
   if (used >= FOUNDING_CAP) {
+    console.warn(`[claim] founding cap reached: used=${used} cap=${FOUNDING_CAP} — rejecting claim for slug=${slug} user=${userId}`)
     return res.status(409).json({ error: 'founding-spots-full', cap: FOUNDING_CAP, used })
+  }
+  if (used >= FOUNDING_CAP - 1) {
+    // Within one slot of the cap — if a concurrent claim slips through the
+    // TOCTOU window, this line appears twice for the same `used` value.
+    console.warn(`[claim] founding cap near-full: used=${used} cap=${FOUNDING_CAP} — proceeding with slug=${slug} user=${userId} (TOCTOU window)`)
   }
 
   // Slug uniqueness pre-check (race-safe: insert below also enforces unique).
