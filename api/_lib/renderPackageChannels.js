@@ -42,6 +42,19 @@ function sb(path, init = {}) {
 }
 
 /**
+ * A video render's output is fully determined by the geometry fields of its
+ * channel spec: target dimensions, fit mode, and caption-band position drive
+ * both the ffmpeg scale/pad filter and the brand-overlay SVG. Two channels with
+ * the same signature produce byte-identical MP4s for the same source + caption,
+ * so they can share one render. Used to dedupe the keep-whole long-form lane's
+ * three identical landscape channels (and a no-op for the distinct clip specs).
+ */
+function videoRenderSignature(channel) {
+  const s = VIDEO_CHANNEL_SPECS[channel] || {}
+  return JSON.stringify({ w: s.width, h: s.height, captionPos: s.captionPos, fit: s.fit || 'cover' })
+}
+
+/**
  * Render every channel for a package, upload outputs to Blob, and patch the
  * story_packages row to complete/failed. Designed to run inside waitUntil.
  *
@@ -76,23 +89,53 @@ export async function renderAndPatchPackage({
   const errors = []
 
   try {
-    for (const channel of channels) {
-      try {
-        if (isVideo) {
-          if (!VIDEO_CHANNEL_SPECS[channel]) { errors.push({ channel, error: 'unknown_channel' }); continue }
+    if (isVideo) {
+      // Group channels by render signature so identical specs render ONCE.
+      // The keep-whole long-form lane targets three landscape channels
+      // (youtube / linkedin_native / website_embed) that share an identical
+      // spec — same dimensions, fit, caption position — so they produce
+      // byte-identical MP4s. Rendering each separately tripled the ffmpeg +
+      // Whisper cost (and, for a long source, blew the 300s budget). We now
+      // render+upload one master per unique signature and fan its blob URL out
+      // to every channel in the group. Channels with distinct specs (the clip
+      // lane: 1:1 / 9:16 / 16:9) fall into separate groups and still render
+      // independently — the grouping is a no-op for them.
+      const groups = new Map()
+      for (const channel of channels) {
+        if (!VIDEO_CHANNEL_SPECS[channel]) { errors.push({ channel, error: 'unknown_channel' }); continue }
+        const sig = videoRenderSignature(channel)
+        if (!groups.has(sig)) groups.set(sig, [])
+        groups.get(sig).push(channel)
+      }
+
+      for (const groupChannels of groups.values()) {
+        // Deterministic representative channel (sorted) so the blob path is
+        // stable across re-renders (allowOverwrite keeps it idempotent).
+        const repChannel = [...groupChannels].sort()[0]
+        try {
           const { buffer, width, height, hadSubtitles } = await renderVideoChannel({
-            videoUrl: sourceUrl, channel, captionText, workspace: ws, staffName,
+            videoUrl: sourceUrl, channel: repChannel, captionText, workspace: ws, staffName,
             startSec, durationSec,
           })
           // Key by packageId, not just sourceAssetId — multi-clip v1 renders
           // several packages (segments) from ONE source asset; keying by source
           // alone would make every segment's render clobber the previous one.
-          const pathname = `media/renders/${ws.slug}/${sourceAssetId}/${packageId}/${channel}-${safeFilename}.mp4`
+          const pathname = `media/renders/${ws.slug}/${sourceAssetId}/${packageId}/${repChannel}-${safeFilename}.mp4`
           const blob = await blobPut(pathname, buffer, {
             access: 'public', contentType: 'video/mp4', addRandomSuffix: false, allowOverwrite: true,
           })
-          renders.push({ channel, blobUrl: blob.url, width, height, sizeBytes: buffer.length, hadSubtitles })
-        } else {
+          // Fan the single master out to every channel in the signature group.
+          for (const channel of groupChannels) {
+            renders.push({ channel, blobUrl: blob.url, width, height, sizeBytes: buffer.length, hadSubtitles })
+          }
+        } catch (e) {
+          console.error(`[renderPackageChannels] group [${groupChannels.join(',')}] failed:`, e?.stack || e?.message || e)
+          for (const channel of groupChannels) errors.push({ channel, error: e?.message || 'unknown' })
+        }
+      }
+    } else {
+      for (const channel of channels) {
+        try {
           if (!CHANNEL_SPECS[channel]) { errors.push({ channel, error: 'unknown_channel' }); continue }
           const { buffer, width, height } = await renderPhotoChannel({
             photoUrl: sourceUrl, channel, captionText, workspace: ws, staffName,
@@ -102,10 +145,10 @@ export async function renderAndPatchPackage({
             access: 'public', contentType: 'image/jpeg', addRandomSuffix: false, allowOverwrite: true,
           })
           renders.push({ channel, blobUrl: blob.url, width, height, sizeBytes: buffer.length })
+        } catch (e) {
+          console.error(`[renderPackageChannels] channel ${channel} failed:`, e?.stack || e?.message || e)
+          errors.push({ channel, error: e?.message || 'unknown' })
         }
-      } catch (e) {
-        console.error(`[renderPackageChannels] channel ${channel} failed:`, e?.stack || e?.message || e)
-        errors.push({ channel, error: e?.message || 'unknown' })
       }
     }
 

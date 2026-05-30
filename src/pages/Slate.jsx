@@ -16,7 +16,12 @@ import PageHelp from '@/components/PageHelp'
 
 const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
-const POLL_CAP_MS = 5 * 60 * 1000  // hard cap so a dead render job (status stuck 'generating') can't poll forever
+// Hard cap so a dead render job (status stuck 'generating') can't poll forever.
+// Raised 5min → 60min for the keep-whole long-form lane: a chunked 30–60 min
+// talk renders piece-by-piece and its total wall-time can reach ~30–45 min, so
+// a 5min cap would stop watching a legitimately in-flight render. The cap only
+// matters as a backstop against a truly stuck row; it never delays a render.
+const POLL_CAP_MS = 60 * 60 * 1000
 
 // A package is still working if it's queued, rendering, or waiting on Runway
 // b-roll. Used to drive the live poll. NOTE: the "Stop generating" button uses

@@ -48,10 +48,16 @@ const MAX_RENDER_SECONDS = 60
 // idea needs — we do NOT trim it to a social norm. Its render is lighter
 // (landscape, fit-not-crop), but render cost is decode-bound, so a multi-minute
 // source still can't finish inside the 300s function budget on a single pass.
-// This interim cap is what renders reliably TODAY; the deferred chunked/stitched
-// render is what removes the ceiling for genuinely long pieces. Measured basis:
-// a 60s 4K downscale ≈ 135s wall, so ~2 min is the safe single-pass edge.
-const LONGFORM_MAX_SECONDS = 120
+// This interim cap is what renders reliably TODAY; the chunked/stitched render
+// (in progress) is what removes the ceiling for genuinely long pieces.
+//
+// Raised 120 → 240 once the three identical long-form channels were deduped to
+// a SINGLE master render (renderPackageChannels.js): cutting 3 redundant
+// ffmpeg+Whisper passes to 1 freed ~2/3 of the per-package budget, so one
+// landscape pass can safely cover ~4 min of source inside the 300s function
+// ceiling. INTERIM and conservative — validate on a real source before trusting
+// the headroom; the chunked path removes this cap entirely for 30–60 min talks.
+const LONGFORM_MAX_SECONDS = 240
 
 /**
  * Channel specs for video rendering.
