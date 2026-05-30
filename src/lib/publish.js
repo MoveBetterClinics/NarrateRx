@@ -68,7 +68,7 @@ export function suggestHashtags(contentItemId) {
 // missing means "fan out to every active location with a Buffer GBP channel".
 const BUFFER_PLATFORMS = [
   'instagram', 'facebook', 'linkedin', 'pinterest',
-  'tiktok', 'youtube_short', 'twitter', 'threads', 'bluesky', 'mastodon',
+  'tiktok', 'youtube_short', 'youtube', 'twitter', 'threads', 'bluesky', 'mastodon',
   'gbp',
 ]
 

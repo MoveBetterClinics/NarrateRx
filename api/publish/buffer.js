@@ -33,6 +33,7 @@ const PLATFORM_TO_SERVICE = {
   tiktok:        'tiktok',
   threads:       'threads',
   youtube_short: 'youtube',
+  youtube:       'youtube',   // long-form landscape video → same Buffer YouTube channel
   bluesky:       'bluesky',
   mastodon:      'mastodon',
   gbp:           'googlebusiness',
