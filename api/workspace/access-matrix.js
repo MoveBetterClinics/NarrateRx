@@ -46,7 +46,7 @@ async function handler(req, res) {
   try {
     const sres = await fetch(
       `${SUPA}/rest/v1/staff?workspace_id=eq.${workspace.id}` +
-        `&select=id,name,legal_name,permission_tier,staff_type,capability_overrides,user_id,producer_onboarded_at,active_voice_clone_id` +
+        `&select=id,name,legal_name,permission_tier,staff_type,capability_overrides,user_id,eleven_voice_id` +
         `&order=name.asc`,
       { headers: { apikey: SROLE, Authorization: `Bearer ${SROLE}` } }
     )
@@ -64,8 +64,7 @@ async function handler(req, res) {
       staff_type: s.staff_type || 'clinician',
       capability_overrides: s.capability_overrides || {},
       user_id: s.user_id || null,
-      producer_onboarded_at: s.producer_onboarded_at || null,
-      has_voice_clone: !!s.active_voice_clone_id,
+      has_voice_clone: !!s.eleven_voice_id,
       pending: false,
       // tier-only set (no overrides) — lets the client diff each cell
       tier_capabilities: resolveCapabilities(s.permission_tier || 'clinician', workspace),
