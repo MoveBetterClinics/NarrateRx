@@ -150,7 +150,7 @@ export default async function handler(req, res) {
 
   // Update token last-used (best effort)
   waitUntil(
-    sb(`staff?id=eq.${auth.staffMember.id}`, {
+    sb(`staff?id=eq.${auth.staffMember.id}&workspace_id=eq.${auth.workspace.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ capture_upload_token_last_used_at: new Date().toISOString() }),
     }).catch(() => {}),
