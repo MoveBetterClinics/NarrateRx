@@ -133,10 +133,20 @@ export default function Stories() {
             </h1>
             {!isLoading && stories.length > 0 ? (
               <span className="text-sm text-muted-foreground truncate flex items-baseline gap-2">
-                {awaitingReviewCount > 0 ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-primary text-primary-foreground px-2 py-0.5 text-2xs font-bold uppercase tracking-wide">
+                {awaitingReviewCount > 0 && stageFilter !== 'review' ? (
+                  // Interactive shortcut: applies the Review stage filter.
+                  // Styled as a subtle outlined chip (not a filled-primary
+                  // pill) so it reads as a secondary filter affordance, not a
+                  // primary CTA — and the trailing arrow signals it's clickable.
+                  <button
+                    type="button"
+                    onClick={() => setParam('stage', 'review')}
+                    title="Filter to stories awaiting review"
+                    className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 text-primary px-2 py-0.5 text-2xs font-bold uppercase tracking-wide hover:bg-primary/20 transition-colors"
+                  >
                     {awaitingReviewCount} awaiting review
-                  </span>
+                    <span aria-hidden="true">→</span>
+                  </button>
                 ) : null}
                 <span>{stories.length === 1 ? '1 story' : `${stories.length} stories`}</span>
               </span>
@@ -166,21 +176,31 @@ export default function Stories() {
           </button>
         ) : null}
 
-        {/* Real moments — filters to voice_memo + seminar captures */}
-        <button
-          type="button"
-          onClick={toggleRealOnly}
-          aria-pressed={realOnly}
-          className={`shrink-0 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
-            realOnly
-              ? 'border-primary/40 bg-[hsl(20_60%_95%)] text-[#c04d18] hover:bg-[hsl(20_70%_92%)]'
-              : 'border-border bg-white text-foreground hover:border-slate-300 hover:bg-slate-50'
-          }`}
-        >
-          <Mic className="h-3 w-3" aria-hidden="true" />
-          Real moments
-          {realOnly ? <X className="h-3 w-3" aria-hidden="true" /> : null}
-        </button>
+        {/* Real moments — filters to voice_memo + seminar captures. Follows
+            the same model as Campaign/Mine only: a removable chip when active,
+            a select when not, so the whole bar shares one interaction model
+            (select to choose, chip to clear) instead of mixing a lone toggle
+            button with native selects. */}
+        {realOnly ? (
+          <button
+            type="button"
+            onClick={toggleRealOnly}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-[hsl(20_60%_95%)] text-[#c04d18] px-3 py-1.5 text-xs font-semibold hover:bg-[hsl(20_70%_92%)] transition-colors"
+          >
+            <Mic className="h-3 w-3" aria-hidden="true" />
+            Real moments
+            <X className="h-3 w-3" aria-hidden="true" />
+          </button>
+        ) : (
+          <select
+            value=""
+            onChange={(e) => setParam('capture', e.target.value)}
+            className={SELECT_CLS}
+          >
+            <option value="">Real moments: All</option>
+            <option value="real">Real moments only</option>
+          </select>
+        )}
 
         {/* Campaign — active chip or selector */}
         {activeCampaignObj ? (
