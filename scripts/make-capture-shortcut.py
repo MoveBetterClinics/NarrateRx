@@ -112,7 +112,10 @@ def a_take_video(out_uuid):
             'CustomOutputName': 'Recorded Video',
             'WFCameraCaptureDevice': 'Back',
             'WFCameraCaptureQuality': 'High',
-            'WFRecordingStart': 'Immediately',
+            # 'On Tap' (not 'Immediately') — Immediately misfires on the Mac
+            # webcam (opens showing Stop but isn't recording). On Tap is
+            # predictable on both Mac and iPhone: tap record → tap stop.
+            'WFRecordingStart': 'On Tap',
         },
     }
 
