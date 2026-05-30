@@ -519,7 +519,7 @@ function RegenerateButton({ piece, story }) {
   const isBlog = piece.platform === 'blog'
   const initialLengthPreset = resolveLengthPreset(
     piece.length_preset,
-    story?.staffMember?.preferred_length,
+    story?.staff_preferred_length,
   )
   const [lengthPreset, setLengthPreset] = useState(initialLengthPreset)
 
