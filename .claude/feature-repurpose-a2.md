@@ -14,6 +14,16 @@ Find-clips panel for review. **No grouping, no scheduling** — that's A2.
 A2 = tie the master + the clips it spawned into **one tracked unit** (a
 "Repurpose" campaign) and let the clips **trickle out behind the master**.
 
+## Decisions (locked 2026-05-30 with Q)
+
+1. **Drip = Buffer's queue** (not an explicit NarrateRx scheduler in v1). Queue
+   the master first, clips behind; Buffer spaces them across the workspace's
+   posting slots. An explicit `scheduled_for` scheduler is deferred to "Future".
+2. **Clips stay propose-for-review** (current model). No auto-approve in A2 v1 —
+   the user keeps/discards clips on the Slate before they render + publish.
+3. **One campaign per source video**, named `Repurpose: <clean filename>`
+   (default; not user-named at click time). Re-clicking reuses it (idempotent).
+
 ## Key finding: the "drip" is mostly Buffer's job, not ours
 
 NarrateRx has **no per-item scheduled-publish column**. `content_items` are
@@ -117,11 +127,11 @@ touches the validated path — do it only after validation, and re-smoke long-fo
 - **Auto-approve a curated subset of clips** (e.g. top-N by model confidence)
   so the trickle is truly hands-off, vs the current propose-for-review model.
 
-## Open questions for Q
+## Build order when A2 starts (after validation)
 
-1. v1 drip via Buffer queue spacing (cheap, ships with A2) vs an explicit
-   NarrateRx scheduler (more control, bigger build) — start with Buffer queue?
-2. Clips stay **propose-for-review** (current model, safer) vs auto-approve a
-   top-N subset for a fully hands-off trickle?
-3. Campaign naming/grouping: one campaign per source video (`Repurpose: <file>`),
-   or per time-period, or user-named at click time?
+1. Apply migration 111 to prod (Q runs the SQL).
+2. `render-segments` + `segmentDetect`/`find-clips`: thread + persist `campaignId`.
+3. Extract `kickLongformRender.js`; refactor `render-longform` to use it + accept
+   `campaignId`. Re-smoke the long-form lane.
+4. New `repurpose-video.js` endpoint (campaign create/reuse + both kicks).
+5. Point `RepurposeAction` at the single endpoint; add `repurposeVideo` to clipsLib.
