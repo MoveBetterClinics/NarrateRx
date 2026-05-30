@@ -36,7 +36,10 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 // Long-form landscape channels (PR #999). All 16:9, fit:'contain' (keep whole
 // frame), longform:true (120s budget). The render derives keep-whole from these.
-const LONGFORM_CHANNELS = ['youtube', 'linkedin_native', 'website_embed']
+// website_embed excluded: approve-package.js has no CHANNEL_TO_PLATFORM entry for
+// it yet, so rendered .mp4s would be orphaned in Blob with no content_items row.
+// Re-add once the website-publish path is implemented.
+const LONGFORM_CHANNELS = ['youtube', 'linkedin_native']
 
 async function sb(path, init = {}) {
   return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
