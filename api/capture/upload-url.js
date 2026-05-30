@@ -27,7 +27,6 @@ import { generateClientTokenFromReadWriteToken } from '@vercel/blob/client'
 import { authByCaptureToken } from '../_lib/captureAuth.js'
 
 const ALLOWED_MIME = new Set([
-  'image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'image/gif',
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v',
 ])
 

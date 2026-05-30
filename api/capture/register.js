@@ -26,9 +26,6 @@ import { recordUploadedAsset } from '../_lib/recordUploadedAsset.js'
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
-const ALLOWED_IMAGE_MIME = new Set([
-  'image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'image/gif',
-])
 const ALLOWED_VIDEO_MIME = new Set([
   'video/mp4', 'video/quicktime', 'video/webm', 'video/x-m4v',
 ])
@@ -47,7 +44,6 @@ async function sb(path, init = {}) {
 }
 
 function kindFromMime(mime) {
-  if (ALLOWED_IMAGE_MIME.has(mime)) return 'photo'
   if (ALLOWED_VIDEO_MIME.has(mime)) return 'video'
   return null
 }
@@ -101,15 +97,12 @@ export default async function handler(req, res) {
 
   // The Shortcut sends a generic "capture.mov" for every file type — even
   // photos, which come with contentType=image/jpeg but filename=capture.mov.
-  // Derive the extension from the MIME type so photos don't end up labeled .mov.
   const MIME_EXT = {
-    'image/jpeg': 'jpg', 'image/png': 'png', 'image/heic': 'heic',
-    'image/heif': 'heif', 'image/webp': 'webp', 'image/gif': 'gif',
     'video/mp4': 'mp4', 'video/quicktime': 'mov',
     'video/webm': 'webm', 'video/x-m4v': 'm4v',
   }
   let displayFilename = filename
-  if (/^capture\.(mov|mp4|m4v|webm|jpg|jpeg|png|heic|heif|webp|gif)$/i.test(filename)) {
+  if (/^capture\.(mov|mp4|m4v|webm)$/i.test(filename)) {
     const ext = MIME_EXT[contentType] || filename.split('.').pop().toLowerCase()
     const stamp = capturedAtIso.slice(0, 16).replace('T', ' ').replace(':', '-')
     displayFilename = `Capture ${stamp}.${ext}`

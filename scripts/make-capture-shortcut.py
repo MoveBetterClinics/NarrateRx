@@ -335,18 +335,13 @@ def build(token=None, distributable=False):
         auth_header = lambda: text_token(bearer)
 
     actions.append(a_menu_start(menu_id, 'What do you want to capture?', [
-        'Record video', 'Take photo', 'Pick video', 'Pick photo',
+        'Record video', 'Pick video',
     ]))
 
     capture_case(actions, menu_id, 'Record video',
                  a_take_video, 'video/quicktime')
-    capture_case(actions, menu_id, 'Take photo',
-                 a_take_photo, 'image/jpeg')
     capture_case(actions, menu_id, 'Pick video',
                  lambda u: a_select_photos(u, videos=True), 'video/quicktime',
-                 encode=True)
-    capture_case(actions, menu_id, 'Pick photo',
-                 lambda u: a_select_photos(u, videos=False), 'image/jpeg',
                  encode=True)
 
     actions.append(a_menu_end(menu_id))
