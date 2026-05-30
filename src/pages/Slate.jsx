@@ -17,6 +17,12 @@ import PageHelp from '@/components/PageHelp'
 const SLATE_TARGET = 4  // aim for this many packages per day
 const REFETCH_INTERVAL_MS = 3000
 const POLL_CAP_MS = 5 * 60 * 1000  // hard cap so a dead render job (status stuck 'generating') can't poll forever
+
+// A package is still working if it's queued, rendering, or waiting on Runway
+// b-roll. Used to drive the live poll. NOTE: the "Stop generating" button uses
+// a deliberately narrower check (no pending_broll) — don't fold that into this.
+const isPendingPackage = (p) =>
+  p.status === 'generating' || p.status === 'pending' || p.status === 'pending_broll'
 const TRIAGE_CONFIDENCE_THRESHOLD = 0.65  // packages below this need clinician attention
 const STALE_HOURS = 36  // unaddressed complete packages older than this land in triage
 // Phase 4 PR 3 — Brand QC threshold. Packages scoring below this on voice fidelity
@@ -140,10 +146,7 @@ export default function Slate() {
     queryFn: fetchPackages,
     refetchInterval: (q) => {
       const pkgs = q.state.data?.packages || []
-      // pending_broll = waiting for Runway AI b-roll to finish generating
-      const anyPending = pkgs.some((p) =>
-        p.status === 'generating' || p.status === 'pending' || p.status === 'pending_broll'
-      )
+      const anyPending = pkgs.some(isPendingPackage)
       if (!anyPending) return false
       if (!pollStartRef.current.at) pollStartRef.current.at = Date.now()
       if (Date.now() - pollStartRef.current.at > POLL_CAP_MS) return false
@@ -155,9 +158,7 @@ export default function Slate() {
   // Reset the poll cap once nothing is pending, so the next generation gets a
   // fresh 5-min window instead of inheriting an expired clock.
   const anyPending = useMemo(
-    () => (data?.packages || []).some((p) =>
-      p.status === 'generating' || p.status === 'pending' || p.status === 'pending_broll'
-    ),
+    () => (data?.packages || []).some(isPendingPackage),
     [data]
   )
   useEffect(() => {
