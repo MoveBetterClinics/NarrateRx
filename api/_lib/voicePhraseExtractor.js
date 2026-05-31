@@ -105,7 +105,7 @@ export function extractPhrasesFromContent(content) {
 // drives the conflict target. Existing rows get approve_count+1, last_seen_at
 // bumped; weight is intentionally left to the auto-tune worker's positive
 // signal (currently the default 1.0; richer weighting lands in a follow-up).
-async function upsertOneVoicePhrase({ workspaceId, staffId, phrase, phraseNormalized }) {
+async function upsertOneVoicePhrase({ workspaceId, staffId, phrase, phraseNormalized, initialWeight = 1.0 }) {
   // PostgREST's merge-duplicates doesn't let us express "+1 to approve_count"
   // — it overwrites the row with the values we sent. Do a read-modify-write:
   // fetch existing, increment locally, PATCH if exists else INSERT.
@@ -146,7 +146,10 @@ async function upsertOneVoicePhrase({ workspaceId, staffId, phrase, phraseNormal
       staff_id:      staffId,
       phrase,
       phrase_normalized: phraseNormalized,
-      weight:            1.0,
+      // initialWeight lets a lower-confidence source (interview transcript, F1)
+      // seed a phrase BELOW approved-content phrases (1.0). Re-sighting via the
+      // approval hook still PATCHes weight += 1, so approval promotes it.
+      weight:            initialWeight,
       approve_count:     1,
       reject_count:      0,
     }),
@@ -164,20 +167,29 @@ async function upsertOneVoicePhrase({ workspaceId, staffId, phrase, phraseNormal
 // ── Public entry point ───────────────────────────────────────────────────────
 
 /**
- * extractVoicePhrases({ workspaceId, staffId, content })
+ * extractVoicePhrases({ workspaceId, staffId, content, initialWeight })
  *
- * Fire-and-forget extractor for the content-approval hook. Pulls voice-worthy
- * sentences out of the approved content body and upserts each into
- * staff_voice_phrases. Never throws — caller can ignore the returned
- * promise without unhandled-rejection risk.
+ * Fire-and-forget extractor. Pulls voice-worthy sentences out of a content
+ * body and upserts each into staff_voice_phrases. Never throws — caller can
+ * ignore the returned promise without unhandled-rejection risk.
+ *
+ * Sources:
+ *   * api/db/content.js — on content_item approval (initialWeight 1.0, default).
+ *   * api/db/interviews.js — on interview completion (F1, initialWeight 0.5,
+ *     PROVISIONAL): gives clinicians who interview but never get a piece
+ *     approved a real voice substrate, while keeping approved-content phrases
+ *     ranked above. Re-sighting in approved content promotes the phrase (+1).
+ *
+ * @param {number} [initialWeight=1.0] — weight for NEWLY inserted phrases only;
+ *        existing rows are still bumped weight += 1 regardless of this value.
  *
  * No-ops when:
- *   * staffId is missing (content_items without an owning clinician
- *     don't contribute to any per-clinician voice profile)
+ *   * staffId is missing (content without an owning clinician
+ *     doesn't contribute to any per-clinician voice profile)
  *   * content is empty / whitespace only
  *   * no sentences clear the voice-worthy quality gate
  */
-export async function extractVoicePhrases({ workspaceId, staffId, content }) {
+export async function extractVoicePhrases({ workspaceId, staffId, content, initialWeight = 1.0 }) {
   try {
     if (!workspaceId || !staffId) return
     if (!content?.trim()) return
@@ -195,12 +207,13 @@ export async function extractVoicePhrases({ workspaceId, staffId, content }) {
         staffId,
         phrase,
         phraseNormalized: phrase_normalized,
+        initialWeight,
       })
     }
 
     console.info(
       `[voicePhraseExtractor] workspace=${workspaceId} staff=${staffId} ` +
-      `phrases=${phrases.length}`
+      `phrases=${phrases.length} initialWeight=${initialWeight}`
     )
   } catch (e) {
     console.error('[voicePhraseExtractor] unhandled error:', e?.message)

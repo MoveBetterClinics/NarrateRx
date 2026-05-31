@@ -11,6 +11,7 @@ import { enforceLimit } from '../_lib/ratelimit.js'
 import { buildPlanRows } from '../_lib/atomPlan.js'
 import { extractConcepts, buildInterviewText } from '../_lib/conceptExtractor.js'
 import { summarizeInterview } from '../_lib/interviewSummarizer.js'
+import { extractVoicePhrases } from '../_lib/voicePhraseExtractor.js'
 import { markBookStale } from '../_lib/bookStale.js'
 import { indexInterviewTranscriptFull } from '../_lib/practiceMemoryRag.js'
 import { waitUntil } from '@vercel/functions'
@@ -364,6 +365,28 @@ export default async function handler(req, res) {
               topic,
               createdAt:       rows[0].created_at,
             }))
+            // F1 — learn voice phrases from the interview transcript AT
+            // COMPLETION, not only on content approval (api/db/content.js:188).
+            // Clinicians who interview but never get a piece approved
+            // (Sophie/Tyler/Whitney) otherwise sit at 0 voice phrases, so
+            // captionGen.js can only fall back to generic tone descriptors.
+            // Extracted at a PROVISIONAL weight (0.5) — below approved-content
+            // phrases (1.0) so approval still refines/promotes them (re-sighting
+            // bumps weight +1). Clinician turns only (role==='user'). No-ops
+            // without a staff_id or transcript. waitUntil() so the dispatch
+            // isn't frozen when the response is sent (Vercel Node runtime).
+            const clinicianTurns = (turns || [])
+              .filter((m) => m?.role === 'user' && typeof m.content === 'string' && m.content.trim())
+              .map((m) => m.content.trim())
+              .join('\n\n')
+            if ((rows[0].staff_id ?? null) && clinicianTurns) {
+              waitUntil(extractVoicePhrases({
+                workspaceId:   ws.id,
+                staffId:       rows[0].staff_id,
+                content:       clinicianTurns,
+                initialWeight: 0.5,
+              }))
+            }
           }
         }
       } catch (e) {
