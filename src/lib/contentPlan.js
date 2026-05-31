@@ -23,3 +23,18 @@ export function draftAtom(atomId) {
     body: JSON.stringify({ atom_id: atomId }),
   })
 }
+
+/**
+ * Enable or disable one Content Plan channel for a single interview.
+ * Disabling skips the channel's non-published atoms (restorable); enabling
+ * brings them back. See api/content-plan/channel.js.
+ * @param {string} interviewId @param {string} platform @param {boolean} enabled
+ * @returns {Promise<unknown>}
+ */
+export function setChannelEnabled(interviewId, platform, enabled) {
+  return apiFetch(`/api/content-plan/channel?interview_id=${encodeURIComponent(interviewId)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ platform, enabled }),
+  })
+}

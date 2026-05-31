@@ -151,6 +151,19 @@ function atomPlatformsFromEnabledOutputs(enabledOutputs) {
   return set
 }
 
+// Reverse of atomPlatformsFromEnabledOutputs for a single platform: given an
+// ATOM_DEFINITIONS platform key, return the enabled_outputs registry channel
+// id(s) that map to it. Used by the per-story channel toggle
+// (api/content-plan/channel.js) to keep interviews.selected_outputs — stored in
+// the registry-id namespace, like workspaces.enabled_outputs — in sync when a
+// plan channel (atom-platform namespace) is turned on/off. Instagram is the
+// only split: the registry has instagram_post + instagram_reel, both of which
+// key under the `instagram` atom platform.
+export function channelIdsForAtomPlatform(platform) {
+  if (platform === 'instagram') return ['instagram_post', 'instagram_reel']
+  return [platform]
+}
+
 // Build the flat list of atom rows to insert for a new interview plan.
 // Called once when the blog post is first saved.
 //

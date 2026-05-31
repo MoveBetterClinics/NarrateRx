@@ -173,7 +173,7 @@ export default async function handler(req, res) {
 
     if (!id) return err(res, 'Missing id')
 
-    const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,staff_id,topic,location_id,capture_mode,source_audio_url`)
+    const chk = await sb(`interviews?id=eq.${id}&${wsFilter}&select=owner_id,staff_id,topic,location_id,capture_mode,source_audio_url,selected_outputs`)
     if (!chk.ok) return dbErr(res, chk)
     const rows = await chk.json()
     if (!rows.length) return err(res, 'Not found', 404)
@@ -400,7 +400,9 @@ export default async function handler(req, res) {
         )
         const planExists = planExistsRes.ok && (await planExistsRes.json()).length > 0
         if (!planExists) {
-          const planRows = buildPlanRows(id, ws.id, ws.enabled_outputs ?? [])
+          // Per-story selection (interviews.selected_outputs) overrides the
+          // workspace default when set; null inherits ws.enabled_outputs.
+          const planRows = buildPlanRows(id, ws.id, rows[0].selected_outputs ?? ws.enabled_outputs ?? [])
           if (planRows.length > 0) {
             const atomRes = await sb('content_plan_atoms', {
               method: 'POST',
