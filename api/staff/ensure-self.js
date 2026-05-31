@@ -13,8 +13,15 @@
 //
 // Resolution order (mirrors the find-or-create logic in api/db/clinicians.js):
 //   1. Row already bound to this user_id in this workspace → return it.
-//   2. A proxy row (user_id null) whose name matches → claim it (set user_id).
-//   3. Otherwise create a new row bound to user_id.
+//   2. A proxy row (user_id null) whose created_by_email matches the caller's
+//      Clerk primary email → claim it. Email is STABLE; the admin-set display
+//      name (e.g. "Dr. Tyler") routinely differs from the Clerk profile name
+//      ("drtyler") so name-matching alone silently created a fresh empty row and
+//      orphaned the proxy's learning (phrases, interviews, memory). Email is the
+//      reliable key — every admin-recorded proxy carries created_by_email.
+//   3. A proxy row whose name matches → claim it (legacy fallback for proxies
+//      recorded before created_by_email was captured / with no email on file).
+//   4. Otherwise create a new row bound to user_id.
 //
 // Idempotent: safe to call on every load. Scoped by workspace_id + user_id, so
 // it can never touch another tenant's data or another user's row.
@@ -54,6 +61,28 @@ function sb(path, init = {}) {
       ...init.headers,
     },
   })
+}
+
+// Conditional claim of a proxy row. Only PATCHes when the row is STILL
+// unclaimed (user_id is null) — without this filter two users racing on the
+// same proxy could both pass the SELECT and the second PATCH would steal the
+// first's row. Returns the claimed row, or null if the row was already claimed
+// (lost the race) or the write failed (caller falls through to the next step
+// rather than stranding the user).
+async function tryClaim(rowId, wsFilter, userId) {
+  const claimRes = await sb(
+    `staff?id=eq.${encodeURIComponent(rowId)}&user_id=is.null&${wsFilter}&select=${CLINICIAN_FIELDS}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ user_id: userId, updated_at: new Date().toISOString() }),
+    }
+  )
+  if (!claimRes.ok) {
+    console.warn(`[clinicians/ensure-self] proxy claim failed for ${rowId}`)
+    return null
+  }
+  const claimed = await claimRes.json()
+  return Array.isArray(claimed) && claimed.length > 0 ? claimed[0] : null
 }
 
 // Derive a sensible display label for a freshly-invited user who may not have
@@ -123,34 +152,46 @@ export default async function handler(req, res) {
   // supplied. Keeps the ilike query and the insert bounded.
   name = name.slice(0, 200)
 
-  // 2. Claim a matching proxy row (admin pre-recorded this person; user_id null).
-  const byNameRes = await sb(`staff?${wsFilter}&user_id=is.null&name=ilike.${encodeURIComponent(name)}&select=${CLINICIAN_FIELDS}`)
-  if (byNameRes.ok) {
-    const byName = await byNameRes.json()
-    if (byName.length > 0) {
-      // Conditional claim: only update if the row is STILL unclaimed
-      // (user_id is null). Without this filter two users racing on the same
-      // proxy name could both pass the SELECT and the second PATCH would steal
-      // the first's row. If the conditional PATCH affects zero rows, someone
-      // else claimed it first — fall through to create our own row.
-      const claimRes = await sb(`staff?id=eq.${byName[0].id}&user_id=is.null&${wsFilter}&select=${CLINICIAN_FIELDS}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ user_id: userId, updated_at: new Date().toISOString() }),
-      })
-      if (claimRes.ok) {
-        const claimed = await claimRes.json()
-        if (Array.isArray(claimed) && claimed.length > 0) {
-          return res.status(200).json({ staffMember: claimed[0], created: false })
-        }
-        // Zero rows updated — lost the race; fall through to create.
-      } else {
-        // Claim failed — fall through to create rather than strand the user.
-        console.warn(`[clinicians/ensure-self] proxy claim failed for ${byName[0].id}`)
+  // 2. Claim a matching proxy row by EMAIL (admin pre-recorded this person;
+  //    user_id null). created_by_email is stable across the Clerk display-name
+  //    drift that broke name-matching — see the resolution-order note above.
+  //    Compared in JS, not via PostgREST ilike, because an email local-part can
+  //    contain `_`, which ilike treats as a single-char wildcard and would
+  //    false-match a different person's proxy.
+  if (createdByEmail) {
+    const proxyRes = await sb(
+      `staff?${wsFilter}&user_id=is.null&created_by_email=not.is.null` +
+        `&select=${CLINICIAN_FIELDS},created_by_email&order=created_at.asc`
+    )
+    if (proxyRes.ok) {
+      const proxies = await proxyRes.json()
+      const wanted = createdByEmail.toLowerCase()
+      // Earliest-created match wins (order=created_at.asc) — the original proxy
+      // holds the learning if a later empty duplicate ever appeared.
+      const target = Array.isArray(proxies)
+        ? proxies.find((p) => (p.created_by_email || '').toLowerCase() === wanted)
+        : null
+      if (target) {
+        const claimed = await tryClaim(target.id, wsFilter, userId)
+        if (claimed) return res.status(200).json({ staffMember: claimed, created: false })
+        // Lost the race or the write failed — fall through to the name match.
       }
     }
   }
 
-  // 3. Create a new Self row.
+  // 3. Claim a matching proxy row by NAME (legacy fallback for proxies recorded
+  //    before created_by_email was captured, or with no email on file).
+  const byNameRes = await sb(`staff?${wsFilter}&user_id=is.null&name=ilike.${encodeURIComponent(name)}&select=${CLINICIAN_FIELDS}`)
+  if (byNameRes.ok) {
+    const byName = await byNameRes.json()
+    if (byName.length > 0) {
+      const claimed = await tryClaim(byName[0].id, wsFilter, userId)
+      if (claimed) return res.status(200).json({ staffMember: claimed, created: false })
+      // Lost the race or claim failed — fall through to create our own row.
+    }
+  }
+
+  // 4. Create a new Self row.
   const createRes = await sb(`staff?select=${CLINICIAN_FIELDS}`, {
     method: 'POST',
     body: JSON.stringify({

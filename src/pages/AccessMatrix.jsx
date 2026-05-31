@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate } from 'react-router-dom'
-import { Shield, Lock, Check, Minus } from 'lucide-react'
+import { Shield, Lock, Check, Minus, AlertTriangle, UserCheck, GitMerge, UserPlus } from 'lucide-react'
 import { apiFetch } from '../lib/api.js'
 import { useAppMutation } from '../lib/useAppMutation.js'
 import { toast } from '../lib/toast'
@@ -89,6 +89,24 @@ export default function AccessMatrix() {
     },
   })
 
+  // Reconciliation actions (claim a stranded proxy / merge a split). Owner-only;
+  // the endpoint re-gates on members.invite.
+  const reconcileMutation = useAppMutation({
+    mutationFn: (payload) =>
+      apiFetch('/api/staff/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }),
+    errorMessage: 'Could not reconcile',
+    onSuccess: (_data, payload) => {
+      toast.success(payload?.action === 'merge' ? 'Profiles merged' : 'Profile claimed')
+      queryClient.invalidateQueries({ queryKey: ['access-matrix'] })
+    },
+  })
+
+  const reconciliation = data?.reconciliation || null
+
   if (!has('members.invite')) return <Navigate to="/settings" replace />
 
   // ── cell state resolution ──────────────────────────────────────────────────
@@ -157,6 +175,24 @@ export default function AccessMatrix() {
           <em> actual</em> per-person state, so nobody has to guess who can do what.
         </p>
       </div>
+
+      {/* Reconciliation — drift between who can log in (Clerk) and who is talent (staff) */}
+      {!isLoading && !error && reconciliation && (
+        <ReconciliationPanel
+          reconciliation={reconciliation}
+          busy={reconcileMutation.isPending}
+          onClaim={(staffId, userId) => reconcileMutation.mutate({ action: 'claim', staffId, userId })}
+          onMerge={(sourceId, targetId, label) => {
+            if (
+              window.confirm(
+                `Merge ${label} into the existing profile? All of its interviews, voice phrases, and learning move to the kept profile, and the duplicate is removed. This can't be undone.`
+              )
+            ) {
+              reconcileMutation.mutate({ action: 'merge', sourceId, targetId })
+            }
+          }}
+        />
+      )}
 
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
@@ -339,6 +375,142 @@ function Cell({ person, st, onClick }) {
     >
       {icon}
       {st.hasOverride && <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-[#f59f0a] ring-2 ring-white" />}
+    </button>
+  )
+}
+
+// ── Reconciliation panel ──────────────────────────────────────────────────────
+// Surfaces drift between Clerk membership (who can sign in) and the staff table
+// (who is talent) so the owner can fix it from here instead of via SQL. Uses
+// plain language — never "proxy"/"claim" jargon in the visible copy.
+function ReconciliationPanel({ reconciliation, busy, onClaim, onMerge }) {
+  const claimable = reconciliation.claimable_proxies || []
+  const orphans = claimable.filter((p) => !p.has_bound_sibling)
+  const splits = claimable.filter((p) => p.has_bound_sibling)
+  const missing = reconciliation.members_without_staff || []
+  const dups = reconciliation.duplicate_emails || []
+
+  // Two real logins for one person (every row already bound) — not covered by
+  // the claimable list. Surfaced as a keep-which-one merge choice.
+  const doubleBound = dups.filter((d) => d.staff.length > 1 && d.staff.every((r) => r.user_id))
+
+  const total = orphans.length + splits.length + missing.length + doubleBound.length
+
+  // Couldn't reach Clerk and nothing flagged from the table alone → stay quiet.
+  if (!reconciliation.members_checked && total === 0) return null
+
+  if (total === 0) {
+    return (
+      <div className="rounded-xl border border-[#d1fae5] bg-[#ecfdf5] px-4 py-3 flex items-center gap-2.5">
+        <UserCheck className="h-4 w-4 text-[#059669] shrink-0" />
+        <p className="text-2xs text-[#065f46]">
+          <b>All reconciled.</b> Everyone who can sign in has exactly one profile here — no strays, no duplicates.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-xl border border-[#fde68a] bg-[#fffbeb] px-4 py-3.5 space-y-3">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle className="h-4 w-4 text-[#d97706] shrink-0 mt-0.5" />
+        <div>
+          <p className="text-xs font-bold text-[#92400e]">
+            {total} {total === 1 ? 'profile needs' : 'profiles need'} attention
+          </p>
+          <p className="text-2xs text-[#92400e]/80 mt-0.5 leading-relaxed">
+            Two lists never sync on their own: who can <b>sign in</b> (your invites) and who is <b>talent</b> here
+            (interviewable, voice-learned). These drifted apart — link or merge to line them back up.
+          </p>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {orphans.map((p) => (
+          <ReconRow
+            key={`claim-${p.staff_id}`}
+            icon={<UserCheck className="h-3.5 w-3.5 text-[#0284c7]" />}
+            text={<><b>{p.name || p.email}</b> has recordings but isn&rsquo;t linked to <b>{p.member_name || p.email}</b>&rsquo;s login yet.</>}
+            action={
+              <ReconBtn busy={busy} onClick={() => onClaim(p.staff_id, p.member_user_id)} kind="primary">
+                <UserCheck className="h-3 w-3" /> Link to login
+              </ReconBtn>
+            }
+          />
+        ))}
+
+        {splits.map((p) => (
+          <ReconRow
+            key={`split-${p.staff_id}`}
+            icon={<GitMerge className="h-3.5 w-3.5 text-[#c04d18]" />}
+            text={<><b>{p.name || p.email}</b> is split across two profiles — their learning sits on a stray copy.</>}
+            action={
+              <ReconBtn busy={busy} onClick={() => onMerge(p.staff_id, p.bound_sibling_id, p.name || p.email)} kind="warn">
+                <GitMerge className="h-3 w-3" /> Merge into login
+              </ReconBtn>
+            }
+          />
+        ))}
+
+        {doubleBound.map((d) => (
+          <div key={`dup-${d.email}`} className="rounded-lg bg-white/70 ring-1 ring-[#fde68a] px-3 py-2">
+            <p className="text-2xs text-[#92400e] flex items-center gap-1.5">
+              <GitMerge className="h-3.5 w-3.5 text-[#c04d18] shrink-0" />
+              <span><b>{d.email}</b> has two active profiles. Keep one — its data absorbs the other:</span>
+            </p>
+            <div className="flex flex-wrap gap-1.5 mt-1.5 pl-5">
+              {d.staff.map((keep) => {
+                const remove = d.staff.find((r) => r.id !== keep.id)
+                if (!remove) return null
+                return (
+                  <ReconBtn key={keep.id} busy={busy} onClick={() => onMerge(remove.id, keep.id, remove.name || d.email)} kind="warn">
+                    Keep &ldquo;{keep.name}&rdquo;
+                  </ReconBtn>
+                )
+              })}
+            </div>
+          </div>
+        ))}
+
+        {missing.map((m) => (
+          <ReconRow
+            key={`missing-${m.user_id}`}
+            icon={<UserPlus className="h-3.5 w-3.5 text-[#64748b]" />}
+            text={<><b>{m.name || m.email}</b> can sign in but has no profile yet — it appears automatically the next time they open the app.</>}
+            action={<span className="text-3xs text-muted-foreground italic px-2">no action needed</span>}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ReconRow({ icon, text, action }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg bg-white/70 ring-1 ring-[#fde68a] px-3 py-2">
+      <span className="text-2xs text-[#92400e] flex items-center gap-1.5 min-w-0">
+        <span className="shrink-0">{icon}</span>
+        <span className="truncate">{text}</span>
+      </span>
+      <span className="shrink-0">{action}</span>
+    </div>
+  )
+}
+
+function ReconBtn({ children, onClick, busy, kind }) {
+  const cls =
+    kind === 'primary'
+      ? 'bg-[#0284c7] text-white hover:bg-[#0369a1]'
+      : kind === 'warn'
+        ? 'bg-[#c04d18] text-white hover:bg-[#9a3d12]'
+        : 'bg-white text-foreground ring-1 ring-border hover:bg-[#f8fafc]'
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-3xs font-bold disabled:opacity-50 ${cls}`}
+    >
+      {children}
     </button>
   )
 }
