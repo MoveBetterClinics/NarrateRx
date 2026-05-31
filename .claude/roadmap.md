@@ -122,11 +122,16 @@ clipper" and not "build a better clipper" — it's **plug the brain into the joi
 >   faithful warm/personal captions. Rewrote it to `faithfulness-v2` (single shared rubric
 >   `api/_lib/captionFidelityRubric.js`): grades **said_fidelity** against the transcript + **register-neutral
 >   voice_match**. Baseline recalibrated 5.5→4.8. This was the keystone unblock for U1.
-> - **U1** 🟢 VINDICATED, ready to advance — [#1079](https://github.com/Move-Better/NarrateRx/pull/1079). The
->   −0.68 "regression" was the *grader's* fault, not U1's. Re-measured under the fixed grader: transcript-
->   grounding wins **+1.74 overall / +2.62 said_fidelity, C beats A on 7/7 clips**. Next: rebase on `main`,
->   re-run the smoke with the new rubric, arm auto-merge; the human-attach gate (Q attaches a real clip to a
->   real draft) still stands. (Spawned task: "Advance U1 caption-transcript PR #1079".)
+> - **U1** ✅ **ADVANCED — human gate cleared 2026-05-31.** [#1079](https://github.com/Move-Better/NarrateRx/pull/1079)
+>   merged. The −0.68 "regression" was the *grader's* fault; under the fixed grader transcript-grounding wins
+>   **+1.74 overall / +2.62 said_fidelity, C beats A 7/7**. Human-attach gate now done: **Q ran the Zach/Cullen
+>   clip live** (Library → "Use whole video" → Slate → Edit-to-read → Approve→draft), voice fidelity **7.3
+>   (green)**, verdict **"Caption is great. Sounds exactly like Zach."** A named human used it on real data and
+>   the metric is good → bet advanced. Cosmetic follow-up only: the Slate card `object-cover`-crops the 16:9
+>   long-form render so the burned caption band *looks* side-clipped in the preview (published file isn't), and
+>   a ~300-char caption is too long to burn onto the band so the overlay ellipsis-truncates (full caption is
+>   preserved as the draft post copy). Not a U1 issue. Distribution gap confirmed (no clip→caption→attach
+>   button; it's buried under "Use whole video") — the U3/U4 target.
 >
 > State-of-the-world items 4 (approval-gated phrases) and 5 (capture-indexing) above are the
 > gaps F1 and F3 just closed — read them as the pre-sprint baseline.
@@ -144,7 +149,7 @@ clipper" and not "build a better clipper" — it's **plug the brain into the joi
 
 | # | Bet | What it does | Est. Days | Est. Claude Cost |
 |---|---|---|---|---|
-| **U1** 🟢 #1079 ready | Wire the brain into captions (keystone) | Set `staff_id` on media at capture + thread the clip's transcript into `generateCaption`; load the phrases that already exist (`captionGen.js`). This is Caption A→C from the smoke. Smallest change, biggest measurable lift. _Dropped-param fix correct + CI-green. The early −0.68 "regression" was the broken grader, now fixed (#1081); re-measured **+1.74 overall / +2.62 said_fidelity, 7/7**. Ready to advance; human-attach gate remains._ | 1–2d | $6–14 (Opus prompt + Sonnet) |
+| **U1** ✅ ADVANCED | Wire the brain into captions (keystone) | Set `staff_id` on media at capture + thread the clip's transcript into `generateCaption`; load the phrases that already exist (`captionGen.js`). This is Caption A→C from the smoke. Smallest change, biggest measurable lift. _Dropped-param fix correct + CI-green. The early −0.68 "regression" was the broken grader, now fixed (#1081); re-measured **+1.74 overall / +2.62 said_fidelity, 7/7**. Human-attach gate cleared 2026-05-31 (Q, Zach/Cullen clip, fidelity 7.3, "sounds exactly like Zach")._ | 1–2d | $6–14 (Opus prompt + Sonnet) |
 | **U2** | Knowledge-fed clip selection | Feed phrases + practice memory into `segmentDetect` so it picks moments that sound like the clinician. | 2–3d | $10–20 (Opus + Sonnet) |
 | **U3** | Assisted pick→edit→attach loop | Propose 3–5 clips → human picks → light in-app trim / crop-to-vertical / caption → **attach to the draft.** Adds the missing human-pick gate (`render-segments` renders all today). | 3–5d | $15–30 (Sonnet, some Opus) |
 | **U4** | Daily short-clip lane (highest frequency) | The *most common* capture: drop a short clip → knowledge-fed caption → pick → attach. Includes the **no-audio path** (caption from visual + topic + phrases when audio is lost). | 2–4d | $10–20 (Sonnet) |
@@ -258,8 +263,9 @@ lift**.
 - **F4** roster de-dup + `staff_id` backfill (unblocks everything).
 - **U1** wire the brain into captions (staff_id lookup + transcript param).
 - **F3** harden the capture-indexing path.
-- **Gate:** one real short clip → knowledge-fed caption (smoke "C" quality) → **attached to a
-  real draft by Q**, AND Caption-C out-scores Caption-A on `captionFidelity` on ≥5 real clips.
+- **Gate:** ✅ **CLEARED 2026-05-31.** Q ran the Zach/Cullen clip live (Library → "Use whole video"
+  → Slate → Approve→draft); voice fidelity 7.3, verdict "sounds exactly like Zach." Caption-C
+  out-scores Caption-A on the faithfulness-v2 grader (+1.74 overall, 7/7). Both halves met.
 
 ### Days 5–10 — The daily lane + learn-on-capture
 - **U4** daily short-clip lane (drop → caption → pick → attach; no-audio path).
