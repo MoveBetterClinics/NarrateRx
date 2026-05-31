@@ -104,7 +104,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
         <div>
           <h2 className="text-base font-semibold">Content Plan</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {keystone ? '1 keystone + ' : ''}{totalAtoms} atoms across {Object.keys(byPlatform).length} platforms — drafts auto-schedule to the week shown so they trickle out over 4 weeks.
+            {keystone ? '1 keystone + ' : ''}{totalAtoms} posts across {Object.keys(byPlatform).length} platforms — drafts auto-schedule to the week shown so they trickle out over 4 weeks.
           </p>
         </div>
         <div className="flex gap-2 text-xs text-muted-foreground shrink-0">
@@ -335,7 +335,7 @@ function KeystoneHeroCard({ keystone, derivedCounts, interviewId, onSelectPiece 
       {/* Connector hint */}
       <div className="px-5 pb-3 -mt-1 flex items-center gap-1.5 text-2xs text-primary/80">
         <IconPrim as={ArrowDown} size="xs" />
-        Feeds the atoms below
+        Feeds the posts below
       </div>
     </div>
   )
