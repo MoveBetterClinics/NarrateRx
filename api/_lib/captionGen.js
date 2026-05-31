@@ -40,9 +40,14 @@ function sb(path, init = {}) {
  * @param {string}   [p.staffId]         — clinician id for voice-phrase lookup
  * @param {Object[]} [p.practiceChunks]  — prior-thinking RAG chunks
  * @param {Object}   [p.campaign]        — active campaign row
+ * @param {string}   [p.clipTranscript]  — what the clinician actually said in THIS clip
+ *                                          (segment transcript / asset transcription). The
+ *                                          single richest grounding signal — when present it
+ *                                          anchors the caption to this specific clip. Empty
+ *                                          string = unchanged behavior (backward-compatible).
  * @returns {Promise<string>}
  */
-export async function generateCaption({ topic, clip = {}, workspace, staffId = null, practiceChunks = [], campaign = null }) {
+export async function generateCaption({ topic, clip = {}, workspace, staffId = null, practiceChunks = [], campaign = null, clipTranscript = '' }) {
   const toneHint = workspace?.brand_voice?.tone_descriptors?.join(', ') || 'warm, expert'
   const clipContext = [
     clip.visualNarrative ? `Visual: ${clip.visualNarrative}` : '',
@@ -74,11 +79,31 @@ export async function generateCaption({ topic, clip = {}, workspace, staffId = n
     } catch { /* non-fatal — score on tone descriptors alone */ }
   }
 
+  // The richest grounding signal: what the clinician ACTUALLY said in this clip.
+  // Capped so a multi-minute transcript can't blow the context or drown the voice
+  // phrases. Paraphrase-not-quote keeps captions natural rather than transcript dumps.
+  const clipSaid = String(clipTranscript || '').replace(/\s+/g, ' ').trim().slice(0, 1500)
+
   const systemLines = [
     'You write short, compelling social media captions for a clinical practitioner.',
     `Tone: ${toneHint}. Write 1-2 sentences only. Do NOT use hashtags. Do NOT include a call to action.`,
     'Speak from the practitioner\'s perspective as if they\'re sharing something meaningful.',
   ]
+  // Inject the clip transcript FIRST among the grounding signals so it — together
+  // with the voice phrases below — dominates over the generic tone descriptors.
+  // Split of duties matters: the transcript supplies WHAT to say (the substance,
+  // the specific moment), the voice phrases below supply HOW to say it (rhythm,
+  // word choice, clinical framing). Grounding the substance must not flatten the
+  // voice — keep both.
+  if (clipSaid) {
+    systemLines.push(
+      'What the clinician actually said in this specific clip — use this for the SUBSTANCE of the ' +
+      'caption (anchor to this specific moment; paraphrase, don\'t quote verbatim, and don\'t invent ' +
+      'anything not implied here). Still render it in the clinician\'s own voice and clinical framing ' +
+      '(see the voice phrases below):\n' +
+      clipSaid
+    )
+  }
   if (voicePhrases.length) {
     systemLines.push(
       'The clinician\'s authentic voice — match this rhythm, cadence, and word choice (don\'t quote verbatim):\n' +

@@ -305,6 +305,21 @@ export default async function handler(req, res) {
 
   // --- 3. Auto-generate caption if not provided ─────────────────────────────
   if (!captionText) {
+    // Best-effort: pull the picked clip's own transcription so the caption is
+    // anchored to what was actually said. The clip object from clip-search is
+    // RPC-shaped and carries no transcript, so fetch it from the source asset
+    // row here. Non-fatal — empty (photo / silent / missing) just leaves the
+    // transcript grounding off, preserving prior behavior.
+    let clipTranscript = ''
+    if (clip.assetId) {
+      try {
+        const tRes = await sb(`media_assets?id=eq.${clip.assetId}&workspace_id=eq.${ws.id}&select=transcription&limit=1`)
+        if (tRes.ok) {
+          const tRows = await tRes.json()
+          clipTranscript = tRows?.[0]?.transcription || ''
+        }
+      } catch { /* non-fatal — caption still grounds on phrases + practice memory */ }
+    }
     try {
       captionText = await generateCaption({
         topic,
@@ -313,6 +328,7 @@ export default async function handler(req, res) {
         staffId: lookupStaffId,
         practiceChunks: ragContext?._practiceChunks || [],
         campaign,
+        clipTranscript,
       })
     } catch (e) {
       console.error('[generate-package] caption gen failed:', e.message)

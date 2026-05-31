@@ -132,7 +132,7 @@ export default async function handler(req, res) {
   // render-longform and find-clips need.
   const aRes = await sb(
     `media_assets?id=eq.${assetId}&workspace_id=eq.${ws.id}` +
-      `&select=id,kind,blob_url,filename,staff_id,visual_narrative,archived_at,segment_status&limit=1`,
+      `&select=id,kind,blob_url,filename,staff_id,visual_narrative,transcription,archived_at,segment_status&limit=1`,
   )
   if (!aRes.ok) return res.status(500).json({ error: 'db_error' })
   const asset = (await aRes.json())?.[0]

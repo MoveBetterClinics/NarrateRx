@@ -9,7 +9,7 @@
 // @param {Object} p
 // @param {Object} p.ws          — workspace row (id + all brand/voice fields)
 // @param {Object} p.asset       — media_assets row (id, blob_url, filename,
-//                                  staff_id, visual_narrative)
+//                                  staff_id, visual_narrative, transcription)
 // @param {string|null} p.baseUrl  — origin for chunk engine self-continuation
 //                                   (req.headers.host derived)
 // @param {string|null} [p.campaignId] — optional campaign to tag the package with
@@ -81,6 +81,10 @@ export async function kickLongformRender({ ws, asset, baseUrl, campaignId = null
       clip: { visualNarrative: asset.visual_narrative || '' },
       workspace: ws,
       staffId,
+      // The asset's own transcription is what's actually said across the whole
+      // long-form video — the richest grounding signal for the caption. Empty
+      // when the row has no transcription (e.g. silent footage); harmless then.
+      clipTranscript: asset.transcription || '',
     })
   } catch (e) {
     console.error('[kickLongformRender] caption gen failed:', e?.message || e)
