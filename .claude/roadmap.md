@@ -122,6 +122,16 @@ clipper" and not "build a better clipper" — it's **plug the brain into the joi
 >   faithful warm/personal captions. Rewrote it to `faithfulness-v2` (single shared rubric
 >   `api/_lib/captionFidelityRubric.js`): grades **said_fidelity** against the transcript + **register-neutral
 >   voice_match**. Baseline recalibrated 5.5→4.8. This was the keystone unblock for U1.
+> - **P0 (media→content matching) ⚙️ ENGINE SHIPPED, UX gate blocked on redesign.**
+>   [#1084](https://github.com/Move-Better/NarrateRx/pull/1084) + [#1091](https://github.com/Move-Better/NarrateRx/pull/1091) merged.
+>   `POST /api/content-items/suggest-media` (whole-asset, draft→media direction of `searchClips`); `/needs-media`
+>   worklist + nav item; `MediaSuggestions` one-click strip in the Assets panel. 579/579 People assets re-indexed.
+>   Platform-kind filter (#1091): youtube/tiktok→video-only, blog/landing→photo-only. Verified on real drafts.
+>   **Gate blocked:** Q's gate run hit a hard UX wall — the in-editor Assets tab (80–128px thumbnails, no video
+>   playback) is built for reading text, not evaluating media. Gate paused; **media-approval UI redesign spawned
+>   as a separate task** (ask-before-build). Gate resumes once the redesigned full-size media-approval page lands
+>   (gate = Philip/Q attaches ≥10 drafts in one sitting + draft-with-media rate moves off ~50% floor).
+>
 > - **U1** ✅ **ADVANCED — human gate cleared 2026-05-31.** [#1079](https://github.com/Move-Better/NarrateRx/pull/1079)
 >   merged. The −0.68 "regression" was the *grader's* fault; under the fixed grader transcript-grounding wins
 >   **+1.74 overall / +2.62 said_fidelity, C beats A 7/7**. Human-attach gate now done: **Q ran the Zach/Cullen
@@ -149,6 +159,7 @@ clipper" and not "build a better clipper" — it's **plug the brain into the joi
 
 | # | Bet | What it does | Est. Days | Est. Claude Cost |
 |---|---|---|---|---|
+| **P0** ⚙️ engine ✅ #1084/#1091, UX gate pending redesign | Whole-asset media→content matcher | `POST /api/content-items/suggest-media` (draft→media, `searchClips`); `/needs-media` worklist; `MediaSuggestions` strip; platform-kind filter (video-only/photo-only). Engine validated on real data. Gate blocked on cramped in-editor UX → media-approval UI redesign task spawned (ask-before-build). Gate = attach ≥10 drafts in one sitting + link-rate moves. | 3–5d done | $12–22 done |
 | **U1** ✅ ADVANCED | Wire the brain into captions (keystone) | Set `staff_id` on media at capture + thread the clip's transcript into `generateCaption`; load the phrases that already exist (`captionGen.js`). This is Caption A→C from the smoke. Smallest change, biggest measurable lift. _Dropped-param fix correct + CI-green. The early −0.68 "regression" was the broken grader, now fixed (#1081); re-measured **+1.74 overall / +2.62 said_fidelity, 7/7**. Human-attach gate cleared 2026-05-31 (Q, Zach/Cullen clip, fidelity 7.3, "sounds exactly like Zach")._ | 1–2d | $6–14 (Opus prompt + Sonnet) |
 | **U2** | Knowledge-fed clip selection | Feed phrases + practice memory into `segmentDetect` so it picks moments that sound like the clinician. | 2–3d | $10–20 (Opus + Sonnet) |
 | **U3** | Assisted pick→edit→attach loop | Propose 3–5 clips → human picks → light in-app trim / crop-to-vertical / caption → **attach to the draft.** Adds the missing human-pick gate (`render-segments` renders all today). | 3–5d | $15–30 (Sonnet, some Opus) |
