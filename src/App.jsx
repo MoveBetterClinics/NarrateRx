@@ -52,6 +52,7 @@ const Stories = lazy(() => import('@/pages/Stories'))
 const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
 const Storyboard = lazy(() => import('@/pages/Storyboard'))
 const StoryboardPiece = lazy(() => import('@/pages/StoryboardPiece'))
+const StoryboardPublish = lazy(() => import('@/pages/StoryboardPublish'))
 const Synthesis = lazy(() => import('@/pages/Synthesis'))
 const PreVisitMessage = lazy(() => import('@/pages/PreVisitMessage'))
 const AuthorMode = lazy(() => import('@/pages/AuthorMode'))
@@ -530,6 +531,7 @@ function AppRoutes() {
                 attach media at full size. /needs-media redirects to it. */}
             <Route path="/storyboard" element={guarded(<Storyboard />)} />
             <Route path="/storyboard/:pieceId" element={guarded(<StoryboardPiece />)} />
+            <Route path="/storyboard/:pieceId/publish" element={guarded(<StoryboardPublish />)} />
             <Route path="/needs-media" element={<Navigate to="/storyboard" replace />} />
             {/* Universal PWA capture surface — works on any device with a browser + camera. */}
             <Route path="/capture" element={guarded(<Capture />)} />

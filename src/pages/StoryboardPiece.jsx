@@ -138,10 +138,15 @@ export default function StoryboardPiece() {
             </Button>
           )}
           {nextPieceId && (
-            <Button variant="outline" size="sm" onClick={() => navigate(`/storyboard/${nextPieceId}`)}>
+            <Button variant="ghost" size="sm" onClick={() => navigate(`/storyboard/${nextPieceId}`)}>
               Next draft <ArrowRight className="ml-1 h-3.5 w-3.5" />
             </Button>
           )}
+          {/* Forward to the final step — compose (carousel/overlay/theme),
+              preview at size, and schedule/publish all live on the publish page. */}
+          <Button size="sm" onClick={() => navigate(`/storyboard/${piece.id}/publish`)}>
+            Continue to publish <ArrowRight className="ml-1 h-3.5 w-3.5" />
+          </Button>
         </div>
       </div>
 
