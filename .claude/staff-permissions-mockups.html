@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NarrateRx — Staff Permissions · 4 Mockups</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --primary:#e26628; --primary-deep:#c04d18; --accent:#faf0eb; --accent-fg:#c04d18; --accent-border:#fde0d2;
+    --bg:#f6f7f9; --fg:#0b111e; --card:#ffffff; --border:#e1e7ef; --muted-fg:#65758b;
+    --success:#18b46b; --warning:#f59f0a; --info:#058ac7; --destructive:#ef4343;
+  }
+  *{font-family:'Inter',system-ui,sans-serif;}
+  body{background:var(--bg);color:var(--fg);-webkit-font-smoothing:antialiased;letter-spacing:-0.01em;}
+  h1,h2,h3{letter-spacing:-0.025em;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;box-shadow:0 1px 2px rgba(15,23,42,.03),0 8px 24px -18px rgba(15,23,42,.10);}
+  .btn-primary{background:var(--primary);color:#fff;border-radius:10px;font-weight:600;box-shadow:0 1px 0 rgba(0,0,0,.05),0 6px 16px -10px rgba(227,101,37,.55);}
+  .btn-primary:hover{background:var(--primary-deep);}
+  .btn-secondary{background:#fff;color:var(--fg);border:1px solid var(--border);border-radius:10px;font-weight:600;}
+  .btn-secondary:hover{background:#f8fafc;}
+  .pill{display:inline-flex;align-items:center;gap:5px;border-radius:9999px;padding:2px 9px;font-size:11px;font-weight:600;line-height:1.5;}
+  .pill-emerald{background:#ecfdf5;color:#059669;} .pill-amber{background:#fff7ed;color:#d97706;}
+  .pill-sky{background:#e0f2fe;color:#0284c7;} .pill-violet{background:#f5f3ff;color:#7c3aed;}
+  .pill-ink{background:#f1f5f9;color:#475569;} .pill-tint{background:#fff7f0;color:#c04d18;border:1px solid #fde0d2;}
+  .pill-rose{background:#fff1f2;color:#e11d48;}
+  .avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:9999px;font-weight:700;color:#fff;flex-shrink:0;}
+  .accent-rail{display:inline-block;width:4px;height:24px;border-radius:9999px;background:var(--primary);margin-right:10px;}
+  .switcher-btn{font-weight:600;font-size:13px;padding:7px 14px;border-radius:9px;color:var(--muted-fg);white-space:nowrap;}
+  .switcher-btn.active{background:#fff;color:var(--fg);box-shadow:0 1px 2px rgba(0,0,0,.06);}
+  .mock{display:none;} .mock.active{display:block;}
+  /* toggle */
+  .tg{width:38px;height:22px;border-radius:9999px;background:#cbd5e1;position:relative;transition:.15s;cursor:pointer;flex-shrink:0;}
+  .tg::after{content:'';position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:9999px;background:#fff;transition:.15s;box-shadow:0 1px 2px rgba(0,0,0,.2);}
+  .tg.on{background:var(--primary);} .tg.on::after{left:18px;}
+  .tg.locked{background:#e2e8f0;cursor:not-allowed;opacity:.7;}
+  .tg.locked.on{background:#fbc5a8;}
+  /* matrix check */
+  .ck{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;}
+  .ck-on{background:var(--accent);color:var(--primary-deep);}
+  .ck-lock{background:#f1f5f9;color:#94a3b8;}
+  .ck-off{border:1.5px dashed #cbd5e1;}
+  .row-hover:hover{background:#fafbfc;}
+  ::-webkit-scrollbar{height:8px;width:8px;} ::-webkit-scrollbar-thumb{background:#d8dee6;border-radius:8px;}
+</style>
+</head>
+<body>
+
+<!-- ============ TOP SWITCHER ============ -->
+<div class="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-[var(--border)]">
+  <div class="max-w-[1280px] mx-auto px-5 py-3 flex flex-wrap items-center gap-3">
+    <div class="flex items-center gap-2 mr-2">
+      <div class="avatar" style="width:26px;height:26px;background:var(--primary);font-size:13px;">N</div>
+      <span class="font-bold text-[15px]">NarrateRx</span>
+      <span class="text-[var(--muted-fg)] text-[13px] hidden sm:inline">· Staff permissions — concept mockups</span>
+    </div>
+    <div class="flex items-center gap-1 bg-[var(--bg)] p-1 rounded-[11px] ml-auto overflow-x-auto">
+      <button class="switcher-btn active" data-m="m1">A · Roster + Drawer</button>
+      <button class="switcher-btn" data-m="m2">B · Capability Matrix</button>
+      <button class="switcher-btn" data-m="m3">C · Role-Template Cards</button>
+      <button class="switcher-btn" data-m="m4">D · By Access Point</button>
+    </div>
+  </div>
+</div>
+
+<div class="max-w-[1280px] mx-auto px-5 py-7">
+
+<!-- ===================================================================== -->
+<!-- MOCKUP A — ROSTER + DRAWER                                            -->
+<!-- ===================================================================== -->
+<section id="m1" class="mock active">
+  <div class="mb-1 text-[12px] text-[var(--muted-fg)]">Settings · Move Better People · Access</div>
+  <div class="flex items-start justify-between gap-4 flex-wrap mb-1">
+    <div>
+      <h1 class="text-2xl font-bold flex items-center"><span class="accent-rail"></span>Team access</h1>
+      <p class="text-[var(--muted-fg)] text-sm mt-1.5 max-w-xl">Each person gets a <b>tier</b> that sets their defaults. Open anyone to fine-tune the 14 capabilities just for them.</p>
+    </div>
+    <button class="btn-primary px-4 py-2 text-sm flex items-center gap-1.5">+ Invite teammate</button>
+  </div>
+
+  <div class="flex items-center gap-2 my-4 flex-wrap text-[13px]">
+    <input placeholder="Search people…" class="px-3 py-2 rounded-[10px] border border-[var(--border)] bg-white text-sm w-56" />
+    <span class="pill pill-ink">All tiers ▾</span>
+    <span class="pill pill-ink">All types ▾</span>
+    <span class="ml-auto text-[var(--muted-fg)]">5 members</span>
+  </div>
+
+  <div class="card overflow-hidden">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-[12px] uppercase tracking-wide text-[var(--muted-fg)] border-b border-[var(--border)] bg-[#fafbfc]">
+          <th class="px-5 py-3 font-semibold">Member</th>
+          <th class="px-3 py-3 font-semibold">Tier</th>
+          <th class="px-3 py-3 font-semibold">Type</th>
+          <th class="px-3 py-3 font-semibold">Capabilities</th>
+          <th class="px-3 py-3 font-semibold">Voice</th>
+          <th class="px-5 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[var(--border)]">
+        <!-- Q : selected row -->
+        <tr class="row-hover bg-[#fff9f5]">
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <div class="avatar" style="width:34px;height:34px;background:#0b111e;font-size:13px;">Q</div>
+              <div><div class="font-semibold">Dr. Q</div><div class="text-[12px] text-[var(--muted-fg)]">Michael Quasney · you</div></div>
+            </div>
+          </td>
+          <td class="px-3"><span class="pill pill-tint">★ Owner</span></td>
+          <td class="px-3 text-[var(--muted-fg)]">Clinician</td>
+          <td class="px-3"><span class="text-[var(--muted-fg)]">14 / 14 · all</span></td>
+          <td class="px-3"><span class="pill pill-emerald">● Cloned</span></td>
+          <td class="px-5 text-right"><button class="btn-secondary px-3 py-1.5 text-[13px]">Edit</button></td>
+        </tr>
+        <!-- Cullen -->
+        <tr class="row-hover">
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <div class="avatar" style="width:34px;height:34px;background:#058ac7;font-size:13px;">CW</div>
+              <div><div class="font-semibold">Cullen W.</div><div class="text-[12px] text-[var(--muted-fg)]">cullen@movebetter.co</div></div>
+            </div>
+          </td>
+          <td class="px-3"><span class="pill pill-sky">Clinician</span></td>
+          <td class="px-3 text-[var(--muted-fg)]">Clinician</td>
+          <td class="px-3"><span class="text-[var(--muted-fg)]">3 / 14 <span class="pill pill-amber ml-1">+1 custom</span></span></td>
+          <td class="px-3"><span class="pill pill-emerald">● Cloned</span></td>
+          <td class="px-5 text-right"><button class="btn-secondary px-3 py-1.5 text-[13px]">Edit</button></td>
+        </tr>
+        <!-- Sophie -->
+        <tr class="row-hover">
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <div class="avatar" style="width:34px;height:34px;background:#7c3aed;font-size:13px;">SP</div>
+              <div><div class="font-semibold">Sophie P.</div><div class="text-[12px] text-[var(--muted-fg)]">sophie@movebetter.co</div></div>
+            </div>
+          </td>
+          <td class="px-3"><span class="pill pill-sky">Clinician</span></td>
+          <td class="px-3 text-[var(--muted-fg)]">Clinician</td>
+          <td class="px-3"><span class="text-[var(--muted-fg)]">3 / 14 · default</span></td>
+          <td class="px-3"><span class="pill pill-amber">◐ Notes only</span></td>
+          <td class="px-5 text-right"><button class="btn-secondary px-3 py-1.5 text-[13px]">Edit</button></td>
+        </tr>
+        <!-- Maya -->
+        <tr class="row-hover">
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <div class="avatar" style="width:34px;height:34px;background:#e26628;font-size:13px;">MK</div>
+              <div><div class="font-semibold">Maya K.</div><div class="text-[12px] text-[var(--muted-fg)]">front desk · maya@movebetter.co</div></div>
+            </div>
+          </td>
+          <td class="px-3"><span class="pill pill-violet">Producer</span></td>
+          <td class="px-3 text-[var(--muted-fg)]">Non-clinical</td>
+          <td class="px-3"><span class="text-[var(--muted-fg)]">7 / 14 · default</span></td>
+          <td class="px-3"><span class="pill pill-ink">— none</span></td>
+          <td class="px-5 text-right"><button class="btn-secondary px-3 py-1.5 text-[13px]">Edit</button></td>
+        </tr>
+        <!-- Philip pending -->
+        <tr class="row-hover">
+          <td class="px-5 py-3.5">
+            <div class="flex items-center gap-3">
+              <div class="avatar" style="width:34px;height:34px;background:#94a3b8;font-size:13px;">Ph</div>
+              <div><div class="font-semibold">Philip R. <span class="pill pill-amber ml-1">pending invite</span></div><div class="text-[12px] text-[var(--muted-fg)]">philip@movebetter.co</div></div>
+            </div>
+          </td>
+          <td class="px-3"><span class="pill pill-sky">Clinician</span></td>
+          <td class="px-3 text-[var(--muted-fg)]">Clinician</td>
+          <td class="px-3 text-[var(--muted-fg)]">—</td>
+          <td class="px-3"><span class="pill pill-ink">— none</span></td>
+          <td class="px-5 text-right"><button class="btn-secondary px-3 py-1.5 text-[13px]">Resend</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="text-[12px] text-[var(--muted-fg)] mt-3">Tip: tiers set the starting point. Per-person overrides show an <span class="pill pill-amber">amber</span> badge so you can spot who differs from the template.</p>
+
+  <!-- DRAWER -->
+  <div class="fixed top-0 right-0 h-full w-full sm:w-[440px] bg-white border-l border-[var(--border)] shadow-2xl z-40 flex flex-col" style="box-shadow:-20px 0 60px -30px rgba(0,0,0,.3)">
+    <div class="px-5 py-4 border-b border-[var(--border)] flex items-center gap-3">
+      <div class="avatar" style="width:38px;height:38px;background:#0b111e;font-size:14px;">Q</div>
+      <div class="flex-1"><div class="font-bold">Dr. Q</div><div class="text-[12px] text-[var(--muted-fg)]">Michael Quasney</div></div>
+      <button class="text-[var(--muted-fg)] text-xl leading-none">✕</button>
+    </div>
+    <div class="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+      <div>
+        <label class="text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-fg)]">Permission tier</label>
+        <select class="mt-1.5 w-full px-3 py-2 rounded-[10px] border border-[var(--border)] bg-white text-sm font-semibold">
+          <option>★ Owner — unrestricted</option><option>Producer — operational editor</option>
+          <option>Clinician — voice & approvals</option><option>Viewer — read-only</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-fg)]">Staff type</label>
+        <div class="mt-1.5 flex gap-2">
+          <button class="flex-1 px-3 py-2 rounded-[10px] text-sm font-semibold" style="background:var(--accent);color:var(--accent-fg);border:1px solid var(--accent-border)">Clinician</button>
+          <button class="flex-1 px-3 py-2 rounded-[10px] text-sm font-semibold border border-[var(--border)] text-[var(--muted-fg)]">Non-clinical</button>
+        </div>
+        <p class="text-[12px] text-[var(--muted-fg)] mt-1.5">Routes content lanes only — <b>everyone</b> can be interviewed.</p>
+      </div>
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-[12px] font-semibold uppercase tracking-wide text-[var(--muted-fg)]">Capabilities</label>
+          <span class="text-[12px] text-[var(--primary)] font-semibold cursor-pointer">Reset to tier default</span>
+        </div>
+        <div class="space-y-3">
+          <p class="text-[11px] font-bold text-[var(--muted-fg)] uppercase">Interviews & content</p>
+          <div class="flex items-center justify-between"><span class="text-sm">Start new interviews</span><div class="tg on"></div></div>
+          <div class="flex items-center justify-between"><span class="text-sm">Approve content drafts</span><div class="tg on"></div></div>
+          <div class="flex items-center justify-between"><span class="text-sm">Publish content</span><div class="tg on"></div></div>
+          <div class="flex items-center justify-between"><span class="text-sm">Edit others' interviews</span><div class="tg on"></div></div>
+          <p class="text-[11px] font-bold text-[var(--muted-fg)] uppercase pt-1">Workspace & billing</p>
+          <div class="flex items-center justify-between"><span class="text-sm">Edit workspace settings</span><div class="tg on"></div></div>
+          <div class="flex items-center justify-between"><span class="text-sm">Manage billing</span><div class="tg on"></div></div>
+          <div class="flex items-center justify-between"><span class="text-sm">Invite & manage members</span><div class="tg on"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="px-5 py-3.5 border-t border-[var(--border)] flex items-center gap-2 bg-[#fafbfc]">
+      <button class="btn-secondary px-4 py-2 text-sm flex-1">Cancel</button>
+      <button class="btn-primary px-4 py-2 text-sm flex-1">Save changes</button>
+    </div>
+  </div>
+  <div class="fixed inset-0 bg-black/20 z-30" style="backdrop-filter:blur(1px)"></div>
+</section>
+
+<!-- ===================================================================== -->
+<!-- MOCKUP B — CAPABILITY MATRIX                                          -->
+<!-- ===================================================================== -->
+<section id="m2" class="mock">
+  <div class="mb-1 text-[12px] text-[var(--muted-fg)]">Settings · Move Better People · Roles & capabilities</div>
+  <div class="flex items-start justify-between gap-4 flex-wrap mb-1">
+    <div>
+      <h1 class="text-2xl font-bold flex items-center"><span class="accent-rail"></span>What each role can do</h1>
+      <p class="text-[var(--muted-fg)] text-sm mt-1.5 max-w-2xl">Set the rules once per tier — they apply to everyone on that tier. Edit a cell to override the default for your whole workspace.</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="btn-secondary px-3.5 py-2 text-sm">Restore defaults</button>
+      <button class="btn-primary px-4 py-2 text-sm">Save templates</button>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-4 my-4 text-[12px] text-[var(--muted-fg)] flex-wrap">
+    <span class="flex items-center gap-1.5"><span class="ck ck-on">✓</span> granted</span>
+    <span class="flex items-center gap-1.5"><span class="ck ck-off"></span> off</span>
+    <span class="flex items-center gap-1.5"><span class="ck ck-lock">🔒</span> locked to Owner</span>
+    <span class="ml-auto pill pill-amber">3 cells changed from default</span>
+  </div>
+
+  <div class="card overflow-x-auto">
+    <table class="w-full text-sm border-collapse">
+      <thead>
+        <tr class="border-b border-[var(--border)]">
+          <th class="px-5 py-3.5 text-left font-semibold text-[12px] uppercase tracking-wide text-[var(--muted-fg)] sticky left-0 bg-white">Capability</th>
+          <th class="px-3 py-3 text-center min-w-[120px]"><div class="pill pill-tint mx-auto w-max">★ Owner</div><div class="text-[11px] text-[var(--muted-fg)] mt-1">1 person</div></th>
+          <th class="px-3 py-3 text-center min-w-[120px]"><div class="pill pill-violet mx-auto w-max">Producer</div><div class="text-[11px] text-[var(--muted-fg)] mt-1">1 person</div></th>
+          <th class="px-3 py-3 text-center min-w-[120px]"><div class="pill pill-sky mx-auto w-max">Clinician</div><div class="text-[11px] text-[var(--muted-fg)] mt-1">3 people</div></th>
+          <th class="px-3 py-3 text-center min-w-[120px]"><div class="pill pill-ink mx-auto w-max">Viewer</div><div class="text-[11px] text-[var(--muted-fg)] mt-1">0 people</div></th>
+        </tr>
+      </thead>
+      <tbody id="matrix-body" class="divide-y divide-[var(--border)]"></tbody>
+    </table>
+  </div>
+  <p class="text-[12px] text-[var(--muted-fg)] mt-3">Owner is always all-on (Clerk org admins inherit it automatically). Need a one-off exception for a single person? Override them from <b>Team access → Edit</b>.</p>
+</section>
+
+<!-- ===================================================================== -->
+<!-- MOCKUP C — ROLE-TEMPLATE CARDS                                        -->
+<!-- ===================================================================== -->
+<section id="m3" class="mock">
+  <div class="mb-1 text-[12px] text-[var(--muted-fg)]">Settings · Move Better People · Roles</div>
+  <h1 class="text-2xl font-bold flex items-center mb-1"><span class="accent-rail"></span>Roles &amp; who's in them</h1>
+  <p class="text-[var(--muted-fg)] text-sm mt-1.5 mb-5 max-w-2xl">Four tiers, each a bundle of capabilities. Drag a person onto a card to move them, or click a tier to fine-tune what it can do.</p>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <!-- OWNER -->
+    <div class="card p-5" style="background:linear-gradient(180deg,#fff,#fffaf7);border-color:#f3d3b5">
+      <div class="flex items-start justify-between">
+        <div><div class="pill pill-tint">★ Owner</div><h3 class="font-bold text-lg mt-2">Runs the workspace</h3></div>
+        <span class="text-[12px] text-[var(--muted-fg)]">14 / 14 caps</span>
+      </div>
+      <p class="text-[13px] text-[var(--muted-fg)] mt-1">Unrestricted — settings, billing, members, publishing, everything.</p>
+      <div class="flex items-center gap-2 mt-4">
+        <div class="avatar" style="width:30px;height:30px;background:#0b111e;font-size:12px;">Q</div>
+        <span class="text-[13px] font-medium">Dr. Q <span class="text-[var(--muted-fg)]">· you</span></span>
+      </div>
+      <div class="flex gap-1.5 mt-4 flex-wrap text-[11px]">
+        <span class="pill pill-ink">Settings</span><span class="pill pill-ink">Billing</span><span class="pill pill-ink">Members</span><span class="pill pill-ink">Publish</span><span class="pill pill-ink">+10</span>
+      </div>
+    </div>
+
+    <!-- PRODUCER -->
+    <div class="card p-5">
+      <div class="flex items-start justify-between">
+        <div><div class="pill pill-violet">Producer</div><h3 class="font-bold text-lg mt-2">Builds &amp; ships content</h3></div>
+        <span class="text-[12px] text-[var(--muted-fg)]">7 / 14 caps</span>
+      </div>
+      <p class="text-[13px] text-[var(--muted-fg)] mt-1">Generates slates, edits brand kit, publishes — no settings or billing.</p>
+      <div class="flex items-center gap-2 mt-4">
+        <div class="avatar" style="width:30px;height:30px;background:#e26628;font-size:12px;">MK</div>
+        <span class="text-[13px] font-medium">Maya K. <span class="text-[var(--muted-fg)]">· front desk</span></span>
+      </div>
+      <div class="flex gap-1.5 mt-4 flex-wrap text-[11px]">
+        <span class="pill pill-ink">Slate</span><span class="pill pill-ink">Approve</span><span class="pill pill-ink">Publish</span><span class="pill pill-ink">Brand kit</span><span class="pill pill-ink">Campaigns</span><span class="pill pill-ink">+2</span>
+      </div>
+      <button class="mt-4 w-full border border-dashed border-[var(--border)] rounded-[10px] py-2 text-[13px] text-[var(--muted-fg)] hover:bg-[#fafbfc]">+ Drag a person here</button>
+    </div>
+
+    <!-- CLINICIAN -->
+    <div class="card p-5">
+      <div class="flex items-start justify-between">
+        <div><div class="pill pill-sky">Clinician</div><h3 class="font-bold text-lg mt-2">Owns the words</h3></div>
+        <span class="text-[12px] text-[var(--muted-fg)]">3 / 14 caps</span>
+      </div>
+      <p class="text-[13px] text-[var(--muted-fg)] mt-1">Voices interviews and approves drafts for voice fidelity.</p>
+      <div class="flex items-center gap-3 mt-4">
+        <div class="flex -space-x-2">
+          <div class="avatar ring-2 ring-white" style="width:30px;height:30px;background:#058ac7;font-size:11px;">CW</div>
+          <div class="avatar ring-2 ring-white" style="width:30px;height:30px;background:#7c3aed;font-size:11px;">SP</div>
+          <div class="avatar ring-2 ring-white" style="width:30px;height:30px;background:#94a3b8;font-size:11px;">Ph</div>
+        </div>
+        <span class="text-[13px] text-[var(--muted-fg)]">Cullen, Sophie, Philip</span>
+      </div>
+      <div class="flex gap-1.5 mt-4 flex-wrap text-[11px]">
+        <span class="pill pill-ink">Start interview</span><span class="pill pill-ink">Approve content</span><span class="pill pill-ink">Approve slate</span>
+      </div>
+    </div>
+
+    <!-- VIEWER -->
+    <div class="card p-5 border-dashed" style="background:#fcfcfd">
+      <div class="flex items-start justify-between">
+        <div><div class="pill pill-ink">Viewer</div><h3 class="font-bold text-lg mt-2">Read-only</h3></div>
+        <span class="text-[12px] text-[var(--muted-fg)]">0 / 14 caps</span>
+      </div>
+      <p class="text-[13px] text-[var(--muted-fg)] mt-1">Can see the workspace but change nothing. Good for accountants or advisors.</p>
+      <div class="mt-4 text-[13px] text-[var(--muted-fg)] italic">No one assigned yet.</div>
+      <button class="mt-4 w-full border border-dashed border-[var(--border)] rounded-[10px] py-2 text-[13px] text-[var(--muted-fg)] hover:bg-[#fafbfc]">+ Drag a person here</button>
+    </div>
+  </div>
+  <div class="card p-4 mt-4 flex items-center gap-3" style="background:#fffaf7;border-color:#f3d3b5">
+    <span class="text-lg">🎙️</span>
+    <p class="text-[13px]"><b>Everyone is interviewable</b> — these tiers gate publishing &amp; settings, not who can sit for an interview. Clinical authority is checked per content-lane, not at the mic.</p>
+  </div>
+</section>
+
+<!-- ===================================================================== -->
+<!-- MOCKUP D — BY ACCESS POINT                                            -->
+<!-- ===================================================================== -->
+<section id="m4" class="mock">
+  <div class="mb-1 text-[12px] text-[var(--muted-fg)]">Settings · Move Better People · Access points</div>
+  <h1 class="text-2xl font-bold flex items-center mb-1"><span class="accent-rail"></span>Who can reach what</h1>
+  <p class="text-[var(--muted-fg)] text-sm mt-1.5 mb-5 max-w-2xl">Flip the question around: pick an access point and see exactly who has it. Toggle a person on or off without touching their whole role.</p>
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+    <!-- PUBLISHING -->
+    <div class="card p-5">
+      <div class="flex items-center gap-2.5 mb-1">
+        <div class="w-8 h-8 rounded-[9px] flex items-center justify-center" style="background:#e0f2fe;color:#0284c7">📣</div>
+        <div><h3 class="font-bold">Publishing &amp; distribution</h3><p class="text-[12px] text-[var(--muted-fg)]">content.publish · slate.generate · campaigns.edit · integrations.connect</p></div>
+      </div>
+      <div class="mt-3 divide-y divide-[var(--border)]">
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#0b111e;font-size:12px">Q</div><span class="text-sm flex-1">Dr. Q <span class="pill pill-tint ml-1">Owner</span></span><div class="tg on locked"></div></div>
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#e26628;font-size:12px">MK</div><span class="text-sm flex-1">Maya K. <span class="pill pill-violet ml-1">Producer</span></span><div class="tg on"></div></div>
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#058ac7;font-size:12px">CW</div><span class="text-sm flex-1">Cullen W. <span class="pill pill-sky ml-1">Clinician</span> <span class="pill pill-amber ml-1">+ granted</span></span><div class="tg on"></div></div>
+        <div class="flex items-center gap-3 py-2.5 opacity-60"><div class="avatar" style="width:30px;height:30px;background:#7c3aed;font-size:12px">SP</div><span class="text-sm flex-1">Sophie P. <span class="pill pill-sky ml-1">Clinician</span></span><div class="tg"></div></div>
+      </div>
+    </div>
+
+    <!-- INTERVIEWS & CONTENT -->
+    <div class="card p-5">
+      <div class="flex items-center gap-2.5 mb-1">
+        <div class="w-8 h-8 rounded-[9px] flex items-center justify-center" style="background:#ecfdf5;color:#059669">🎙️</div>
+        <div><h3 class="font-bold">Interviews &amp; approvals</h3><p class="text-[12px] text-[var(--muted-fg)]">interview.start · content.approve · slate.approve · interview.edit_others</p></div>
+      </div>
+      <div class="mt-3 divide-y divide-[var(--border)]">
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#0b111e;font-size:12px">Q</div><span class="text-sm flex-1">Dr. Q <span class="pill pill-tint ml-1">Owner</span></span><div class="tg on locked"></div></div>
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#058ac7;font-size:12px">CW</div><span class="text-sm flex-1">Cullen W. <span class="pill pill-sky ml-1">Clinician</span></span><div class="tg on"></div></div>
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#7c3aed;font-size:12px">SP</div><span class="text-sm flex-1">Sophie P. <span class="pill pill-sky ml-1">Clinician</span></span><div class="tg on"></div></div>
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#e26628;font-size:12px">MK</div><span class="text-sm flex-1">Maya K. <span class="pill pill-violet ml-1">Producer</span></span><div class="tg on"></div></div>
+      </div>
+    </div>
+
+    <!-- BRAND & CAMPAIGNS -->
+    <div class="card p-5">
+      <div class="flex items-center gap-2.5 mb-1">
+        <div class="w-8 h-8 rounded-[9px] flex items-center justify-center" style="background:#f5f3ff;color:#7c3aed">🎨</div>
+        <div><h3 class="font-bold">Brand kit &amp; tentpoles</h3><p class="text-[12px] text-[var(--muted-fg)]">brand_kit.edit · campaigns.edit</p></div>
+      </div>
+      <div class="mt-3 divide-y divide-[var(--border)]">
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#0b111e;font-size:12px">Q</div><span class="text-sm flex-1">Dr. Q <span class="pill pill-tint ml-1">Owner</span></span><div class="tg on locked"></div></div>
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#e26628;font-size:12px">MK</div><span class="text-sm flex-1">Maya K. <span class="pill pill-violet ml-1">Producer</span></span><div class="tg on"></div></div>
+        <div class="flex items-center gap-3 py-2.5 opacity-60"><div class="avatar" style="width:30px;height:30px;background:#058ac7;font-size:12px">CW</div><span class="text-sm flex-1">Cullen W. <span class="pill pill-sky ml-1">Clinician</span></span><div class="tg"></div></div>
+      </div>
+    </div>
+
+    <!-- SETTINGS & BILLING -->
+    <div class="card p-5">
+      <div class="flex items-center gap-2.5 mb-1">
+        <div class="w-8 h-8 rounded-[9px] flex items-center justify-center" style="background:#fff1f2;color:#e11d48">🔐</div>
+        <div><h3 class="font-bold">Settings, billing &amp; members</h3><p class="text-[12px] text-[var(--muted-fg)]">settings.* · billing.* · members.invite</p></div>
+      </div>
+      <div class="mt-3 divide-y divide-[var(--border)]">
+        <div class="flex items-center gap-3 py-2.5"><div class="avatar" style="width:30px;height:30px;background:#0b111e;font-size:12px">Q</div><span class="text-sm flex-1">Dr. Q <span class="pill pill-tint ml-1">Owner</span></span><div class="tg on locked"></div></div>
+        <div class="flex items-center gap-3 py-2.5 opacity-60"><div class="avatar" style="width:30px;height:30px;background:#e26628;font-size:12px">MK</div><span class="text-sm flex-1">Maya K. <span class="pill pill-violet ml-1">Producer</span></span><div class="tg"></div></div>
+        <div class="flex items-center gap-3 py-2.5 opacity-60"><div class="avatar" style="width:30px;height:30px;background:#058ac7;font-size:12px">CW</div><span class="text-sm flex-1">Cullen W. <span class="pill pill-sky ml-1">Clinician</span></span><div class="tg"></div></div>
+      </div>
+      <p class="text-[12px] text-[var(--muted-fg)] mt-3 flex items-center gap-1.5"><span>🔒</span> Owner-only access points can't be granted to other tiers from here.</p>
+    </div>
+
+  </div>
+</section>
+
+</div>
+
+<script>
+  // switcher
+  document.querySelectorAll('.switcher-btn').forEach(b=>{
+    b.addEventListener('click',()=>{
+      document.querySelectorAll('.switcher-btn').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.mock').forEach(x=>x.classList.remove('active'));
+      b.classList.add('active');
+      document.getElementById(b.dataset.m).classList.add('active');
+      window.scrollTo(0,0);
+    });
+  });
+  // toggle interactivity
+  document.addEventListener('click',e=>{
+    if(e.target.classList.contains('tg') && !e.target.classList.contains('locked')) e.target.classList.toggle('on');
+  });
+
+  // build capability matrix (Mockup B)
+  const CK={on:'<span class="ck ck-on">✓</span>',off:'<span class="ck ck-off"></span>',lock:'<span class="ck ck-lock">🔒</span>'};
+  const groups=[
+    {h:'Interviews & content',rows:[
+      ['Start new interviews',['on','on','on','off'],[]],
+      ['Approve content drafts',['on','on','on','off'],[]],
+      ['Publish content',['on','on','off','off'],[2]],
+      ["Edit others' interviews",['on','off','off','off'],[]],
+    ]},
+    {h:'Story slate',rows:[
+      ['Generate Story Slate',['on','on','off','off'],[]],
+      ['Approve slate packages',['on','on','on','off'],[]],
+    ]},
+    {h:'Brand & campaigns',rows:[
+      ['Edit Brand Kit',['on','on','off','off'],[]],
+      ['Plan tentpole campaigns',['on','on','off','off'],[]],
+      ['Connect integrations',['on','on','off','off'],[]],
+    ]},
+    {h:'Workspace & billing',rows:[
+      ['View workspace settings',['on','lock','lock','lock'],[]],
+      ['Edit workspace settings',['on','lock','lock','lock'],[]],
+      ['View billing',['on','lock','lock','lock'],[]],
+      ['Manage billing',['on','lock','lock','lock'],[]],
+      ['Invite & manage members',['on','lock','lock','lock'],[]],
+    ]},
+  ];
+  let html='';
+  groups.forEach(g=>{
+    html+=`<tr class="bg-[#fafbfc]"><td colspan="5" class="px-5 py-2 text-[11px] font-bold uppercase tracking-wide text-[var(--muted-fg)]">${g.h}</td></tr>`;
+    g.rows.forEach(([label,cells,changed])=>{
+      html+=`<tr class="row-hover"><td class="px-5 py-2.5 sticky left-0 bg-white">${label}</td>`;
+      cells.forEach((c,i)=>{
+        const ch=changed.includes(i)?' style="background:#fff7ed;border-radius:8px"':'';
+        html+=`<td class="px-3 py-2.5 text-center"${ch}>${CK[c]}</td>`;
+      });
+      html+='</tr>';
+    });
+  });
+  document.getElementById('matrix-body').innerHTML=html;
+</script>
+</body>
+</html>

@@ -153,6 +153,27 @@ All vendors ship to commercial / clinic addresses. Use the clinic shipping addre
 | Shipping addresses | Mildly sensitive |
 | Capture Upload Tokens (`cct_…`) | **Sensitive** — anyone with one can upload to that clinician's identity. Rotate immediately if leaked. |
 
+## iPhone Kit — fixed clinic, iPhone as hero device
+
+An alternative to the Studio Kit for clinics that prefer a single capture device over a dedicated camera. One device handles capture, upload, and NarrateRx PWA in one tap. iPhone 16 Pro Max camera outperforms the ZV-1F in variable clinic lighting and eliminates the SD card shuffle.
+
+Total: **~$2,485**
+
+| Item | Cost | Vendor | Notes |
+|---|---|---|---|
+| **iPhone 16 Pro Max 256GB** | ~$1,199 | Apple | Hero capture device. ProRes 4K, Action Button for one-tap record, USB-C |
+| **Joby GorillaPod 5K Kit** | ~$159 | B&H | Flexible tripod + iPhone mount. Works on desk, treatment table edge, shelf |
+| **DJI Mic 2 — 2 TX + 1 RX combo** | ~$349 | dji.com or B&H | Wireless lav. Connects directly to iPhone via USB-C — no adapter needed on Pro Max |
+| **Aputure Amaran 200x S** (key light) | ~$399 | B&H | Bi-color LED — matches clinic overhead light temp |
+| **Aputure Amaran P60c** (fill) | ~$229 | B&H | RGBWW panel fill; softens shadows |
+| **Moment iPhone 16 Pro Max Case** | ~$50 | momentlens.co | MagSafe-compatible with cold shoe mount points |
+| **Samsung T7 Shield 1TB SSD** | ~$100 | B&H / Amazon | Local archive before cloud upload |
+| **Total** | **~$2,485** | | |
+
+**Tradeoff vs. Studio Kit:** ~$500 more than the ZV-1F-owned Studio Kit, but you get a general-purpose device the practice keeps, and staff already know how to use an iPhone.
+
+---
+
 ## Move Better workspace-specific recommendations
 
 | Workspace | Kit | Hero device | Upload path | Setup status |
@@ -175,4 +196,5 @@ The wizard then surfaces the right runbook + the right setup steps. Both kits la
 
 - **v3 (2026-05-27)**: Retired iOS Shortcut as documented path — PWA "Add to Home Screen" gives identical one-tap UX in 30 seconds vs. a 20-min Shortcut build, and works on Android too. Token endpoint stays available for anyone who wants to build their own automation. Companion runbook `capture-companion-ios-shortcut.md` deleted.
 - **v2 (2026-05-27)**: Restructured around Studio + Mobile kits. Cut iPhone Pro Max recommendation. Made PWA `/capture` the default universal upload.
+- **v4 (2026-05-30)**: Added iPhone Kit section — revives v1 iPhone-as-hero intent as a documented option alongside Studio + Mobile kits.
 - **v1 (2026-05-26)**: Single $4,970 kit centered around iPhone 16 Pro Max. Retired.
