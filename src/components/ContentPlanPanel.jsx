@@ -36,14 +36,16 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
     if (platformAtoms.length) byPlatform[platform] = platformAtoms
   }
 
-  const isAtomPublished = (a) => a.status === 'drafted' && !!a.content_piece?.published_at
-  const isAtomApproved  = (a) => a.status === 'drafted' && !isAtomPublished(a) && a.content_piece?.status === 'approved'
-  const totalAtoms     = atoms.length
-  const publishedCount = atoms.filter(isAtomPublished).length
-  const approvedCount  = atoms.filter(isAtomApproved).length
-  const draftedCount   = atoms.filter((a) => a.status === 'drafted' && !isAtomPublished(a) && !isAtomApproved(a)).length
-  const skippedCount   = atoms.filter((a) => a.status === 'skipped').length
-  const pendingCount   = totalAtoms - publishedCount - approvedCount - draftedCount - skippedCount
+  const isAtomPublished  = (a) => a.status === 'drafted' && !!a.content_piece?.published_at
+  const isAtomScheduled  = (a) => a.status === 'drafted' && !isAtomPublished(a) && a.content_piece?.status === 'scheduled'
+  const isAtomApproved   = (a) => a.status === 'drafted' && !isAtomPublished(a) && !isAtomScheduled(a) && a.content_piece?.status === 'approved'
+  const totalAtoms      = atoms.length
+  const publishedCount  = atoms.filter(isAtomPublished).length
+  const scheduledCount  = atoms.filter(isAtomScheduled).length
+  const approvedCount   = atoms.filter(isAtomApproved).length
+  const draftedCount    = atoms.filter((a) => a.status === 'drafted' && !isAtomPublished(a) && !isAtomScheduled(a) && !isAtomApproved(a)).length
+  const skippedCount    = atoms.filter((a) => a.status === 'skipped').length
+  const pendingCount    = totalAtoms - publishedCount - scheduledCount - approvedCount - draftedCount - skippedCount
 
   async function handleDraft(atom) {
     setDraftingId(atom.id)
@@ -87,6 +89,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
         </div>
         <div className="flex gap-2 text-xs text-muted-foreground shrink-0">
           {publishedCount > 0 && <span className="text-blue-700 font-medium">{publishedCount} published</span>}
+          {scheduledCount > 0 && <span className="text-orange-600 font-medium">{scheduledCount} scheduled</span>}
           {approvedCount > 0 && <span className="text-primary font-medium">{approvedCount} approved</span>}
           {draftedCount > 0 && <span className="text-green-700 font-medium">{draftedCount} drafted</span>}
           {pendingCount > 0 && <span>{pendingCount} pending</span>}
@@ -111,7 +114,7 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
         const Icon = ui.icon
         const isCollapsed = collapsed[platform]
         const allDrafted = platformAtoms.every((a) => a.status === 'drafted')
-        const allPublished = platformAtoms.every(isAtomPublished)
+        const allPublished = platformAtoms.every((a) => isAtomPublished(a) || isAtomScheduled(a))
 
         return (
           <div key={platform} className={`rounded-xl border ${ui.border} overflow-hidden`}>
@@ -285,13 +288,18 @@ function safeHostname(url) {
 function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, onDraft, onSkip, onReset, onSelectPiece }) {
   const isSkipped = atom.status === 'skipped'
   const isDrafted = atom.status === 'drafted'
-  const publishedAt = atom.content_piece?.published_at
-  const pieceStatus = atom.content_piece?.status
-  const isPublished = isDrafted && !!publishedAt
-  const isApproved  = isDrafted && !isPublished && pieceStatus === 'approved'
+  const publishedAt  = atom.content_piece?.published_at
+  const scheduledAt  = atom.content_piece?.scheduled_at
+  const pieceStatus  = atom.content_piece?.status
+  const isPublished  = isDrafted && !!publishedAt
+  const isScheduled  = isDrafted && !isPublished && pieceStatus === 'scheduled'
+  const isApproved   = isDrafted && !isPublished && !isScheduled && pieceStatus === 'approved'
   const publishedDateLabel = publishedAt
     ? new Date(publishedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : null
+  const scheduledDateLabel = scheduledAt
+    ? new Date(scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    : dateHint
 
   return (
     <div className={`px-4 py-3 flex items-start justify-between gap-3 ${isSkipped ? 'opacity-40' : ''}`}>
@@ -305,13 +313,17 @@ function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, on
             <Badge className="text-xs bg-blue-100 text-blue-700 border-0 px-1.5 py-0">
               Published{publishedDateLabel ? ` · ${publishedDateLabel}` : ''}
             </Badge>
+          ) : isScheduled ? (
+            <Badge className="text-xs bg-orange-100 text-orange-700 border-0 px-1.5 py-0">
+              Scheduled{scheduledDateLabel ? ` · ${scheduledDateLabel}` : ''}
+            </Badge>
           ) : isApproved ? (
             <Badge className="text-xs bg-primary/15 text-primary border-0 px-1.5 py-0">
               Approved · add media
             </Badge>
           ) : isDrafted && (
             <Badge className="text-xs bg-green-100 text-green-700 border-0 px-1.5 py-0">
-              Drafted · scheduled {dateHint || `Week ${atom.slot}`}
+              Drafted · {scheduledAt ? `scheduled ${new Date(scheduledAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : `scheduled ${dateHint || `Week ${atom.slot}`}`}
             </Badge>
           )}
         </div>
@@ -328,7 +340,7 @@ function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, on
               className="h-7 text-xs gap-1"
               onClick={() => onSelectPiece(atom.content_piece_id)}
             >
-              {isPublished ? 'View post' : 'View draft'}
+              {isPublished ? 'View post' : isScheduled ? 'View scheduled' : 'View draft'}
             </Button>
           ) : (
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" asChild>
@@ -339,7 +351,7 @@ function AtomRow({ atom, interviewId, slotLabel, dateHint, isDrafting, error, on
                     : `/stories/${atom.content_piece_id}`
                 }
               >
-                {isPublished ? 'View post' : 'View draft'}
+                {isPublished ? 'View post' : isScheduled ? 'View scheduled' : 'View draft'}
                 <IconPrim as={ExternalLink} size="xs" />
               </Link>
             </Button>
