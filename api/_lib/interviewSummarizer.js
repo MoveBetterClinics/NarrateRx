@@ -18,6 +18,14 @@ const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
 
 const MODEL = 'anthropic/claude-sonnet-4-6'
 
+// Hard caps so a stalled AI Gateway call or Supabase write can't silently burn
+// the waitUntil budget to the 300s function wall (which strands the summary +
+// chunk: a killed function never runs a finally, so nothing recovers). The
+// model call is the only slow step; the PATCH should be sub-second.
+const MODEL_TIMEOUT_MS  = 90_000
+const MODEL_MAX_RETRIES = 2          // AI SDK retries transient gateway errors
+const PATCH_TIMEOUT_MS  = 20_000
+
 // Cap clinician-turn words sent to the model. A 90-min interview can be
 // ~10k words of just the clinician's side; the summary should still fit
 // in a single Sonnet call comfortably under this cap.
@@ -92,10 +100,13 @@ export async function summarizeInterview({ interviewId, workspaceId, staffId, st
 
     const truncated = transcriptText.split(/\s+/).slice(0, MAX_WORDS).join(' ')
 
+    const startedAt = Date.now()
     const { text } = await generateText({
       model: MODEL,
       messages: [{ role: 'user', content: buildPrompt({ staffName, topic, transcriptText: truncated }) }],
       maxOutputTokens: 512,
+      maxRetries:  MODEL_MAX_RETRIES,
+      abortSignal: AbortSignal.timeout(MODEL_TIMEOUT_MS),
     })
 
     const summary = (text || '').trim()
@@ -110,6 +121,7 @@ export async function summarizeInterview({ interviewId, workspaceId, staffId, st
         summary_text: summary,
         summary_generated_at: new Date().toISOString(),
       }),
+      signal: AbortSignal.timeout(PATCH_TIMEOUT_MS),
     })
     if (!r.ok) {
       const body = await r.text().catch(() => '')
@@ -117,7 +129,7 @@ export async function summarizeInterview({ interviewId, workspaceId, staffId, st
       return
     }
 
-    console.info(`[interviewSummarizer] interview=${interviewId} summarized (${summary.length} chars)`)
+    console.info(`[interviewSummarizer] interview=${interviewId} summarized (${summary.length} chars, ${Date.now() - startedAt}ms)`)
 
     // Phase 5 Feature 2 PR3 — embed the summary so it joins the RAG corpus.
     // This MUST be awaited. summarizeInterview is dispatched from the
@@ -138,6 +150,11 @@ export async function summarizeInterview({ interviewId, workspaceId, staffId, st
     })
     console.info(`[interviewSummarizer] interview=${interviewId} indexed ${JSON.stringify(idxResult)}`)
   } catch (e) {
-    console.error(`[interviewSummarizer] interview=${interviewId} threw: ${e?.stack || e?.message}`)
+    const timedOut = e?.name === 'TimeoutError' || e?.name === 'AbortError'
+    console.error(
+      `[interviewSummarizer] interview=${interviewId} ` +
+      `${timedOut ? 'TIMED OUT (hard cap hit — summary/chunk may be unwritten)' : 'threw'}: ` +
+      `${e?.stack || e?.message}`
+    )
   }
 }

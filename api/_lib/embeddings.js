@@ -13,6 +13,11 @@ export const EMBEDDING_DIMS = 1536
 // 5xx retry doesn't re-embed an unreasonable batch.
 const MAX_BATCH = 96
 const MAX_ATTEMPTS = 3
+// Hard cap per embeddings HTTP call. Without it a hung connection (no response,
+// never a 5xx) would never hit the 429/5xx retry branch and would stall the
+// caller to the 300s function wall — which on Vercel's Node runtime strands the
+// practice-memory chunk (the waitUntil budget is consumed, no finally runs).
+const REQUEST_TIMEOUT_MS = 20_000
 
 export async function embedTexts(texts) {
   if (!Array.isArray(texts) || texts.length === 0) return []
@@ -47,14 +52,28 @@ export async function embedText(text) {
 }
 
 async function embedBatch(batch, key, attempt = 1) {
-  const r = await fetch(OPENAI_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${key}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ model: EMBEDDING_MODEL, input: batch }),
-  })
+  let r
+  try {
+    r = await fetch(OPENAI_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ model: EMBEDDING_MODEL, input: batch }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    })
+  } catch (e) {
+    // A network error or the AbortSignal.timeout firing (TimeoutError/AbortError)
+    // is transient — retry on the same backoff schedule as a 429/5xx, then give
+    // up so withRetry() upstream can log + swallow rather than stalling forever.
+    if (attempt < MAX_ATTEMPTS) {
+      const backoffMs = 500 * 2 ** (attempt - 1)
+      await new Promise((res) => setTimeout(res, backoffMs))
+      return embedBatch(batch, key, attempt + 1)
+    }
+    throw new Error(`[embeddings] request failed after ${MAX_ATTEMPTS} attempts: ${e?.name || ''} ${e?.message || e}`)
+  }
 
   if (r.ok) {
     const json = await r.json()
