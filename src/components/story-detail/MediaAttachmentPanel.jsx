@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Plus, X, ArrowLeft, ArrowRight, Play, Image as ImageIcon, Loader2, ChevronDown } from 'lucide-react'
+import { Plus, X, ArrowLeft, ArrowRight, Play, Image as ImageIcon, Loader2, ChevronDown, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import MediaPicker from '@/components/MediaPicker'
+import MediaSuggestions from './MediaSuggestions'
 import { useUpdateContentItem } from '@/lib/queries'
 import { getAssetFamily } from '@/lib/mediaLib'
 
@@ -189,24 +190,37 @@ export default function MediaAttachmentPanel({ piece }) {
 
   const media = Array.isArray(piece?.media_urls) ? piece.media_urls : []
 
+  // Lead with AI suggestions when the draft has no media yet; once something is
+  // attached, tuck them behind a toggle so the panel stays tidy.
+  const [showSuggest, setShowSuggest] = useState(media.length === 0)
+
   const save = (nextMedia) =>
     updateItem.mutateAsync({ id: piece.id, patch: { mediaUrls: nextMedia } })
 
-  const handlePicked = (assets) => {
-    const incoming = (Array.isArray(assets) ? assets : [assets]).map(pickerItemToMediaEntry)
-    // Dedupe by mediaAssetId/url so re-picking doesn't double-add.
+  // Append entries, deduped by mediaAssetId/url, persisting only if something
+  // new landed. Shared by the manual picker and the suggestion strip so both
+  // write the identical stored shape. Returns the save promise so a suggestion
+  // card can await it for its attach lifecycle.
+  const attachEntries = (entries) => {
     const seen = new Set(media.map((m) => m.mediaAssetId || m.url))
     const merged = [...media]
-    for (const entry of incoming) {
+    for (const entry of entries) {
+      if (!entry) continue
       const key = entry.mediaAssetId || entry.url
       if (!seen.has(key)) {
         merged.push(entry)
         seen.add(key)
       }
     }
-    save(merged)
+    return merged.length !== media.length ? save(merged) : Promise.resolve()
+  }
+
+  const handlePicked = (assets) => {
+    attachEntries((Array.isArray(assets) ? assets : [assets]).map(pickerItemToMediaEntry))
     setPickerOpen(false)
   }
+
+  const attachedKeys = new Set(media.map((m) => m.mediaAssetId || m.url))
 
   const removeAt = (idx) => {
     const next = media.slice()
@@ -252,6 +266,26 @@ export default function MediaAttachmentPanel({ piece }) {
           Attach
         </Button>
       </div>
+
+      {/* AI suggestions lead the attach flow; the manual picker is the fallback. */}
+      {showSuggest ? (
+        <div className="mb-2">
+          <MediaSuggestions
+            pieceId={piece.id}
+            attachedKeys={attachedKeys}
+            onAttach={(entry) => attachEntries([entry])}
+            enabled
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowSuggest(true)}
+          className="mb-2 inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+        >
+          <Sparkles className="h-3.5 w-3.5" /> Suggest media for this draft
+        </button>
+      )}
 
       {media.length === 0 ? (
         <p className="text-xs italic text-muted-foreground">

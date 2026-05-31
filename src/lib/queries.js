@@ -39,6 +39,7 @@ import {
   fetchContentItem,
   updateContentItem,
   deleteContentItem,
+  suggestMediaForDraft,
 } from './publish'
 import { listMedia } from './mediaLib'
 import {
@@ -71,6 +72,7 @@ export const queryKeys = {
     detail:   (id) => ['contentItems', 'detail', id],
     keystone: (ivId) => ['contentItems', 'keystone', ivId],
     splitSuggestion: (id) => ['contentItems', 'splitSuggestion', id],
+    mediaSuggestions: (id) => ['contentItems', 'mediaSuggestions', id],
   },
   contentPlan: {
     all:              ['contentPlan'],
@@ -315,6 +317,20 @@ export function useContentItem(id, options = {}) {
     queryKey: queryKeys.contentItems.detail(id),
     queryFn: () => fetchContentItem(id),
     enabled: !!id,
+    ...options,
+  })
+}
+
+// Ranked media candidates for a draft (the media→content matcher). `enabled` is
+// destructured so the worklist can fetch lazily per-row (one embed per expand,
+// no thundering herd on page load) while still respecting the pieceId guard.
+export function useMediaSuggestions(pieceId, { enabled = true, ...options } = {}) {
+  return useQuery({
+    queryKey: queryKeys.contentItems.mediaSuggestions(pieceId),
+    queryFn: () => suggestMediaForDraft(pieceId),
+    enabled: !!pieceId && enabled,
+    staleTime: 5 * 60_000,        // suggestions are stable within a session
+    refetchOnWindowFocus: false,
     ...options,
   })
 }

@@ -45,6 +45,19 @@ export function createContentItems(items) {
   })
 }
 
+// ── Media → content matching (Phase P0) ──────────────────────────────────────
+
+// Ranked media candidates to attach to a draft, from the visual-memory matcher
+// (api/content-items/suggest-media.js). Powers the in-editor suggestion strip
+// and the "drafts needing media" worklist. `opts` may carry { kind, minScore, k }.
+export function suggestMediaForDraft(id, opts = {}) {
+  return apiFetch('/api/content-items/suggest-media', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, ...opts }),
+  })
+}
+
 export function suggestHashtags(contentItemId) {
   return apiFetch('/api/content/suggest-hashtags', {
     method: 'POST',

@@ -4,7 +4,7 @@ import { UserButton, useAuth, useClerk } from '@clerk/react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelfStaffId } from '@/lib/useSelfStaffId'
 import { useEnsureSelfStaff } from '@/lib/useEnsureSelfStaff'
-import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard, Camera } from 'lucide-react'
+import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard, Camera, ImagePlus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
@@ -35,6 +35,10 @@ const NAV_ITEMS = [
   { to: '/stories',    label: 'Stories',   match: (p) => p.startsWith('/stories'),
     requiresCapability: CAP_INTERVIEW_START },
   { to: '/library',    label: 'Library',   match: (p) => p.startsWith('/library') },
+  // Media→content matcher worklist (Phase P0) — drafts still needing a photo/
+  // video. Ungated like Library so producers (no interview.start) see it; it's
+  // exactly their surface.
+  { to: '/needs-media', label: 'Needs Media', match: (p) => p.startsWith('/needs-media'), icon: ImagePlus },
   // Capture (browser photo/video upload). Ungated like Library — /capture is
   // only auth/membership-gated, not capability-gated, and any team member can
   // contribute media. The icon nods to its phone-in-clinic, mobile-first use.
