@@ -108,20 +108,33 @@ clipper" and not "build a better clipper" — it's **plug the brain into the joi
 
 ## The bets
 
+> ### Sprint update — 2026-05-31 (code shipped; human-attach gates still govern "done")
+>
+> Days 1–4 work largely landed. Per this plan's own verification bar, **code-merged ≠ done** —
+> the human-attach gates still decide whether a bet truly advanced.
+>
+> - **F3** ✅ code shipped — [#1077](https://github.com/Move-Better/NarrateRx/pull/1077). Hard cap + retry on the summary model call, PATCH, and the shared embeddings HTTP call. No human gate (resilience).
+> - **F1** ✅ code shipped — [#1078](https://github.com/Move-Better/NarrateRx/pull/1078). Extracts on interview *completion* at provisional weight 0.5. Proven on Dr. Tyler's real transcript (0→25 phrases). **Gate pending:** confirm a non-Q clinician's *next* live completion lands phrases.
+> - **F4** ✅ COMPLETE — the code (claim-by-email + access-matrix reconciliation surface) was already on `main`; Part A prod reconciliation **verified done** 2026-05-31 via a live child-count audit (every clinician bound, learning intact; the "unclaimed proxies" were e2e smoke fixtures). Open flags resolved: Whitney already `org:admin` ×3, e2e kept admin (Playwright role-tolerant), AJ confirmed interviewable talent. Only the *optional* Clerk invite-accept webhook is unbuilt. **No prod writes were needed.**
+> - **U1** 🟡 in flight in a separate session — [#1079](https://github.com/Move-Better/NarrateRx/pull/1079), **held not merged**: the dropped-`clipTranscript`-param fix is correct + CI-green, but `captionFidelity` *regresses* on a brand-story test clip (scorer rewards clinical phrase-echo). Needs a human call + F4 attribution.
+>
+> State-of-the-world items 4 (approval-gated phrases) and 5 (capture-indexing) above are the
+> gaps F1 and F3 just closed — read them as the pre-sprint baseline.
+
 ### FEED THE BRAIN (the learning rail)
 
 | # | Bet | What it does | Est. Days | Est. Claude Cost |
 |---|---|---|---|---|
-| **F1** | Learn voice phrases on capture | Extract voice phrases from the interview transcript **at completion**, not only on approval (`content.js:188`). Gives every clinician a real voice substrate from day one — closes the gap that leaves Sophie/Tyler/Whitney at 0 phrases. | 1–2d | $6–12 (Sonnet) |
+| **F1** ✅ #1078 | Learn voice phrases on capture | Extract voice phrases from the interview transcript **at completion**, not only on approval (`content.js:188`). Gives every clinician a real voice substrate from day one — closes the gap that leaves Sophie/Tyler/Whitney at 0 phrases. _Shipped (provisional weight 0.5); live phrase-on-completion gate pending._ | 1–2d | $6–12 (Sonnet) |
 | **F2** | Auto edit-loop | When a draft is edited + approved, auto-analyze the diff into `voice_notes`. Every edit becomes learning, no manual button. | 1–2d | $5–10 (Sonnet) |
-| **F3** | Harden capture-indexing | The summary→practice-memory `waitUntil` path **currently works** but is unguarded (no retry / hard cap / log). Protect the one feed mechanism that already fires on completion so it can't silently strand. _Lower priority than F1 — not a live outage._ | 0.5d | $2–4 (Sonnet) |
-| **F4** | Roster de-dup + attribution | Reconcile Clerk members ↔ `staff` rows; backfill `staff_id` on existing media (null on ~92%). Prereq for F1 *and* U1. **Execution runbook inline below.** | 1–2d | $4–10 (Sonnet) |
+| **F3** ✅ #1077 | Harden capture-indexing | The summary→practice-memory `waitUntil` path **currently works** but is unguarded (no retry / hard cap / log). Protect the one feed mechanism that already fires on completion so it can't silently strand. _Shipped: AbortSignal hard caps + retry on summary call, PATCH, embeddings._ | 0.5d | $2–4 (Sonnet) |
+| **F4** ✅ identity DONE | Roster de-dup + attribution | Reconcile Clerk members ↔ `staff` rows; backfill `staff_id` on existing media (null on ~92%). Prereq for F1 *and* U1. **Execution runbook inline below.** _Code + Part A reconciliation complete 2026-05-31 (see banner below). Media `staff_id` backfill still belongs to U1's attach work._ | 1–2d | $4–10 (Sonnet) |
 
 ### USE THE BRAIN (the media↔content join — the bottleneck)
 
 | # | Bet | What it does | Est. Days | Est. Claude Cost |
 |---|---|---|---|---|
-| **U1** | Wire the brain into captions (keystone) | Set `staff_id` on media at capture + thread the clip's transcript into `generateCaption`; load the phrases that already exist (`captionGen.js`). This is Caption A→C from the smoke. Smallest change, biggest measurable lift. | 1–2d | $6–14 (Opus prompt + Sonnet) |
+| **U1** 🟡 #1079 held | Wire the brain into captions (keystone) | Set `staff_id` on media at capture + thread the clip's transcript into `generateCaption`; load the phrases that already exist (`captionGen.js`). This is Caption A→C from the smoke. Smallest change, biggest measurable lift. _Dropped-param fix correct + CI-green but `captionFidelity` regresses on a brand-story clip — held for human call + F4 media attribution._ | 1–2d | $6–14 (Opus prompt + Sonnet) |
 | **U2** | Knowledge-fed clip selection | Feed phrases + practice memory into `segmentDetect` so it picks moments that sound like the clinician. | 2–3d | $10–20 (Opus + Sonnet) |
 | **U3** | Assisted pick→edit→attach loop | Propose 3–5 clips → human picks → light in-app trim / crop-to-vertical / caption → **attach to the draft.** Adds the missing human-pick gate (`render-segments` renders all today). | 3–5d | $15–30 (Sonnet, some Opus) |
 | **U4** | Daily short-clip lane (highest frequency) | The *most common* capture: drop a short clip → knowledge-fed caption → pick → attach. Includes the **no-audio path** (caption from visual + topic + phrases when audio is lost). | 2–4d | $10–20 (Sonnet) |
@@ -138,12 +151,23 @@ clipper" and not "build a better clipper" — it's **plug the brain into the joi
 
 ## F4 detail — staff identity reconciliation (execution runbook)
 
+> **✅ EXECUTED — verified complete 2026-05-31.** Live child-count audit confirmed every
+> target row exists, bound to the correct Clerk `user_id`, learning intact (Cullen 53 phrases,
+> Whitney-Equine 37, Q 146; Tyler split merged, orphan `5a252b47` gone; Animals empty Q proxy
+> `c4cce5c2` gone without touching its 1-interview sibling). All Part-A claims/renames/merges
+> below are DONE. Open flags resolved: Whitney already `org:admin` in all 3 orgs; Alli kept
+> effective-owner (intended); e2e kept admin (Playwright specs are role-tolerant); AJ confirmed
+> interviewable talent. **No prod writes were required at execution — the work was already
+> applied.** The runbook is retained as the audit trail. _Not yet done: the media `staff_id`
+> backfill (~92% null) — that rides with U1's attach work, not this identity pass._
+
 _Folded in from the former `plan-staff-integration.md`. All UUIDs/user_ids verified live
 against prod (Supabase `wrqfrjhevkbbheymzezy` + Clerk API) on 2026-05-30._
 
-**⚠️ Security action (do first):** `CLERK_SECRET_KEY` (`sk_live_…`) was exposed in a Claude
-session transcript 2026-05-30. Rotate it (Clerk Dashboard → API Keys → roll), then update
-1Password (`narraterx-local`) + Vercel `narraterx` prod env. Old key dies on roll.
+**⚠️ Security action (do first): ✅ DONE — `CLERK_SECRET_KEY` rotated 2026-05-31** (new
+`sk_live_…` confirmed working against the Clerk API). It had been exposed in a Claude session
+transcript 2026-05-30; the new key is in 1Password (`narraterx-local`) + Vercel `narraterx`
+prod env. Old key dead on roll.
 
 **Root cause (one bug → all splits):** `api/staff/ensure-self.js:127` claims a clinician's
 pre-existing proxy row by **name match** (`name=ilike`). On login Clerk supplies a profile
