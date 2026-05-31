@@ -152,26 +152,55 @@ async function deleteExtraChunks(sourceType, sourceId, keepCount) {
   }
 }
 
+// Run an indexer body with one retry on throw, then swallow. Logs the FULL
+// stack (not just .message — embedding/native errors frequently carry an empty
+// .message and only a useful .stack) so a silent failure root-causes from one
+// `vercel logs` fetch. Returns a small result object instead of throwing, so a
+// failure never propagates out of a fire-and-forget / waitUntil dispatch.
+async function withRetry(label, fn) {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      return await fn()
+    } catch (e) {
+      const lastAttempt = attempt === 2
+      console.error(
+        `[practiceMemoryRag] ${label} attempt ${attempt}/2 threw` +
+        `${lastAttempt ? ' (giving up)' : ' — retrying'}: ${e?.stack || e?.message || e}`
+      )
+      if (lastAttempt) return { indexed: 0, error: e?.message || String(e) }
+      await new Promise((r) => setTimeout(r, 750))
+    }
+  }
+}
+
 /**
  * Index a single interview summary. One chunk per row.
  * No-op if summaryText is empty.
+ *
+ * Runs inside the interview-completion PATCH handler's waitUntil() chain (via
+ * summarizeInterview, which AWAITs this). A swallowed throw here strands the
+ * summary out of the RAG corpus — the regression where every interview
+ * completed after 2026-05-24 wrote summary_text but produced zero chunks — so
+ * the work retries once and logs the full stack on final failure.
+ *
+ * @returns {Promise<{indexed:number, skipped?:string, error?:string}>}
  */
 export async function indexInterviewSummary({ workspaceId, staffId, interviewId, summaryText, topic, createdAt }) {
-  try {
-    if (!workspaceId || !interviewId) return
-    const text = String(summaryText || '').trim()
-    if (!text) return
+  if (!workspaceId || !interviewId) return { indexed: 0, skipped: 'missing-ids' }
+  const text = String(summaryText || '').trim()
+  if (!text) return { indexed: 0, skipped: 'empty-summary' }
 
-    const dateLabel = createdAt ? new Date(createdAt).toISOString().slice(0, 10) : ''
-    const sourceLabel = topic
-      ? `Interview on "${topic}"${dateLabel ? ` (${dateLabel})` : ''}`
-      : `Interview${dateLabel ? ` (${dateLabel})` : ''}`
+  const dateLabel = createdAt ? new Date(createdAt).toISOString().slice(0, 10) : ''
+  const sourceLabel = topic
+    ? `Interview on "${topic}"${dateLabel ? ` (${dateLabel})` : ''}`
+    : `Interview${dateLabel ? ` (${dateLabel})` : ''}`
 
+  return withRetry(`indexInterviewSummary interview=${interviewId}`, async () => {
     const [[embedding], topicTags] = await Promise.all([
       embedTexts([text]),
       extractTopicTags(text),
     ])
-    if (!embedding) return
+    if (!embedding) return { indexed: 0, skipped: 'no-embedding' }
 
     await upsertChunks([{
       workspaceId,
@@ -188,9 +217,8 @@ export async function indexInterviewSummary({ workspaceId, staffId, interviewId,
     // Summary is always exactly 1 chunk — wipe any stale chunks from a
     // prior shape (defensive; never expected to fire).
     await deleteExtraChunks('interview_summary', interviewId, 1)
-  } catch (e) {
-    console.error(`[practiceMemoryRag] indexInterviewSummary interview=${interviewId} threw: ${e?.message}`)
-  }
+    return { indexed: 1 }
+  })
 }
 
 /**
@@ -251,7 +279,7 @@ export async function indexContentItem({ workspaceId, contentItemId }) {
     await upsertChunks(rows)
     await deleteExtraChunks('content_item', row.id, rows.length)
   } catch (e) {
-    console.error(`[practiceMemoryRag] indexContentItem item=${contentItemId} threw: ${e?.message}`)
+    console.error(`[practiceMemoryRag] indexContentItem item=${contentItemId} threw: ${e?.stack || e?.message}`)
   }
 }
 
@@ -299,7 +327,7 @@ export async function searchPracticeMemory({ workspaceId, staffId, query, topK =
     }
     return await r.json()
   } catch (e) {
-    console.error(`[practiceMemoryRag] searchPracticeMemory threw: ${e?.message}`)
+    console.error(`[practiceMemoryRag] searchPracticeMemory threw: ${e?.stack || e?.message}`)
     return []
   }
 }
@@ -425,7 +453,7 @@ export async function indexInterviewTranscriptFull({
     await upsertChunks(rows)
     await deleteExtraChunks('interview_transcript_full', interviewId, rows.length)
   } catch (e) {
-    console.error(`[practiceMemoryRag] indexInterviewTranscriptFull interview=${interviewId} threw: ${e?.message}`)
+    console.error(`[practiceMemoryRag] indexInterviewTranscriptFull interview=${interviewId} threw: ${e?.stack || e?.message}`)
   }
 }
 
@@ -481,7 +509,7 @@ async function indexAuthoredProse({
     await upsertChunks(rows)
     await deleteExtraChunks(sourceType, sourceId, rows.length)
   } catch (e) {
-    console.error(`[practiceMemoryRag] indexAuthoredProse type=${sourceType} sourceId=${sourceId} threw: ${e?.message}`)
+    console.error(`[practiceMemoryRag] indexAuthoredProse type=${sourceType} sourceId=${sourceId} threw: ${e?.stack || e?.message}`)
   }
 }
 

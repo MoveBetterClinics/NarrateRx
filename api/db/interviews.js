@@ -12,6 +12,7 @@ import { buildPlanRows } from '../_lib/atomPlan.js'
 import { extractConcepts, buildInterviewText } from '../_lib/conceptExtractor.js'
 import { summarizeInterview } from '../_lib/interviewSummarizer.js'
 import { markBookStale } from '../_lib/bookStale.js'
+import { waitUntil } from '@vercel/functions'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -322,27 +323,32 @@ export default async function handler(req, res) {
               ? interviewForExtract.cleaned_messages
               : interviewForExtract.messages
             const interviewText = buildInterviewText(turns)
-            // extractConcepts is intentionally fire-and-forget — it runs its
-            // own async pipeline and shouldn't block the PATCH response.
-            extractConcepts({
+            // extractConcepts + summarizeInterview run off the request path but
+            // MUST be registered with waitUntil(): on Vercel's Node runtime a
+            // bare floating promise is frozen once the response is sent, so any
+            // async work still pending at that point is silently dropped. The
+            // summary's RAG-indexing step (≈30s after the response) was killed
+            // exactly this way — every interview completed after the 2026-05-24
+            // backfill wrote summary_text but produced zero practice_memory_chunks.
+            waitUntil(extractConcepts({
               workspaceId:  ws.id,
               sourceKind:   'interview_turn',
               sourceId:     id,
               text:         interviewText,
               staffId:  rows[0].staff_id ?? null,
               weightDelta:  1.0,
-            })
-            // Phase 5 Feature 2 — practice-memory summarization runs alongside
-            // concept extraction. Same fire-and-forget contract; writes back to
-            // interviews.summary_text on success.
-            summarizeInterview({
+            }))
+            // Phase 5 Feature 2 — practice-memory summarization. summarizeInterview
+            // now AWAITs its own embed/upsert step, so this single promise covers
+            // both the summary_text write and the interview_summary chunk insert.
+            waitUntil(summarizeInterview({
               interviewId:   id,
               workspaceId:   ws.id,
               staffId:   rows[0].staff_id ?? null,
               staffName,
               topic:         topic,
               messages:      turns,
-            })
+            }))
           }
         }
       } catch (e) {
@@ -378,7 +384,7 @@ export default async function handler(req, res) {
       // both regular interviews and voice memos — voice memos go through
       // this same PATCH path when the capture review pipeline marks them
       // completed.
-      markBookStale({ workspaceId: ws.id })
+      waitUntil(markBookStale({ workspaceId: ws.id }))
     }
 
     return ok(res, data[0])
