@@ -9,48 +9,24 @@
  *   1. "Did you record video?" — Yes / Skip
  *   2. File picker (video/* only, single file)
  *   3. Upload progress bar (reuses uploadMedia from mediaLib)
- *   4. Optional trim-start slider: "interview starts at Xs in the video"
- *   5. On confirm → PATCH interview with video_media_asset_id + video_offset_seconds
- *   6. onDone() called → caller navigates to /stories/:id
+ *   4. Auto-detect offset: POST /api/interviews/detect-video-offset
+ *      (ffmpeg silencedetect — finds where speech begins, skips setup silence)
+ *   5. onDone() called → caller navigates to /stories/:id
  */
 
 import { useState, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Video, Upload, SkipForward, CheckCircle2, AlertCircle, X } from 'lucide-react'
 import { uploadMedia } from '@/lib/mediaLib'
-import { updateInterview } from '@/lib/api'
-
-// Formats seconds as M:SS
-function fmtTime(secs) {
-  const s = Math.round(secs)
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
-}
+import { apiFetch } from '@/lib/api'
 
 export default function VideoAttachPrompt({ interviewId, staffName, onDone }) {
-  const [step, setStep] = useState('ask') // ask | uploading | trim | saving | done | error
+  const [step, setStep] = useState('ask') // ask | uploading | detecting | done | error
   const [file, setFile] = useState(null)
-  const [videoDuration, setVideoDuration] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [assetId, setAssetId] = useState(null)
-  const [offsetSeconds, setOffsetSeconds] = useState(0)
   const [errorMsg, setErrorMsg] = useState('')
   const fileInputRef = useRef(null)
   const abortRef = useRef(null)
-
-  // Probe the video file for duration so the trim slider has a sensible max
-  const probeVideoDuration = useCallback((f) => {
-    return new Promise((resolve) => {
-      const url = URL.createObjectURL(f)
-      const video = document.createElement('video')
-      video.preload = 'metadata'
-      video.onloadedmetadata = () => {
-        URL.revokeObjectURL(url)
-        resolve(isFinite(video.duration) ? video.duration : null)
-      }
-      video.onerror = () => { URL.revokeObjectURL(url); resolve(null) }
-      video.src = url
-    })
-  }, [])
 
   const handleFileChange = useCallback(async (e) => {
     const f = e.target.files?.[0]
@@ -64,49 +40,42 @@ export default function VideoAttachPrompt({ interviewId, staffName, onDone }) {
     setUploadProgress(0)
     setErrorMsg('')
 
-    // Probe duration in parallel with upload start
-    const durationPromise = probeVideoDuration(f)
-
     const controller = new AbortController()
     abortRef.current = controller
 
     try {
+      // 1. Upload to Blob / Mux
       const result = await uploadMedia(f, {
         purpose: 'interview',
         label: `${staffName} — interview video`,
-        workspace_scoped: true,
       }, {
         abortSignal: controller.signal,
-        onProgress: (e) => setUploadProgress(Math.round(e.percent ?? 0)),
+        onProgress: (ev) => setUploadProgress(Math.round(ev.percent ?? 0)),
       })
 
-      const duration = await durationPromise
-      setVideoDuration(duration)
-      setAssetId(result.assetId)
       setUploadProgress(100)
-      setStep('trim')
+      setStep('detecting')
+
+      // 2. Auto-detect speech onset (removes setup silence automatically)
+      //    Non-fatal: if detection fails we still save with offset=0
+      try {
+        await apiFetch('/api/interviews/detect-video-offset', {
+          method: 'POST',
+          body: JSON.stringify({ interviewId, assetId: result.assetId }),
+        })
+      } catch (detectErr) {
+        console.warn('[VideoAttachPrompt] offset detection failed (non-fatal):', detectErr?.message)
+        // Still attach the video — just without auto-trim
+      }
+
+      setStep('done')
+      setTimeout(() => onDone(), 1200)
     } catch (err) {
       if (err?.name === 'AbortError') return
       setErrorMsg(err?.message || 'Upload failed. Please try again.')
       setStep('error')
     }
-  }, [staffName, probeVideoDuration])
-
-  const handleConfirm = useCallback(async () => {
-    if (!assetId) return
-    setStep('saving')
-    try {
-      await updateInterview(interviewId, {
-        video_media_asset_id: assetId,
-        video_offset_seconds: offsetSeconds,
-      })
-      setStep('done')
-      setTimeout(() => onDone(), 1200)
-    } catch (err) {
-      setErrorMsg(err?.message || 'Could not save video link. Try again.')
-      setStep('error')
-    }
-  }, [assetId, offsetSeconds, interviewId, onDone])
+  }, [staffName, interviewId, onDone])
 
   const handleCancel = useCallback(() => {
     abortRef.current?.abort()
@@ -127,18 +96,11 @@ export default function VideoAttachPrompt({ interviewId, staffName, onDone }) {
           </p>
         </div>
         <div className="flex gap-3 w-full">
-          <Button
-            variant="outline"
-            className="flex-1"
-            onClick={handleCancel}
-          >
+          <Button variant="outline" className="flex-1" onClick={handleCancel}>
             <SkipForward className="h-4 w-4 mr-1.5" />
             Skip
           </Button>
-          <Button
-            className="flex-1"
-            onClick={() => fileInputRef.current?.click()}
-          >
+          <Button className="flex-1" onClick={() => fileInputRef.current?.click()}>
             <Upload className="h-4 w-4 mr-1.5" />
             Add video
           </Button>
@@ -181,70 +143,15 @@ export default function VideoAttachPrompt({ interviewId, staffName, onDone }) {
     )
   }
 
-  // ── Trim step ─────────────────────────────────────────────────────────────
-  if (step === 'trim') {
-    const maxOffset = videoDuration ? Math.max(0, videoDuration - 10) : 0
-    return (
-      <div className="flex flex-col gap-5 py-6 px-4 max-w-sm mx-auto">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-            <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-sm font-medium">Video uploaded</p>
-            <p className="text-xs text-muted-foreground">{file?.name}</p>
-          </div>
-        </div>
-
-        {videoDuration && videoDuration > 15 && (
-          <div className="space-y-3">
-            <div>
-              <p className="text-sm font-medium">When did the interview start?</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Drag to trim out any setup time at the beginning of the recording.
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={0}
-                max={maxOffset}
-                step={1}
-                value={offsetSeconds}
-                onChange={(e) => setOffsetSeconds(Number(e.target.value))}
-                className="flex-1 accent-primary"
-              />
-              <span className="text-sm font-mono w-12 text-right tabular-nums">
-                {fmtTime(offsetSeconds)}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Interview content starts at {fmtTime(offsetSeconds)} in the recording
-              {videoDuration ? ` (total: ${fmtTime(videoDuration)})` : ''}.
-            </p>
-          </div>
-        )}
-
-        <div className="flex gap-3">
-          <Button variant="outline" className="flex-1" onClick={handleCancel}>
-            Skip
-          </Button>
-          <Button className="flex-1" onClick={handleConfirm}>
-            Save &amp; continue
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  // ── Saving step ───────────────────────────────────────────────────────────
-  if (step === 'saving') {
+  // ── Detecting offset step ─────────────────────────────────────────────────
+  if (step === 'detecting') {
     return (
       <div className="flex flex-col items-center gap-4 py-8 px-4 max-w-sm mx-auto text-center">
         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
           <Video className="h-5 w-5 text-primary animate-pulse" />
         </div>
-        <p className="text-sm text-muted-foreground">Saving…</p>
+        <p className="text-sm font-medium">Finding interview start…</p>
+        <p className="text-xs text-muted-foreground">Skipping setup time automatically</p>
       </div>
     )
   }
