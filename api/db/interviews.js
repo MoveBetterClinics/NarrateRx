@@ -70,7 +70,7 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     if (id) {
       const r = await sb(
-        `interviews?id=eq.${id}&${wsFilter}&select=id,staff_id,topic,status,messages,cleaned_messages,outputs,session_state,paused_at,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,audience,story_type,cleanup_level,pull_quote_candidates,pull_quote_selected_id,verbatim_flags,generation_style,capture_mode,source_audio_url,created_at,updated_at`
+        `interviews?id=eq.${id}&${wsFilter}&select=id,staff_id,topic,status,messages,cleaned_messages,outputs,session_state,paused_at,owner_id,owner_email,tone,voice_mode,prototype_id,location_id,audience,story_type,cleanup_level,pull_quote_candidates,pull_quote_selected_id,verbatim_flags,generation_style,capture_mode,source_audio_url,selected_outputs,created_at,updated_at`
       )
       if (!r.ok) return dbErr(res, r)
       const data = await r.json()
