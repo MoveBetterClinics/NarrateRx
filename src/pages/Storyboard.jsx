@@ -30,7 +30,7 @@ export default function Storyboard() {
   const rows = useMemo(() => items.filter(NEEDS_MEDIA), [items])
 
   return (
-    <div className="container max-w-3xl space-y-4 py-6">
+    <div className="space-y-4 py-6">
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold text-foreground">
           <GalleryHorizontalEnd className="h-5 w-5 text-primary" />

@@ -42,7 +42,6 @@ import { toast, runWithToast } from '@/lib/toast'
 import BufferMetricsRow from './BufferMetricsRow'
 import WinnerToggle from './WinnerToggle'
 import ContentPlanPanel from '@/components/ContentPlanPanel'
-import SlideEditor from './SlideEditor'
 import VoiceFidelityBadge from './VoiceFidelityBadge'
 import SplitSuggestionBanner from './SplitSuggestionBanner'
 import { extractMarkerSuggestions, markersToOverlay } from './OverlayTextEditor'
@@ -373,10 +372,8 @@ function ContentEditor({ piece, onProvenanceHighlight }) {
           </Button>
         </div>
       )}
-      {/* Carousel slide-text editor stays in the editor — it's editorial, not
-          media attach. Media attach/approval moved to the Storyboard page. */}
-      {piece.platform === 'instagram' && viewMode === 'edit' && <SlideEditor piece={piece} />}
-      {/* Handoff to Storyboard: media is reviewed + attached at full size there. */}
+      {/* Handoff to Storyboard: media is reviewed + attached at full size there,
+          and the carousel composer + publish actions live on the publish step. */}
       <Link
         to={`/storyboard/${piece.id}`}
         className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2 text-xs transition-colors hover:border-primary/40 hover:bg-accent/20"
@@ -1169,7 +1166,14 @@ function WhenToPublishCard({
   )
 }
 
-function ApprovalPanel({ piece }) {
+// mode='workflow' (default, in the Stories editor): review workflow only —
+//   send-for-review / approve / request-changes / unapprove + comments. NO
+//   publish/schedule/export (those moved to the dedicated publish page).
+// mode='publish' (on /storyboard/:id/publish): the schedule/publish/export
+//   actions + scheduled/published state. NO review workflow / comments.
+// One component, one source of truth — the mode just gates which sections show.
+export function ApprovalPanel({ piece, mode = 'workflow' }) {
+  const isPublish = mode === 'publish'
   const { user } = useUser()
   const navigate = useNavigate()
   const { canReview } = useUserRole()
@@ -1586,7 +1590,7 @@ function ApprovalPanel({ piece }) {
           can accept the suggested time (one click), pick a custom time, or
           publish immediately. Blog pieces collapse to a single Publish button
           since the website webhook is synchronous. */}
-      {piece.status === 'approved' && canReview && (
+      {isPublish && piece.status === 'approved' && canReview && (
         canDirectPublishPlatform(workspace, piece.platform, workspace?.connected_publish_services) ? (
           <WhenToPublishCard
             piece={piece}
@@ -1611,7 +1615,7 @@ function ApprovalPanel({ piece }) {
           reviewer can pull the post out of Buffer's queue and pick a different
           time (or unapprove). Only valid for Buffer-dispatched platforms; blog
           publishes don't go through this state. */}
-      {piece.status === 'scheduled' && canReview && piece.platform !== 'blog' && (
+      {isPublish && piece.status === 'scheduled' && canReview && piece.platform !== 'blog' && (
         <div className="rounded-lg border bg-purple-50/40 p-3 space-y-2.5">
           <div className="flex items-center gap-1.5 text-xs font-medium text-purple-700">
             <Calendar className="h-3.5 w-3.5" />
@@ -1650,7 +1654,7 @@ function ApprovalPanel({ piece }) {
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
         {/* Send for review — all roles, only on draft, only when review workflow is on */}
-        {piece.status === 'draft' && !skipReview && (
+        {!isPublish && piece.status === 'draft' && !skipReview && (
           <Button
             size="sm"
             variant="outline"
@@ -1696,7 +1700,7 @@ function ApprovalPanel({ piece }) {
         )}
 
         {/* Request changes — reviewer only, in_review */}
-        {piece.status === 'in_review' && canReview && (
+        {!isPublish && piece.status === 'in_review' && canReview && (
           <Button
             size="sm"
             variant="outline"
@@ -1752,7 +1756,7 @@ function ApprovalPanel({ piece }) {
 
 
       {/* Change request inline form */}
-      {changeRequestOpen && (
+      {!isPublish && changeRequestOpen && (
         <form onSubmit={handleRequestChanges} className="space-y-2">
           <textarea
             className="w-full text-xs rounded border border-amber-300 bg-amber-50 px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-amber-400 min-h-[72px]"
@@ -1787,8 +1791,8 @@ function ApprovalPanel({ piece }) {
         </form>
       )}
 
-      {/* Comment thread */}
-      <CommentThread pieceId={piece.id} />
+      {/* Comment thread — review surface; lives with the words workflow. */}
+      {!isPublish && <CommentThread pieceId={piece.id} />}
     </div>
   )
 }
@@ -2049,7 +2053,7 @@ export default function AssetsPane({
                 Feeds the Slate's Coverage winners + proven-topic resurfacing. */}
             {active.status === 'published' && <WinnerToggle piece={active} />}
 
-            <ApprovalPanel piece={active} />
+            <ApprovalPanel piece={active} mode="workflow" />
           </div>
         )}
       </div>
