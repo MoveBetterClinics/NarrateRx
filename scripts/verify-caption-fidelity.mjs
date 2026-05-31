@@ -19,11 +19,16 @@
  * Fixture path: .claude/voice-fidelity-captions-fixture.json
  *
  * Env:
- *   VOICE_FIDELITY_GATE_BASELINE   (default: 5.5)  — current observed caption avg is ~5.97
- *                                                   (2026-05-27 baseline). Default sits below
- *                                                   today's actual so the gate ratchets
- *                                                   regressions, not improvements. Raise as
- *                                                   captions improve.
+ *   VOICE_FIDELITY_GATE_BASELINE   (default: 4.8)  — recalibrated 2026-05-31 for the
+ *                                                   faithfulness-v2 rubric (api/_lib/
+ *                                                   captionFidelityRubric.js). The new rubric
+ *                                                   grades against the clip transcript and no
+ *                                                   longer rewards clinical register, so its
+ *                                                   numbers are NOT comparable to the old ~5.97.
+ *                                                   Observed avg on the existing corpus under the
+ *                                                   new rubric is ~5.06; default sits below it so
+ *                                                   the gate ratchets regressions, not
+ *                                                   improvements. Raise as captions improve.
  *   VOICE_FIDELITY_GATE_PCT        (default: 0.05) — allowed dip below baseline (5%)
  *   VOICE_FIDELITY_GATE_MIN_SAMPLE (default: 5)    — refuse to gate if fixture too small
  *   VOICE_FIDELITY_GATE_MAX_AGE_D  (default: 30)   — fail if fixture older than N days
@@ -42,7 +47,7 @@ import { existsSync } from 'node:fs'
 
 const FIXTURE_PATH = '.claude/voice-fidelity-captions-fixture.json'
 
-const BASELINE   = parseFloat(process.env.VOICE_FIDELITY_GATE_BASELINE   || '5.5')
+const BASELINE   = parseFloat(process.env.VOICE_FIDELITY_GATE_BASELINE   || '4.8')
 const PCT        = parseFloat(process.env.VOICE_FIDELITY_GATE_PCT        || '0.05')
 const MIN_SAMPLE = parseInt(process.env.VOICE_FIDELITY_GATE_MIN_SAMPLE   || '5', 10)
 const MAX_AGE_D  = parseInt(process.env.VOICE_FIDELITY_GATE_MAX_AGE_D    || '30', 10)

@@ -1,11 +1,17 @@
-// Caption voice-fidelity scoring helper.
+// Caption fidelity scoring helper.
 //
-// V1 of the "Deepen the video build" extension set. Called via waitUntil()
-// from generate-package + rerender-package after the row reaches
-// status='complete', so scoring runs in the background without adding
-// latency to the user-facing response. The standalone scorer at
-// scripts/voice-fidelity-captions.mjs mirrors this logic for offline
-// fixture refresh.
+// Called via waitUntil() from the render paths (renderPackageChannels,
+// longformEngine, packages/[id] rerender) after a story_packages row reaches
+// status='complete', so scoring runs in the background without adding latency
+// to the user-facing response. The standalone scorer at
+// scripts/voice-fidelity-captions.mjs shares the SAME rubric via
+// api/_lib/captionFidelityRubric.js (single source of truth — no drift).
+//
+// 2026-05-31 rewrite: the rubric now grades the caption against WHAT THE
+// CLINICIAN ACTUALLY SAID (the clip transcript) plus their voice, and no longer
+// rewards clinical/technical register for its own sake. See captionFidelityRubric.js
+// for the full rationale. This helper fetches the transcript (segment excerpt if
+// the caller passes one, else the source asset's transcription) and feeds it in.
 //
 // Scope discipline: this helper is workspace-agnostic at the helper level
 // (no workspaceContext call), but each call must already be inside a
@@ -13,6 +19,7 @@
 // caller's workspace. The caller is responsible for that gate.
 
 import { generateText } from 'ai'
+import { buildFidelityPrompt, parseFidelity } from './captionFidelityRubric.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -30,41 +37,6 @@ function sb(path, init = {}) {
   })
 }
 
-function buildEvalPrompt({ topic, caption, staffName, phrases, workspaceName }) {
-  const phraseExamples = (phrases || []).slice(0, 8).map((p) => `- "${p.phrase}"`).join('\n')
-  const hasPhrases = phraseExamples.length > 0
-  return {
-    system:
-`You are a precise content quality evaluator for SHORT social-distribution copy
-(captions + thumbnail titles). Score the package on multiple voice fidelity
-dimensions. Return ONLY valid JSON — no markdown, no preamble, no commentary.`,
-    user:
-`Evaluate this story package — a thumbnail title + accompanying caption that
-will be burned into video subtitles and posted as the social caption. Written
-for ${staffName} at ${workspaceName}.
-
-${hasPhrases
-  ? `CLINICIAN'S AUTHENTIC VOICE PHRASES (use these to judge fidelity):\n${phraseExamples}`
-  : `(No voice phrases on record for this clinician yet — score voice_fidelity at 5 if you can't compare.)`}
-
-TITLE (thumbnail text, ${(topic || '').length} chars):
-"${topic || ''}"
-
-CAPTION (subtitle + social copy, ${(caption || '').length} chars):
-"${caption || ''}"
-
-Score each dimension 1–10 and return this exact JSON shape (no other keys):
-{
-  "voice_fidelity": <1-10; rhythm + word choice match to the voice phrases above${hasPhrases ? '' : '; score 5 if no phrases'}>,
-  "clinical_texture": <1-10; sounds like a real practitioner, not generic content-mill>,
-  "redundancy": <1-10 INVERSE — 10=tight no repetition, 1=title and caption restate each other>,
-  "specificity": <1-10; concrete vs vague (real anatomy, technique names, situations, not platitudes)>,
-  "brand_fit": <1-10; feels like an authentic practice voice, not a corporate template>,
-  "red_flag": "<one short phrase: the single biggest issue, or 'none'>"
-}`,
-  }
-}
-
 /**
  * Score one story package's caption + topic and persist score + breakdown.
  *
@@ -75,10 +47,13 @@ Score each dimension 1–10 and return this exact JSON shape (no other keys):
  * @param {string|null} args.staffId
  * @param {string} args.topic
  * @param {string} args.captionText
+ * @param {string} [args.transcript]    — the exact clip transcript used to write the
+ *                                         caption (e.g. a segment excerpt). When omitted,
+ *                                         the source asset's transcription is fetched.
  * @returns {Promise<{ ok: boolean, score?: number, reason?: string }>}
  */
 export async function scoreCaptionFidelity({
-  packageId, workspaceId, workspaceName, staffId, topic, captionText,
+  packageId, workspaceId, workspaceName, staffId, topic, captionText, transcript = '',
 }) {
   if (!packageId || !workspaceId) return { ok: false, reason: 'missing_ids' }
   if (!process.env.AI_GATEWAY_API_KEY) return { ok: false, reason: 'no_ai_key' }
@@ -105,47 +80,55 @@ export async function scoreCaptionFidelity({
     }
   }
 
-  const prompt = buildEvalPrompt({
-    topic: title, caption: text, staffName, phrases,
+  // Resolve the transcript the caption should be faithful to. Prefer an explicit
+  // excerpt from the caller; otherwise fall back to the source asset's whole-clip
+  // transcription via the package's source_asset_id. Non-fatal — empty just means
+  // said_fidelity is scored neutral (the no-audio path).
+  let clipTranscript = String(transcript || '').trim()
+  if (!clipTranscript) {
+    try {
+      const pkgRes = await sb(
+        `story_packages?id=eq.${packageId}&workspace_id=eq.${workspaceId}` +
+        `&select=source_asset:media_assets(transcription)&limit=1`,
+      )
+      if (pkgRes.ok) {
+        const rows = await pkgRes.json()
+        clipTranscript = String(rows?.[0]?.source_asset?.transcription || '').trim()
+      }
+    } catch {
+      // ignore — score without a faithfulness reference
+    }
+  }
+
+  const prompt = buildFidelityPrompt({
+    topic: title, caption: text, transcript: clipTranscript, phrases, staffName,
     workspaceName: workspaceName || 'workspace',
   })
 
-  let evalResult = {}
+  let raw = ''
   try {
-    const { text: raw } = await generateText({
+    const res = await generateText({
       model: EVAL_MODEL,
       system: prompt.system,
       messages: [{ role: 'user', content: prompt.user }],
-      maxOutputTokens: 220,
+      maxOutputTokens: 240,
     })
-    try {
-      evalResult = JSON.parse(raw.trim())
-    } catch {
-      const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      try { evalResult = JSON.parse(cleaned) } catch { /* keep empty */ }
-    }
+    raw = res.text
   } catch (err) {
     console.error('[captionFidelity] LLM call failed:', err?.message || err)
     return { ok: false, reason: 'llm_error' }
   }
 
-  const dims = ['voice_fidelity', 'clinical_texture', 'redundancy', 'specificity', 'brand_fit']
-  const valid = dims.filter((d) => typeof evalResult[d] === 'number')
-  if (!valid.length) return { ok: false, reason: 'no_dims_parsed' }
-  const overall = Number((valid.reduce((s, d) => s + evalResult[d], 0) / valid.length).toFixed(2))
-
-  const breakdown = {
-    voice_fidelity:   evalResult.voice_fidelity   ?? null,
-    clinical_texture: evalResult.clinical_texture ?? null,
-    redundancy:       evalResult.redundancy       ?? null,
-    specificity:      evalResult.specificity      ?? null,
-    brand_fit:        evalResult.brand_fit        ?? null,
-    red_flag:         evalResult.red_flag         || null,
-    has_phrases:      phrases.length > 0,
-    phrase_count:     phrases.length,
-    scored_at:        new Date().toISOString(),
-    model:            EVAL_MODEL,
-  }
+  const parsed = parseFidelity(raw, {
+    has_phrases:    phrases.length > 0,
+    phrase_count:   phrases.length,
+    has_transcript: clipTranscript.length > 0,
+    scored_at:      new Date().toISOString(),
+    model:          EVAL_MODEL,
+    rubric:         'faithfulness-v2',
+  })
+  if (!parsed) return { ok: false, reason: 'no_dims_parsed' }
+  const { overall, breakdown } = parsed
 
   // Persist — scoped by workspace_id as a belt-and-braces guard against
   // a renamed/deleted package being mutated under us.

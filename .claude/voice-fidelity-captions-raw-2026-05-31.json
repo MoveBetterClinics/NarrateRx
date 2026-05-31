@@ -1,19 +1,19 @@
 {
   "meta": {
-    "generatedAt": "2026-05-31T14:02:27.630Z",
-    "generatedBy": "scripts/voice-fidelity-captions.mjs",
-    "model": "anthropic/claude-haiku-4-5",
-    "scopedWorkspace": null,
-    "sample": 8,
+    "dateStr": "2026-05-31",
+    "scored": 8,
     "avgScore": 5.06
   },
-  "samples": [
+  "scored": [
     {
       "packageId": "d1c9d8dc-34a1-4e36-81e8-dcc7a921e24d",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
       "workspaceName": "Move Better",
+      "staffId": null,
       "staffName": "unknown staff",
       "topic": "C0113",
       "captionText": "I'd love to help craft a caption, but \"C0113\" doesn't give me enough context about the specific topic or clinical moment being shared. Could you provide a bit more detail about what the photo or video depicts — for example, a treatment, a patient milestone, a procedure, or a wellness concept?",
+      "createdAt": "2026-05-30T20:37:45.917598+00:00",
       "overall": 3,
       "breakdown": {
         "said_fidelity": 5,
@@ -31,10 +31,13 @@
     },
     {
       "packageId": "ce21254e-b2c3-4aa5-a07e-b38695dfee54",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
       "workspaceName": "Move Better",
+      "staffId": null,
       "staffName": "unknown staff",
       "topic": "A man with dark hair and a grey sweatshirt sits in a clinic setting, speaking directly to the camera. He is positioned against a red wall with shelves in the background.",
       "captionText": "Every conversation in this space matters — what you share here stays here, and that trust is something I never take for granted.",
+      "createdAt": "2026-05-30T04:16:19.715517+00:00",
       "overall": 4,
       "breakdown": {
         "said_fidelity": 1,
@@ -52,10 +55,13 @@
     },
     {
       "packageId": "3e29b709-533f-49cc-b9e8-8159dd0aee98",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
       "workspaceName": "Move Better",
+      "staffId": null,
       "staffName": "unknown staff",
       "topic": "zach",
       "captionText": "I love working with clients like Zach who understand that movement isn't just exercise—it's a way to feel more connected to your body and more confident in your daily life. Watching someone discover what their body is truly capable of never gets old.",
+      "createdAt": "2026-05-28T04:05:32.262308+00:00",
       "overall": 5.75,
       "breakdown": {
         "said_fidelity": 5,
@@ -73,10 +79,13 @@
     },
     {
       "packageId": "ce9e497f-cff1-462c-8500-aabfd7449f8b",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
       "workspaceName": "Move Better",
+      "staffId": null,
       "staffName": "unknown staff",
       "topic": "zach",
       "captionText": "I love working with clients like Zach who bring genuine enthusiasm to their movement practice—that energy is contagious and makes the healing work so much more effective. When someone shows up with a smile and real commitment, that's when the transformations happen.",
+      "createdAt": "2026-05-28T03:52:23.052655+00:00",
       "overall": 5.25,
       "breakdown": {
         "said_fidelity": 5,
@@ -94,10 +103,13 @@
     },
     {
       "packageId": "3287e5bd-98c4-4d37-83e3-5502df6f2adc",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
       "workspaceName": "Move Better",
+      "staffId": null,
       "staffName": "unknown staff",
       "topic": "deadlift hinge mechanics",
       "captionText": "The hip hinge is where it all starts—when you nail this movement pattern, everything from your deadlift to your daily life becomes more resilient and powerful. Notice how the hips travel backward rather than the knees diving forward; this simple shift completely changes what muscles do the work.",
+      "createdAt": "2026-05-28T03:31:27.384458+00:00",
       "overall": 4.5,
       "breakdown": {
         "said_fidelity": 2,
@@ -115,10 +127,13 @@
     },
     {
       "packageId": "597083a4-c407-4a48-ac55-1e481abd1677",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
       "workspaceName": "Move Better",
+      "staffId": null,
       "staffName": "unknown staff",
       "topic": "deadlift",
       "captionText": "The deadlift is one of the most honest movements we have—it reveals exactly where your body needs attention and builds resilience from the ground up. When your hinge pattern is solid, everything else in life becomes easier to carry.",
+      "createdAt": "2026-05-28T01:49:49.742143+00:00",
       "overall": 6.25,
       "breakdown": {
         "said_fidelity": 5,
@@ -136,10 +151,13 @@
     },
     {
       "packageId": "48605093-993f-4b1e-9677-79b6e62b6e95",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
       "workspaceName": "Move Better",
+      "staffId": null,
       "staffName": "unknown staff",
       "topic": "deadlift",
       "captionText": "The deadlift teaches us so much about how we move through life—it's a conversation between your body and the ground, revealing patterns of strength and imbalance we didn't even know existed. When done with intention, this one movement becomes both a powerful assessment tool and a gateway to better movement quality.",
+      "createdAt": "2026-05-28T01:45:22.526223+00:00",
       "overall": 5.75,
       "breakdown": {
         "said_fidelity": 5,
@@ -157,10 +175,13 @@
     },
     {
       "packageId": "3a7e179a-f79e-47ed-b83e-ea772f9329e1",
+      "workspaceId": "76faa447-b1f4-4038-babc-4d86536b049d",
       "workspaceName": "Move Better",
+      "staffId": null,
       "staffName": "unknown staff",
       "topic": "deadlift",
       "captionText": "The deadlift remains one of the most honest movements we can perform—it demands proper mechanics, core stability, and respect for the load. When done well, it's not just building strength, it's teaching your body how to move safely through real-world demands.",
+      "createdAt": "2026-05-27T21:03:31.343622+00:00",
       "overall": 6,
       "breakdown": {
         "said_fidelity": 5,

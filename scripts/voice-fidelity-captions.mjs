@@ -42,6 +42,7 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { generateText } from 'ai'
+import { buildFidelityPrompt, parseFidelity, FIDELITY_DIMENSIONS } from '../api/_lib/captionFidelityRubric.js'
 
 // ── env ──────────────────────────────────────────────────────────────────────
 const envText = await readFile('.env.local', 'utf8').catch(() => '')
@@ -124,8 +125,11 @@ console.log(`  ✓ Voice phrases: ${phraseRows.length} across ${Object.keys(phra
 
 // Story packages
 let packages = []
+// select includes the source asset's transcription (the faithfulness reference)
+// via PostgREST resource embedding, so the rubric can grade said_fidelity.
+const PKG_SELECT = 'id,workspace_id,staff_id,topic,caption_text,status,created_at,source_asset:media_assets(transcription)'
 if (PACKAGE_ID) {
-  packages = await sbGet(`story_packages?id=eq.${PACKAGE_ID}&select=id,workspace_id,staff_id,topic,caption_text,status,created_at`)
+  packages = await sbGet(`story_packages?id=eq.${PACKAGE_ID}&select=${PKG_SELECT}`)
   if (!packages.length) { console.error(`Package ${PACKAGE_ID} not found`); process.exit(1) }
   // Verify it belongs to one of our in-scope workspaces.
   if (!wsIds.includes(packages[0].workspace_id)) {
@@ -136,7 +140,7 @@ if (PACKAGE_ID) {
   const statusIn = STATUS_FILTER.length === 1 ? `status=eq.${STATUS_FILTER[0]}` : `status=in.(${STATUS_FILTER.join(',')})`
   const perWsLimit = Math.max(1, Math.ceil(LIMIT / wsIds.length))
   for (const wsId of wsIds) {
-    let p = `story_packages?workspace_id=eq.${wsId}&${statusIn}&select=id,workspace_id,staff_id,topic,caption_text,status,created_at&order=created_at.desc&limit=${perWsLimit}`
+    let p = `story_packages?workspace_id=eq.${wsId}&${statusIn}&select=${PKG_SELECT}&order=created_at.desc&limit=${perWsLimit}`
     if (SINCE) p += `&created_at=gte.${SINCE}`
     const rows = await sbGet(p)
     packages.push(...rows)
@@ -144,44 +148,6 @@ if (PACKAGE_ID) {
   packages = packages.slice(0, LIMIT)
 }
 console.log(`  ✓ Packages to score: ${packages.length}`)
-
-// ── Evaluator ─────────────────────────────────────────────────────────────────
-function buildEvalPrompt({ topic, caption, staffName, phrases, workspaceName }) {
-  const phraseExamples = (phrases || []).slice(0, 8).map((p) => `- "${p.phrase}"`).join('\n')
-  const hasPhrases = phraseExamples.length > 0
-
-  return {
-    system:
-`You are a precise content quality evaluator for SHORT social-distribution copy
-(captions + thumbnail titles). Score the package on multiple voice fidelity
-dimensions. Return ONLY valid JSON — no markdown, no preamble, no commentary.`,
-    user:
-`Evaluate this story package — a thumbnail title + accompanying caption that
-will be burned into video subtitles and posted as the social caption. Written
-for ${staffName} at ${workspaceName}.
-
-${hasPhrases
-  ? `CLINICIAN'S AUTHENTIC VOICE PHRASES (use these to judge fidelity):
-${phraseExamples}`
-  : `(No voice phrases on record for this clinician yet — score voice_fidelity at 5 if you can't compare.)`}
-
-TITLE (thumbnail text, ${(topic || '').length} chars):
-"${topic || ''}"
-
-CAPTION (subtitle + social copy, ${(caption || '').length} chars):
-"${caption || ''}"
-
-Score each dimension 1–10 and return this exact JSON shape (no other keys):
-{
-  "voice_fidelity": <1-10; rhythm + word choice match to the voice phrases above${hasPhrases ? '' : '; score 5 if no phrases'}>,
-  "clinical_texture": <1-10; sounds like a real practitioner, not generic content-mill>,
-  "redundancy": <1-10 INVERSE — 10=tight no repetition, 1=title and caption restate each other>,
-  "specificity": <1-10; concrete vs vague (real anatomy, technique names, situations, not platitudes)>,
-  "brand_fit": <1-10; feels like an authentic practice voice, not a corporate template>,
-  "red_flag": "<one short phrase: the single biggest issue, or 'none'>"
-}`,
-  }
-}
 
 // ── Main scoring loop ─────────────────────────────────────────────────────────
 console.log(`\n🔬 Scoring ${packages.length} packages with ${EVAL_MODEL}…\n`)
@@ -207,12 +173,15 @@ for (let i = 0; i < packages.length; i++) {
 
   process.stdout.write(`  [${i + 1}/${packages.length}] ${pkg.id.slice(0, 8)} ${cName.slice(0, 18).padEnd(18)} `)
 
+  const transcript = String(pkg.source_asset?.transcription || '').trim()
+
   try {
-    const evalPrompt = buildEvalPrompt({
+    const evalPrompt = buildFidelityPrompt({
       topic: topicText,
       caption: captionText,
-      staffName: cName,
+      transcript,
       phrases,
+      staffName: cName,
       workspaceName: wName,
     })
 
@@ -220,34 +189,22 @@ for (let i = 0; i < packages.length; i++) {
       model: EVAL_MODEL,
       system: evalPrompt.system,
       messages: [{ role: 'user', content: evalPrompt.user }],
-      maxOutputTokens: 220,
+      maxOutputTokens: 240,
     })
 
-    let evalResult = {}
-    try {
-      evalResult = JSON.parse(text.trim())
-    } catch {
-      const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-      try { evalResult = JSON.parse(cleaned) } catch { /* ignore */ }
-    }
-
-    const dims = ['voice_fidelity', 'clinical_texture', 'redundancy', 'specificity', 'brand_fit']
-    const validDims = dims.filter((d) => typeof evalResult[d] === 'number')
-    const overall = validDims.length
-      ? Number((validDims.reduce((s, d) => s + evalResult[d], 0) / validDims.length).toFixed(2))
-      : null
-
-    const breakdown = {
-      voice_fidelity:   evalResult.voice_fidelity   ?? null,
-      clinical_texture: evalResult.clinical_texture ?? null,
-      redundancy:       evalResult.redundancy       ?? null,
-      specificity:      evalResult.specificity      ?? null,
-      brand_fit:        evalResult.brand_fit        ?? null,
-      red_flag:         evalResult.red_flag         || null,
-      has_phrases:      phrases.length > 0,
-      phrase_count:     phrases.length,
-      scored_at:        new Date().toISOString(),
-      model:            EVAL_MODEL,
+    const parsed = parseFidelity(text, {
+      has_phrases:    phrases.length > 0,
+      phrase_count:   phrases.length,
+      has_transcript: transcript.length > 0,
+      scored_at:      new Date().toISOString(),
+      model:          EVAL_MODEL,
+      rubric:         'faithfulness-v2',
+    })
+    const overall = parsed?.overall ?? null
+    const breakdown = parsed?.breakdown ?? {
+      ...Object.fromEntries(FIDELITY_DIMENSIONS.map((d) => [d, null])),
+      red_flag: null, has_phrases: phrases.length > 0, phrase_count: phrases.length,
+      has_transcript: transcript.length > 0, scored_at: new Date().toISOString(), model: EVAL_MODEL,
     }
 
     scored.push({
@@ -278,7 +235,7 @@ for (let i = 0; i < packages.length; i++) {
       }
     }
 
-    console.log(`${overall != null ? `${overall}/10` : '  ?'}  ${evalResult.red_flag || ''}`)
+    console.log(`${overall != null ? `${overall}/10` : '  ?'}  ${breakdown.red_flag || ''}`)
   } catch (err) {
     console.error(`ERROR: ${err.message}`)
     skipped++
