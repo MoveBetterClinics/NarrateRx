@@ -22,6 +22,7 @@ import { StaffChip } from '@/components/StaffChip'
 import ReferencesPanel from '@/components/ReferencesPanel'
 import ExcludeFromBookToggle from '@/components/book/ExcludeFromBookToggle'
 import { useWorkspace } from '@/lib/WorkspaceContext'
+import { usePermissionTier } from '@/lib/usePermissionTier'
 import {
   defaultAudienceSlots,
   defaultStoryTypeSlots,
@@ -219,6 +220,7 @@ export default function StoryDetail() {
   }, [view])
   const { workspace } = useWorkspace()
   const { user } = useUser()
+  const { isOwner } = usePermissionTier()
   const updateInterview = useUpdateInterview()
   const deleteInterview = useDeleteInterview()
 
@@ -371,7 +373,7 @@ export default function StoryDetail() {
           <div className="flex items-center gap-3 shrink-0">
             <ExcludeFromBookToggle sourceTable="interviews" sourceId={story.id} variant="header" />
             <TranscriptExport story={story} />
-            {user?.id === story.owner_id && (
+            {(user?.id === story.owner_id || isOwner) && (
               <Button
                 variant="ghost"
                 size="sm"

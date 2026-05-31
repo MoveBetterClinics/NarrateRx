@@ -439,7 +439,12 @@ export default async function handler(req, res) {
     if (!chk.ok) return dbErr(res, chk)
     const rows = await chk.json()
     if (!rows.length) return err(res, 'Not found', 404)
-    if (rows[0].owner_id !== userId) return err(res, 'Forbidden', 403)
+    if (rows[0].owner_id !== userId) {
+      // Workspace owners can delete any story in their workspace.
+      const tierChk = await sb(`staff?user_id=eq.${encodeURIComponent(userId)}&${wsFilter}&select=permission_tier&limit=1`)
+      const tierRows = tierChk.ok ? await tierChk.json() : []
+      if (tierRows[0]?.permission_tier !== 'owner') return err(res, 'Forbidden', 403)
+    }
 
     // Block deletion if any content items from this interview have been
     // published. The guard exists because "published" normally means
