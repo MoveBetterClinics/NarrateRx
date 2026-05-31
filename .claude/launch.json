@@ -26,6 +26,12 @@
       "port": 5177
     },
     {
+      "name": "feat-left-sidebar-nav",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/qbook/Claude Projects/NarrateRx-worktrees/feat-left-sidebar-nav", "run", "dev", "--", "--port", "5178"],
+      "port": 5178
+    },
+    {
       "name": "mockups",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "/Users/qbook/Claude Projects/NarrateRx/.claude/mockups", "-p", "5174", "--no-clipboard"],
