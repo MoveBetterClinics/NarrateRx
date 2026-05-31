@@ -25,8 +25,17 @@ for (const line of envText.split(/\r?\n/)) {
 const args = process.argv.slice(2)
 const workspaceSlug = args.find((a) => a.startsWith('--workspace='))?.split('=')[1]
 const DRY_RUN = args.includes('--dry-run')
+// Surgical recovery mode: only (re)index interview summaries that exist but
+// have no interview_summary chunk yet — the exact gap left by the 2026-05-30
+// indexing regression. Skips the transcript + content_item passes so recovery
+// doesn't needlessly re-embed the entire corpus.
+const MISSING_SUMMARIES_ONLY = args.includes('--missing-summaries-only')
 
-const need = ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'OPENAI_API_KEY']
+// OPENAI_API_KEY is only needed for real embedding work — a --dry-run preview
+// (which interviews are missing chunks) just reads the DB.
+const need = DRY_RUN
+  ? ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY']
+  : ['SUPABASE_URL', 'SUPABASE_SERVICE_KEY', 'OPENAI_API_KEY']
 for (const k of need) {
   if (!process.env[k] || process.env[k].includes('REDACTED')) {
     console.error(`Missing or redacted env: ${k}`)
@@ -75,6 +84,39 @@ for (const ws of workspaces) {
   }
   const interviews = await ivRes.json()
   console.log(`  interviews with summary: ${interviews.length}`)
+
+  if (MISSING_SUMMARIES_ONLY) {
+    const ids = interviews.map((iv) => iv.id)
+    let missing = interviews
+    if (ids.length > 0) {
+      const haveRes = await sb(
+        `practice_memory_chunks?workspace_id=eq.${ws.id}&source_type=eq.interview_summary` +
+        `&source_id=in.(${ids.join(',')})&select=source_id`
+      )
+      const have = new Set(haveRes.ok ? (await haveRes.json()).map((r) => r.source_id) : [])
+      missing = interviews.filter((iv) => !have.has(iv.id))
+    }
+    console.log(`  missing interview_summary chunks: ${missing.length} (of ${interviews.length})`)
+    for (const iv of missing) {
+      if (DRY_RUN) {
+        console.log(`    [dry-run] would index ${iv.id} (${iv.created_at?.slice(0, 10)}) "${iv.topic || ''}"`)
+        totals.interviews += 1
+        continue
+      }
+      const r = await indexInterviewSummary({
+        workspaceId: ws.id,
+        staffId:     iv.staff_id,
+        interviewId: iv.id,
+        summaryText: iv.summary_text,
+        topic:       iv.topic,
+        createdAt:   iv.created_at,
+      })
+      totals.interviews += 1
+      console.log(`    ${iv.id} → ${JSON.stringify(r)}`)
+    }
+    continue // skip the transcript + content_item passes in recovery mode
+  }
+
   for (const iv of interviews) {
     if (DRY_RUN) {
       totals.interviews += 1

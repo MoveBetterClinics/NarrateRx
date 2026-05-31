@@ -120,8 +120,15 @@ export async function summarizeInterview({ interviewId, workspaceId, staffId, st
     console.info(`[interviewSummarizer] interview=${interviewId} summarized (${summary.length} chars)`)
 
     // Phase 5 Feature 2 PR3 — embed the summary so it joins the RAG corpus.
-    // Fire-and-forget; failures log but never break the summarization path.
-    indexInterviewSummary({
+    // This MUST be awaited. summarizeInterview is dispatched from the
+    // interview-completion PATCH via waitUntil(), which only keeps the function
+    // instance alive for work that is part of THIS promise. The previous bare
+    // fire-and-forget resolved summarizeInterview before the embed ran, so the
+    // platform froze the instance and the chunk was never written — every
+    // interview completed after the 2026-05-24 backfill landed summary_text but
+    // zero practice_memory_chunks. indexInterviewSummary never throws (it
+    // retries once and swallows internally), so awaiting it is safe.
+    const idxResult = await indexInterviewSummary({
       workspaceId,
       staffId,
       interviewId,
@@ -129,7 +136,8 @@ export async function summarizeInterview({ interviewId, workspaceId, staffId, st
       topic,
       createdAt:   new Date().toISOString(),
     })
+    console.info(`[interviewSummarizer] interview=${interviewId} indexed ${JSON.stringify(idxResult)}`)
   } catch (e) {
-    console.error(`[interviewSummarizer] interview=${interviewId} threw: ${e?.message}`)
+    console.error(`[interviewSummarizer] interview=${interviewId} threw: ${e?.stack || e?.message}`)
   }
 }

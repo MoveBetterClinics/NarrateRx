@@ -16,6 +16,11 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
+      # Vitest unit suite (tests/lib/**). Fast (~2s) and previously not gated in
+      # CI at all. Includes the practice-memory indexing regression guards that
+      # pin the waitUntil/await wiring fixed after the 2026-05-30 incident
+      # (summaries written but zero practice_memory_chunks).
+      - run: npm test
       - run: npm run build
       # Import every API handler source file to catch ERR_INTERNAL_ASSERTION
       # and other module-load-time crashes (sharp / jimp / native-module

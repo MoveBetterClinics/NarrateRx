@@ -12,6 +12,7 @@ import { enforceLimit } from '../_lib/ratelimit.js'
 import { extractConcepts } from '../_lib/conceptExtractor.js'
 import { extractVoicePhrases } from '../_lib/voicePhraseExtractor.js'
 import { indexContentItem } from '../_lib/practiceMemoryRag.js'
+import { waitUntil } from '@vercel/functions'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -183,39 +184,42 @@ export default async function handler(req, res) {
     const data = await r.json()
     const updated = data[0]
 
-    // Fire-and-forget concept extraction on approval (positive signal) and
-    // change-request (negative signal, demotes phrasings that got rejected).
+    // Off-request enrichment on approval (positive signal) and change-request
+    // (negative signal, demotes phrasings that got rejected). Registered with
+    // waitUntil() — a bare floating promise is frozen once the response is sent
+    // on Vercel's Node runtime, the same failure mode that stranded interview
+    // summaries out of the RAG corpus (see api/_lib/interviewSummarizer.js).
     if (updated && patch.status === 'approved' && updated.content?.trim()) {
-      extractConcepts({
+      waitUntil(extractConcepts({
         workspaceId:  ws.id,
         sourceKind:   'approved_edit',
         sourceId:     updated.id,
         text:         updated.content,
         staffId:  updated.staff_id ?? null,
         weightDelta:  1.5,
-      })
+      }))
       // Phase C.3 — feed approved content into the per-clinician voice phrase
       // substrate. No-ops without a staff_id (group-level pieces don't
       // contribute to any one voice profile).
       if (updated.staff_id) {
-        extractVoicePhrases({
+        waitUntil(extractVoicePhrases({
           workspaceId: ws.id,
           staffId: updated.staff_id,
           content:     updated.content,
-        })
+        }))
       }
       // Phase 5 Feature 2 PR3 — embed approved content into the RAG corpus.
-      indexContentItem({ workspaceId: ws.id, contentItemId: updated.id })
+      waitUntil(indexContentItem({ workspaceId: ws.id, contentItemId: updated.id }))
     } else if (updated && patch.status === 'in_review' && patch.notes?.trim() && updated.content?.trim()) {
       // Change request returned — mild negative signal on the rejected draft.
-      extractConcepts({
+      waitUntil(extractConcepts({
         workspaceId:  ws.id,
         sourceKind:   'rejected_edit',
         sourceId:     updated.id,
         text:         updated.content,
         staffId:  updated.staff_id ?? null,
         weightDelta:  -0.5,
-      })
+      }))
     }
 
     return ok(res, updated)
