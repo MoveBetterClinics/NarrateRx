@@ -61,6 +61,7 @@ export default function Onboarding() {
   // 0. Capacity check — runs once on mount. We only block on the response
   //    when spots are full; otherwise we drop straight to the auth step.
   useEffect(() => {
+    // eslint-disable-next-line narraterx/no-raw-api-fetch -- public capacity check; runs before sign-in (api/onboarding/capacity.js)
     fetch('/api/onboarding/capacity')
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -636,6 +637,7 @@ function BusinessScreen({ form, setForm, setField, scanState, setScanState, appl
   async function runScan() {
     setScanState({ status: 'scanning', error: null, sources: [], recent_topics: [], services: [] })
     try {
+      // eslint-disable-next-line narraterx/no-raw-api-fetch -- public onboarding scan; rate-limited, not auth-gated (api/onboarding/scan-website.js)
       const r = await fetch('/api/onboarding/scan-website', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -925,6 +927,7 @@ function SubdomainScreen({ form, setField, slugCheck, setSlugCheck, onBack, onCo
     }
     let cancelled = false
     setSlugCheck({ status: 'checking', available: null, reason: null })
+    // eslint-disable-next-line narraterx/no-raw-api-fetch -- public slug-availability check during onboarding (api/onboarding/check-slug.js)
     fetch('/api/onboarding/check-slug', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

@@ -6,6 +6,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import apiHandlerShape from './eslint/rules/api-handler-shape.js'
 import noRawUseMutation from './eslint/rules/no-raw-use-mutation.js'
 import noArbitraryTextSize from './eslint/rules/no-arbitrary-text-size.js'
+import noRawApiFetch from './eslint/rules/no-raw-api-fetch.js'
 
 export default [
   { ignores: ['dist/**', 'node_modules/**', 'playwright-report/**'] },
@@ -54,10 +55,15 @@ export default [
       'narraterx/api-handler-shape': 'error',
     },
   },
-  // Local rule: ban bare `useMutation` from @tanstack/react-query everywhere
-  // except the useAppMutation wrapper. useAppMutation injects a default
-  // onError toast so failed mutations are never silent (PRs #431, #436).
-  // Source: eslint/rules/no-raw-use-mutation.js.
+  // Local rules for client code (src/**):
+  //   no-raw-use-mutation   — ban bare `useMutation` from @tanstack/react-query
+  //     outside the useAppMutation wrapper, which injects a default onError
+  //     toast so failed mutations are never silent (PRs #431, #436).
+  //   no-arbitrary-text-size — ban text-[Npx] arbitrary sizes.
+  //   no-raw-api-fetch      — ban tokenless raw `fetch('/api/...')`; use
+  //     apiFetch so the Clerk bearer token is attached (the API ignores the
+  //     session cookie, so a tokenless call gets the slim/unauth shape — the
+  //     PR #1064 "settings won't save" bug). Source files in eslint/rules/.
   {
     files: ['src/**/*.{js,jsx}'],
     plugins: {
@@ -65,6 +71,7 @@ export default [
         rules: {
           'no-raw-use-mutation': noRawUseMutation,
           'no-arbitrary-text-size': noArbitraryTextSize,
+          'no-raw-api-fetch': noRawApiFetch,
         },
       },
     },
@@ -72,6 +79,7 @@ export default [
       'narraterx/no-raw-use-mutation': 'error',
       // Ban text-[Npx] arbitrary sizes — use text-3xs/text-2xs/Tailwind scale.
       'narraterx/no-arbitrary-text-size': 'error',
+      'narraterx/no-raw-api-fetch': 'error',
     },
   },
 ]
