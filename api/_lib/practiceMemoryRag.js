@@ -127,7 +127,7 @@ async function upsertChunks(rows) {
     embedding:     `[${r.embedding.join(',')}]`,
     topic_tags:    r.topicTags ?? [],
   }))
-  const r = await sb('practice_memory_chunks?on_conflict=source_type,source_id,chunk_index', {
+  const r = await sb('practice_memory_chunks?on_conflict=workspace_id,source_type,source_id,chunk_index', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(payload),
@@ -139,11 +139,15 @@ async function upsertChunks(rows) {
   return { count: rows.length }
 }
 
-async function deleteExtraChunks(sourceType, sourceId, keepCount) {
-  // When a re-index produces fewer chunks than a prior pass left behind,
-  // wipe the orphans so retrieval doesn't return stale text.
+async function deleteExtraChunks(workspaceId, sourceType, sourceId, keepCount) {
+  // When a re-index produces fewer chunks than a prior pass left behind, wipe
+  // the orphans so retrieval doesn't return stale text. Scoped to workspace_id:
+  // the same source_id can now legitimately exist in multiple workspaces (e.g.
+  // an interview indexed into its own workspace for Practice Mode AND into the
+  // qbook Author-Mode mirror), so an unscoped delete would wipe the other
+  // workspace's chunks. The unique key includes workspace_id (migration 112/113).
   const r = await sb(
-    `practice_memory_chunks?source_type=eq.${sourceType}&source_id=eq.${sourceId}&chunk_index=gte.${keepCount}`,
+    `practice_memory_chunks?workspace_id=eq.${workspaceId}&source_type=eq.${sourceType}&source_id=eq.${sourceId}&chunk_index=gte.${keepCount}`,
     { method: 'DELETE' }
   )
   if (!r.ok) {
@@ -216,7 +220,7 @@ export async function indexInterviewSummary({ workspaceId, staffId, interviewId,
     }])
     // Summary is always exactly 1 chunk — wipe any stale chunks from a
     // prior shape (defensive; never expected to fire).
-    await deleteExtraChunks('interview_summary', interviewId, 1)
+    await deleteExtraChunks(workspaceId, 'interview_summary', interviewId, 1)
     return { indexed: 1 }
   })
 }
@@ -277,7 +281,7 @@ export async function indexContentItem({ workspaceId, contentItemId }) {
     }).filter(Boolean)
 
     await upsertChunks(rows)
-    await deleteExtraChunks('content_item', row.id, rows.length)
+    await deleteExtraChunks(workspaceId, 'content_item', row.id, rows.length)
   } catch (e) {
     console.error(`[practiceMemoryRag] indexContentItem item=${contentItemId} threw: ${e?.stack || e?.message}`)
   }
@@ -451,7 +455,7 @@ export async function indexInterviewTranscriptFull({
     }).filter(Boolean)
 
     await upsertChunks(rows)
-    await deleteExtraChunks('interview_transcript_full', interviewId, rows.length)
+    await deleteExtraChunks(workspaceId, 'interview_transcript_full', interviewId, rows.length)
   } catch (e) {
     console.error(`[practiceMemoryRag] indexInterviewTranscriptFull interview=${interviewId} threw: ${e?.stack || e?.message}`)
   }
@@ -507,7 +511,7 @@ async function indexAuthoredProse({
     }).filter(Boolean)
 
     await upsertChunks(rows)
-    await deleteExtraChunks(sourceType, sourceId, rows.length)
+    await deleteExtraChunks(workspaceId, sourceType, sourceId, rows.length)
   } catch (e) {
     console.error(`[practiceMemoryRag] indexAuthoredProse type=${sourceType} sourceId=${sourceId} threw: ${e?.stack || e?.message}`)
   }

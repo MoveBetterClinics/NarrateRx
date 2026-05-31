@@ -12,6 +12,7 @@ import { buildPlanRows } from '../_lib/atomPlan.js'
 import { extractConcepts, buildInterviewText } from '../_lib/conceptExtractor.js'
 import { summarizeInterview } from '../_lib/interviewSummarizer.js'
 import { markBookStale } from '../_lib/bookStale.js'
+import { indexInterviewTranscriptFull } from '../_lib/practiceMemoryRag.js'
 import { waitUntil } from '@vercel/functions'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -348,6 +349,20 @@ export default async function handler(req, res) {
               staffName,
               topic:         topic,
               messages:      turns,
+            }))
+            // Author-Mode parity for Practice Mode — index the RAW transcript
+            // into THIS workspace so retrieval includes the clinician's verbatim
+            // words, not just the AI summary. Now that the unique key includes
+            // workspace_id (migrations 112/113), this coexists with the qbook
+            // Author-Mode cron's copy of Q's interviews instead of clobbering it.
+            waitUntil(indexInterviewTranscriptFull({
+              workspaceId:     ws.id,
+              staffId:         rows[0].staff_id ?? null,
+              interviewId:     id,
+              messages:        interviewForExtract.messages,
+              cleanedMessages: interviewForExtract.cleaned_messages,
+              topic,
+              createdAt:       rows[0].created_at,
             }))
           }
         }
