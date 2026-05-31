@@ -4,7 +4,11 @@ import { UserButton, useAuth, useClerk } from '@clerk/react'
 import { useQuery } from '@tanstack/react-query'
 import { useSelfStaffId } from '@/lib/useSelfStaffId'
 import { useEnsureSelfStaff } from '@/lib/useEnsureSelfStaff'
-import { Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard, Camera, ImagePlus } from 'lucide-react'
+import {
+  Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, ChevronLeft,
+  Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard, Camera, ImagePlus,
+  LayoutDashboard, Newspaper, FolderOpen,
+} from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
   Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose,
@@ -21,36 +25,47 @@ import TrialBanner from '@/components/TrialBanner'
 
 const APP_BYLINE = 'Voice-faithful clinical content'
 
-// Primary navigation. requiresCapability and showWhen/hideWhenBookMode work as
-// before — also respected in the mobile drawer.
+// Primary navigation. All items have icons so they render correctly when
+// the sidebar is in collapsed (icon-only) mode.
 const NAV_ITEMS = [
-  { to: '/',           label: 'Home',      match: (p) => p === '/',
+  { to: '/',           label: 'Home',        match: (p) => p === '/',                         icon: LayoutDashboard,
     requiresCapability: CAP_INTERVIEW_START },
-  { to: '/stories',    label: 'Stories',   match: (p) => p.startsWith('/stories'),
+  { to: '/stories',    label: 'Stories',     match: (p) => p.startsWith('/stories'),           icon: Newspaper,
     requiresCapability: CAP_INTERVIEW_START },
-  { to: '/library',    label: 'Library',   match: (p) => p.startsWith('/library') },
-  { to: '/needs-media', label: 'Needs Media', match: (p) => p.startsWith('/needs-media'), icon: ImagePlus },
-  { to: '/capture',    label: 'Capture',   match: (p) => p.startsWith('/capture'), icon: Camera },
-  { to: '/pre-visit',  label: 'Pre-Visit', match: (p) => p.startsWith('/pre-visit'), icon: Mic2,
+  { to: '/library',    label: 'Library',     match: (p) => p.startsWith('/library'),           icon: FolderOpen },
+  { to: '/needs-media', label: 'Needs Media', match: (p) => p.startsWith('/needs-media'),      icon: ImagePlus },
+  { to: '/capture',    label: 'Capture',     match: (p) => p.startsWith('/capture'),           icon: Camera },
+  { to: '/pre-visit',  label: 'Pre-Visit',   match: (p) => p.startsWith('/pre-visit'),         icon: Mic2,
     requiresCapability: CAP_INTERVIEW_START },
-  { to: '/book',       label: 'Book',      match: (p) => p.startsWith('/book'),  icon: BookOpen,
+  { to: '/book',       label: 'Book',        match: (p) => p.startsWith('/book'),              icon: BookOpen,
     requiresCapability: CAP_INTERVIEW_START },
-  { to: '/write',      label: 'Write',     match: (p) => p.startsWith('/write'), icon: PenLine,
+  { to: '/write',      label: 'Write',       match: (p) => p.startsWith('/write'),             icon: PenLine,
     hideWhenBookMode: 'group', requiresCapability: CAP_INTERVIEW_START },
-  { to: '/slate',      label: 'Slate',     match: (p) => p.startsWith('/slate'), icon: Clapperboard,
+  { to: '/slate',      label: 'Slate',       match: (p) => p.startsWith('/slate'),             icon: Clapperboard,
     showWhen: (ws) => ws?.video_pipeline_enabled === true },
 ]
+
+function readCollapsed() {
+  try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch (_e) { return false }
+}
 
 export default function Layout({ children }) {
   const location = useLocation()
   const { role } = useUserRole()
   const { has: hasCapability } = usePermission()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(readCollapsed)
   const ws = useWorkspace()
   const selfStaffId = useSelfStaffId()
   useEnsureSelfStaff()
   const logoSrc = ws?.primary_logo_url || ws?.logo?.main || STATIC_WORKSPACE.logo.main
   const logoAlt = ws?.display_name || ws?.name || STATIC_WORKSPACE.name
+
+  function toggleSidebar() {
+    const next = !collapsed
+    setCollapsed(next)
+    try { localStorage.setItem('sidebar-collapsed', String(next)) } catch (_e) { /* non-critical */ }
+  }
 
   const navItems = NAV_ITEMS.filter((it) => {
     if (it.requiresCapability && !hasCapability(it.requiresCapability)) return false
@@ -59,31 +74,43 @@ export default function Layout({ children }) {
     return true
   })
 
+  const sidebarW = collapsed ? 'w-14' : 'w-56'
+  const contentML = collapsed ? 'md:ml-14' : 'md:ml-56'
+
   return (
     <div className="min-h-screen bg-background flex">
 
       {/* ── Left sidebar — desktop only ─────────────────────────────────── */}
-      <aside className="hidden md:flex fixed inset-y-0 left-0 w-56 flex-col border-r bg-white z-30">
+      <aside className={`hidden md:flex fixed inset-y-0 left-0 ${sidebarW} flex-col border-r bg-white z-30 transition-[width] duration-200`}>
+
         {/* Logo */}
-        <div className="h-14 px-4 flex items-center gap-2.5 border-b shrink-0">
-          <Link to="/" className="flex items-center gap-2.5 min-w-0">
-            <img src={logoSrc} alt={logoAlt} className="h-8 w-auto shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm font-semibold leading-none truncate">NarrateRx</p>
-              <p className="text-3xs text-muted-foreground mt-0.5 leading-none truncate" title={APP_BYLINE}>
-                {APP_BYLINE}
-              </p>
-            </div>
-          </Link>
+        <div className={`h-14 border-b shrink-0 flex items-center ${collapsed ? 'justify-center px-0' : 'px-4 gap-2.5'}`}>
+          {collapsed ? (
+            <Link to="/" aria-label="Home">
+              <img src={logoSrc} alt={logoAlt} className="h-8 w-auto" />
+            </Link>
+          ) : (
+            <Link to="/" className="flex items-center gap-2.5 min-w-0">
+              <img src={logoSrc} alt={logoAlt} className="h-8 w-auto shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold leading-none truncate">NarrateRx</p>
+                <p className="text-3xs text-muted-foreground mt-0.5 leading-none truncate" title={APP_BYLINE}>
+                  {APP_BYLINE}
+                </p>
+              </div>
+            </Link>
+          )}
         </div>
 
-        {/* Workspace switcher — only rendered when user has >1 workspace */}
-        <div className="px-3 pt-2">
-          <WorkspaceSwitcher inSidebar />
-        </div>
+        {/* Workspace switcher — hidden when collapsed */}
+        {!collapsed && (
+          <div className="px-3 pt-2">
+            <WorkspaceSwitcher inSidebar />
+          </div>
+        )}
 
-        {/* Primary nav */}
-        <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
+        {/* Primary nav — overflow-visible when collapsed so tooltips aren't clipped */}
+        <nav className={`flex-1 px-2 py-2 space-y-0.5 ${collapsed ? 'overflow-visible' : 'overflow-y-auto'}`}>
           {navItems.map((item) => (
             <SidebarNavLink
               key={item.to}
@@ -91,11 +118,12 @@ export default function Layout({ children }) {
               label={item.label}
               active={item.match(location.pathname)}
               icon={item.icon}
+              collapsed={collapsed}
             />
           ))}
         </nav>
 
-        {/* Bottom section: secondary links + user button */}
+        {/* Bottom section: secondary links + user button + collapse toggle */}
         <div className="border-t px-2 py-2 space-y-0.5">
           {role === 'admin' && (
             <SidebarNavLink
@@ -103,6 +131,7 @@ export default function Layout({ children }) {
               label="Knowledge synthesis"
               icon={Layers}
               active={location.pathname.startsWith('/synthesis')}
+              collapsed={collapsed}
             />
           )}
           {hasCapability(CAP_SETTINGS_VIEW) && (
@@ -111,6 +140,7 @@ export default function Layout({ children }) {
               label="Settings"
               icon={Settings}
               active={location.pathname.startsWith('/settings')}
+              collapsed={collapsed}
             />
           )}
           {selfStaffId && hasCapability(CAP_INTERVIEW_START) && (
@@ -119,24 +149,38 @@ export default function Layout({ children }) {
               label="My profile"
               icon={UserCircle}
               active={location.pathname.startsWith(`/staff/${selfStaffId}`)}
+              collapsed={collapsed}
             />
           )}
-          <div className="pt-2 px-1">
+
+          {/* UserButton */}
+          <div className={`pt-1 ${collapsed ? 'flex justify-center' : 'px-1'}`}>
             <UserButton afterSignOutUrl="/" userProfileUrl="/account" />
           </div>
+
+          {/* Collapse toggle */}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            className={`flex items-center gap-2 py-2 w-full rounded-md text-xs text-muted-foreground hover:bg-accent/40 hover:text-foreground transition-colors ${collapsed ? 'justify-center px-0' : 'px-3'}`}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <ChevronLeft className={`h-4 w-4 shrink-0 transition-transform duration-200 ${collapsed ? 'rotate-180' : ''}`} />
+            {!collapsed && <span>Collapse</span>}
+          </button>
         </div>
       </aside>
 
       {/* ── Right column: slim header + content ─────────────────────────── */}
-      <div className="flex-1 md:ml-56">
+      <div className={`flex-1 ${contentML} transition-[margin-left] duration-200`}>
         {/* h-14 keeps SettingsLayout's sticky top-14 / min-h-[calc(100dvh-3.5rem)] correct */}
         <header className="sticky top-0 z-40 h-14 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm flex items-center gap-3 px-4 sm:px-6">
-          {/* Logo — mobile only (desktop logo lives in the sidebar) */}
+          {/* Logo — mobile only */}
           <Link to="/" className="md:hidden flex items-center gap-2 min-w-0">
             <img src={logoSrc} alt={logoAlt} className="h-8 w-auto shrink-0" />
           </Link>
 
-          {/* Workspace switcher in header for mobile */}
+          {/* Workspace switcher — mobile only */}
           <div className="md:hidden">
             <WorkspaceSwitcher />
           </div>
@@ -246,8 +290,7 @@ export default function Layout({ children }) {
 }
 
 // WorkspaceSwitcher — renders nothing when the user has only one workspace.
-// inSidebar=true: removes hidden sm:block so it fills the sidebar width;
-// the mobile header instance wraps with md:hidden so no double-render on desktop.
+// inSidebar=true: fills sidebar width; mobile header instance is md:hidden.
 function WorkspaceSwitcher({ inSidebar = false }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -342,19 +385,27 @@ function WorkspaceSwitcher({ inSidebar = false }) {
   )
 }
 
-// Vertical sidebar nav link.
-function SidebarNavLink({ to, label, active, icon: Icon }) {
+// Vertical sidebar nav link. When collapsed, shows only the icon with a
+// hover tooltip to the right (overflow-visible on the parent nav prevents
+// clipping of the absolute-positioned tooltip).
+function SidebarNavLink({ to, label, active, icon: Icon, collapsed }) {
+  const base = `flex items-center rounded-md text-sm font-medium transition-colors group relative
+    ${active ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`
+
   return (
     <Link
       to={to}
-      className={`flex items-center gap-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-        active
-          ? 'bg-primary/10 text-primary'
-          : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'
-      }`}
+      className={`${base} ${collapsed ? 'justify-center py-2 px-0' : 'gap-2.5 px-3 py-2'}`}
     >
       {Icon && <Icon className="h-4 w-4 shrink-0" />}
-      {label}
+      {!collapsed && label}
+      {collapsed && (
+        <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium bg-popover border border-border text-popover-foreground rounded-md shadow-md
+                         invisible group-hover:visible opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[200]
+                         transition-opacity duration-150">
+          {label}
+        </span>
+      )}
     </Link>
   )
 }
