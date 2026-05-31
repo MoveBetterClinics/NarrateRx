@@ -1779,19 +1779,26 @@ export default function AssetsPane({
   view: viewProp,
   onViewChange,
 }) {
+  const workspace = useWorkspace()
   // Sort so series parts appear in series_part order within their series.
   // The content API returns rows by created_at.desc, which doesn't match
   // series_part ordering, so without this the tabs would render as e.g.
   // [Part 2, Part 1, Part 3] while the SeriesBadge below shows the true part.
+  // Also filter to only channels active in this story's plan (selected_outputs
+  // overrides workspace enabled_outputs; fall back to showing all if unknown).
   const pieces = useMemo(() => {
     const base = story?.pieces ?? []
-    return [...base].sort((a, b) => {
+    const activeChannels = story?.selected_outputs ?? workspace?.enabled_outputs ?? null
+    const filtered = activeChannels
+      ? base.filter((p) => activeChannels.includes(p.platform))
+      : base
+    return [...filtered].sort((a, b) => {
       if (a.series_id && a.series_id === b.series_id) {
         return (a.series_part || 0) - (b.series_part || 0)
       }
       return 0
     })
-  }, [story?.pieces])
+  }, [story?.pieces, story?.selected_outputs, workspace?.enabled_outputs])
   const [searchParams, setSearchParams] = useSearchParams()
   const pieceParam = searchParams.get('piece')
   const initialIdx = pieceParam
