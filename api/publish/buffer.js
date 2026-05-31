@@ -250,7 +250,9 @@ async function handler(req, res) {
     : channelIds.map((channelId) => ({ id: null, channelId }))
   const posts = []
   for (const { id: locationId, channelId } of fanOut) {
-    const postText = (locationId && locationContents?.[locationId]) ? locationContents[locationId] : content
+    const rawText = (locationId && locationContents?.[locationId]) ? locationContents[locationId] : content
+    // GBP enforces a 1500-character hard cap on post summaries.
+    const postText = platform === 'gbp' ? rawText.slice(0, 1500) : rawText
     const input = {
       channelId,
       text: postText,
