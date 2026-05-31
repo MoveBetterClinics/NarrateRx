@@ -292,6 +292,15 @@ Three complementary commands cover code/UI/prod health:
 
 Pair `/audit` with `/schedule` for an automated weekly run; reserve `/auditfull` for monthly or pre-release passes.
 
+## `.claude/` directory — scratch vs. keep
+
+The untracked `.claude/` directory mixes two kinds of files; do NOT bulk-delete it as "scratch." Before deleting anything here, classify:
+
+- **Regenerable scratch (safe to delete)** — outputs that have a committed generator: eval results (`eval-v6.mjs`), smoke reports (`g6-video-onboarding-smoke.mjs`), prompt-eval logs (`prompt-eval-harness.mjs`), voice-fidelity dumps. Rule of thumb: there's a `scripts/*.mjs` that re-creates it.
+- **Human-authored, irreplaceable (keep)** — design/planning docs with no generator: `*-spec.md`, `*-plan.md`, `*-sketch.md`, mockup `*.html`. These are real work (one was literally "awaiting owner sign-off") and are never re-derivable. Treat them like source.
+
+These are untracked, so `rm` is unrecoverable (see ~/.claude/CLAUDE.md "Deleting files — untracked means unrecoverable"). When in doubt, leave it or ask — the cost of keeping a stale scratch file is zero; the cost of deleting a spec is the whole document.
+
 ## Definition of Done
 Every PR must satisfy this checklist before merging. The triage on 2026-05-14 traced 12+ bugs to exactly these gaps being skipped.
 

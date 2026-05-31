@@ -139,3 +139,11 @@ Append-only list of out-of-scope ideas that surfaced during sessions. Not a road
 - **Effort:** ~2 days for architecture + table migration + route refactor; another ~1 day each for F#4 PRs 2–4 (template, email, audio) once the home exists; F#5 builds on the same pattern (~3 weeks scoped previously)
 - **Trigger to revisit:** Move Better wants in-clinic handouts for real (post-visit workflow becomes a repeated need), OR external tenant asks for patient-facing outputs, OR Phase 5 wraps and we're ready for the deeper PHI-aware feature set
 - **Status:** Parked
+
+## Idea: One-click "long-form + auto social trickle" combo
+- **Surfaced:** 2026-05-30 (during keep-whole chunked-render plan)
+- **Area:** "Use whole video" lane (render-longform.js) + "Find clips" lane (render-segments.js / ClipFinder in MediaDetail.jsx); story_packages + campaigns
+- **TLDR:** A single action on an uploaded long talk that produces BOTH the keep-whole landscape master AND a set of short vertical social clips, bundled as one campaign/trickle. Today these are two separate buttons run manually on the same source; the feature would tie them into one click and ideally schedule the short clips as a drip behind the long-form publish (long-form on YouTube, shorts dripped to social).
+- **Effort:** ~2–3 days (new combined action + bundling the two existing lanes into one campaign + optional drip scheduling on the publish path)
+- **Trigger to revisit:** After the whole-video uncap (chunked render) lands AND a real long talk has been driven through both lanes manually — i.e. once the "run both, then schedule" flow proves itself worth automating, OR Q finds doing the two clicks + manual scheduling repeatedly annoying on real seminar uploads.
+- **Status:** Parked

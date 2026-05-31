@@ -31,3 +31,7 @@ tests/e2e/.auth/
 # Local test/sample media (recordings, screenshots, zips used in dev sessions)
 data/
 _voice-samples/
+
+# Python bytecode cache (from scripts/*.py)
+__pycache__/
+*.pyc
