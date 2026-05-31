@@ -27,6 +27,28 @@ function sb(path, init = {}) {
 }
 
 /**
+ * True when a "topic" carries no real meaning and would derail the model into
+ * asking what it means — camera filenames ("P1109330.MP4"), codes ("C0113"),
+ * IMG_xxxx, bare serials. The 2/10 meta-request happened because one of these
+ * was passed as `Topic:` at the TOP of the prompt: the model reads it first and
+ * fixates on it before reaching the transcript. The fix is to detect these and
+ * keep them OUT of the prompt entirely, letting the transcript / clip context
+ * lead. Exported for unit testing.
+ */
+export function isOpaqueTopic(t) {
+  const s = String(t || '').trim()
+  if (!s) return true
+  // File with a media/image extension.
+  if (/\.(mp4|mov|m4v|avi|mkv|webm|jpe?g|png|heic|heif|webp|gif)$/i.test(s)) return true
+  // Single token (no spaces) containing a digit, reasonably short → code/serial
+  // (C0113, IMG_2231, DSC0001, 8f3a2b). Real topics have spaces or are words.
+  if (!/\s/.test(s) && /\d/.test(s) && s.length <= 20) return true
+  // Camera-style prefix + run of digits, even with a separator (P 1109330).
+  if (/^[A-Za-z]{1,4}[\s_-]?\d{4,}$/.test(s)) return true
+  return false
+}
+
+/**
  * Generate a compelling 1-2 sentence caption.
  * V6: when practiceChunks are available, injects the clinician's prior
  * framing so the caption echoes their actual voice on this topic.
