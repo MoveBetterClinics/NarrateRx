@@ -24,6 +24,7 @@ import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { renderAndPatchPackage } from '../_lib/renderPackageChannels.js'
+import { generateCaption } from '../_lib/captionGen.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -71,7 +72,7 @@ export default async function handler(req, res) {
   const inList = segmentIds.map((id) => `"${id}"`).join(',')
   const segRes = await sb(
     `video_segments?id=in.(${inList})&workspace_id=eq.${ws.id}` +
-      `&select=id,source_asset_id,staff_id,start_sec,end_sec,hook,status,story_package_id,campaign_id,` +
+      `&select=id,source_asset_id,staff_id,start_sec,end_sec,hook,transcript_excerpt,status,story_package_id,campaign_id,` +
       `source_asset:media_assets(id,kind,blob_url,filename,archived_at)`,
   )
   if (!segRes.ok) return res.status(500).json({ error: 'db_error' })
@@ -107,7 +108,13 @@ export default async function handler(req, res) {
 
     const startSec = Number(seg.start_sec) || 0
     const durationSec = Math.max(1, (Number(seg.end_sec) || 0) - startSec)
-    const captionText = String(seg.hook || '').slice(0, 500)
+    const hook = String(seg.hook || '').slice(0, 500)
+    const transcriptExcerpt = String(seg.transcript_excerpt || '').trim()
+    // Placeholder caption seeded on insert; the real voice-faithful caption is
+    // generated off the request path (below) from the segment's own transcript +
+    // the clinician's voice phrases, then PATCHed before render. Using the hook
+    // here means the Slate card never shows an empty caption while it generates.
+    const captionText = hook
     const staffName = staffNames[seg.staff_id] || ''
 
     // Create the story package row (status='generating') so the Slate card
@@ -147,24 +154,48 @@ export default async function handler(req, res) {
       body: JSON.stringify({ status: 'rendered', story_package_id: packageId }),
     }).catch(() => {})
 
-    // Render off the request path — the ≤60s window via -ss/-t. The Slate polls
-    // story_packages until status flips complete/failed.
+    // Off the request path: (1) generate the voice-faithful caption from the
+    // segment's OWN transcript + the clinician's voice phrases, (2) PATCH it onto
+    // the row so the Slate shows it, (3) render the ≤60s window with that caption
+    // burned in. Caption generation is best-effort — on any failure we keep the
+    // hook so a clip never fails to render just because captioning hiccuped.
     waitUntil(
-      renderAndPatchPackage({
-        workspace: ws,
-        packageId,
-        sourceUrl: asset.blob_url,
-        sourceAssetId: asset.id,
-        kind: 'video',
-        channels: DEFAULT_VIDEO_CHANNELS,
-        captionText,
-        staffName,
-        filename: asset.filename,
-        topic: captionText,
-        staffId: seg.staff_id || null,
-        startSec,
-        durationSec,
-      }),
+      (async () => {
+        let finalCaption = hook
+        try {
+          const generated = await generateCaption({
+            topic: hook || 'Clip',
+            clip: {},
+            workspace: ws,
+            staffId: seg.staff_id || null,
+            clipTranscript: transcriptExcerpt,
+          })
+          if (generated && generated.trim()) {
+            finalCaption = generated.trim().slice(0, 500)
+            await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
+              method: 'PATCH',
+              body: JSON.stringify({ caption_text: finalCaption }),
+            }).catch(() => {})
+          }
+        } catch (e) {
+          console.error('[render-segments] caption gen failed, using hook:', e?.stack || e?.message)
+        }
+        return renderAndPatchPackage({
+          workspace: ws,
+          packageId,
+          sourceUrl: asset.blob_url,
+          sourceAssetId: asset.id,
+          kind: 'video',
+          channels: DEFAULT_VIDEO_CHANNELS,
+          captionText: finalCaption,
+          staffName,
+          filename: asset.filename,
+          topic: hook || finalCaption,
+          staffId: seg.staff_id || null,
+          startSec,
+          durationSec,
+        })
+      })(),
     )
 
     packages.push({ segmentId: seg.id, packageId, status: 'generating' })
