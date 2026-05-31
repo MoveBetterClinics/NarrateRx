@@ -171,7 +171,7 @@ export default function SettingsLayout() {
   // workspace-scoped sections gate themselves internally.
   if (isLoading) {
     return (
-      <div className="min-h-[calc(100dvh-3.5rem)] flex items-center justify-center">
+      <div className="min-h-[calc(100dvh-3.5rem)] md:min-h-screen flex items-center justify-center">
         <LoadingState />
       </div>
     )
@@ -191,10 +191,10 @@ export default function SettingsLayout() {
   })
 
   return (
-    <div className="flex flex-col md:flex-row md:gap-8 min-h-[calc(100dvh-3.5rem)] max-w-[1600px] mx-auto md:px-4 xl:px-8">
+    <div className="flex flex-col md:flex-row md:gap-8 min-h-[calc(100dvh-3.5rem)] md:min-h-screen max-w-[1600px] mx-auto md:px-4 xl:px-8">
       {/* Desktop sidebar */}
       <aside className="hidden md:block w-52 shrink-0 pt-6 pr-2 border-r border-border">
-        <div className="sticky top-20 space-y-6">
+        <div className="sticky top-8 space-y-6">
           <div className="flex items-center gap-2 px-2.5 mb-1">
             <span
               className="inline-block w-1 h-5 rounded-full"

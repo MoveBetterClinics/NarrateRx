@@ -109,6 +109,18 @@ export default function Layout({ children }) {
           </div>
         )}
 
+        {/* New Interview — primary action at top of sidebar */}
+        {hasCapability(CAP_INTERVIEW_START) && (
+          <div className={`px-2 pt-2 pb-1 ${collapsed ? 'flex justify-center' : ''}`}>
+            <Button asChild size="sm" className={collapsed ? 'h-9 w-9 p-0' : 'w-full justify-start gap-2'}>
+              <Link to="/new" aria-label="New Interview">
+                <Plus className="h-4 w-4 shrink-0" />
+                {!collapsed && 'New Interview'}
+              </Link>
+            </Button>
+          </div>
+        )}
+
         {/* Primary nav — overflow-visible when collapsed so tooltips aren't clipped */}
         <nav className={`flex-1 px-2 py-2 space-y-0.5 ${collapsed ? 'overflow-visible' : 'overflow-y-auto'}`}>
           {navItems.map((item) => (
@@ -171,23 +183,19 @@ export default function Layout({ children }) {
         </div>
       </aside>
 
-      {/* ── Right column: slim header + content ─────────────────────────── */}
+      {/* ── Right column: header (mobile only) + content ───────────────── */}
       <div className={`flex-1 ${contentML} transition-[margin-left] duration-200`}>
-        {/* h-14 keeps SettingsLayout's sticky top-14 / min-h-[calc(100dvh-3.5rem)] correct */}
-        <header className="sticky top-0 z-40 h-14 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm flex items-center gap-3 px-4 sm:px-6">
-          {/* Logo — mobile only */}
-          <Link to="/" className="md:hidden flex items-center gap-2 min-w-0">
+        {/* Header is mobile-only — desktop nav lives in the sidebar.
+            h-14 kept so SettingsLayout's mobile sticky top-14 rail stays correct. */}
+        <header className="md:hidden sticky top-0 z-40 h-14 border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80 shadow-sm flex items-center gap-3 px-4 sm:px-6">
+          <Link to="/" className="flex items-center gap-2 min-w-0">
             <img src={logoSrc} alt={logoAlt} className="h-8 w-auto shrink-0" />
           </Link>
 
-          {/* Workspace switcher — mobile only */}
-          <div className="md:hidden">
-            <WorkspaceSwitcher />
-          </div>
+          <WorkspaceSwitcher />
 
           <div className="flex-1" />
 
-          {/* New Interview — gated on interview.start */}
           {hasCapability(CAP_INTERVIEW_START) && (
             <Button asChild size="sm">
               <Link to="/new">
@@ -198,15 +206,11 @@ export default function Layout({ children }) {
             </Button>
           )}
 
-          {/* UserButton on mobile (desktop has it in the sidebar) */}
-          <div className="md:hidden">
-            <UserButton afterSignOutUrl="/" userProfileUrl="/account" />
-          </div>
+          <UserButton afterSignOutUrl="/" userProfileUrl="/account" />
 
-          {/* Hamburger — mobile only */}
           <button
             type="button"
-            className="md:hidden inline-flex items-center justify-center h-11 w-11 rounded-md border border-input text-muted-foreground hover:text-foreground active:bg-accent/40"
+            className="inline-flex items-center justify-center h-11 w-11 rounded-md border border-input text-muted-foreground hover:text-foreground active:bg-accent/40"
             onClick={() => setMobileOpen(true)}
             aria-label="Open menu"
           >
