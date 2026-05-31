@@ -33,6 +33,7 @@ import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
 import { searchClips } from '../_lib/clipSearch.js'
 import { buildDraftMatchQuery } from '../_lib/draftMatchQuery.js'
+import { mediaKindForPlatform } from '../_lib/platformMedia.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -72,6 +73,9 @@ export default async function handler(req, res) {
   const body = req.body || {}
   const id = body.id ? String(body.id) : null
   let query = body.query ? String(body.query).trim() : ''
+  // Platform drives which media kinds are valid to suggest (see `kind`, below).
+  // A caller may pass it for a query-only call; the draft fetch overrides it.
+  let platform = body.platform ? String(body.platform) : null
 
   // When an id is given (the common path), build the query from the draft.
   // The fetch is workspace-scoped, so a caller can't pull another tenant's row.
@@ -88,13 +92,19 @@ export default async function handler(req, res) {
     const item = rows?.[0]
     if (!item) return res.status(404).json({ error: 'draft_not_found' })
     query = buildDraftMatchQuery(item)
+    platform = item.platform || platform
   }
 
   if (!query) return res.status(400).json({ error: 'query_required' })
   if (query.length > 2000) query = query.slice(0, 2000)
 
   const k = Math.min(Math.max(parseInt(body.k, 10) || DEFAULT_K, 1), 50)
-  const kind = body.kind && ['photo', 'video'].includes(body.kind) ? body.kind : null
+  // Default the kind from the draft's platform so we never suggest media the
+  // platform can't use (no photos for YouTube/TikTok; no raw video for a blog
+  // hero). An explicit body.kind still wins (e.g. a manual "show me photos").
+  const kind = body.kind && ['photo', 'video'].includes(body.kind)
+    ? body.kind
+    : mediaKindForPlatform(platform)
   const minScore = typeof body.minScore === 'number'
     ? Math.min(Math.max(body.minScore, 0), 1)
     : DEFAULT_MIN_SCORE
