@@ -20,6 +20,7 @@ export default function PricingCards({ currentPlan = 'trial' }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    // eslint-disable-next-line narraterx/no-raw-api-fetch -- public pricing catalog; no auth by design (api/billing/plans.js)
     fetch('/api/billing/plans')
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d?.plans) setPlans(d.plans) })
