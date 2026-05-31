@@ -49,7 +49,8 @@
     { "path": "/api/cron/regenerate-stale-books", "schedule": "0 7 * * *" },
     { "path": "/api/cron/engagement-digest", "schedule": "0 13 * * 5" },
     { "path": "/api/cron/auto-publish", "schedule": "*/10 * * * *" },
-    { "path": "/api/cron/resume-longform-renders", "schedule": "*/5 * * * *" }
+    { "path": "/api/cron/resume-longform-renders", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/sync-buffer-published", "schedule": "0 * * * *" }
   ],
   "functions": {
     "api/media/upload.js": {
