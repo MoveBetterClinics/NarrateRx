@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, Sparkles, SkipForward, RotateCcw, ExternalLink, CheckCircle2, ChevronDown, ChevronUp, Star, ArrowDown } from 'lucide-react'
+import { Loader2, Sparkles, SkipForward, RotateCcw, ExternalLink, CheckCircle2, ChevronDown, ChevronUp, Star, ArrowDown, X, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import IconPrim from '@/components/ui/Icon'
-import { useContentPlanAtoms, useDraftAtom, useSkipAtom, useKeystoneBlog } from '@/lib/queries'
+import { useContentPlanAtoms, useDraftAtom, useSkipAtom, useKeystoneBlog, useSetChannelEnabled } from '@/lib/queries'
 import { ATOM_DEFINITIONS, PLATFORM_UI, SLOT_LABELS, formatSlotDate } from '@/lib/atomPlan'
 
 // ContentPlanPanel renders the full 4-week content plan for an interview.
@@ -15,9 +15,11 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
   const { data: keystone = null }       = useKeystoneBlog(interviewId)
   const draftMutation  = useDraftAtom()
   const skipMutation   = useSkipAtom()
+  const channelMutation = useSetChannelEnabled()
   const [collapsed, setCollapsed] = useState({})
   const [draftingId, setDraftingId] = useState(null)
   const [errorMap, setErrorMap]   = useState({})
+  const [togglingPlatform, setTogglingPlatform] = useState(null)
 
   if (isLoading) {
     return (
@@ -29,11 +31,22 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
 
   if (!atoms.length) return null
 
-  // Group atoms by platform, preserving ATOM_DEFINITIONS order
+  // A channel is "in this plan" if it has any atom (incl. skipped); it is "on"
+  // when at least one of its atoms is not skipped. Published posts always count
+  // as on, so a channel with a live post can't be fully removed.
+  const platformIsOn = (platform) =>
+    atoms.some((a) => a.platform === platform && a.status !== 'skipped')
+  const planPlatforms = Object.keys(ATOM_DEFINITIONS).filter((platform) =>
+    atoms.some((a) => a.platform === platform)
+  )
+
+  // Group atoms by platform, preserving ATOM_DEFINITIONS order. Only channels
+  // that are currently on get a group; removed channels collapse into the
+  // toggle bar above (where they can be added back).
   const byPlatform = {}
   for (const platform of Object.keys(ATOM_DEFINITIONS)) {
     const platformAtoms = atoms.filter((a) => a.platform === platform)
-    if (platformAtoms.length) byPlatform[platform] = platformAtoms
+    if (platformAtoms.length && platformIsOn(platform)) byPlatform[platform] = platformAtoms
   }
 
   const isAtomPublished = (a) => a.status === 'drafted' && !!a.content_piece?.published_at
@@ -65,6 +78,15 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
     await skipMutation.mutateAsync({ atomId: atom.id, status: 'pending', interviewId })
   }
 
+  async function handleToggleChannel(platform, nextEnabled) {
+    setTogglingPlatform(platform)
+    try {
+      await channelMutation.mutateAsync({ interviewId, platform, enabled: nextEnabled })
+    } finally {
+      setTogglingPlatform(null)
+    }
+  }
+
   function toggleCollapse(platform) {
     setCollapsed((prev) => ({ ...prev, [platform]: !prev[platform] }))
   }
@@ -93,6 +115,60 @@ export default function ContentPlanPanel({ interviewId, interviewCreatedAt, onSe
           {skippedCount > 0 && <span className="text-muted-foreground">{skippedCount} skipped</span>}
         </div>
       </div>
+
+      {/* Channels in this plan — per-story output control. Toggle a channel off
+          to remove its posts from this plan (published posts stay); toggle it
+          back on to restore them. */}
+      {planPlatforms.length > 0 && (
+        <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="text-xs font-medium text-foreground/80">Channels in this plan</span>
+            <Link
+              to="/settings/workspace"
+              className="text-2xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              Manage defaults
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {planPlatforms.map((platform) => {
+              const ui = PLATFORM_UI[platform]
+              if (!ui) return null
+              const on = platformIsOn(platform)
+              const busy = togglingPlatform === platform
+              const ChannelIcon = ui.icon
+              return (
+                <button
+                  key={platform}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => handleToggleChannel(platform, !on)}
+                  title={on ? `Remove ${ui.label} from this plan` : `Add ${ui.label} back to this plan`}
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors disabled:opacity-50 ${
+                    on
+                      ? `${ui.border} ${ui.bg} ${ui.color}`
+                      : 'border-dashed border-border text-muted-foreground hover:bg-accent/40'
+                  }`}
+                >
+                  {busy ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <ChannelIcon className={`h-3 w-3 ${on ? ui.color : 'text-muted-foreground'}`} />
+                  )}
+                  <span>{ui.label}</span>
+                  {!busy && (on
+                    ? <X className="h-3 w-3 opacity-60" />
+                    : <Plus className="h-3 w-3" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+          <p className="text-2xs text-muted-foreground mt-2">
+            Removing a channel hides its posts from this plan and stops it generating here. Published posts stay. Add it back anytime.
+          </p>
+        </div>
+      )}
 
       {/* Keystone hero — the long-form blog the atoms derive from. */}
       {keystone && (

@@ -50,7 +50,7 @@ import {
   clearBrandRole,
   updateBrandStyle,
 } from './brandKitLib'
-import { fetchContentPlanAtoms, updateAtomStatus, draftAtom } from './contentPlan'
+import { fetchContentPlanAtoms, updateAtomStatus, draftAtom, setChannelEnabled } from './contentPlan'
 import { fetchTopicBacklog, createTopic, updateTopic, deleteTopic, suggestTopics } from './topicBacklog'
 import { fetchReferences, createReference, updateReference, deleteReference } from './interviewReferences'
 import { buildStories, deriveStoryStage } from './stories'
@@ -433,6 +433,22 @@ export function useSkipAtom() {
     mutationFn: ({ atomId, status }) => updateAtomStatus(atomId, status),
     onSuccess: (_data, { interviewId }) => {
       qc.invalidateQueries({ queryKey: queryKeys.contentPlan.atoms(interviewId) })
+    },
+  })
+}
+
+// Per-story channel control — enable/disable a whole Content Plan channel for
+// one interview. Disabling skips its non-published atoms; enabling restores
+// them. Invalidates both the atoms list (drives the plan UI) and content_items
+// (skipped/restored drafts move in/out of Drafts surfaces).
+export function useSetChannelEnabled() {
+  const qc = useQueryClient()
+  return useAppMutation({
+    errorMessage: "Couldn't update channels",
+    mutationFn: ({ interviewId, platform, enabled }) => setChannelEnabled(interviewId, platform, enabled),
+    onSuccess: (_data, { interviewId }) => {
+      qc.invalidateQueries({ queryKey: queryKeys.contentPlan.atoms(interviewId) })
+      qc.invalidateQueries({ queryKey: queryKeys.contentItems.all })
     },
   })
 }
