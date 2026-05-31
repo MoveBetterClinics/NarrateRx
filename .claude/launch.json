@@ -1,0 +1,35 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "narraterx-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/qbook/Claude Projects/NarrateRx", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "narraterx-layout",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/qbook/Claude Projects/NarrateRx-worktrees/layout-width-expansion", "run", "dev", "--", "--port", "5175"],
+      "port": 5175
+    },
+    {
+      "name": "clinician-profile-redesign",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/qbook/Claude Projects/NarrateRx-worktrees/clinician-profile-redesign", "run", "dev", "--", "--port", "5176"],
+      "port": 5176
+    },
+    {
+      "name": "phone-call-mode",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/qbook/Claude Projects/NarrateRx-worktrees/phone-call-mode", "run", "dev", "--", "--port", "5177"],
+      "port": 5177
+    },
+    {
+      "name": "mockups",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "/Users/qbook/Claude Projects/NarrateRx/.claude/mockups", "-p", "5174", "--no-clipboard"],
+      "port": 5174
+    }
+  ]
+}
