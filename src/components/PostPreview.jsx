@@ -5,6 +5,7 @@ import emailTemplateHtml from '../email-template.html?raw'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { renderFreeformSlide } from '@/lib/overlayTemplates'
+import { pickHero } from '@/lib/publishImageMirror'
 
 // Pull the best logo URL for previews, preferring Brand Kit (primary_logo_url
 // is resolved by api/workspace/me from brand_kit_roles), then any legacy
@@ -438,9 +439,22 @@ function GBPPreview({ content, locationOverrides }) {
 }
 
 // ── Blog (rendered Markdown) ──────────────────────────────────────────────────
-function BlogPreview({ content }) {
+function BlogPreview({ content, mediaUrls = [] }) {
+  // Hero image — selected with the SAME helper the publish path uses
+  // (pickHero in src/lib/publishImageMirror.js → buildImagesManifest.heroImage),
+  // so the preview shows exactly what ships. Without this the preview was
+  // markdown-only: a blog with a photo attached read "1 media attached" but
+  // showed a header-less wall of text, confusing the publisher.
+  const hero = pickHero(mediaUrls)
   return (
     <div className="max-w-2xl mx-auto bg-white border rounded-xl shadow-sm overflow-hidden">
+      {hero?.url && (
+        <img
+          src={hero.url}
+          alt={hero.alt || ''}
+          className="w-full aspect-video object-cover border-b"
+        />
+      )}
       <div className="px-8 py-8 prose prose-sm max-w-none
         prose-headings:font-bold prose-headings:tracking-tight
         prose-h1:text-2xl prose-h1:mb-4
@@ -776,7 +790,7 @@ export default function PostPreview({ platform, content, mediaUrls = [], slides 
     case 'facebook':    return <FacebookPreview  content={content} mediaUrls={mediaUrls} />
     case 'linkedin':    return <LinkedInPreview  content={content} />
     case 'gbp':         return <GBPPreview       content={content} locationOverrides={locationOverrides} />
-    case 'blog':        return <BlogPreview      content={content} />
+    case 'blog':        return <BlogPreview      content={content} mediaUrls={mediaUrls} />
     case 'email':       return <EmailPreview     content={content} mediaUrls={mediaUrls} />
     case 'instagram_ads': return <InstagramAdsPreview content={content} mediaUrls={mediaUrls} />
     default:            return <PlainPreview     content={content} />
