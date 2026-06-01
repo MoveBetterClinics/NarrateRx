@@ -324,12 +324,20 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
     let finalOutput = '[branded]'
     if (hadSubtitles) {
       // The subtitles filter path must not contain colons (fine — /tmp/vid-sub-uuid.srt has none).
-      // force_style overrides: large-ish font, white with black outline, positioned above lower-third.
+      // force_style overrides: white text, black outline, positioned above lower-third.
       // When the caption band is at the bottom (e.g. blog_hero_video) bump MarginV so the
       // last subtitle line clears the band — otherwise the bottom subtitle line overlaps it.
+      //
+      // FontSize in libass scales with video height — FontSize=N at 1080px gives roughly
+      // N*(1080/PlayRes) px of actual text. We normalise against 1080 so the visual size
+      // stays consistent across 1:1, 9:16, and 16:9 channels. Target ≈ 10px ref units at
+      // 1080p; tune via workspace.brand_style.subtitle_font_size (future setting).
+      const subtitleFontSize = Math.round(
+        (workspace?.brand_style?.subtitle_font_size ?? 10) * (1080 / spec.height)
+      )
       const marginV = spec.captionPos === 'bottom' ? 220 : 120
       filterComplex.push(
-        `[branded]subtitles=${tmpSrt}:force_style='PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,Bold=1,FontSize=20,Outline=1,Shadow=0,MarginV=${marginV}'[vout]`,
+        `[branded]subtitles=${tmpSrt}:force_style='PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,Bold=1,FontSize=${subtitleFontSize},Outline=1,Shadow=0,MarginV=${marginV}'[vout]`,
       )
       finalOutput = '[vout]'
     }

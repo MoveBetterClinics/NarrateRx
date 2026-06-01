@@ -341,7 +341,6 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
                 ref={videoRef}
                 src={previewRender.blobUrl}
                 className="absolute inset-0 w-full h-full object-cover cursor-pointer"
-                muted
                 playsInline
                 preload="metadata"
                 onClick={handleVideoClick}
