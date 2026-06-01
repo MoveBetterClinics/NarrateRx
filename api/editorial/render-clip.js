@@ -76,6 +76,9 @@ export default async function handler(req, res) {
   if (!assetId) return res.status(400).json({ error: 'assetId_required' })
 
   const captionText = String(body.captionText || '').slice(0, 500)
+  const startSec = body.startSec != null ? Number(body.startSec) : undefined
+  const durationSec = body.durationSec != null ? Number(body.durationSec) : undefined
+  const subtitles = body.subtitles !== undefined ? Boolean(body.subtitles) : undefined
   const requestedChannels = Array.isArray(body.channels) && body.channels.length
     ? body.channels.map((c) => String(c))
     : null  // resolved after we know asset kind
@@ -137,7 +140,8 @@ export default async function handler(req, res) {
           workspace: ws,
           staffName,
         })
-        const pathname = `media/renders/${ws.slug}/${asset.id}/${channel}-${safeFilename}.jpg`
+        // Use ws.id (immutable) not ws.slug (mutable) for blob namespacing.
+        const pathname = `media/renders/${ws.id}/${asset.id}/${channel}-${safeFilename}.jpg`
         const blob = await blobPut(pathname, buffer, {
           access: 'public',
           contentType: 'image/jpeg',
@@ -154,8 +158,12 @@ export default async function handler(req, res) {
           captionText,
           workspace: ws,
           staffName,
+          ...(startSec !== undefined ? { startSec } : {}),
+          ...(durationSec !== undefined ? { durationSec } : {}),
+          ...(subtitles !== undefined ? { subtitles } : {}),
         })
-        const pathname = `media/renders/${ws.slug}/${asset.id}/${channel}-${safeFilename}.mp4`
+        // Use ws.id (immutable) not ws.slug (mutable) for blob namespacing.
+        const pathname = `media/renders/${ws.id}/${asset.id}/${channel}-${safeFilename}.mp4`
         const blob = await blobPut(pathname, buffer, {
           access: 'public',
           contentType: 'video/mp4',
