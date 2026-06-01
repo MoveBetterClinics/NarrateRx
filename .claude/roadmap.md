@@ -301,6 +301,74 @@ lift**.
 
 ---
 
+## Pipeline UX redesign — smoothing interview → publish (design approved 2026-05-31)
+
+> **Status: design LOCKED, build NOT started.** The P0 media-matcher engine works but its gate
+> was blocked on cramped in-editor UX (see the P0 bet). The redesign that unblocks it grew —
+> with Q, iteratively, through a clickable mockup — from "a media-approval page" into a **full
+> interview→publish flow + information-architecture redesign**. The visual spec is the clickable
+> prototype **`.claude/storyboard-flow-mockup.html`** (open in a browser — it IS the build
+> contract). Each phase ships as one PR, no auto-merge, Q drives merge/deploy, full DoD.
+
+**The shape.** A four-stage producer spine — **Interview → Words → Media → Publish** — made to
+feel like one flow via a persistent **pipeline stepper** on every stage + a reorganized sidebar
+that mirrors it.
+
+**Locked design decisions (Q-approved):**
+- **Storyboard = the producer's media stage**, edge-to-edge: gate "Continue to publish" on ≥1
+  attachment; platform-aware kind toggle (hide photo on video-only channels; warn on mismatched
+  Library picks via `isKindMismatch`); 4–5-col candidate grid; per-card photo/video badge; queue
+  uses an **age signal** (not uniform amber); publish step gets a **"Next up" loop-close** (no
+  dead-end); one consistent "Back to Storyboard" label.
+- **Compose moves INTO Storyboard** (Choose media → **Compose** → Publish). The carousel +
+  text-over-image composer (WYSIWYG canvas, slide filmstrip, per-slide text/position/template,
+  global theme) lives here, not on Publish. **Held at the mocked shape** — Q wants real-use trials
+  before adding font/colour/drag controls. Publish shrinks to preview + schedule.
+- **Words (Stories detail)**: approve→handoff promoted to a single primary "Add media in
+  Storyboard →"; **transcript drawer** to compare drafts against what was actually said; keep
+  remove-platform / delete / export.
+- **Interview Setup rationalized**: required = **who · topic · Practice/Personal**; **Tone
+  dropped** (fights the voice-faithful engine, barely wired); **Audience demoted** to an optional
+  hint; Draft-style kept as a simple toggle. Rule: *ask up front only what you can't change
+  later.* Completion screen leads with **"See your story →"** + voice %; video-attach optional,
+  not a gate.
+- **Nav reorg** (`Layout.jsx`): **Home · Overview** / **Produce**(Stories · Storyboard) /
+  **Library**(Library · Capture) / **Tools**(Book · Write · Pre-Visit). Active item tracks the flow.
+- **Three scopes, separated** (the key IA insight): **Home = me** (personal) · **Stories /
+  Storyboard = my work** (producer) · **Overview = the whole clinic** (top-down).
+- **Overview** = a new **role-gated** (owner/producer/director) clinic-wide board holding the
+  three top-down lenses **Pipeline** (by stage) · **Calendar** (by ship date) · **Themes** (by
+  topic + gaps) — relocated OFF the producer's Stories list, where they didn't belong.
+- **Stories → Cards only** (the view toggle moves to Overview; light filters replace it).
+- **Library slimmed**: drop the purpose filter ("B-roll" etc. — auto-tagging handles it), the
+  workflow-lifecycle grouping, and the admin backfill; keep search · kind · **Collections** ·
+  **Drive import** · upload · date grouping. Now that Storyboard does the picking, the Library is
+  just a tidy pool.
+
+**Build phases** (each a shippable, trial-able PR; ~12–18 focused days total):
+
+| Phase | Ships | Est. Days | Est. Claude Cost |
+|---|---|---|---|
+| **1 · Storyboard core** | gate Continue, honest toggle, edge-to-edge + grid, publish loop-close, back-nav | 2–3d | $10–18 (Sonnet) |
+| **2 · Compose-in-Storyboard** | carousel + overlay composer into the media stage; Publish→preview+schedule | 3–4d | $15–25 |
+| **3 · Words + interview entry** | approve→handoff, Stories→Cards, rationalized Setup, "See your story" | 2–4d | $12–22 |
+| **4 · Nav reorg + stepper** | `Layout.jsx` nav + Overview item; pipeline stepper across stages; mobile/collapsed | 2–3d | $10–18 |
+| **5 · Overview + Library slim** | role-gated Overview route (relocate Pipeline/Calendar/Themes); Library cleanup | 3–4d | $15–25 |
+
+Recommended start: **Phase 1** (most-validated P0s). A parked `storyboard-ui-audit` worktree
+already has `Layout.jsx` edge-to-edge, `src/components/ui/BackLink.jsx`, and the
+gated/honest-toggle `StoryboardPiece.jsx` started.
+
+**Files in play:** `src/components/Layout.jsx` (nav + edge-to-edge), `src/pages/Storyboard*.jsx`,
+`src/components/storyboard/*`, `src/components/story-detail/{AssetsPane,SlideEditor}.jsx`
+(ApprovalPanel + composer; extract `publish/PublishPanel.jsx`), `src/pages/Stories.jsx` +
+`src/components/stories/*` (Cards-only; relocate Pipeline/Calendar/Themes to a new Overview
+route), `src/pages/MediaHub.jsx` (Library slim), `src/pages/NewInterview.jsx` +
+`InterviewSession.jsx` (Setup + completion). Origin of this work: the P0 bet's spawned
+"media-approval UI redesign (ask-before-build)" task.
+
+---
+
 ## The verification bar (why this won't become 4 months of merged-but-dead PRs)
 
 The prior video build "shipped in 4 days" yet delivered ~0 in-house value because **done was
