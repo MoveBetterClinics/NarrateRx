@@ -42,11 +42,15 @@ test('stories list loads without auth or workspace error', async ({ page }) => {
 // ── 2. Pipeline cards never link to /stories/undefined ─────────────────────
 
 test('pipeline card links contain valid UUIDs, not /undefined or /null', async ({ page }) => {
-  await page.goto('/stories?view=pipeline')
+  // The Pipeline / Calendar / Themes lenses moved from Stories to the
+  // clinic-wide Overview board (pipeline UX redesign, Phase 5). The
+  // PipelineKanban link-generation guarded here now lives on /overview, which
+  // is role-gated to editors — the e2e fixture is an admin, so it renders.
+  await page.goto('/overview?view=pipeline')
 
   // Pipeline view renders the kanban. Give it time to load.
   await expect(
-    page.getByRole('heading', { name: /^stories$/i }),
+    page.getByRole('heading', { name: /^overview$/i }),
   ).toBeVisible({ timeout: 30_000 })
 
   // Collect all anchor hrefs on the page.
@@ -69,13 +73,10 @@ test('pipeline card links contain valid UUIDs, not /undefined or /null', async (
 // ── 3. Story detail loads correctly (data-conditional) ─────────────────────
 
 test('clicking a story card navigates to a valid story detail page', async ({ page }) => {
-  // Pin the Cards view explicitly. Without ?view=cards the page resolves to
-  // the editor default (pipeline) for admin users — including the e2e
-  // fixture — which renders /review/<piece-id> content-piece links instead
-  // of /stories/<interview-id> story-card links, so a story-card assertion
-  // would never find a match. See src/pages/Stories.jsx — `defaultView =
-  // isEditor ? 'pipeline' : 'cards'`.
-  await page.goto('/stories?view=cards')
+  // Stories is cards-only now (the Pipeline/Calendar/Themes toggle moved to
+  // Overview in the pipeline UX redesign), so the list always renders
+  // /stories/<interview-id> story-card links.
+  await page.goto('/stories')
   await expect(
     page.getByRole('heading', { name: /^stories$/i }),
   ).toBeVisible({ timeout: 30_000 })
@@ -123,8 +124,8 @@ test('clicking a story card navigates to a valid story detail page', async ({ pa
 // ── 4. Story detail content pieces render without auth error (data-conditional)
 
 test('story detail renders content pieces without auth error', async ({ page }) => {
-  // See note on test 3 above for why ?view=cards is pinned.
-  await page.goto('/stories?view=cards')
+  // Stories is cards-only now — see test 3.
+  await page.goto('/stories')
   await expect(
     page.getByRole('heading', { name: /^stories$/i }),
   ).toBeVisible({ timeout: 30_000 })

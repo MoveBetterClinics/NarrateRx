@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useUser } from '@clerk/react'
 import { useSearchParams } from 'react-router-dom'
-import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, Film, ChevronDown, ChevronRight, HardDrive } from 'lucide-react'
+import { Search, Loader2, Filter, X, CheckSquare, Image as ImageIcon, Upload as UploadIcon, SearchX, ChevronDown, ChevronRight, HardDrive } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,27 +16,17 @@ import ContentBriefList from '@/components/ContentBriefList'
 import CollectionsBar from '@/components/CollectionsBar'
 import BulkActionBar from '@/components/BulkActionBar'
 import MediaHubHelp from '@/components/MediaHubHelp'
-import { getMediaAsset, backfillThumbnails } from '@/lib/mediaLib'
-import { toast } from '@/lib/toast'
-import { useMediaInfinite, useStories, useStaff, queryKeys } from '@/lib/queries'
+import { getMediaAsset } from '@/lib/mediaLib'
+import { useMediaInfinite, useStaff, queryKeys } from '@/lib/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUserRole } from '@/lib/useUserRole'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
 import { useUploadProgress } from '@/lib/UploadProgressContext'
-import {
-  buildPieceStatusMap,
-  groupByLifecycle,
-  LIFECYCLE_NEW,
-  LIFECYCLE_IN_PIPELINE,
-  LIFECYCLE_AVAILABLE,
-  LIFECYCLE_SHIPPED,
-  LIFECYCLE_META,
-} from '@/lib/mediaLifecycle'
 
 const PAGE_SIZE = 120
 
-// Bucket assets into three date bands. Used by the "Browse everything"
-// chronological view; the curated view groups by workflow lifecycle instead.
+// Bucket assets into three date bands — Recent / This month / Earlier — the
+// library's single, photo-app-style grouping.
 function groupByDate(assets) {
   const now = Date.now()
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
@@ -77,13 +67,12 @@ const STATUS_FILTERS = [
 export default function MediaHub() {
   useDocumentTitle('Library')
   const { user } = useUser()
-  const { canUpload, canEdit, role } = useUserRole()
+  const { canUpload, canEdit } = useUserRole()
   const qc = useQueryClient()
 
   // URL-persisted filters so the library position survives navigation.
   const [searchParams, setSearchParams] = useSearchParams()
   const kind    = searchParams.get('kind')    || ''
-  const purpose = searchParams.get('purpose') || ''
   const status  = searchParams.get('status')  || ''
   const staffFilter = searchParams.get('staff') || ''
 
@@ -97,7 +86,6 @@ export default function MediaHub() {
   }
 
   const setKind      = (v) => setParam('kind', v)
-  const setPurpose   = (v) => setParam('purpose', v)
   const setStatus    = (v) => setParam('status', v)
   const setStaffFilter = (v) => setParam('staff', v)
 
@@ -111,13 +99,6 @@ export default function MediaHub() {
   const [selectedIds, setSelectedIds] = useState([])
   const [uploadOpen, setUploadOpen] = useState(false)
   const [driveImportOpen, setDriveImportOpen] = useState(false)
-  // Date-grouped (default) vs. workflow-lifecycle sections. Date grouping
-  // matches the Library mockup — Recent / This month / Earlier — and is the
-  // mental model most users bring to a media library. The opt-in workflow
-  // view keeps the lifecycle buckets (?view=workflow) for editors who want
-  // them. URL-persisted so the choice survives reloads.
-  const showAll = (searchParams.get('view') ?? '') !== 'workflow'
-  const setShowAll = (v) => setParam('view', v ? '' : 'workflow')
 
   // Debounce search input.
   useEffect(() => {
@@ -132,7 +113,6 @@ export default function MediaHub() {
   // every render (react-hooks/exhaustive-deps).
   const mediaFilters = useMemo(() => ({
     kind:         kind || undefined,
-    purpose:      purpose || undefined,
     status:       status || undefined,
     q:            debouncedSearch || undefined,
     collectionId: collectionId || undefined,
@@ -140,7 +120,7 @@ export default function MediaHub() {
     // their parent's detail drawer (variant strip). Keeps the library focused
     // on source assets and prevents the same clip from appearing N+1 times.
     sources:      true,
-  }), [kind, purpose, status, debouncedSearch, collectionId])
+  }), [kind, status, debouncedSearch, collectionId])
   // staffFilter is a client-side filter (created_by value) — it isn't
   // sent to the server since the server only accepts workspace-scoped filter
   // params. We post-filter the flat asset array below after fetching.
@@ -163,26 +143,9 @@ export default function MediaHub() {
     [staffFilter, allAssets]
   )
 
-  // Date-grouped buckets for the "Browse everything" chronological fallback.
-  // Recomputes whenever the filtered list changes (new page loaded, filter
-  // applied, etc.). The curated view (default) groups by lifecycle below.
+  // Date-grouped buckets — Recent / This month / Earlier. Recomputes whenever
+  // the filtered list changes (new page loaded, filter applied, etc.).
   const dateGroups = useMemo(() => groupByDate(assets), [assets])
-
-  // Pull workspace stories so we can resolve each asset's content-pipeline
-  // state (in active draft? already published?). useStories shares its cache
-  // with the Stories page so this is a near-free read on second visit.
-  const { data: stories = [] } = useStories()
-  const pieceStatusById = useMemo(() => buildPieceStatusMap(stories), [stories])
-  const lifecycleGroups = useMemo(
-    () => groupByLifecycle(assets, pieceStatusById),
-    [assets, pieceStatusById]
-  )
-  // Stamp the resolved lifecycle onto each asset so MediaGrid can render
-  // the right bottom-right chip without a second classify call per cell.
-  const stampLifecycle = useCallback(
-    (group, lifecycle) => group.map((a) => ({ ...a, _lifecycle: lifecycle })),
-    []
-  )
 
   // Per-type counts derived from the loaded (unfiltered-by-clinician) pages.
   // When hasMore is true these are partial; the filter chips show a + suffix.
@@ -192,10 +155,6 @@ export default function MediaHub() {
       total:     base.length,
       video:     base.filter((a) => a.kind === 'video').length,
       photo:     base.filter((a) => a.kind === 'photo').length,
-      interview: base.filter((a) => a.asset_purpose === 'interview').length,
-      broll:     base.filter((a) => a.asset_purpose === 'broll').length,
-      photo_p:   base.filter((a) => a.asset_purpose === 'photo').length,
-      brand:     base.filter((a) => a.asset_purpose === 'brand').length,
     }
   }, [allAssets])
 
@@ -255,43 +214,6 @@ export default function MediaHub() {
   // prop covers the modal-open case (idempotent — both are just re-queries).
   const { subscribe: subscribeToUploads } = useUploadProgress()
   useEffect(() => subscribeToUploads(refresh), [subscribeToUploads, refresh])
-
-  // Admin-only one-click backfill for legacy videos uploaded before the
-  // auto-thumbnail path landed (#159). Pages internally until the API
-  // reports nothing left to process, then refreshes the grid so the new
-  // thumbnails appear in place of the generic film-strip placeholder.
-  const [backfilling, setBackfilling] = useState(false)
-  const onBackfillThumbnails = useCallback(async () => {
-    if (backfilling) return
-    setBackfilling(true)
-    try {
-      let totalSucceeded = 0
-      let totalFailed = 0
-      // Loop until a pass returns processed=0. The server caps each batch at
-      // 25 and self-bounds by wall-clock (~4 min) so any single HTTP call
-      // stays comfortably under Vercel's 300s maxDuration; the loop here
-      // walks the rest of the backlog one batch at a time.
-      for (let pass = 0; pass < 200; pass++) {
-        const r = await backfillThumbnails(25)
-        totalSucceeded += r?.succeeded ?? 0
-        totalFailed    += r?.failed    ?? 0
-        if (!r || (r.processed ?? 0) === 0) break
-      }
-      refresh()
-      if (totalSucceeded === 0 && totalFailed === 0) {
-        toast.success('All videos already have thumbnails')
-      } else {
-        toast.success(
-          `Backfilled ${totalSucceeded} thumbnail${totalSucceeded === 1 ? '' : 's'}` +
-          (totalFailed ? ` · ${totalFailed} failed` : '')
-        )
-      }
-    } catch (e) {
-      toast.error('Backfill failed', { description: e?.message || 'See server logs' })
-    } finally {
-      setBackfilling(false)
-    }
-  }, [backfilling, refresh])
 
   // Walk every remaining page of the current filter and mark the full
   // result set as selected. Without this, "Select all" would only cover the
@@ -417,19 +339,6 @@ export default function MediaHub() {
           </p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          {role === 'admin' && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={onBackfillThumbnails}
-              disabled={backfilling}
-              className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-              title="Admin: backfill missing video thumbnails"
-              aria-label="Backfill thumbnails"
-            >
-              {backfilling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
-            </Button>
-          )}
           <MediaHubHelp />
         </div>
       </div>
@@ -556,8 +465,8 @@ export default function MediaHub() {
 
         </div>
 
-        {/* Single consolidated chip strip: kind · purpose · clinician.
-            Pipe separators delimit the groups the way the mockup envisions. */}
+        {/* Consolidated chip strip: kind · clinician. Auto-tagging + search
+            replaced the old "purpose" filter (B-roll / interview / brand). */}
         <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1.5">
           {[
             { id: '',      label: 'All',      icon: null,  count: counts.total, group: 'kind' },
@@ -574,26 +483,6 @@ export default function MediaHub() {
               {k.icon && <span>{k.icon}</span>}
               <span>{k.label}</span>
               {!loading && <span className="opacity-70">· {countLabel(k.count)}</span>}
-            </button>
-          ))}
-
-          <span className="w-px h-4 bg-border mx-1" aria-hidden />
-
-          {[
-            { id: 'interview', label: 'From interviews', count: counts.interview },
-            { id: 'broll',     label: 'B-roll',          count: counts.broll },
-            { id: 'photo',     label: 'Patient photos',  count: counts.photo_p },
-            { id: 'brand',     label: 'Brand assets',    count: counts.brand },
-          ].map((p) => (
-            <button
-              key={p.id || 'all-purpose'}
-              onClick={() => setPurpose(purpose === p.id ? '' : p.id)}
-              className={`text-2xs px-2.5 py-1 rounded-full border transition-colors ${
-                purpose === p.id ? 'bg-primary text-white border-primary' : 'bg-muted text-muted-foreground border-border hover:border-primary/50'
-              }`}
-            >
-              {p.label}
-              {!loading && <span className="ml-1 opacity-70">· {countLabel(p.count)}</span>}
             </button>
           ))}
 
@@ -676,28 +565,14 @@ export default function MediaHub() {
         />
       )}
 
-      {/* Date-grouped (default) ↔ workflow-lifecycle toggle. Date grouping is
-          the photo-app default; the workflow view is opt-in for editors who
-          want the NEW / pipeline / available / shipped buckets. */}
+      {/* Loaded-count line. The old date ↔ workflow-lifecycle toggle was
+          dropped — the library is a tidy date-grouped pool now that Storyboard
+          does the workflow picking. */}
       {!loading && allAssets.length > 0 && (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
           <span className="text-2xs text-muted-foreground">
             {allAssets.length} asset{allAssets.length === 1 ? '' : 's'} loaded{hasMore ? ' · more available' : ''}
           </span>
-          <div className="inline-flex items-center rounded-full border border-border bg-muted p-0.5 text-2xs">
-            <button
-              onClick={() => setShowAll(false)}
-              className={`px-3 py-1 rounded-full font-medium transition-colors ${!showAll ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              Workflow
-            </button>
-            <button
-              onClick={() => setShowAll(true)}
-              className={`px-3 py-1 rounded-full font-medium transition-colors ${showAll ? 'bg-white text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-            >
-              By date
-            </button>
-          </div>
         </div>
       )}
 
@@ -717,7 +592,7 @@ export default function MediaHub() {
         // the coaching matches the situation. hasActiveFilter is true whenever
         // any narrowing control is active.
         (() => {
-          const hasActiveFilter = !!(debouncedSearch || kind || purpose || status || collectionId || staffFilter)
+          const hasActiveFilter = !!(debouncedSearch || kind || status || collectionId || staffFilter)
           if (hasActiveFilter) {
             return (
               <EmptyState
@@ -731,7 +606,6 @@ export default function MediaHub() {
                     onClick={() => {
                       setSearch('')
                       setKind('')
-                      setPurpose('')
                       setStatus('')
                       setStaffFilter('')
                       setCollectionId(null)
@@ -765,19 +639,11 @@ export default function MediaHub() {
         })()
       ) : (
         <>
-          {(showAll
-            ? [
-                { id: 'recent',    label: 'Recent · last 7 days', assets: dateGroups.recent, sub: null },
-                { id: 'month',     label: 'This month',           assets: dateGroups.thisMonth, sub: null },
-                { id: 'older',     label: 'Earlier',              assets: dateGroups.older, sub: null },
-              ]
-            : [
-                { id: LIFECYCLE_NEW,         label: LIFECYCLE_META[LIFECYCLE_NEW].label,         assets: stampLifecycle(lifecycleGroups[LIFECYCLE_NEW],         LIFECYCLE_NEW),         sub: LIFECYCLE_META[LIFECYCLE_NEW].sublabel },
-                { id: LIFECYCLE_IN_PIPELINE, label: LIFECYCLE_META[LIFECYCLE_IN_PIPELINE].label, assets: stampLifecycle(lifecycleGroups[LIFECYCLE_IN_PIPELINE], LIFECYCLE_IN_PIPELINE), sub: LIFECYCLE_META[LIFECYCLE_IN_PIPELINE].sublabel },
-                { id: LIFECYCLE_AVAILABLE,   label: LIFECYCLE_META[LIFECYCLE_AVAILABLE].label,   assets: stampLifecycle(lifecycleGroups[LIFECYCLE_AVAILABLE],   LIFECYCLE_AVAILABLE),   sub: LIFECYCLE_META[LIFECYCLE_AVAILABLE].sublabel },
-                { id: LIFECYCLE_SHIPPED,     label: LIFECYCLE_META[LIFECYCLE_SHIPPED].label,     assets: stampLifecycle(lifecycleGroups[LIFECYCLE_SHIPPED],     LIFECYCLE_SHIPPED),     sub: LIFECYCLE_META[LIFECYCLE_SHIPPED].sublabel },
-              ]
-          )
+          {[
+            { id: 'recent', label: 'Recent · last 7 days', assets: dateGroups.recent,    sub: null },
+            { id: 'month',  label: 'This month',           assets: dateGroups.thisMonth, sub: null },
+            { id: 'older',  label: 'Earlier',              assets: dateGroups.older,      sub: null },
+          ]
             .filter((g) => g.assets.length > 0)
             .map((group, i) => (
               <div key={group.id} className={i > 0 ? 'mt-8' : undefined}>

@@ -2,19 +2,13 @@ import { useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/react'
 import { Mic, Target, User, X } from 'lucide-react'
-import { useStories, useOnboardingProgress, useCampaigns, useStaff, useLocations } from '@/lib/queries'
-import { useUserRole } from '@/lib/useUserRole'
+import { useStories, useCampaigns, useStaff, useLocations } from '@/lib/queries'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { getPatientPrototypesUi } from '@/lib/prompts'
 import { PLATFORM_META } from '@/lib/contentMeta'
-import StoriesViewToggle from '@/components/stories/StoriesViewToggle'
 import StoriesCardsView from '@/components/stories/StoriesCardsView'
-import StoriesPipelineView from '@/components/stories/StoriesPipelineView'
-import StoriesCalendarView from '@/components/stories/StoriesCalendarView'
-import StoriesThemesView from '@/components/stories/StoriesThemesView'
 import CampaignProgressStrip from '@/components/stories/CampaignProgressStrip'
 import StoriesAtAGlance from '@/components/stories/StoriesAtAGlance'
-import UsageGate from '@/components/billing/UsageGate'
 import PageHelp from '@/components/PageHelp'
 
 const PLATFORMS = Object.keys(PLATFORM_META)
@@ -41,9 +35,6 @@ const SELECT_CLS =
 export default function Stories() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { user } = useUser()
-  const { isEditor } = useUserRole()
-  const defaultView = isEditor ? 'pipeline' : 'cards'
-  const view = searchParams.get('view') || defaultView
 
   const platformFilter = searchParams.get('platform') || ''
   const stageFilter    = searchParams.get('stage')    || ''
@@ -64,12 +55,10 @@ export default function Stories() {
     if (realOnly) list = list.filter((s) => s.capture_mode === 'voice_memo' || s.capture_mode === 'seminar')
     return list
   }, [storiesAll, mineOnly, realOnly, user])
-  const { data: progress } = useOnboardingProgress()
   const { data: campaigns = [] } = useCampaigns()
   const { data: staff = [] } = useStaff({ enabled: !!campaignFilter })
   const { data: locations = [] } = useLocations()
   const workspace = useWorkspace()
-  const currentPlan = progress?.plan
   const awaitingReviewCount = stories.filter((s) => s.story_stage === 'review').length
 
   const prototypes = getPatientPrototypesUi(workspace).filter((p) => p.id != null)
@@ -119,10 +108,9 @@ export default function Stories() {
 
   return (
     <main className="py-6 px-6 flex flex-col gap-4">
-      {/* Sticky page chrome — keeps the title, view toggle, and filter
-          chips in view while the user scrolls through cards or the
-          kanban. -mx-6 px-6 extends the backdrop to the parent main's
-          edges so blurred content reads cleanly behind it. */}
+      {/* Sticky page chrome — keeps the title and filter chips in view while
+          the user scrolls through the cards. -mx-6 px-6 extends the backdrop
+          to the parent main's edges so blurred content reads cleanly behind it. */}
       <div className="sticky top-14 z-30 -mx-6 px-6 -mt-6 pt-6 pb-3 bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/75 border-b border-border/60 flex flex-col gap-3">
         {/* Header */}
         <div className="flex items-center justify-between gap-3">
@@ -154,7 +142,6 @@ export default function Stories() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <PageHelp pageKey="stories" variant="default" />
-            <StoriesViewToggle defaultView={defaultView} />
           </div>
         </div>
 
@@ -288,18 +275,10 @@ export default function Stories() {
         <CampaignProgressStrip campaign={activeCampaignObj} staff={staff} />
       ) : null}
 
-      {/* View dispatch */}
-      {view === 'pipeline' ? (
-        <StoriesPipelineView stories={stories} isLoading={isLoading} />
-      ) : view === 'calendar' ? (
-        <StoriesCalendarView stories={stories} isLoading={isLoading} />
-      ) : view === 'themes' ? (
-        <UsageGate feature="cross_staff_synthesis" currentPlan={currentPlan}>
-          <StoriesThemesView stories={stories} isLoading={isLoading} />
-        </UsageGate>
-      ) : (
-        <StoriesCardsView stories={stories} isLoading={isLoading} />
-      )}
+      {/* Cards only. The Pipeline / Calendar / Themes lenses moved to the
+          clinic-wide Overview board (Phase 5 of the pipeline UX redesign); the
+          producer's Stories list stays a clean place to do the words. */}
+      <StoriesCardsView stories={stories} isLoading={isLoading} />
 
       {/* At-a-glance KPI footer — derived from the same `stories` data the
           views above are rendering, so no extra fetch. Auto-hides when the
