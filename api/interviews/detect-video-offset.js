@@ -28,7 +28,24 @@ import { pipeline }          from 'node:stream/promises'
 
 import ffmpegStaticPath from 'ffmpeg-static'
 import { workspaceContext }  from '../_lib/workspaceContext.js'
-import { sb }                from '../_lib/supabase.js'
+
+const SUPABASE_URL = process.env.SUPABASE_URL
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
+
+// Thin Supabase REST wrapper. Each handler defines its own — there is no shared
+// _lib/supabase module (matches the pattern in api/editorial/render-clip.js).
+async function sb(path, init = {}) {
+  return fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+      ...init.headers,
+    },
+  })
+}
 
 const FFMPEG_BIN    = process.env.FFMPEG_PATH || ffmpegStaticPath || 'ffmpeg'
 const MAX_PROBE_BYTES = 20 * 1024 * 1024  // 20 MB — enough for ~3 min of audio at typical bitrates
