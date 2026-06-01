@@ -1227,10 +1227,11 @@ export function ApprovalPanel({ piece, mode = 'workflow' }) {
         approvedBy: userEmail,
         approvedAt: new Date().toISOString(),
       })
-      // Words approved → hand off to Storyboard to attach/approve media. The
-      // media step now lives on its own full-size page, not in this editor.
-      toast.success('Approved — add media in Storyboard')
-      navigate(`/storyboard/${piece.id}`)
+      // Words approved. Rather than silently yanking the producer to Storyboard,
+      // we rest on this screen and surface a single, primary "Add media in
+      // Storyboard →" handoff (the banner rendered below) so the next step is
+      // unmistakable and they can still review the story's other drafts first.
+      toast.success('Words approved — ready for media')
     } catch (err) {
       toast.error('Failed to approve', { description: err.message })
     }
@@ -1596,6 +1597,37 @@ export function ApprovalPanel({ piece, mode = 'workflow' }) {
         )}
       </div>
 
+      {/* Words-approved handoff — the single, primary next step in the workflow
+          (Words) view. Approving no longer silently redirects to Storyboard; it
+          rests here and shows an unmistakable primary "Add media in Storyboard →"
+          CTA (plus Undo), matching the Words-screen redesign. */}
+      {!isPublish && piece.status === 'approved' && canReview && (
+        <div className="rounded-lg border border-emerald-300 bg-emerald-50/60 p-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+            Words approved — ready for media
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleUnapprove}
+              disabled={isBusy}
+              className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              Undo
+            </button>
+            <Button
+              size="sm"
+              onClick={() => navigate(`/storyboard/${piece.id}`)}
+              className="bg-primary text-primary-foreground"
+            >
+              Add media in Storyboard
+              <ArrowRight className="h-3.5 w-3.5 ml-1.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* When-to-publish action sheet — shown on approved pieces. The reviewer
           can accept the suggested time (one click), pick a custom time, or
           publish immediately. Blog pieces collapse to a single Publish button
@@ -1694,8 +1726,10 @@ export function ApprovalPanel({ piece, mode = 'workflow' }) {
 
         {/* Unapprove — reviewer only, while still on approved (pre-Buffer). Once
             the piece is scheduled or published the post lives on Buffer and the
-            undo path is Cancel scheduled / Delete published, not Unapprove. */}
-        {piece.status === 'approved' && canReview && (
+            undo path is Cancel scheduled / Delete published, not Unapprove. In
+            the workflow (Words) view the Undo lives in the handoff banner above,
+            so this standalone button only renders in the publish view. */}
+        {isPublish && piece.status === 'approved' && canReview && (
           <Button
             size="sm"
             variant="outline"

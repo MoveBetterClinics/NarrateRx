@@ -16,7 +16,7 @@ import { getOrCreateStaff, createInterview } from '@/lib/api'
 import MicCheck from '@/components/MicCheck'
 import { useStaff, useStaffRecipes, useCreateStaffRecipe } from '@/lib/queries'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
-import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
+import { getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { CLEANUP_LEVELS, getCleanupLevel, DEFAULT_CLEANUP_LEVEL } from '@/lib/cleanupLevels'
 import { useDocumentTitle } from '@/lib/useDocumentTitle'
@@ -262,8 +262,9 @@ export default function NewInterview() {
 
   // Active levers — for the pill row. Resolves keys to displayable slots
   // (emoji + label). Voice mode is shown as a prominent picker above, so it's
-  // not duplicated in the pill row.
-  const toneSlot       = TONES.find((t) => t.id === tone)
+  // not duplicated in the pill row. Tone no longer has a UI control (it fought
+  // the voice-faithful engine), but `tone` is still carried through to the
+  // interview row + recipes as a silent default for data continuity.
   const cleanupSlot    = getCleanupLevel(cleanupLevel)
 
   // Audio-check step — runs the mic + speaker check BEFORE any interview row is
@@ -399,9 +400,8 @@ export default function NewInterview() {
             />
           )}
 
-          {/* Active levers pill row + Tune toggle */}
+          {/* Active levers pill row + More options toggle */}
           <ActiveLeversRow
-            toneSlot={toneSlot}
             cleanupSlot={cleanupSlot}
             tuneOpen={tuneOpen}
             onTuneToggle={() => setTuneOpen((o) => {
@@ -417,16 +417,10 @@ export default function NewInterview() {
             onSaveRecipe={() => setSaveRecipeOpen(true)}
           />
 
-          {/* Tune drawer — individual lever pickers */}
+          {/* More options drawer — optional lever pickers. Ask up front only
+              what can't be changed later; everything here is tunable per draft. */}
           {tuneOpen && (
             <div data-tune-section className="space-y-4 border-t pt-4 scroll-mt-20">
-              <SimpleSlotPicker
-                label="Tone"
-                options={TONES}
-                value={tone}
-                onChange={(v) => { setTone(v); markDrift() }}
-                idKey="id"
-              />
               <SimpleSlotPicker
                 label="Transcript cleanup"
                 options={CLEANUP_LEVELS}
@@ -619,25 +613,24 @@ function RecipeDropdown({ recipes, selectedId, onSelect }) {
 // ── Active levers pill row ─────────────────────────────────────────────────
 
 function ActiveLeversRow({
-  toneSlot, cleanupSlot,
+  cleanupSlot,
   tuneOpen, onTuneToggle, canSaveRecipe, onSaveRecipe,
 }) {
   const pills = [
-    toneSlot       && { key: 't', emoji: toneSlot.emoji,       label: toneSlot.label },
     cleanupSlot    && { key: 'c', emoji: cleanupSlot.emoji,    label: cleanupSlot.label },
   ].filter(Boolean)
 
   return (
     <div className="flex items-center gap-1.5 flex-wrap">
       {pills.map((p) => (
-        // Pills double as a shortcut into Tune — clicking one opens the drawer
-        // so the tone/cleanup controls are reachable without hunting for the
-        // (formerly low-contrast) Tune link.
+        // Pills double as a shortcut into More options — clicking one opens the
+        // drawer so the cleanup control is reachable without hunting for the
+        // (formerly low-contrast) toggle.
         <button
           key={p.key}
           type="button"
           onClick={() => { if (!tuneOpen) onTuneToggle() }}
-          title="Adjust in Tune"
+          title="Adjust in More options"
           className="inline-flex items-center gap-1 text-xs bg-muted/60 text-foreground rounded-full px-2.5 py-1 hover:bg-muted transition-colors"
         >
           <span className="text-2xs">{p.emoji}</span>
@@ -661,7 +654,7 @@ function ActiveLeversRow({
           onClick={onTuneToggle}
           className="h-7 gap-1 px-2.5 text-xs"
         >
-          Tune
+          More options
           {tuneOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
         </Button>
       </div>
