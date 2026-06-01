@@ -77,33 +77,41 @@ function MuxPlayer({ asset, playbackToken }) {
   }, [asset.mux_playback_id, asset.filename, playbackToken])
 
   // Derive the display aspect ratio so the player box matches the video's
-  // shape — otherwise a portrait clip gets cropped to fill a landscape box
-  // (the "very zoomed in" bug). Prefer numeric dimensions (set from the Mux
-  // webhook, which knows the rotation-applied display size); fall back to the
-  // "W:H" aspect_ratio string.
+  // shape. Prefer numeric dimensions (set from the Mux webhook, which knows
+  // the rotation-applied display size); fall back to the "W:H" string.
   const ar = asset.width && asset.height
     ? `${asset.width} / ${asset.height}`
     : (typeof asset.aspect_ratio === 'string' && asset.aspect_ratio.includes(':')
         ? asset.aspect_ratio.replace(':', ' / ')
         : null)
 
+  // Numeric aspect ratio (W/H) used to cap width so the element box is
+  // exactly the right shape for the video. Setting both width:100% and
+  // max-height without capping width causes mux-player to render a box that's
+  // wider than the video at max-height, and the player fills the oversized box
+  // by cropping rather than letterboxing. The fix:
+  //   max-width = calc(MAX_HEIGHT_VH * arNum)
+  // so the element is never wider than what the video fills at full height.
+  // When the container is narrower than max-width, width:100% kicks in and the
+  // video is proportionally shorter — both dimensions fit without any cropping.
+  const arNum = asset.width && asset.height
+    ? asset.width / asset.height
+    : ar
+      ? (() => { const p = ar.split(' / '); return parseFloat(p[0]) / parseFloat(p[1]) })()
+      : 16 / 9
+
+  const MAX_HEIGHT = '55vh'
+
   return (
     <mux-player
       ref={ref}
       style={{
-        // Always fill the container width so maxWidth/maxHeight constrain
-        // against a known anchor. Without width:100%, the mux-player web
-        // component may try to render at its native video resolution (e.g.
-        // 1920px) and overflow the modal horizontally.
-        // aspect-ratio preserves the correct shape; the player's internal
-        // --media-object-fit:contain handles portrait vs landscape framing.
+        display: 'block',
         width: '100%',
         ...(ar ? { aspectRatio: ar } : {}),
-        maxHeight: '55vh',
-        maxWidth: '100%',
-        display: 'block',
+        maxHeight: MAX_HEIGHT,
+        maxWidth: `calc(${MAX_HEIGHT} * ${arNum.toFixed(6)})`,
         margin: '0 auto',
-        '--media-object-fit': 'contain',
       }}
     />
   )
