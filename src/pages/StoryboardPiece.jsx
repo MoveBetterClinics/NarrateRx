@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, ImagePlus, Sparkles, Images, Video, ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import BackLink from '@/components/ui/BackLink'
+import Breadcrumb from '@/components/ui/Breadcrumb'
+import { pieceLabel } from '@/lib/pieceLabel'
 import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
 import MediaPicker from '@/components/MediaPicker'
@@ -141,6 +143,16 @@ export default function StoryboardPiece() {
 
   return (
     <div className="space-y-5 py-6">
+      {/* Page name — stage + piece, so this screen can be referenced precisely.
+          This IS the choose-media step. */}
+      <Breadcrumb
+        items={[
+          { label: 'Storyboard', to: '/storyboard' },
+          { label: pieceLabel(piece), to: `/storyboard/${piece.id}` },
+          { label: 'Choose media' },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <BackLink to="/storyboard">Back to Storyboard</BackLink>

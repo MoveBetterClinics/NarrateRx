@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, Eye } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import BackLink from '@/components/ui/BackLink'
+import Breadcrumb from '@/components/ui/Breadcrumb'
+import { pieceLabel } from '@/lib/pieceLabel'
 import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
 import PostPreview from '@/components/PostPreview'
@@ -67,13 +69,24 @@ export default function StoryboardPublish() {
 
   return (
     <div className="space-y-5 py-6">
+      {/* Page name — stage + piece. The piece crumb links back to Choose media,
+          which is also the fix for "back should return to media choices": from
+          Publish you can step back to the media picker, not just the queue. */}
+      <Breadcrumb
+        items={[
+          { label: 'Storyboard', to: '/storyboard' },
+          { label: pieceLabel(piece), to: `/storyboard/${piece.id}` },
+          { label: 'Publish' },
+        ]}
+      />
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          {/* One consistent back affordance across the per-piece stages — the
-              same "Back to Storyboard" the media step uses, so the flow no
-              longer drifts between "Back to media" and "Back to Storyboard". */}
-          <BackLink to="/storyboard">Back to Storyboard</BackLink>
+          {/* Back goes to the media picker for THIS piece (Choose media), not
+              the queue — so you can change the attached media without losing
+              the draft. "Back to Storyboard" (the queue) is still one crumb up. */}
+          <BackLink to={`/storyboard/${piece.id}`}>Back to media</BackLink>
           <h1 className="mt-1 flex items-center gap-2 text-lg font-semibold text-foreground">
             {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
             <span className="truncate">{title}</span>
@@ -91,8 +104,12 @@ export default function StoryboardPublish() {
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,1fr)_minmax(0,380px)]">
-        {/* Left — big live preview */}
+      {/* Preview capped on the left so the compose/publish side gets the room —
+          the composer's slide filmstrip + controls are the working surface, the
+          preview is for reference. (Was 1fr preview / 380px controls, which made
+          the editing area the cramped one.) */}
+      <div className="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,380px)_minmax(0,1fr)]">
+        {/* Left — live preview (reference) */}
         <div className="lg:sticky lg:top-20 lg:self-start space-y-2">
           <p className="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
             <Eye className="h-3.5 w-3.5" /> Live preview
