@@ -2,6 +2,40 @@
   "$schema": "Each entry should describe a single deploy. The 'sha' field is matched against the deployed commit SHA (either short or full form). Place newest entries first. Markdown is NOT rendered — keep 'changes' as plain strings.",
   "releases": [
     {
+      "sha": "04abb28",
+      "date": "2026-06-01",
+      "title": "Pipeline redesign + Slate clip workshop",
+      "changes": [
+        "Complete pipeline UX redesign — new Overview dashboard, progress stepper, and streamlined path from Words through publish.",
+        "Stories is now a clean card grid; Library is slimmed down to what you actually use.",
+        "Slate clip workshop: trim any clip to its best moment, caption it from what's said, then post straight to social or save as b-roll.",
+        "Approved clips are indexed into visual memory so they surface as suggestions in future stories.",
+        "Auto-detect interview video offset — no more manual slider when syncing phone audio to video.",
+        "Videos attached to Instagram-targeted posts now publish as Reels automatically.",
+        "Speaker role is now set in upload Step 1."
+      ]
+    },
+    {
+      "sha": "92c3284",
+      "date": "2026-05-28",
+      "title": "Visual memory for media suggestions",
+      "changes": [
+        "Approved Library clips are now indexed into visual memory.",
+        "Slate can rank your existing footage against any story you're building.",
+        "Video dimension backfill via Mux API — fixes collapsed video boxes for older uploads."
+      ]
+    },
+    {
+      "sha": "3aa6c48",
+      "date": "2026-05-27",
+      "title": "Security + editorial improvements",
+      "changes": [
+        "Clip rendering is now gated on patient consent status.",
+        "Approve-package writes are now atomic — no more partial saves on slow connections.",
+        "Idempotency guard prevents duplicate approvals on rapid double-tap."
+      ]
+    },
+    {
       "sha": "e7a521a",
       "date": "2026-05-19",
       "title": "Auto-update notifications",
