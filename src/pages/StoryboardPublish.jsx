@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowRight, Eye } from 'lucide-react'
+import { ArrowRight, Eye, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import BackLink from '@/components/ui/BackLink'
 import Breadcrumb from '@/components/ui/Breadcrumb'
 import { pieceLabel } from '@/lib/pieceLabel'
+import { isInstagramReel } from '@/lib/mediaEntry'
 import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
 import PostPreview from '@/components/PostPreview'
@@ -64,7 +65,11 @@ export default function StoryboardPublish() {
   const meta = PLATFORM_META[piece.platform] || { label: piece.platform || '—' }
   const Icon = meta.icon
   const title = piece.topic || firstHeading(piece.content) || 'Untitled draft'
-  const isCarousel = piece.platform === 'instagram'
+  // An Instagram piece with a video attached publishes as a Reel, not a photo
+  // carousel — so the photo-slide composer doesn't apply. Only show the carousel
+  // composer for an Instagram piece that is NOT a reel.
+  const isReel = piece.platform === 'instagram' && isInstagramReel(piece.media_urls)
+  const isCarousel = piece.platform === 'instagram' && !isReel
   const mediaCount = Array.isArray(piece.media_urls) ? piece.media_urls.length : 0
 
   return (
@@ -128,14 +133,30 @@ export default function StoryboardPublish() {
 
         {/* Right — compose + publish */}
         <div className="space-y-4">
-          {/* Carousel composer — slide text, placement, theme. Instagram only;
-              renders nothing for single-image/video platforms. */}
+          {/* Carousel composer — slide text, placement, theme. Instagram photo
+              carousels only; a Reel (video) and single-image/video platforms get
+              nothing here. */}
           {isCarousel && (
             <div className="space-y-2">
               <p className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Carousel slides &amp; on-screen text
               </p>
               <SlideEditor piece={piece} />
+            </div>
+          )}
+
+          {/* Reel note — an Instagram video posts as a Reel, so the photo-slide
+              composer doesn't apply. Any on-clip text was added upstream (Slate).
+              Photos + a video can't share one Instagram post via our publisher
+              (see .claude/ideas.md — mixed carousel parked, blocked on Buffer). */}
+          {isReel && (
+            <div className="flex items-start gap-2 rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground">
+              <Video className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              <p>
+                <span className="font-medium text-foreground">This posts as a Reel.</span> A video
+                publishes on its own — Instagram can’t combine a video and photos in one carousel.
+                Any on-screen text is baked into the clip itself.
+              </p>
             </div>
           )}
 

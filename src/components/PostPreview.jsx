@@ -6,6 +6,7 @@ import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { renderFreeformSlide } from '@/lib/overlayTemplates'
 import { pickHero } from '@/lib/publishImageMirror'
+import { isVideoEntry } from '@/lib/mediaEntry'
 
 // Pull the best logo URL for previews, preferring Brand Kit (primary_logo_url
 // is resolved by api/workspace/me from brand_kit_roles), then any legacy
@@ -221,12 +222,53 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
   )
 }
 
+// A single video attached to an Instagram post publishes as a Reel (9:16),
+// not a photo carousel — Instagram/Buffer can't mix photo + video in one post.
+// Shows the video in portrait with a Reel marker; the play-over-thumbnail
+// treatment matches MediaCarousel (real inline playback isn't needed for a
+// preview, and any on-clip text was already baked upstream in Slate).
+function ReelPreview({ video }) {
+  const src = mediaSrc(video)
+  return (
+    <div className="relative mx-auto aspect-[9/16] max-h-[70vh] overflow-hidden bg-slate-900 select-none">
+      {src ? (
+        <img
+          src={video.thumbnailUrl || src}
+          alt={video.name || ''}
+          className="absolute inset-0 h-full w-full object-cover opacity-80"
+          loading="lazy"
+          decoding="async"
+          onError={(e) => { e.target.style.display = 'none' }}
+        />
+      ) : null}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/50">
+          <Play className="ml-1 h-7 w-7 text-white" />
+        </div>
+      </div>
+      <span className="absolute right-2 top-2 z-10 rounded-full bg-black/55 px-2 py-0.5 text-3xs font-medium text-white">
+        Reel
+      </span>
+      {video.name && (
+        <p className="absolute bottom-2 left-0 right-0 line-clamp-1 px-4 text-center text-3xs text-white/60">
+          {video.name}
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── Instagram ────────────────────────────────────────────────────────────────
 function InstagramPreview({ content, mediaUrls = [], slides = null }) {
   const [showFull, setShowFull] = React.useState(false)
   const lines = (content || '').split('\n')
   const preview = lines.slice(0, 4).join('\n')
   const hasMore = lines.length > 4
+
+  // A video attached → this is a Reel (9:16 single video), not a photo carousel.
+  // Instagram/Buffer can't mix photo + video in one post (mixed carousel parked,
+  // blocked on Buffer — see .claude/ideas.md). The first video wins as the Reel.
+  const reelVideo = mediaUrls.find(isVideoEntry) || null
 
   // When slides exist, render the carousel as one canvas per slide (photo +
   // baked text blocks). When slides are absent (legacy/fresh draft), fall back
@@ -248,11 +290,13 @@ function InstagramPreview({ content, mediaUrls = [], slides = null }) {
         <button className="ml-auto text-xs font-semibold text-blue-500">Follow</button>
       </div>
 
-      {/* Carousel */}
+      {/* Reel (video) takes precedence over the photo carousel. */}
       <div className="relative">
-        {hasSlides
-          ? <SlidesCarousel slides={slides} mediaUrls={mediaUrls} />
-          : <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />}
+        {reelVideo
+          ? <ReelPreview video={reelVideo} />
+          : hasSlides
+            ? <SlidesCarousel slides={slides} mediaUrls={mediaUrls} />
+            : <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />}
       </div>
 
       {/* Actions */}

@@ -38,6 +38,7 @@ import { publishAndTrack, publishBlogToWebsite, sendBlogToBeehiiv, cancelBufferP
 import { suggestScheduleTime, explainPlatformSlot, findScheduleConflict } from '@/lib/scheduleHeuristics'
 import { buildImagesManifest } from '@/lib/publishImageMirror'
 import { extractProvenanceBlock } from '@/lib/provenance'
+import { isInstagramReel } from '@/lib/mediaEntry'
 import { toast, runWithToast } from '@/lib/toast'
 import BufferMetricsRow from './BufferMetricsRow'
 import WinnerToggle from './WinnerToggle'
@@ -1354,8 +1355,17 @@ export function ApprovalPanel({ piece, mode = 'workflow' }) {
         // slide images (photo + text), not the raw photos. SlideEditor renders
         // these eagerly on save; this is the fallback for slides saved before
         // that (or edited without re-saving) so the overlay always ships.
+        //
+        // BUT a Reel (Instagram piece with a video attached) must publish the
+        // VIDEO, never baked photo-slides. ensureRenderedSlides' publishMediaUrls
+        // is photos-only, so running it on a piece that has a video would silently
+        // drop the video and publish stale photo-slides instead — the preview
+        // would show a Reel while the live post is photos. Skip slide-baking
+        // whenever a video is present. (Mixed photo+video in one post isn't
+        // supported by our publisher anyway — see .claude/ideas.md.)
         let mediaUrls = piece.media_urls || []
-        if (Array.isArray(piece.slides) && piece.slides.length) {
+        const reelHasVideo = isInstagramReel(piece.media_urls)
+        if (!reelHasVideo && Array.isArray(piece.slides) && piece.slides.length) {
           const customThemes = allThemes.filter((t) => t.custom)
           const theme = resolveTheme(piece.carousel_theme_id || null, customThemes)
           const { slides: renderedSlides, publishMediaUrls, changed } = await runWithToast(
