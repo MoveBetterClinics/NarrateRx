@@ -303,12 +303,17 @@ lift**.
 
 ## Pipeline UX redesign — smoothing interview → publish (design approved 2026-05-31)
 
-> **Status: design LOCKED, build NOT started.** The P0 media-matcher engine works but its gate
-> was blocked on cramped in-editor UX (see the P0 bet). The redesign that unblocks it grew —
-> with Q, iteratively, through a clickable mockup — from "a media-approval page" into a **full
-> interview→publish flow + information-architecture redesign**. The visual spec is the clickable
-> prototype **`.claude/storyboard-flow-mockup.html`** (open in a browser — it IS the build
+> **Status: build IN PROGRESS — Phases 1 & 2 SHIPPED to prod (2026-06-01).** The P0 media-matcher
+> engine works but its gate was blocked on cramped in-editor UX (see the P0 bet). The redesign that
+> unblocks it grew — with Q, iteratively, through a clickable mockup — from "a media-approval page"
+> into a **full interview→publish flow + information-architecture redesign**. The visual spec is the
+> clickable prototype **`.claude/storyboard-flow-mockup.html`** (open in a browser — it IS the build
 > contract). Each phase ships as one PR, no auto-merge, Q drives merge/deploy, full DoD.
+>
+> **Shipped:** Phase 1 (#1104/#1105) + trial fixes (#1106) + Phase 2 video→Reel (#1118) + the Slate
+> producer-side index fix (#1117). Phase 3 spawned as a task. See per-phase status in the table below
+> and `memory/project_pipeline_ux_phase2_scope.md` for the mid-build scope changes (Slate-as-editor
+> reframe; several planned items dropped as no-ops).
 
 **The shape.** A four-stage producer spine — **Interview → Words → Media → Publish** — made to
 feel like one flow via a persistent **pipeline stepper** on every stage + a reorganized sidebar
@@ -347,13 +352,15 @@ that mirrors it.
 
 **Build phases** (each a shippable, trial-able PR; ~12–18 focused days total):
 
-| Phase | Ships | Est. Days | Est. Claude Cost |
-|---|---|---|---|
-| **1 · Storyboard core** | gate Continue, honest toggle, edge-to-edge + grid, publish loop-close, back-nav | 2–3d | $10–18 (Sonnet) |
-| **2 · Compose-in-Storyboard** | carousel + overlay composer into the media stage; Publish→preview+schedule | 3–4d | $15–25 |
-| **3 · Words + interview entry** | approve→handoff, Stories→Cards, rationalized Setup, "See your story" | 2–4d | $12–22 |
-| **4 · Nav reorg + stepper** | `Layout.jsx` nav + Overview item; pipeline stepper across stages; mobile/collapsed | 2–3d | $10–18 |
-| **5 · Overview + Library slim** | role-gated Overview route (relocate Pipeline/Calendar/Themes); Library cleanup | 3–4d | $15–25 |
+| Phase | Ships | Status |
+|---|---|---|
+| **1 · Storyboard core** | gate Continue, honest toggle, edge-to-edge + grid, publish loop-close, back-nav | ✅ SHIPPED #1104/#1105 + trial fixes #1106 (breadcrumbs, back-to-media, preview ratio, Ready-to-publish) |
+| **2 · Compose-in-Storyboard** | **RESCOPED → video-in-carousel.** Shipped: video attached to IG → publishes as a **Reel** (#1118). DROPPED: PublishPanel extraction (pure file-move, no visible change), brandRenderVideo caption-band on the Storyboard side (Slate bakes text — see reframe), the `video_segments` live-cut path (converged on `media_assets`). | ✅ SHIPPED #1118 (core video fix); composer polish deferred |
+| **3 · Words + interview entry** | approve→primary handoff, rationalized Setup (drop Tone, demote Audience), "See your story" completion. **Stories→Cards-only deferred to Phase 5** (depends on the Overview route). | ⚙️ spawned as task |
+| **4 · Nav reorg + stepper** | `Layout.jsx` nav + Overview item; pipeline stepper across stages; mobile/collapsed | ◻ not started |
+| **5 · Overview + Library slim** | role-gated Overview route (relocate Pipeline/Calendar/Themes); Stories→Cards-only; Library cleanup | ◻ not started |
+
+**Mid-build reframe (2026-06-01):** Slate = a video *editor* (manages clips, bakes on-clip text — size/position controls owned by the Slate session); Storyboard = the *publisher*. They meet through normal `media_assets`, NOT a special clip path. This collapsed several planned Phase-2 items. Cross-session threads resolved via `.claude/HANDOFF-slate-to-storyboard.md` (§Resolved contracts): (a) `indexMediaAsset` on Slate's approve→Library SHIPPED #1117 — approved clips now show in ranked Suggested media, consumer needs zero change; (b) Slate "As a post" → Storyboard receiver = create `content_items` draft (`media_urls=[{video}]`) + redirect to `/storyboard/:id` (contract C1 confirmed; `api/editorial/clip-to-post.js` to be built Slate-side); (c) on-video text = template-fixed caption band both sides, size/position controls deferred (need a new ffmpeg drawtext path, built jointly later). **Mixed photo+video IG carousel = parked, blocked on Buffer** (`.claude/ideas.md`).
 
 Recommended start: **Phase 1** (most-validated P0s). A parked `storyboard-ui-audit` worktree
 already has `Layout.jsx` edge-to-edge, `src/components/ui/BackLink.jsx`, and the

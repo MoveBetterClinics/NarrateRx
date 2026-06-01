@@ -1,8 +1,8 @@
 # Handoff: Slate → Storyboard video contract (2 sessions)
 
-**Date:** 2026-06-01
+**Date:** 2026-06-01 (updated 2026-06-01 — both contracts resolved; see §Resolved contracts)
 **From:** Pipeline-UX session (Storyboard/Publish consumer side, branch `feat/pipeline-ux-phase2`)
-**To:** Slate session (currently on `fix/slate-video-audio-subtitle-size`)
+**To:** Slate session (currently on `fix/slate-video-audio-subtitle-size`; rework spec at `.claude/slate-rework-spec.md`)
 
 Q's reframe (verbatim intent): **Slate is a video editing area, independent of any one social post — a way to manage video clips.** It just needs more output options. From a clip you get two outputs:
 
@@ -55,3 +55,40 @@ The **text-overlay size/position editing** appears on BOTH sides (Slate b-roll +
 - (b) Slate edits the burned-in overlay at render time; Storyboard edits via the carousel composer's caption band.
 
 Currently leaning (b) — they're different render paths (Slate burns at clip-render; Storyboard burns at publish via `brandRenderVideo`). Flag if you see it differently.
+
+---
+
+## Resolved contracts (2026-06-01 — Slate architecture session)
+
+**C1 — clip-as-post row shape: CONFIRMED.**
+
+Slate's "As a post" output creates a `content_items` row and redirects to Storyboard:
+```js
+// api/editorial/clip-to-post.js (new Node handler)
+// input: { assetId, captionText, platform }
+{
+  workspace_id: ws.id,
+  status: 'draft',
+  platform,                // chosen by producer in the clip editor
+  media_urls: [{ url: renderedBlobUrl, type: 'video', kind: 'video', mediaAssetId: assetId }],
+  content: captionText,    // the editable caption-band text
+  overlay_text: captionText,
+  staff_id: asset.staff_id || null,
+  notes: `Slate clip from asset ${assetId}`,
+}
+// → return { contentItemId }
+// Frontend: navigate(`/storyboard/${contentItemId}`)
+```
+Storyboard consumer receives it as a normal media-attached draft — no special clip handling needed.
+
+**C2 — overlay size/position ownership: TWO PATHS confirmed, size/position DEFERRED.**
+
+After code inspection: `brandRenderVideo.renderVideoChannel()` has a **template-fixed caption band** (no position/size param). Free size/position controls would need a new ffmpeg `drawtext` path — deferred per Phase-2 scope.
+
+**Phase 1 ships on both sides:**
+- **Slate:** editable caption-band **text only**, at the template-fixed position. No size slider, no Top/Center/Bottom toggle in production (mockup shows them as aspirational; don't build them yet).
+- **Storyboard:** same — editable caption-band text on a video carousel slide via `brandRenderVideo`, template-fixed position.
+
+Size/position controls revisit: after real-use trials confirm the value, then design the ffmpeg path together and ship it as one coordinated PR. Do NOT build it unilaterally on either side first — the render must be WYSIWYG across both surfaces.
+
+**Producer-side prerequisite already DONE:** PR #1117 (merged) wires `indexMediaAsset` on the `approve → library` path so approved Slate clips appear in Storyboard's ranked Suggested media. Consumer side needs zero change.
