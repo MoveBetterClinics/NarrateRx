@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { GalleryHorizontalEnd, ChevronRight, Check, Loader2 } from 'lucide-react'
+import { GalleryHorizontalEnd, ArrowRight, Check, Loader2, Video, Image as ImageIcon } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useContentItems } from '@/lib/queries'
 import { PLATFORM_META } from '@/lib/contentMeta'
@@ -10,24 +10,57 @@ import { mediaKindForPlatform, mediaKindLabel } from '@/lib/platformMediaKind'
 // one place so the count and the list always agree.
 const NEEDS_MEDIA = (p) => !Array.isArray(p?.media_urls) || p.media_urls.length === 0
 
+// A draft is "stale" once it has waited this long without media — the cue to
+// prioritize it. Drives the amber age label (vs muted for fresher drafts),
+// replacing the old uniform amber "Review media" that shouted on every row.
+const STALE_DAYS = 7
+
 function firstHeading(content) {
   if (typeof content !== 'string') return ''
   const m = content.match(/^#{1,6}\s+(.+)$/m)
   return m ? m[1].trim() : ''
 }
 
+// Whole days since `iso`; null when missing/unparseable so callers can hide the
+// age signal rather than render a bogus "NaNd ago".
+function daysSince(iso) {
+  if (!iso) return null
+  const then = new Date(iso).getTime()
+  if (Number.isNaN(then)) return null
+  return Math.floor((Date.now() - then) / 86_400_000)
+}
+
+function ageLabel(days) {
+  if (days == null) return null
+  if (days <= 0) return 'today'
+  return `${days}d ago`
+}
+
 /**
  * Storyboard — the queue. Every written-and-ready draft that still has no
- * photo or video. Each row opens the focused Storyboard page
+ * photo or video. Each card opens the focused Storyboard page
  * (/storyboard/:pieceId) where the producer reviews suggested media at full
  * size — plays the videos — and attaches the right one.
  *
  * The content→media tool, sibling to Slate (video→content). Ungated like
  * Library so producers (no interview.start) see it; it's their surface.
+ *
+ * Layout: an edge-to-edge responsive card grid (not a single capped column),
+ * oldest draft first so age is the priority signal. Each card carries the
+ * channel's accepted media kind and how long it's been waiting.
  */
 export default function Storyboard() {
   const { data: items = [], isLoading } = useContentItems({ status: 'draft,in_review' })
-  const rows = useMemo(() => items.filter(NEEDS_MEDIA), [items])
+  // Oldest first — age is the priority signal, so the draft that has waited
+  // longest for media sits at the top of the queue.
+  const rows = useMemo(
+    () =>
+      items
+        .filter(NEEDS_MEDIA)
+        .slice()
+        .sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)),
+    [items],
+  )
 
   return (
     <div className="space-y-4 py-6">
@@ -36,7 +69,7 @@ export default function Storyboard() {
           <GalleryHorizontalEnd className="h-5 w-5 text-primary" />
           Storyboard
         </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
+        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
           These drafts are written and ready, but have no photo or video. Open one to review the
           suggested media at full size — play the videos — and attach the right match.
         </p>
@@ -57,30 +90,53 @@ export default function Storyboard() {
           <p className="text-xs text-muted-foreground">
             {rows.length} draft{rows.length === 1 ? '' : 's'} need media
           </p>
-          <div className="space-y-2">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {rows.map((piece) => {
               const meta = PLATFORM_META[piece.platform] || { label: piece.platform }
               const Icon = meta.icon
               const title = piece.topic || firstHeading(piece.content) || 'Untitled draft'
-              const kindHint = mediaKindLabel(mediaKindForPlatform(piece.platform))
+              const kind = mediaKindForPlatform(piece.platform)
+              const kindLabel = mediaKindLabel(kind)
+              const days = daysSince(piece.created_at)
+              const age = ageLabel(days)
+              const stale = days != null && days >= STALE_DAYS
               return (
                 <Link
                   key={piece.id}
                   to={`/storyboard/${piece.id}`}
-                  className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-accent/20"
+                  className="group rounded-lg border bg-card p-3 transition-colors hover:border-primary/40 hover:shadow-sm"
                 >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">{title}</p>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-                      <Badge variant="outline" className="gap-1 text-2xs">
-                        {Icon && <Icon className="h-3 w-3" />}{meta.label}
-                      </Badge>
-                      <span className="text-2xs">· {kindHint}</span>
-                      {piece.staff_name && <span className="truncate text-2xs">· {piece.staff_name}</span>}
-                    </div>
+                  <div className="flex items-start justify-between gap-2">
+                    <Badge variant="outline" className="gap-1 text-2xs">
+                      {Icon && <Icon className="h-3 w-3" />}{meta.label}
+                    </Badge>
+                    {age && (
+                      <span
+                        className={`shrink-0 text-2xs font-medium ${stale ? 'text-warning' : 'text-muted-foreground'}`}
+                      >
+                        {age}
+                      </span>
+                    )}
                   </div>
-                  <span className="shrink-0 text-xs font-medium text-amber-600">Review media</span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <p className="mt-2 text-sm font-medium leading-snug text-foreground">{title}</p>
+                  <div className="mt-2 flex items-center gap-2 text-2xs text-muted-foreground">
+                    <span className="inline-flex items-center gap-1">
+                      {kind === 'video' && <Video className="h-3 w-3" />}
+                      {kind === 'photo' && <ImageIcon className="h-3 w-3" />}
+                      {kindLabel}
+                    </span>
+                    {piece.staff_name && (
+                      <>
+                        <span aria-hidden>·</span>
+                        <span className="truncate">{piece.staff_name}</span>
+                      </>
+                    )}
+                  </div>
+                  <div className="mt-3 flex items-center justify-end">
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
+                      Add media <ArrowRight className="h-3.5 w-3.5" />
+                    </span>
+                  </div>
                 </Link>
               )
             })}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowRight, Loader2, ImagePlus, Sparkles, Images, Video, ImageIcon } from 'lucide-react'
+import { ArrowRight, ImagePlus, Sparkles, Images, Video, ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import BackLink from '@/components/ui/BackLink'
 import LoadingState from '@/components/LoadingState'
