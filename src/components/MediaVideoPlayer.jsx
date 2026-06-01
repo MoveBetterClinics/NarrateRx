@@ -85,22 +85,15 @@ function MuxPlayer({ asset, playbackToken }) {
         ? asset.aspect_ratio.replace(':', ' / ')
         : null)
 
-  // Numeric aspect ratio (W/H) used to cap width so the element box is
-  // exactly the right shape for the video. Setting both width:100% and
-  // max-height without capping width causes mux-player to render a box that's
-  // wider than the video at max-height, and the player fills the oversized box
-  // by cropping rather than letterboxing. The fix:
-  //   max-width = calc(MAX_HEIGHT_VH * arNum)
-  // so the element is never wider than what the video fills at full height.
-  // When the container is narrower than max-width, width:100% kicks in and the
-  // video is proportionally shorter — both dimensions fit without any cropping.
+  // Numeric aspect ratio (W/H), used to cap width so the element box is the
+  // right shape for the video and excess letterbox bars are minimized.
   const arNum = asset.width && asset.height
     ? asset.width / asset.height
     : ar
       ? (() => { const p = ar.split(' / '); return parseFloat(p[0]) / parseFloat(p[1]) })()
       : 16 / 9
 
-  const MAX_HEIGHT = '55vh'
+  const MAX_HEIGHT = '70vh'
 
   return (
     <mux-player
@@ -108,10 +101,18 @@ function MuxPlayer({ asset, playbackToken }) {
       style={{
         display: 'block',
         width: '100%',
+        // Best-effort correct box shape when we know the (rotation-applied)
+        // dimensions. Cap width so a known-ratio video doesn't render wider
+        // than its frame fills at max height.
         ...(ar ? { aspectRatio: ar } : {}),
         maxHeight: MAX_HEIGHT,
         maxWidth: `calc(${MAX_HEIGHT} * ${arNum.toFixed(6)})`,
         margin: '0 auto',
+        // The decisive guarantee: mux-player defaults --media-object-fit to
+        // `cover`, which CROPS the video to fill its box. `contain` shows the
+        // complete frame (letterboxed) in every orientation and aspect ratio,
+        // even if our stored width/height is stale or wrong. Never remove this.
+        '--media-object-fit': 'contain',
       }}
     />
   )
