@@ -60,6 +60,7 @@ const AuthorMode = lazy(() => import('@/pages/AuthorMode'))
 const Book = lazy(() => import('@/pages/Book'))
 const EditorialTest = lazy(() => import('@/pages/EditorialTest'))
 const Slate = lazy(() => import('@/pages/Slate'))
+const SlateClipEditor = lazy(() => import('@/pages/SlateClipEditor'))
 const Capture = lazy(() => import('@/pages/Capture'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
@@ -540,8 +541,10 @@ function AppRoutes() {
             <Route path="/needs-media" element={<Navigate to="/storyboard" replace />} />
             {/* Universal PWA capture surface — works on any device with a browser + camera. */}
             <Route path="/capture" element={guarded(<Capture />)} />
-            {/* Phase 3 Story Director — daily story slate for producers + clinicians. */}
+            {/* Slate — clip workshop. Uses the * catch-all pattern so descendant
+                routes resolve correctly (see CLAUDE.md Router conventions). */}
             <Route path="/slate" element={guarded(<Slate />)} />
+            <Route path="/slate/clip/:assetId" element={guarded(<SlateClipEditor />)} />
             {/* Internal dev surface — Phase 2 editorial pipeline test (search clips + render). */}
             <Route path="/internal/editorial-test" element={guarded(<EditorialTest />)} />
             {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}

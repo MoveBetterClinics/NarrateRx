@@ -6,7 +6,7 @@ import { useSelfStaffId } from '@/lib/useSelfStaffId'
 import { useEnsureSelfStaff } from '@/lib/useEnsureSelfStaff'
 import {
   Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, ChevronLeft,
-  Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard, Camera, GalleryHorizontalEnd,
+  Check, UserCircle, Mic2, BookOpen, PenLine, Scissors, Camera, GalleryHorizontalEnd,
   LayoutDashboard, Newspaper, FolderOpen, LayoutGrid,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -71,7 +71,7 @@ const NAV_SECTIONS = [
         requiresCapability: CAP_INTERVIEW_START },
       // Slate — the video→content tool. Only when the workspace opts into the
       // video pipeline.
-      { to: '/slate',     label: 'Slate',     match: (p) => p.startsWith('/slate'),     icon: Clapperboard,
+      { to: '/slate',     label: 'Slate',     match: (p) => p.startsWith('/slate'),     icon: Scissors,
         showWhen: (ws) => ws?.video_pipeline_enabled === true },
     ],
   },
