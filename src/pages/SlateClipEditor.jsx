@@ -48,6 +48,31 @@ export default function SlateClipEditor() {
     retry: 1,
   })
 
+  // --- Auto-suggest: content_pieces for this asset ---
+  const { data: suggestions, isFetching: suggestionsLoading } = useQuery({
+    queryKey: ['content-pieces', assetId],
+    queryFn: () => apiFetch(`/api/content-pieces/list?sourceId=${assetId}&limit=5`),
+    enabled: !!assetId,
+    staleTime: 60_000,
+  })
+  const [suggestNote, setSuggestNote] = useState('')
+
+  function applyTopSuggestion() {
+    const top = suggestions?.[0]
+    if (!top) {
+      setSuggestNote('No suggestions found for this clip.')
+      return
+    }
+    setSuggestNote('')
+    if (top.ai_caption)        setCaptionText(top.ai_caption)
+    if (top.source_trim_start != null) setStartSec(top.source_trim_start)
+    if (top.source_trim_start != null && top.source_trim_end != null) {
+      const dur = Math.min(top.source_trim_end - top.source_trim_start, 60)
+      setDurationSec(Math.max(1, dur))
+    }
+    setRenderedBlobUrl(null)
+  }
+
   // --- Video playback ---
   const videoRef = useRef(null)
   const [playing, setPlaying] = useState(false)
@@ -389,16 +414,23 @@ export default function SlateClipEditor() {
           </Button>
         </div>
 
-        {/* Phase 2 — Auto-suggest slot (disabled) */}
-        <Button
-          variant="ghost"
-          className="w-full gap-2 text-muted-foreground border border-dashed border-muted-foreground/30 opacity-50 cursor-not-allowed"
-          disabled
-        >
-          <Sparkles className="h-4 w-4" />
-          Auto-suggest a post
-          <span className="ml-1 text-2xs bg-muted px-1.5 py-0.5 rounded font-medium">Coming soon</span>
-        </Button>
+        {/* Auto-suggest — pre-fills caption + trim from the top content_piece for this asset */}
+        <div className="flex flex-col gap-1">
+          <Button
+            variant="ghost"
+            className="w-full gap-2 text-muted-foreground border border-dashed border-muted-foreground/30 hover:border-primary/40 hover:text-foreground"
+            onClick={applyTopSuggestion}
+            disabled={busy || suggestionsLoading}
+          >
+            {suggestionsLoading
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> Checking for suggestions…</>
+              : <><Sparkles className="h-4 w-4" /> Auto-suggest a post</>
+            }
+          </Button>
+          {suggestNote && (
+            <p className="text-xs text-muted-foreground text-center">{suggestNote}</p>
+          )}
+        </div>
       </div>
     </div>
   )

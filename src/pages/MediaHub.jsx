@@ -12,7 +12,6 @@ import MediaUploader from '@/components/MediaUploader'
 import DriveImportPicker from '@/components/DriveImportPicker'
 import MediaGrid from '@/components/MediaGrid'
 import MediaDetail from '@/components/MediaDetail'
-import ContentBriefList from '@/components/ContentBriefList'
 import CollectionsBar from '@/components/CollectionsBar'
 import BulkActionBar from '@/components/BulkActionBar'
 import MediaHubHelp from '@/components/MediaHubHelp'
@@ -94,7 +93,6 @@ export default function MediaHub() {
   const [collectionId, setCollectionId] = useState(null)
   const [collectionRefreshKey, setCollectionRefreshKey] = useState(0)
   const [selected, setSelected] = useState(null)  // full asset row
-  const [briefRefreshKey, setBriefRefreshKey] = useState(0)
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState([])
   const [uploadOpen, setUploadOpen] = useState(false)
@@ -190,7 +188,6 @@ export default function MediaHub() {
 
   // Visible secondary surfaces — Collections + (admin) Backfill — start
   // collapsed so the Library opens with just the search + chip strip + grid.
-  // The Edit briefs pane is collapsed via ContentBriefList's own prop.
   const [collectionsOpen, setCollectionsOpen] = useState(false)
 
   // Stable callback name so the existing IntersectionObserver effect keeps
@@ -386,11 +383,6 @@ export default function MediaHub() {
         </Dialog>
       )}
 
-      {/* Edit briefs — collapsed by default so the Library opens visual-first.
-          Pending-count badge stays visible on the collapsed header so nothing
-          gets buried. */}
-      <ContentBriefList refreshKey={briefRefreshKey} expandedDefault={false} />
-
       {/* Filters — search + actions on top; one chip strip below */}
       <div className="space-y-3">
         {/* Search field, status, and primary actions */}
@@ -559,7 +551,6 @@ export default function MediaHub() {
           onChange={() => setCollectionRefreshKey((k) => k + 1)}
           onRefresh={() => {
             refresh()
-            setBriefRefreshKey((k) => k + 1)
             setCollectionRefreshKey((k) => k + 1)
           }}
         />
@@ -688,7 +679,6 @@ export default function MediaHub() {
           onClose={() => setSelected(null)}
           onChange={async () => {
             refresh()
-            setBriefRefreshKey((k) => k + 1)
             setCollectionRefreshKey((k) => k + 1)
             // Re-pull the open row so an in-place edit (rotate, retag,
             // make-thumbnail) shows the new blob_url / thumbnail_url in
