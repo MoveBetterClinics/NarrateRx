@@ -313,16 +313,21 @@ export default function Slate() {
     }
   }
 
-  async function handleApprove(pkg) {
+  async function handleApprove(pkg, destination = 'publish') {
     try {
       const result = await apiFetch('/api/editorial/approve-package', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packageId: pkg.id }),
+        body: JSON.stringify({ packageId: pkg.id, destination }),
       })
       qc.invalidateQueries({ queryKey: ['story-packages'] })
-      const count = result?.platformCount ?? result?.contentItems?.length ?? 0
-      toast(`Staged in Drafts — ${count} platform${count !== 1 ? 's' : ''} ready to distribute.`)
+      if (destination === 'library') {
+        const count = result?.assetCount ?? 0
+        toast(`Saved to Library — ${count} clip${count !== 1 ? 's' : ''} ready to use in posts.`)
+      } else {
+        const count = result?.platformCount ?? result?.contentItems?.length ?? 0
+        toast(`Staged in Drafts — ${count} platform${count !== 1 ? 's' : ''} ready to distribute.`)
+      }
     } catch (err) {
       toast.error(err?.message || 'Failed to approve package.')
     }

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pause, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target, Zap, Clapperboard, Ban } from 'lucide-react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pause, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target, Zap, Clapperboard, Ban, Library, Send } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
@@ -150,6 +150,7 @@ function TriageBadge({ reason }) {
  */
 export default function PackageCard({ pkg, staffName, triageReason, onApprove, onSkip, onStop, onUpdate }) {
   const [approving, setApproving]           = useState(false)
+  const [choosingApprove, setChoosingApprove] = useState(false)
   const [editing, setEditing]               = useState(false)
   const [caption, setCaption]               = useState(pkg.caption_text || '')
   const [saving, setSaving]                 = useState(false)
@@ -243,10 +244,11 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
     }
   }
 
-  async function handleApprove() {
+  async function handleApprove(destination) {
+    setChoosingApprove(false)
     setApproving(true)
     try {
-      await onApprove(pkg)
+      await onApprove(pkg, destination)
     } finally {
       setApproving(false)
     }
@@ -341,7 +343,6 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
                 ref={videoRef}
                 src={previewRender.blobUrl}
                 className="absolute inset-0 w-full h-full object-cover cursor-pointer"
-                muted
                 playsInline
                 preload="metadata"
                 onClick={handleVideoClick}
@@ -513,41 +514,80 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
 
       {/* Actions — hidden while editing or generating */}
       {!editing && !showGenerating && !isFailed && (
-        <div className="flex gap-1.5 p-2.5 border-t border-border bg-muted/30">
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs h-8"
-            onClick={() => onSkip?.(pkg)}
-          >
-            Skip
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="flex-1 text-xs h-8"
-            onClick={handleEditOpen}
-          >
-            <Pencil className="h-3 w-3 mr-1" />
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
-            onClick={handleApprove}
-            disabled={approving || consentBlocks}
-            title={consentBlocks
-              ? (consentStatus === 'pending'
-                  ? 'Mark consent obtained (or not required) before approving'
-                  : 'Consent revoked — cannot approve')
-              : undefined}
-          >
-            {approving ? <Loader2 className="h-3 w-3 animate-spin" /> : consentBlocks ? (
-              <><ShieldAlert className="h-3 w-3 mr-1" />Blocked</>
-            ) : (
-              <><CheckCircle2 className="h-3 w-3 mr-1" />Approve</>
-            )}
-          </Button>
+        <div className="flex flex-col gap-1 p-2.5 border-t border-border bg-muted/30">
+          {choosingApprove ? (
+            /* Destination picker — shown after clicking Approve */
+            <div className="flex flex-col gap-1">
+              <p className="text-3xs text-muted-foreground text-center font-medium">Save this clip to…</p>
+              <div className="flex gap-1.5">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 text-xs h-8"
+                  onClick={() => setChoosingApprove(false)}
+                  disabled={approving}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 text-xs h-8"
+                  onClick={() => handleApprove('library')}
+                  disabled={approving}
+                >
+                  <Library className="h-3 w-3 mr-1" />
+                  Library
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => handleApprove('publish')}
+                  disabled={approving}
+                >
+                  <Send className="h-3 w-3 mr-1" />
+                  Drafts
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs h-8"
+                onClick={() => onSkip?.(pkg)}
+              >
+                Skip
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs h-8"
+                onClick={handleEditOpen}
+              >
+                <Pencil className="h-3 w-3 mr-1" />
+                Edit
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white disabled:bg-muted disabled:text-muted-foreground disabled:cursor-not-allowed"
+                onClick={() => setChoosingApprove(true)}
+                disabled={approving || consentBlocks}
+                title={consentBlocks
+                  ? (consentStatus === 'pending'
+                      ? 'Mark consent obtained (or not required) before approving'
+                      : 'Consent revoked — cannot approve')
+                  : undefined}
+              >
+                {approving ? <Loader2 className="h-3 w-3 animate-spin" /> : consentBlocks ? (
+                  <><ShieldAlert className="h-3 w-3 mr-1" />Blocked</>
+                ) : (
+                  <><CheckCircle2 className="h-3 w-3 mr-1" />Approve</>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       )}
 

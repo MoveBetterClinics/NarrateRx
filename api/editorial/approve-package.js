@@ -1,16 +1,19 @@
 // POST /api/editorial/approve-package
 //
-// Phase 3 PR 2: Approve a story package from the Story Director Slate.
+// Approve a story package from the Story Director Slate.
 //
-// Creates one content_items row per unique platform (grouping channels that
-// share the same platform: e.g. linkedin_feed + linkedin_video → one 'linkedin'
-// row with both render URLs). Then marks the story_package as 'approved'.
+// Body: { packageId: string, destination?: 'publish' | 'library' }
 //
-// Body: { packageId: string }
+// destination='publish' (default): creates one content_items row per unique platform,
+//   grouping channels that share a platform (e.g. linkedin_feed + linkedin_video → one
+//   'linkedin' row). Response: { contentItems, packageId, platformCount }
 //
-// Response 200: { contentItems: [{ id, platform, ... }], packageId }
+// destination='library': creates one media_assets row per render, returning clips to
+//   the Library for reuse in future posts. Response: { assets, packageId, assetCount }
+//
+// Both paths mark the story_package as 'approved'.
+//
 // Errors: 400 / 401 / 403 / 404 / 409 (already approved) / 500
-//
 // Auth: all roles (clinicians approve their own packages).
 // Requires migration 090 (status constraint expansion) applied before use.
 
@@ -74,8 +77,11 @@ export default async function handler(req, res) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
-  const { packageId } = req.body || {}
+  const { packageId, destination = 'publish' } = req.body || {}
   if (!packageId) return res.status(400).json({ error: 'packageId_required' })
+  if (destination !== 'publish' && destination !== 'library') {
+    return res.status(400).json({ error: 'invalid_destination', message: "destination must be 'publish' or 'library'" })
+  }
 
   // --- Load package + source asset consent state (must belong to this workspace) ---
   const pkgRes = await sb(
@@ -128,20 +134,85 @@ export default async function handler(req, res) {
     byPlatform[platform].renders.push(render)
   }
 
-  if (Object.keys(byPlatform).length === 0) {
+  if (renders.length === 0) {
     return res.status(409).json({
       error: 'no_renders',
       message: 'Package has no rendered outputs to stage.',
     })
   }
 
-  // --- Insert one content_items row per platform ---
+  if (destination === 'publish' && Object.keys(byPlatform).length === 0) {
+    return res.status(409).json({
+      error: 'no_renders',
+      message: 'Package has no rendered outputs to stage.',
+    })
+  }
+
   const now = new Date().toISOString()
+
+  if (destination === 'library') {
+    // --- Insert one media_assets row per render ---
+    // Each rendered clip lands in the Library as reusable broll for future posts.
+    // No Mux re-transcode: renders are already playable .mp4 files from Blob.
+    const assetRows = renders.map((r) => {
+      const isVideo = String(r.blobUrl || '').toLowerCase().endsWith('.mp4')
+      const kind = isVideo ? 'video' : 'photo'
+      const filename = (r.blobUrl || '').split('/').pop().split('?')[0] || `slate-${packageId}-${r.channel}.mp4`
+      const blobPathname = (() => {
+        try { return new URL(r.blobUrl).pathname } catch { return filename }
+      })()
+      return {
+        workspace_id:      ws.id,
+        kind,
+        asset_purpose:     kind === 'video' ? 'broll' : 'photo',
+        source:            'slate',
+        status:            'approved',
+        blob_url:          r.blobUrl,
+        blob_pathname:     blobPathname,
+        filename,
+        mime_type:         isVideo ? 'video/mp4' : 'image/jpeg',
+        width:             r.width  || null,
+        height:            r.height || null,
+        size_bytes:        r.sizeBytes || null,
+        staff_id:          pkg.staff_id || null,
+        // Renders are already processed mp4s — skip Mux re-transcode.
+        transcode_status:  kind === 'video' ? 'skipped' : null,
+        notes:             `${pkg.topic} · ${r.channel} render from Slate package ${packageId}`,
+      }
+    })
+
+    const assetInsertRes = await sb('media_assets', {
+      method: 'POST',
+      body: JSON.stringify(assetRows),
+    })
+    if (!assetInsertRes.ok) {
+      const text = await assetInsertRes.text().catch(() => '')
+      console.error('[approve-package] media_assets insert failed:', assetInsertRes.status, text)
+      return res.status(500).json({ error: 'media_assets_insert_failed', detail: text })
+    }
+    const assets = await assetInsertRes.json()
+
+    await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'approved', updated_at: now }),
+    }).catch((e) => {
+      console.error('[approve-package] status patch failed:', e.message)
+    })
+
+    return res.status(200).json({
+      packageId,
+      destination: 'library',
+      assets,
+      assetCount: assets.length,
+    })
+  }
+
+  // --- destination === 'publish': insert one content_items row per platform ---
   const rows = Object.values(byPlatform).map(({ platform, renders: pRenders }) => ({
     workspace_id:   ws.id,
     interview_id:   null,
-    staff_id:   pkg.staff_id || null,
-    staff_name: staffName,
+    staff_id:       pkg.staff_id || null,
+    staff_name:     staffName,
     topic:          pkg.topic,
     platform,
     content:        pkg.caption_text,
@@ -177,7 +248,6 @@ export default async function handler(req, res) {
   }
   const contentItems = await insertRes.json()
 
-  // --- Mark package approved ---
   await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({ status: 'approved', updated_at: now }),
@@ -187,6 +257,7 @@ export default async function handler(req, res) {
 
   return res.status(200).json({
     packageId,
+    destination: 'publish',
     contentItems,
     platformCount: contentItems.length,
   })
