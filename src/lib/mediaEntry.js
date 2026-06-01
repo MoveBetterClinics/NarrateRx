@@ -46,3 +46,22 @@ export function pickerItemToMediaEntry(asset) {
 export function mediaEntryKey(entry) {
   return entry.mediaAssetId || entry.url
 }
+
+// True when a media_urls entry is a video. Checks both `kind` and `type`
+// because the two normalizers above set both, but older rows / other writers
+// may carry only one. One predicate so every surface (preview, composer gate,
+// publish) agrees on what counts as a video.
+export function isVideoEntry(entry) {
+  return entry?.kind === 'video' || entry?.type === 'video'
+}
+
+// True when an Instagram piece should publish as a Reel rather than a photo
+// carousel: it has at least one video attached. Instagram (and Buffer) treat a
+// post as EITHER an all-photo carousel OR a single-video Reel — they can't be
+// mixed through our publisher — so the presence of any video makes it a Reel.
+// (Mixed photo+video carousels are parked in .claude/ideas.md, blocked on
+// Buffer.) Shared so the preview, the composer gate, and any reel-specific UI
+// make the same call from the same media_urls array.
+export function isInstagramReel(mediaUrls) {
+  return Array.isArray(mediaUrls) && mediaUrls.some(isVideoEntry)
+}

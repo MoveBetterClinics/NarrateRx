@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NarrateRx — Storyboard flow (proposed redesign)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          background: 'hsl(220 22% 97%)',
+          foreground: 'hsl(222 47% 8%)',
+          card: 'hsl(0 0% 100%)',
+          primary: 'hsl(20 76% 52%)',
+          'primary-foreground': 'hsl(0 0% 100%)',
+          muted: 'hsl(220 14% 96%)',
+          'muted-foreground': 'hsl(215 16% 47%)',
+          accent: 'hsl(20 60% 95%)',
+          'accent-foreground': 'hsl(20 76% 38%)',
+          border: 'hsl(214 32% 91%)',
+          success: 'hsl(152 76% 40%)',
+          warning: 'hsl(38 92% 50%)',
+          info: 'hsl(199 95% 40%)',
+        },
+        fontFamily: { sans: ['Geist', 'Inter', 'system-ui', 'sans-serif'] },
+        fontSize: { '2xs': '0.6875rem', '3xs': '0.625rem' },
+      },
+    },
+  }
+</script>
+<style>
+  body { background: hsl(220 22% 97%); }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  [data-lucide] { width: 1em; height: 1em; }
+  /* media placeholder tiles */
+  .tile { background-size: cover; background-position: center; }
+  .ph0 { background: linear-gradient(135deg,#fcd9b6,#f2a365); }
+  .ph1 { background: linear-gradient(135deg,#cfe8e0,#7fb6a8); }
+  .ph2 { background: linear-gradient(135deg,#dfe3ee,#9aa7c7); }
+  .ph3 { background: linear-gradient(135deg,#f4d4d0,#d99a93); }
+  .ph4 { background: linear-gradient(135deg,#e7dcf2,#b69ad6); }
+  .ph5 { background: linear-gradient(135deg,#d7e8f6,#8fb8d8); }
+</style>
+</head>
+<body class="font-sans text-foreground">
+
+<!-- top mockup banner -->
+<div class="fixed top-0 inset-x-0 z-50 bg-foreground text-white text-xs px-4 py-1.5 flex items-center gap-2 justify-center">
+  <i data-lucide="figma"></i>
+  <span><b>Mockup</b> · NarrateRx Storyboard flow — proposed redesign. Clickable, illustrative content (not live data).</span>
+</div>
+
+<div class="flex min-h-screen pt-7">
+
+  <!-- ── Sidebar (matches the app) ───────────────────────────────────── -->
+  <aside class="hidden md:flex fixed inset-y-0 top-7 left-0 w-56 flex-col border-r bg-white z-30">
+    <div class="h-14 border-b shrink-0 flex items-center px-4 gap-2.5">
+      <div class="h-8 w-8 rounded-md bg-primary flex items-center justify-center text-white font-bold">N</div>
+      <div>
+        <p class="text-sm font-semibold leading-none">NarrateRx</p>
+        <p class="text-3xs text-muted-foreground mt-0.5 leading-none">Voice-faithful clinical content</p>
+      </div>
+    </div>
+    <div class="px-3 pt-2">
+      <button class="inline-flex items-center justify-between w-full h-6 pl-2 pr-1.5 text-xs font-medium rounded-full border bg-muted/50 text-muted-foreground">
+        <span>Move Better — People</span><i data-lucide="chevron-down" class="text-3xs"></i>
+      </button>
+    </div>
+    <div class="px-2 pt-2 pb-1">
+      <button onclick="show('setup')" class="w-full justify-start gap-2 inline-flex items-center h-8 rounded-md bg-primary text-primary-foreground text-sm font-medium px-3">
+        <i data-lucide="plus"></i> New Interview
+      </button>
+    </div>
+    <!-- Nav reorganized to mirror the journey: Home, then the pipeline
+         (Produce), then the resources that feed it (Library), then Tools.
+         Active item tracks the current stage as you move through the flow. -->
+    <nav class="flex-1 px-2 py-2 overflow-y-auto text-sm font-medium space-y-0.5">
+      <a data-navitem="home" class="cursor-pointer flex items-center gap-2.5 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40"><i data-lucide="layout-dashboard"></i> Home</a>
+      <a data-navitem="overview" onclick="show('overview')" title="Clinic-wide — owner / producer / director" class="cursor-pointer flex items-center justify-between gap-2 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40">
+        <span class="inline-flex items-center gap-2.5"><i data-lucide="layout-grid"></i> Overview</span>
+        <span class="text-3xs text-muted-foreground/60">Clinic</span>
+      </a>
+
+      <p class="px-3 pt-3 pb-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground/60">Produce</p>
+      <a data-navitem="stories" onclick="show('stories')" class="cursor-pointer flex items-center justify-between gap-2 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40">
+        <span class="inline-flex items-center gap-2.5"><i data-lucide="newspaper"></i> Stories</span>
+        <span class="text-3xs text-muted-foreground/60">Words</span>
+      </a>
+      <a data-navitem="storyboard" onclick="show('queue')" class="cursor-pointer flex items-center justify-between gap-2 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40">
+        <span class="inline-flex items-center gap-2.5"><i data-lucide="gallery-horizontal-end"></i> Storyboard</span>
+        <span class="text-3xs text-muted-foreground/60">Media · Publish</span>
+      </a>
+
+      <p class="px-3 pt-3 pb-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground/60">Library</p>
+      <a data-navitem="library" onclick="show('library')" class="cursor-pointer flex items-center gap-2.5 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40"><i data-lucide="folder-open"></i> Library</a>
+      <a data-navitem="capture" class="cursor-pointer flex items-center gap-2.5 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40"><i data-lucide="camera"></i> Capture</a>
+
+      <p class="px-3 pt-3 pb-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground/60">Tools</p>
+      <a data-navitem="book" class="cursor-pointer flex items-center gap-2.5 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40"><i data-lucide="book-open"></i> Book</a>
+      <a data-navitem="write" class="cursor-pointer flex items-center gap-2.5 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40"><i data-lucide="pen-line"></i> Write</a>
+      <a data-navitem="previsit" class="cursor-pointer flex items-center gap-2.5 px-3 py-2 rounded-md text-muted-foreground hover:bg-accent/40"><i data-lucide="mic"></i> Pre-Visit</a>
+    </nav>
+    <div class="border-t px-2 py-2 text-xs text-muted-foreground">
+      <a class="flex items-center gap-2.5 px-3 py-2 rounded-md hover:bg-accent/40"><i data-lucide="settings"></i> Settings</a>
+    </div>
+  </aside>
+
+  <!-- ── Stage (content swaps here) ──────────────────────────────────── -->
+  <div class="flex-1 md:ml-56">
+    <main id="stage">
+
+      <!-- ════════════════ OVERVIEW — clinic-wide board (Pipeline/Calendar/Themes) ════════════════ -->
+      <section data-screen="overview" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 class="flex items-center gap-2 text-xl font-semibold"><i data-lucide="layout-grid" class="text-primary"></i> Overview</h1>
+              <p class="mt-1 text-sm text-muted-foreground">The whole clinic’s content, top-down — every piece, every staff member.</p>
+            </div>
+            <span class="inline-flex items-center gap-1.5 rounded-full border bg-muted/40 px-2.5 py-1 text-2xs font-medium text-muted-foreground"><i data-lucide="shield" style="width:.85rem;height:.85rem"></i> Owner · Producer view</span>
+          </div>
+
+          <div class="inline-flex rounded-md border p-0.5 text-xs font-medium">
+            <button id="ovBtnpipeline" onclick="setOverviewView('pipeline')" class="rounded px-3 py-1 bg-primary text-primary-foreground">Pipeline</button>
+            <button id="ovBtncalendar" onclick="setOverviewView('calendar')" class="rounded px-3 py-1 text-muted-foreground">Calendar</button>
+            <button id="ovBtnthemes" onclick="setOverviewView('themes')" class="rounded px-3 py-1 text-muted-foreground">Themes</button>
+          </div>
+
+          <!-- PIPELINE: everything by stage -->
+          <div data-ovview="pipeline" class="grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            <div class="rounded-lg border bg-muted/20 p-2 space-y-2">
+              <p class="flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-muted-foreground px-1">Draft <span class="rounded-full bg-muted px-1.5 text-foreground">4</span></p>
+              <div class="rounded-md border bg-card p-2"><p class="text-xs font-medium leading-snug">Adjustments aren’t scary</p><p class="text-3xs text-muted-foreground mt-0.5">Instagram · Dr. Q</p></div>
+              <div class="rounded-md border bg-card p-2"><p class="text-xs font-medium leading-snug">Nutrition basics for runners</p><p class="text-3xs text-muted-foreground mt-0.5">Blog · Whitney</p></div>
+              <p class="text-3xs text-muted-foreground px-1">+2 more</p>
+            </div>
+            <div class="rounded-lg border bg-muted/20 p-2 space-y-2">
+              <p class="flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-amber-600 px-1">In review <span class="rounded-full bg-amber-100 px-1.5">2</span></p>
+              <div class="rounded-md border bg-card p-2"><p class="text-xs font-medium leading-snug">Why your neck pain keeps coming back</p><p class="text-3xs text-muted-foreground mt-0.5">Instagram · Dr. Q</p></div>
+            </div>
+            <div class="rounded-lg border bg-muted/20 p-2 space-y-2">
+              <p class="flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-primary px-1">Needs media <span class="rounded-full bg-primary/10 px-1.5">3</span></p>
+              <div class="rounded-md border bg-card p-2"><p class="text-xs font-medium leading-snug">Is it sciatica or something else?</p><p class="text-3xs text-muted-foreground mt-0.5">Instagram · AJ · 11d</p></div>
+              <div class="rounded-md border bg-card p-2"><p class="text-xs font-medium leading-snug">The truth about “tech neck”</p><p class="text-3xs text-muted-foreground mt-0.5">YouTube · Whitney</p></div>
+            </div>
+            <div class="rounded-lg border bg-muted/20 p-2 space-y-2">
+              <p class="flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-purple-600 px-1">Scheduled <span class="rounded-full bg-purple-100 px-1.5">5</span></p>
+              <div class="rounded-md border bg-card p-2"><p class="text-xs font-medium leading-snug">3 mobility drills for stiff hips</p><p class="text-3xs text-muted-foreground mt-0.5">Blog · Thu 8:00 AM</p></div>
+            </div>
+            <div class="rounded-lg border bg-muted/20 p-2 space-y-2">
+              <p class="flex items-center justify-between text-2xs font-semibold uppercase tracking-wide text-success px-1">Published <span class="rounded-full bg-success/15 px-1.5">12</span></p>
+              <div class="rounded-md border bg-card p-2"><p class="text-xs font-medium leading-snug">First visit: what to expect</p><p class="text-3xs text-muted-foreground mt-0.5">Instagram · 2.1k reach</p></div>
+            </div>
+          </div>
+
+          <!-- CALENDAR: everything by ship date -->
+          <div data-ovview="calendar" class="hidden space-y-2">
+            <p class="text-xs text-muted-foreground inline-flex items-center gap-1.5"><i data-lucide="alert-triangle" class="text-amber-500" style="width:.9rem;height:.9rem"></i> This week · 6 posts — <b class="text-foreground">3 stacked on Thursday, none Fri–Sun.</b> Spread them out.</p>
+            <div class="grid grid-cols-7 gap-2 text-2xs">
+              <div class="rounded-lg border bg-card p-2 min-h-[90px]"><p class="font-semibold text-muted-foreground">Mon</p><div class="mt-1.5 rounded bg-success/15 text-success px-1 py-0.5 truncate">First visit</div></div>
+              <div class="rounded-lg border bg-card p-2 min-h-[90px]"><p class="font-semibold text-muted-foreground">Tue</p></div>
+              <div class="rounded-lg border bg-card p-2 min-h-[90px]"><p class="font-semibold text-muted-foreground">Wed</p><div class="mt-1.5 rounded bg-purple-100 text-purple-700 px-1 py-0.5 truncate">Sciatica</div></div>
+              <div class="rounded-lg border-2 border-amber-300 bg-amber-50 p-2 min-h-[90px]"><p class="font-semibold text-amber-700">Thu</p><div class="mt-1.5 space-y-1"><div class="rounded bg-purple-100 text-purple-700 px-1 py-0.5 truncate">Mobility drills</div><div class="rounded bg-purple-100 text-purple-700 px-1 py-0.5 truncate">Tech neck</div><div class="rounded bg-purple-100 text-purple-700 px-1 py-0.5 truncate">Neck pain</div></div></div>
+              <div class="rounded-lg border bg-card p-2 min-h-[90px]"><p class="font-semibold text-muted-foreground">Fri</p></div>
+              <div class="rounded-lg border bg-card p-2 min-h-[90px]"><p class="font-semibold text-muted-foreground">Sat</p></div>
+              <div class="rounded-lg border bg-card p-2 min-h-[90px]"><p class="font-semibold text-muted-foreground">Sun</p></div>
+            </div>
+          </div>
+
+          <!-- THEMES: everything by topic + gaps -->
+          <div data-ovview="themes" class="hidden space-y-1.5">
+            <p class="text-xs text-muted-foreground mb-1">What you’ve covered across the whole clinic — and where the gaps are.</p>
+            <div class="flex items-center gap-2"><span class="w-36 shrink-0 text-sm">Neck &amp; posture</span><div class="h-3 rounded-full bg-primary" style="width:160px"></div><span class="text-2xs text-muted-foreground">8</span></div>
+            <div class="flex items-center gap-2"><span class="w-36 shrink-0 text-sm">Sciatica &amp; hips</span><div class="h-3 rounded-full bg-primary" style="width:100px"></div><span class="text-2xs text-muted-foreground">5</span></div>
+            <div class="flex items-center gap-2"><span class="w-36 shrink-0 text-sm">Adjustments explained</span><div class="h-3 rounded-full bg-primary" style="width:80px"></div><span class="text-2xs text-muted-foreground">4</span></div>
+            <div class="flex items-center gap-2"><span class="w-36 shrink-0 text-sm">First-visit nerves</span><div class="h-3 rounded-full bg-primary" style="width:60px"></div><span class="text-2xs text-muted-foreground">3</span></div>
+            <div class="flex items-center gap-2"><span class="w-36 shrink-0 text-sm text-muted-foreground">Nutrition</span><div class="h-3 rounded-full bg-muted" style="width:8px"></div><span class="inline-flex items-center gap-1 text-2xs text-amber-600">0 · gap</span></div>
+            <div class="flex items-center gap-2"><span class="w-36 shrink-0 text-sm text-muted-foreground">Pediatrics</span><div class="h-3 rounded-full bg-muted" style="width:8px"></div><span class="inline-flex items-center gap-1 text-2xs text-amber-600">0 · gap</span></div>
+          </div>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What this is</p>
+            <p>The clinic-wide, all-output board — separate from <b>Home</b> (which is personal). Three lenses on the same content: <b>Pipeline</b> (what’s where in its stages), <b>Calendar</b> (when it ships — the Thu/Fri balance check), <b>Themes</b> (topics covered + gaps). Role-gated to owner / producer / director; an individual clinician just uses Home + their work. These moved <i>off</i> the producer’s Stories list, where they didn’t belong.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ STORIES — producer's Words list (Cards only) ════════════════ -->
+      <section data-screen="stories" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-4">
+          <div>
+            <h1 class="flex items-center gap-2 text-xl font-semibold"><i data-lucide="newspaper" class="text-primary"></i> Stories</h1>
+            <p class="mt-1 text-sm text-muted-foreground">Your drafts — review the words, then send each to Storyboard for media.</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-1.5 text-2xs font-medium">
+            <button class="rounded-full border bg-primary text-primary-foreground px-3 py-1">All</button>
+            <button class="rounded-full border px-3 py-1 text-muted-foreground hover:border-primary/40">Needs words</button>
+            <button class="rounded-full border px-3 py-1 text-muted-foreground hover:border-primary/40">Ready for media</button>
+            <button class="rounded-full border px-3 py-1 text-muted-foreground hover:border-primary/40">Published</button>
+            <button class="rounded-full border px-3 py-1 text-muted-foreground hover:border-primary/40">Mine</button>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <a onclick="show('words')" class="cursor-pointer rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-center justify-between"><span class="inline-flex items-center gap-1 text-2xs text-amber-600"><span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> In review</span><span class="text-3xs text-success">78% voice</span></div>
+              <p class="mt-1.5 text-sm font-medium leading-snug">Why your neck pain keeps coming back</p>
+              <div class="mt-2 flex items-center gap-1.5 text-3xs text-muted-foreground"><i data-lucide="instagram" style="width:.8rem;height:.8rem"></i><i data-lucide="file-text" style="width:.8rem;height:.8rem"></i><i data-lucide="youtube" style="width:.8rem;height:.8rem"></i> · Dr. Q</div>
+            </a>
+            <a onclick="show('words')" class="cursor-pointer rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-center justify-between"><span class="inline-flex items-center gap-1 text-2xs text-muted-foreground"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span> Draft</span></div>
+              <p class="mt-1.5 text-sm font-medium leading-snug">Adjustments aren’t scary — here’s why</p>
+              <div class="mt-2 flex items-center gap-1.5 text-3xs text-muted-foreground"><i data-lucide="instagram" style="width:.8rem;height:.8rem"></i> · Dr. Q</div>
+            </a>
+            <a onclick="show('words')" class="cursor-pointer rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-center justify-between"><span class="inline-flex items-center gap-1 text-2xs text-primary"><span class="h-1.5 w-1.5 rounded-full bg-primary"></span> Needs media</span></div>
+              <p class="mt-1.5 text-sm font-medium leading-snug">3 mobility drills for stiff hips</p>
+              <div class="mt-2 flex items-center gap-1.5 text-3xs text-muted-foreground"><i data-lucide="file-text" style="width:.8rem;height:.8rem"></i> · Dr. Q</div>
+            </a>
+            <a onclick="show('words')" class="cursor-pointer rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-center justify-between"><span class="inline-flex items-center gap-1 text-2xs text-success"><span class="h-1.5 w-1.5 rounded-full bg-success"></span> Published</span></div>
+              <p class="mt-1.5 text-sm font-medium leading-snug">First visit: what to expect</p>
+              <div class="mt-2 flex items-center gap-1.5 text-3xs text-muted-foreground"><i data-lucide="instagram" style="width:.8rem;height:.8rem"></i> · Whitney</div>
+            </a>
+          </div>
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here</p>
+            <p>Cards only now — the <b>Pipeline / Calendar / Themes</b> view toggle moved to <b>Overview</b>, so Stories stays a clean place for the producer to do the words. Light filters (Needs words / Ready for media / Mine) replace the heavier view machinery.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ LIBRARY — slimmed asset pool ════════════════ -->
+      <section data-screen="library" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-4">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 class="flex items-center gap-2 text-xl font-semibold"><i data-lucide="folder-open" class="text-primary"></i> Library</h1>
+              <p class="mt-1 text-sm text-muted-foreground">Your photos &amp; videos — tagged automatically, ready to pull into any draft.</p>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button class="inline-flex items-center h-8 rounded-md border px-2.5 text-xs font-medium hover:bg-accent/40"><i data-lucide="hard-drive" class="mr-1.5"></i> Import from Drive</button>
+              <button class="inline-flex items-center h-8 rounded-md bg-primary text-primary-foreground px-2.5 text-xs font-medium"><i data-lucide="upload" class="mr-1.5"></i> Upload</button>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="relative flex-1 min-w-[200px]">
+              <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" style="width:.9rem;height:.9rem"></i>
+              <input placeholder="Search your media…" class="w-full rounded-md border bg-background pl-8 pr-3 py-2 text-sm outline-none focus:border-primary" />
+            </div>
+            <div class="inline-flex rounded-md border p-0.5 text-2xs font-medium">
+              <button class="rounded px-2.5 py-1 bg-primary text-primary-foreground">All</button>
+              <button class="rounded px-2.5 py-1 text-muted-foreground">Video</button>
+              <button class="rounded px-2.5 py-1 text-muted-foreground">Photos</button>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-1.5 text-2xs">
+            <span class="font-semibold uppercase tracking-wide text-muted-foreground/70 mr-1">Collections</span>
+            <button class="rounded-full border bg-accent/30 border-primary/30 px-2.5 py-1 font-medium">Staff assessments</button>
+            <button class="rounded-full border px-2.5 py-1 text-muted-foreground hover:border-primary/40">Clinic exterior</button>
+            <button class="rounded-full border px-2.5 py-1 text-muted-foreground hover:border-primary/40">Adjustment demos</button>
+            <button class="rounded-full border border-dashed px-2.5 py-1 text-muted-foreground hover:border-primary/40"><i data-lucide="plus" style="width:.8rem;height:.8rem" class="inline"></i> New</button>
+          </div>
+
+          <div class="space-y-2">
+            <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Recent · last 7 days</p>
+            <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2" id="libGridRecent"></div>
+          </div>
+          <div class="space-y-2">
+            <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Earlier</p>
+            <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2" id="libGridEarlier"></div>
+          </div>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here</p>
+            <p>Dropped the <b>“purpose” filter</b> (B-roll / interview / brand) — auto-tagging + search handle it now — plus the <b>workflow-lifecycle grouping</b> and the <b>admin backfill</b> button. Kept <b>search</b>, <b>Collections</b> (your staff-assessments reuse case), <b>Drive import</b>, <b>upload</b>, and clean date grouping. Now that Storyboard does the picking, the Library is just a tidy pool — not a second workflow screen.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 00 — START (capture method) ════════════════ -->
+      <section data-screen="start" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="max-w-2xl mx-auto space-y-5 py-2">
+          <div>
+            <h1 class="text-xl font-semibold">New story</h1>
+            <p class="text-sm text-muted-foreground">How do you want to capture it? Talk it out, drop a voice memo, or paste something you’ve already written.</p>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-3">
+            <button onclick="show('setup')" class="rounded-xl border-2 border-primary/40 bg-accent/20 p-4 text-left hover:border-primary transition">
+              <div class="h-9 w-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2"><i data-lucide="mic"></i></div>
+              <p class="text-sm font-semibold">Interview</p>
+              <p class="text-2xs text-muted-foreground mt-0.5">We ask, you talk. Best for a rich story.</p>
+            </button>
+            <button class="rounded-xl border p-4 text-left hover:border-primary/40 transition">
+              <div class="h-9 w-9 rounded-lg bg-muted flex items-center justify-center mb-2"><i data-lucide="audio-lines"></i></div>
+              <p class="text-sm font-semibold">Voice memo</p>
+              <p class="text-2xs text-muted-foreground mt-0.5">Already recorded? Drop it in.</p>
+            </button>
+            <button class="rounded-xl border p-4 text-left hover:border-primary/40 transition">
+              <div class="h-9 w-9 rounded-lg bg-muted flex items-center justify-center mb-2"><i data-lucide="link"></i></div>
+              <p class="text-sm font-semibold">Import</p>
+              <p class="text-2xs text-muted-foreground mt-0.5">Paste a blog or article to repurpose.</p>
+            </button>
+          </div>
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">The journey starts here</p>
+            <p>Interview is the main path — tap it to set up and start talking. From there it’s words → media → publish, all one connected flow (the bar at the top of each step shows where you are).</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 0 — INTERVIEW SETUP (rationalized) ════════════════ -->
+      <section data-screen="setup" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="max-w-2xl mx-auto space-y-5 py-2">
+          <div>
+            <h1 class="text-xl font-semibold">Start an interview</h1>
+            <p class="text-sm text-muted-foreground">Answer two things and start talking. Everything else you shape later, in your own words.</p>
+          </div>
+
+          <!-- Required -->
+          <div class="rounded-xl border bg-card p-5 space-y-5 shadow-sm">
+            <div class="space-y-2">
+              <label class="text-sm font-medium">Who’s talking?</label>
+              <p class="text-2xs text-muted-foreground">Sets the voice and pulls in what this person has said before.</p>
+              <div class="flex flex-wrap gap-2">
+                <button class="inline-flex items-center gap-2 rounded-full border-2 border-primary bg-accent/30 pl-1 pr-3 py-1"><span class="h-6 w-6 rounded-full bg-primary/80 text-white text-2xs flex items-center justify-center font-semibold">Q</span><span class="text-sm font-medium">Dr. Q</span></button>
+                <button class="inline-flex items-center gap-2 rounded-full border pl-1 pr-3 py-1 hover:border-primary/40"><span class="h-6 w-6 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-semibold">W</span><span class="text-sm text-muted-foreground">Whitney</span></button>
+                <button class="inline-flex items-center gap-2 rounded-full border pl-1 pr-3 py-1 hover:border-primary/40"><span class="h-6 w-6 rounded-full bg-muted text-muted-foreground text-2xs flex items-center justify-center font-semibold">AJ</span><span class="text-sm text-muted-foreground">AJ</span></button>
+                <button class="inline-flex items-center gap-1.5 rounded-full border border-dashed px-3 py-1.5 text-2xs text-muted-foreground hover:border-primary/40"><i data-lucide="plus" style="width:.85rem;height:.85rem"></i> Invite</button>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label class="text-sm font-medium">What’s it about?</label>
+              <input value="Why your neck pain keeps coming back" class="w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
+              <div class="flex flex-wrap gap-1.5 text-2xs text-muted-foreground">
+                <span class="rounded-full border px-2 py-1 hover:border-primary/40 cursor-default">Tech neck</span>
+                <span class="rounded-full border px-2 py-1 hover:border-primary/40 cursor-default">Sciatica myths</span>
+                <span class="rounded-full border px-2 py-1 hover:border-primary/40 cursor-default">First-visit nerves</span>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <label class="text-sm font-medium">Which voice?</label>
+              <p class="text-2xs text-muted-foreground">The one setting that really changes the result — it picks the knowledge and voice you draw from.</p>
+              <div class="grid grid-cols-2 gap-2">
+                <button class="rounded-lg border-2 border-primary bg-accent/30 p-3 text-left">
+                  <p class="text-sm font-semibold inline-flex items-center gap-1.5"><i data-lucide="stethoscope" class="text-primary"></i> Practice</p>
+                  <p class="text-2xs text-muted-foreground mt-0.5">Clinical content for patients &amp; your audience.</p>
+                </button>
+                <button class="rounded-lg border-2 border-border p-3 text-left hover:border-primary/40">
+                  <p class="text-sm font-semibold inline-flex items-center gap-1.5"><i data-lucide="user"></i> Personal</p>
+                  <p class="text-2xs text-muted-foreground mt-0.5">Your own story / founder voice.</p>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced (collapsed) -->
+          <div class="rounded-xl border bg-card">
+            <button onclick="toggleAdvanced()" class="w-full flex items-center justify-between px-5 py-3 text-sm font-medium">
+              <span class="inline-flex items-center gap-1.5"><i data-lucide="sliders-horizontal"></i> More options <span class="text-2xs font-normal text-muted-foreground">(optional)</span></span>
+              <i data-lucide="chevron-down" id="advChevron" class="transition-transform"></i>
+            </button>
+            <div id="advancedBody" class="hidden border-t px-5 py-4 space-y-4">
+              <div class="space-y-1.5">
+                <label class="text-2xs font-medium">Who’s it for? <span class="font-normal text-muted-foreground">— optional hint</span></label>
+                <div class="flex flex-wrap gap-1.5 text-2xs text-muted-foreground">
+                  <span class="rounded-full border px-2 py-1 cursor-default">Desk workers</span>
+                  <span class="rounded-full border px-2 py-1 cursor-default">Athletes</span>
+                  <span class="rounded-full border px-2 py-1 cursor-default">New patients</span>
+                  <span class="rounded-full border px-2 py-1 cursor-default">Parents</span>
+                </div>
+              </div>
+              <div class="space-y-1.5">
+                <label class="text-2xs font-medium">Draft style</label>
+                <div class="inline-flex rounded-md border p-0.5 text-2xs font-medium">
+                  <button class="rounded px-2.5 py-1 bg-primary text-primary-foreground">Full drafts</button>
+                  <button class="rounded px-2.5 py-1 text-muted-foreground">Clean transcript only</button>
+                </div>
+              </div>
+              <div class="rounded-md bg-muted/40 p-2.5 text-2xs text-muted-foreground">
+                <span class="font-medium text-foreground">No “tone” picker anymore.</span> Drafts already come out in your voice (we measure it — 78% you on the last one) and you fine-tune wording per draft. One less thing to decide up front.
+              </div>
+            </div>
+          </div>
+
+          <button onclick="show('interviewdone')" class="w-full inline-flex items-center justify-center gap-1.5 h-11 rounded-md bg-primary text-primary-foreground text-sm font-medium">Start interview <i data-lucide="arrow-right"></i></button>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here — managing the old setup choices</p>
+            <p>Two required answers (<b>who</b> + <b>what</b>) plus the one switch that truly changes output (<b>Practice vs Personal</b>). <b>Tone</b> is gone — it fought the voice-faithful engine and was barely wired. <b>Audience</b> is demoted to an optional hint, since each platform draft already implies its reader and you tailor wording per draft. The live interview itself (talking) is unchanged. <i>Rule: ask up front only what you can’t change later.</i></p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 0a — INTERVIEW COMPLETE ════════════════ -->
+      <section data-screen="interviewdone" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="max-w-xl mx-auto space-y-6 py-6">
+          <div class="text-center space-y-3">
+            <div class="mx-auto h-14 w-14 rounded-full bg-success/15 flex items-center justify-center"><i data-lucide="check-circle-2" class="text-success" style="width:1.75rem;height:1.75rem"></i></div>
+            <h1 class="text-xl font-semibold">Great conversation, Dr. Q.</h1>
+            <p class="text-sm text-muted-foreground">Here’s what we made from it. Review the words, then add the media.</p>
+          </div>
+
+          <div class="rounded-xl border bg-card p-5 space-y-4 shadow-sm">
+            <div class="flex items-center gap-3">
+              <div class="h-10 w-10 shrink-0 rounded-full bg-primary/10 flex items-center justify-center text-primary"><i data-lucide="badge-check"></i></div>
+              <div>
+                <p class="text-sm font-semibold">Your words made up 78% of these drafts.</p>
+                <p class="text-2xs text-muted-foreground">3 verbatim phrases preserved word-for-word.</p>
+              </div>
+            </div>
+            <div>
+              <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">We drafted 5 pieces from it</p>
+              <div class="flex flex-wrap gap-1.5 text-2xs">
+                <span class="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-1"><i data-lucide="instagram"></i> Instagram carousel</span>
+                <span class="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-1"><i data-lucide="file-text"></i> Blog</span>
+                <span class="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-1"><i data-lucide="youtube"></i> YouTube Short</span>
+                <span class="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-1"><i data-lucide="music"></i> TikTok</span>
+                <span class="inline-flex items-center gap-1 rounded-full border bg-muted/40 px-2 py-1"><i data-lucide="mail"></i> Email</span>
+              </div>
+            </div>
+            <button onclick="show('words')" class="w-full inline-flex items-center justify-center gap-1.5 h-10 rounded-md bg-primary text-primary-foreground text-sm font-medium">See your story <i data-lucide="arrow-right"></i></button>
+            <div class="text-center">
+              <button class="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"><i data-lucide="video"></i> Recorded a video too? Attach it <span class="text-muted-foreground/70">(optional)</span></button>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here</p>
+            <p>The finish leads with <b>“See your story”</b> and your <b>voice %</b> — the reason you did the interview. Today this moment is buried behind a “Did you record video? <i>Skip</i>” prompt that reads like you’re skipping something important. Here video is a small <b>optional</b> link, never a gate, and you can see <b>what got created</b> so the next screen is no surprise.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 0b — WORDS (review + approve → handoff) ════════════════ -->
+      <section data-screen="words" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-5 py-6">
+          <a onclick="show('interviewdone')" class="cursor-pointer inline-flex items-center gap-1.5 -ml-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"><i data-lucide="arrow-left"></i> Back to Stories</a>
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 class="text-lg font-semibold">Why your neck pain keeps coming back</h1>
+              <p class="text-xs text-muted-foreground">From your interview with Dr. Q · 5 drafts · review the words, then send each to Storyboard for media</p>
+            </div>
+            <!-- Story-level actions — kept from the existing editor: see the source
+                 transcript, export the interview, delete it. -->
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button onclick="openTranscript()" class="inline-flex items-center h-8 rounded-md border px-2.5 text-xs font-medium hover:bg-accent/40"><i data-lucide="file-text" class="mr-1.5"></i> Transcript</button>
+              <button class="inline-flex items-center h-8 rounded-md border px-2.5 text-xs font-medium hover:bg-accent/40"><i data-lucide="download" class="mr-1.5"></i> Export</button>
+              <button title="Delete interview" class="inline-flex items-center justify-center h-8 w-8 rounded-md border text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"><i data-lucide="trash-2"></i></button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,240px)_minmax(0,1fr)]">
+            <!-- left — drafts from this story -->
+            <aside class="space-y-1.5">
+              <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">Drafts from this story</p>
+              <div class="group flex items-center gap-1 rounded-md border border-primary/40 bg-accent/30 px-2.5 py-2">
+                <span class="flex-1 inline-flex items-center gap-1.5 text-sm"><i data-lucide="instagram" class="text-muted-foreground"></i> Instagram</span>
+                <span class="inline-flex items-center gap-1 text-2xs text-amber-600"><span class="h-1.5 w-1.5 rounded-full bg-amber-400"></span> In review</span>
+                <button title="Remove this platform" class="ml-0.5 h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"><i data-lucide="x" style="width:.85rem;height:.85rem"></i></button>
+              </div>
+              <div class="group flex items-center gap-1 rounded-md border px-2.5 py-2 hover:bg-accent/20">
+                <span class="flex-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground"><i data-lucide="file-text"></i> Blog</span>
+                <span class="inline-flex items-center gap-1 text-2xs text-muted-foreground"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span> Draft</span>
+                <button title="Remove this platform" class="ml-0.5 h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10"><i data-lucide="x" style="width:.85rem;height:.85rem"></i></button>
+              </div>
+              <div class="group flex items-center gap-1 rounded-md border px-2.5 py-2 hover:bg-accent/20">
+                <span class="flex-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground"><i data-lucide="youtube"></i> YouTube</span>
+                <span class="inline-flex items-center gap-1 text-2xs text-muted-foreground"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span> Draft</span>
+                <button title="Remove this platform" class="ml-0.5 h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10"><i data-lucide="x" style="width:.85rem;height:.85rem"></i></button>
+              </div>
+              <div class="group flex items-center gap-1 rounded-md border px-2.5 py-2 hover:bg-accent/20">
+                <span class="flex-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground"><i data-lucide="music"></i> TikTok</span>
+                <span class="inline-flex items-center gap-1 text-2xs text-muted-foreground"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span> Draft</span>
+                <button title="Remove this platform" class="ml-0.5 h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10"><i data-lucide="x" style="width:.85rem;height:.85rem"></i></button>
+              </div>
+              <div class="group flex items-center gap-1 rounded-md border px-2.5 py-2 hover:bg-accent/20">
+                <span class="flex-1 inline-flex items-center gap-1.5 text-sm text-muted-foreground"><i data-lucide="mail"></i> Email</span>
+                <span class="inline-flex items-center gap-1 text-2xs text-muted-foreground"><span class="h-1.5 w-1.5 rounded-full bg-slate-400"></span> Draft</span>
+                <button title="Remove this platform" class="ml-0.5 h-5 w-5 inline-flex items-center justify-center rounded text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10"><i data-lucide="x" style="width:.85rem;height:.85rem"></i></button>
+              </div>
+              <button class="w-full flex items-center justify-center gap-1.5 rounded-md border border-dashed px-2.5 py-2 text-2xs font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground"><i data-lucide="plus" style="width:.85rem;height:.85rem"></i> Add a platform</button>
+            </aside>
+
+            <!-- right — the words + approval -->
+            <div class="space-y-4">
+              <div class="rounded-lg border bg-card p-4 space-y-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <span class="inline-flex items-center gap-1 text-2xs rounded-full border px-2 py-0.5 text-muted-foreground"><i data-lucide="instagram"></i> Instagram carousel</span>
+                  <span class="inline-flex items-center gap-1 text-2xs rounded-full bg-success/10 text-success px-2 py-0.5"><i data-lucide="badge-check"></i> 78% your voice · 3 verbatim kept</span>
+                </div>
+                <div class="text-sm leading-relaxed text-foreground/90 space-y-2">
+                  <p>Most “neck pain” isn’t really about the neck. <span class="rounded bg-amber-100 px-1 text-amber-900 decoration-amber-300 underline decoration-2 underline-offset-2">It’s how your mid-back and shoulders stopped sharing the load.</span> When we restore that, the neck finally gets a break.</p>
+                  <p>Here’s the 30-second reset I give every desk-bound patient. Try it tonight and tell me how your morning feels.</p>
+                </div>
+                <p class="text-2xs text-muted-foreground inline-flex items-center gap-1"><i data-lucide="quote"></i> Highlighted text is a verbatim phrase, preserved word-for-word from your interview.</p>
+              </div>
+
+              <!-- approval → handoff (interactive) -->
+              <div id="wordsApproval"></div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here · try “Approve words”</p>
+            <p>One interview becomes several drafts; the left list shows which still need work vs. which are ready. When you <b>approve the words</b>, the very next thing you see is a single, primary <b>“Add media in Storyboard →”</b> — the handoff is unmistakable, not a muted grey link you scroll past. The pipeline bar at the top shows exactly where this draft is and what’s left.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 1 — QUEUE ════════════════ -->
+      <section data-screen="queue" class="screen active px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-4">
+          <div>
+            <h1 class="flex items-center gap-2 text-xl font-semibold"><i data-lucide="gallery-horizontal-end" class="text-primary"></i> Storyboard</h1>
+            <p class="mt-1 text-sm text-muted-foreground max-w-2xl">These drafts are written and ready, but have no photo or video. Open one to review the suggested media at full size — play the videos — and attach the right match.</p>
+          </div>
+          <p class="text-xs text-muted-foreground">5 drafts need media</p>
+
+          <!-- ① edge-to-edge: the queue is now a responsive CARD GRID that uses the full width, instead of a single capped column of identical rows -->
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <!-- oldest first; age is the priority signal (replaces uniform amber "Review media") -->
+            <a onclick="show('piece')" class="cursor-pointer group rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-start justify-between gap-2">
+                <span class="inline-flex items-center gap-1 text-2xs rounded-full border px-2 py-0.5 text-muted-foreground"><i data-lucide="instagram"></i> Instagram</span>
+                <span class="text-2xs font-medium text-warning">11d ago</span>
+              </div>
+              <p class="mt-2 text-sm font-medium leading-snug">Is it sciatica or something else?</p>
+              <div class="mt-2 flex items-center gap-2 text-2xs text-muted-foreground">
+                <span>Photos or video</span><span>·</span><span>AJ</span>
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-2xs text-muted-foreground">3 suggestions ready</span>
+                <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">Add media <i data-lucide="arrow-right"></i></span>
+              </div>
+            </a>
+
+            <a onclick="show('piece')" class="cursor-pointer group rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-start justify-between gap-2">
+                <span class="inline-flex items-center gap-1 text-2xs rounded-full border px-2 py-0.5 text-muted-foreground"><i data-lucide="youtube"></i> YouTube</span>
+                <span class="text-2xs font-medium text-muted-foreground">5d ago</span>
+              </div>
+              <p class="mt-2 text-sm font-medium leading-snug">The truth about “tech neck”</p>
+              <div class="mt-2 flex items-center gap-2 text-2xs text-muted-foreground">
+                <span class="inline-flex items-center gap-1"><i data-lucide="video"></i> Videos only</span><span>·</span><span>Whitney</span>
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-2xs text-muted-foreground">2 suggestions ready</span>
+                <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">Add media <i data-lucide="arrow-right"></i></span>
+              </div>
+            </a>
+
+            <a onclick="show('piece')" class="cursor-pointer group rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-start justify-between gap-2">
+                <span class="inline-flex items-center gap-1 text-2xs rounded-full border px-2 py-0.5 text-muted-foreground"><i data-lucide="instagram"></i> Instagram</span>
+                <span class="text-2xs font-medium text-muted-foreground">2d ago</span>
+              </div>
+              <p class="mt-2 text-sm font-medium leading-snug">Why your neck pain keeps coming back</p>
+              <div class="mt-2 flex items-center gap-2 text-2xs text-muted-foreground">
+                <span>Photos or video</span><span>·</span><span>Dr. Q</span>
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-2xs text-muted-foreground">6 suggestions ready</span>
+                <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">Add media <i data-lucide="arrow-right"></i></span>
+              </div>
+            </a>
+
+            <a onclick="show('piece')" class="cursor-pointer group rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-start justify-between gap-2">
+                <span class="inline-flex items-center gap-1 text-2xs rounded-full border px-2 py-0.5 text-muted-foreground"><i data-lucide="file-text"></i> Blog</span>
+                <span class="text-2xs font-medium text-muted-foreground">1d ago</span>
+              </div>
+              <p class="mt-2 text-sm font-medium leading-snug">3 mobility drills for stiff hips</p>
+              <div class="mt-2 flex items-center gap-2 text-2xs text-muted-foreground">
+                <span class="inline-flex items-center gap-1"><i data-lucide="image"></i> Photos only</span><span>·</span><span>Dr. Q</span>
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-2xs text-muted-foreground">4 suggestions ready</span>
+                <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">Add media <i data-lucide="arrow-right"></i></span>
+              </div>
+            </a>
+
+            <a onclick="show('piece')" class="cursor-pointer group rounded-lg border bg-card p-3 hover:border-primary/40 hover:shadow-sm transition">
+              <div class="flex items-start justify-between gap-2">
+                <span class="inline-flex items-center gap-1 text-2xs rounded-full border px-2 py-0.5 text-muted-foreground"><i data-lucide="instagram"></i> Instagram</span>
+                <span class="text-2xs font-medium text-muted-foreground">today</span>
+              </div>
+              <p class="mt-2 text-sm font-medium leading-snug">Adjustments aren’t scary — here’s why</p>
+              <div class="mt-2 flex items-center gap-2 text-2xs text-muted-foreground">
+                <span>Photos or video</span><span>·</span><span>Dr. Q</span>
+              </div>
+              <div class="mt-3 flex items-center justify-between">
+                <span class="text-2xs text-muted-foreground">5 suggestions ready</span>
+                <span class="inline-flex items-center gap-1 text-xs font-medium text-primary">Add media <i data-lucide="arrow-right"></i></span>
+              </div>
+            </a>
+          </div>
+
+          <div class="mt-6 rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here</p>
+            <p>① <b>Edge-to-edge card grid</b> uses the full width instead of one capped column. ② <b>Age signal</b> (“11d ago”, oldest first, amber when stale) replaces the old uniform amber “Review media” that shouted equally on every row. ③ Each card previews how many suggestions are waiting + the kind the channel accepts.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 2 — FOCUSED MEDIA PAGE ════════════════ -->
+      <section data-screen="piece" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-5">
+          <!-- header -->
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <a onclick="show('queue')" class="cursor-pointer inline-flex items-center gap-1.5 -ml-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"><i data-lucide="arrow-left"></i> Back to Storyboard</a>
+            <div class="flex items-center gap-2">
+              <button class="inline-flex items-center h-8 rounded-md px-3 text-xs font-medium text-muted-foreground hover:bg-accent/40">Edit words</button>
+              <button onclick="show('piece')" class="inline-flex items-center h-8 rounded-md px-3 text-xs font-medium text-muted-foreground hover:bg-accent/40">Next draft (4 left) <i data-lucide="arrow-right" class="ml-1"></i></button>
+              <!-- ④ Forward action is GATED until ≥1 media is attached. For a
+                   carousel/overlay platform it leads to Compose; otherwise it
+                   would read "Continue to publish". -->
+              <button id="continueTop" onclick="show('compose')" disabled class="inline-flex items-center h-8 rounded-md px-3 text-xs font-medium bg-primary text-primary-foreground disabled:opacity-40 disabled:cursor-not-allowed" title="Attach a photo or video to continue">Compose carousel <i data-lucide="arrow-right" class="ml-1"></i></button>
+            </div>
+          </div>
+
+          <!-- Stage tabs — the Storyboard stage now has two parts for a
+               carousel/overlay platform: pick the media, then compose it. -->
+          <div class="flex items-center gap-3">
+            <div class="inline-flex rounded-md border p-0.5 text-xs font-medium">
+              <button class="rounded px-3 py-1 bg-primary text-primary-foreground">1 · Choose media</button>
+              <button onclick="show('compose')" class="rounded px-3 py-1 text-muted-foreground hover:text-foreground">2 · Compose carousel</button>
+            </div>
+            <span class="text-2xs text-muted-foreground">Instagram carousel — compose the slides &amp; on-image text after you pick photos</span>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,360px)_minmax(0,1fr)]">
+            <!-- LEFT — draft context -->
+            <aside class="space-y-3 lg:sticky lg:top-16 lg:self-start">
+              <div class="rounded-lg border bg-card p-4 space-y-3">
+                <div class="flex items-center gap-2">
+                  <span class="inline-flex items-center gap-1 text-2xs rounded-full border px-2 py-0.5 text-muted-foreground"><i data-lucide="instagram"></i> Instagram</span>
+                  <span class="text-2xs text-muted-foreground">· Photos or video</span>
+                </div>
+                <p class="text-base font-semibold leading-snug">Why your neck pain keeps coming back</p>
+                <div>
+                  <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">The message you’re matching</p>
+                  <p class="text-sm text-foreground/80 leading-relaxed">Most “neck pain” isn’t really about the neck — it’s how the mid-back and shoulders have stopped sharing the load. When we restore that, the neck finally gets a break. Here’s the simple reset I give every desk-bound patient…</p>
+                </div>
+                <div>
+                  <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Attached <span id="attachedCount">(0)</span></p>
+                  <div id="attachedTray" class="text-xs text-muted-foreground italic">Nothing attached yet — pick from the suggestions →</div>
+                </div>
+              </div>
+            </aside>
+
+            <!-- RIGHT — candidates -->
+            <div class="space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <p class="inline-flex items-center gap-1.5 text-sm font-medium"><i data-lucide="sparkles" class="text-primary"></i> Suggested media <span id="suggCount" class="ml-1 text-xs font-normal text-muted-foreground"></span></p>
+                <div class="flex items-center gap-2">
+                  <!-- ⑤ platform-aware: this Instagram draft takes both, so the toggle shows. On a YouTube/TikTok draft it's replaced by a "Videos only" chip. -->
+                  <div class="inline-flex rounded-md border p-0.5 text-2xs font-medium">
+                    <button class="rounded px-2 py-1 bg-primary text-primary-foreground">Photos &amp; video</button>
+                    <button class="rounded px-2 py-1 text-muted-foreground">Photos</button>
+                    <button class="rounded px-2 py-1 text-muted-foreground">Videos</button>
+                  </div>
+                  <button class="inline-flex items-center h-8 rounded-md border px-3 text-xs font-medium hover:bg-accent/40"><i data-lucide="images" class="mr-1.5"></i> Browse Library</button>
+                </div>
+              </div>
+
+              <!-- ⑥ wider grid (up to 5 cols on big screens), ⑦ each card shows a photo/video badge + match % -->
+              <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5" id="grid"></div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here · try clicking “Attach” on a card</p>
+            <p>④ <b>“Continue to publish” is greyed out until you attach media</b> (the whole job of this page) — attach one and it lights up, plus a second copy appears at the bottom of the grid where your hands already are. ⑤ <b>Platform-aware kind:</b> here Instagram takes both so the toggle shows; on YouTube/TikTok the toggle is replaced by a “Videos only” chip and you can’t attach a photo. ⑥ <b>Wider grid</b> (4–5 columns) from edge-to-edge. ⑦ Each card carries a <b>Photo/Video badge</b> + match %.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 2b — COMPOSE (carousel + text-over-image) ════════════════ -->
+      <section data-screen="compose" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-4">
+          <!-- header -->
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <a onclick="show('piece')" class="cursor-pointer inline-flex items-center gap-1.5 -ml-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"><i data-lucide="arrow-left"></i> Back to Storyboard</a>
+            <button onclick="show('publish')" class="inline-flex items-center h-8 rounded-md px-3 text-xs font-medium bg-primary text-primary-foreground">Continue to publish <i data-lucide="arrow-right" class="ml-1"></i></button>
+          </div>
+
+          <div>
+            <h1 class="flex items-center gap-2 text-lg font-semibold"><i data-lucide="instagram" class="text-muted-foreground"></i> Why your neck pain keeps coming back</h1>
+            <p class="text-xs text-muted-foreground">Instagram carousel · <span id="slideTotal">4</span> slides</p>
+          </div>
+
+          <!-- stage tabs -->
+          <div class="inline-flex rounded-md border p-0.5 text-xs font-medium">
+            <button onclick="show('piece')" class="rounded px-3 py-1 text-muted-foreground hover:text-foreground">1 · Choose media</button>
+            <button class="rounded px-3 py-1 bg-primary text-primary-foreground">2 · Compose carousel</button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,1fr)_minmax(0,360px)]">
+            <!-- LEFT — canvas + filmstrip -->
+            <div class="space-y-4">
+              <div id="canvasWrap"></div>
+              <div>
+                <div class="flex items-center justify-between mb-1.5">
+                  <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Slides — click to edit, drag to reorder</p>
+                  <span class="text-2xs text-muted-foreground">Swipe order = post order</span>
+                </div>
+                <div id="filmstrip" class="flex items-center gap-2 overflow-x-auto pb-1"></div>
+              </div>
+              <p class="inline-flex items-start gap-1.5 text-2xs text-muted-foreground"><i data-lucide="info" class="mt-0.5 shrink-0"></i> What you see on the canvas is exactly what publishes — each composed slide is rendered to a real image on publish (WYSIWYG, no surprises in the live post).</p>
+            </div>
+
+            <!-- RIGHT — per-slide inspector + theme -->
+            <div class="space-y-4" id="inspector"></div>
+          </div>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">The trickiest part — try it</p>
+            <p>Click a slide, type in <b>Headline / Body</b> and watch the text update <b>on the image</b>. Move it <b>Top / Middle / Bottom</b>, switch the <b>slide template</b> (Title / Caption / Quote / CTA), and try the three <b>carousel themes</b> (they restyle every slide at once). The same canvas is how you put <b>text over a single photo</b> — a normal image post is just a one-slide carousel. <b>Open question for you:</b> compose currently lives on the <i>Publish</i> step — this mockup moves it into <i>Storyboard</i> (pick → compose), so Publish becomes purely preview + schedule. That placement is the call to make.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 3 — PUBLISH ════════════════ -->
+      <section data-screen="publish" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
+              <!-- ⑧ single, consistent back label (was "Back to media") -->
+              <a onclick="show('piece')" class="cursor-pointer inline-flex items-center gap-1.5 -ml-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"><i data-lucide="arrow-left"></i> Back to Storyboard</a>
+              <h1 class="mt-1 flex items-center gap-2 text-lg font-semibold"><i data-lucide="instagram" class="text-muted-foreground"></i> Why your neck pain keeps coming back</h1>
+              <p class="text-xs text-muted-foreground">Instagram · 2 media attached</p>
+            </div>
+            <button class="inline-flex items-center h-8 rounded-md px-3 text-xs font-medium text-muted-foreground hover:bg-accent/40">Edit copy in Stories</button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,1fr)_minmax(0,400px)]">
+            <!-- LEFT — preview -->
+            <div class="lg:sticky lg:top-16 lg:self-start space-y-2">
+              <p class="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground"><i data-lucide="eye"></i> Live preview</p>
+              <div class="rounded-lg border bg-card p-3">
+                <div class="max-w-md mx-auto rounded-lg border overflow-hidden">
+                  <div class="flex items-center gap-2 p-2.5">
+                    <div class="h-7 w-7 rounded-full bg-primary/80"></div>
+                    <div class="text-xs font-semibold">movebetter.people</div>
+                  </div>
+                  <div class="tile ph0 aspect-square flex items-center justify-center text-white/80 text-sm">clinic-neck-reset.jpg</div>
+                  <div class="p-3 text-sm leading-relaxed">
+                    <p><b>movebetter.people</b> Most “neck pain” isn’t really about the neck — it’s how the mid-back and shoulders stopped sharing the load. Here’s the simple reset I give every desk-bound patient. 💆</p>
+                    <p class="text-info mt-1">#necktension #movebetter #chiropractic</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- RIGHT — compose + publish -->
+            <div class="space-y-4">
+              <div class="rounded-lg border bg-card p-4 space-y-3">
+                <div class="flex items-center gap-2 text-2xs">
+                  <span class="inline-flex items-center gap-1 rounded-full bg-success/10 text-success px-2 py-0.5"><i data-lucide="badge-check"></i> 78% in your voice</span>
+                  <span class="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground">3 verbatim phrases kept</span>
+                </div>
+                <div class="rounded-lg border bg-muted/30 p-3">
+                  <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">When to publish</p>
+                  <p class="text-sm">Suggested: <b>Tomorrow, 8:00 AM</b> <span class="text-muted-foreground">— best time for this audience</span></p>
+                  <button onclick="show('done')" class="mt-2 w-full inline-flex items-center justify-center gap-1.5 h-9 rounded-md bg-primary text-primary-foreground text-sm font-medium">
+                    <i data-lucide="send"></i> Schedule to Buffer
+                  </button>
+                  <div class="mt-2 flex items-center justify-between text-xs">
+                    <button onclick="show('done')" class="text-primary hover:underline">Publish now</button>
+                    <button class="text-muted-foreground hover:text-foreground">Export / copy</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here</p>
+            <p>⑧ <b>One back label</b> (“Back to Storyboard”) everywhere — the old page said “Back to media.” The voice-fidelity chips lead the right rail (the reason you did the interview). Preview gets more room on the left from edge-to-edge; controls sit in a balanced 400px rail. “Edit copy in Stories” is demoted to a quiet link, not a competing button.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ════════════════ SCREEN 4 — PUBLISHED / LOOP-CLOSE ════════════════ -->
+      <section data-screen="done" class="screen px-4 sm:px-6 lg:px-8 py-8">
+        <div class="space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="min-w-0">
+              <a onclick="show('queue')" class="cursor-pointer inline-flex items-center gap-1.5 -ml-2 rounded-md px-2 py-1 text-sm text-muted-foreground hover:bg-muted/40 hover:text-foreground"><i data-lucide="arrow-left"></i> Back to Storyboard</a>
+              <h1 class="mt-1 flex items-center gap-2 text-lg font-semibold"><i data-lucide="instagram" class="text-muted-foreground"></i> Why your neck pain keeps coming back</h1>
+              <p class="text-xs text-muted-foreground">Instagram · 2 media attached</p>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,1fr)_minmax(0,400px)]">
+            <div class="lg:sticky lg:top-16 lg:self-start space-y-2">
+              <p class="inline-flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wide text-muted-foreground"><i data-lucide="eye"></i> Live preview</p>
+              <div class="rounded-lg border bg-card p-3">
+                <div class="max-w-md mx-auto rounded-lg border overflow-hidden opacity-90">
+                  <div class="flex items-center gap-2 p-2.5"><div class="h-7 w-7 rounded-full bg-primary/80"></div><div class="text-xs font-semibold">movebetter.people</div></div>
+                  <div class="tile ph0 aspect-square"></div>
+                  <div class="p-3 text-sm">Most “neck pain” isn’t really about the neck…</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <!-- success -->
+              <div class="rounded-lg border border-success/30 bg-success/5 p-4 space-y-1.5">
+                <p class="inline-flex items-center gap-2 text-sm font-semibold text-success"><i data-lucide="check-circle-2"></i> Scheduled to Buffer</p>
+                <p class="text-xs text-muted-foreground">Tomorrow, 8:00 AM · Instagram</p>
+                <div class="flex gap-2 pt-1 text-2xs text-muted-foreground">
+                  <span class="rounded-full bg-muted px-2 py-0.5">Reach — pending</span>
+                  <span class="rounded-full bg-muted px-2 py-0.5">Engagement — pending</span>
+                </div>
+              </div>
+
+              <!-- ⑨ NEXT UP — the loop close (was a dead end) -->
+              <div class="rounded-lg border border-primary/30 bg-accent/30 p-4">
+                <p class="text-2xs font-semibold uppercase tracking-wide text-accent-foreground mb-2">Next up</p>
+                <a onclick="show('piece')" class="cursor-pointer flex items-center justify-between gap-2 rounded-md bg-card border px-3 py-2.5 hover:border-primary/40">
+                  <div>
+                    <p class="text-sm font-medium leading-snug">3 mobility drills for stiff hips</p>
+                    <p class="text-2xs text-muted-foreground">Blog · needs media · Dr. Q</p>
+                  </div>
+                  <span class="inline-flex items-center gap-1 text-xs font-medium text-primary shrink-0">Add media <i data-lucide="arrow-right"></i></span>
+                </a>
+                <div class="mt-2 flex items-center justify-between text-xs">
+                  <a onclick="show('queue')" class="cursor-pointer text-muted-foreground hover:text-foreground inline-flex items-center gap-1"><i data-lucide="gallery-horizontal-end"></i> Back to queue (3 left)</a>
+                  <span class="text-muted-foreground">2 of 5 pieces done</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-dashed bg-muted/30 p-3 text-xs text-muted-foreground">
+            <p class="font-semibold text-foreground mb-1">What changed here</p>
+            <p>⑨ <b>The finish line now has a door.</b> Today, after you publish, the page dead-ends on a disabled button + empty metrics. The redesign drops a <b>“Next up”</b> card — the next draft that needs media, plus “Back to queue (N left)” and a progress count — so you can run a whole sitting without bouncing back to the list.</p>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<!-- ── Transcript slide-over (Words screen) ─────────────────────────── -->
+<div id="transcriptOverlay" onclick="closeTranscript()" class="fixed inset-0 z-40 bg-black/30 opacity-0 pointer-events-none transition-opacity duration-200"></div>
+<aside id="transcriptDrawer" class="fixed top-7 bottom-0 right-0 z-50 w-full max-w-md translate-x-full bg-white border-l shadow-xl transition-transform duration-200 flex flex-col">
+  <div class="flex items-center justify-between border-b px-4 h-12 shrink-0">
+    <p class="text-sm font-semibold inline-flex items-center gap-1.5"><i data-lucide="file-text"></i> Interview transcript</p>
+    <div class="flex items-center gap-1.5">
+      <button class="inline-flex items-center h-7 rounded-md border px-2 text-2xs font-medium hover:bg-accent/40"><i data-lucide="download" class="mr-1"></i> Export</button>
+      <button onclick="closeTranscript()" class="h-7 w-7 inline-flex items-center justify-center rounded-md hover:bg-accent/40"><i data-lucide="x"></i></button>
+    </div>
+  </div>
+  <div class="overflow-y-auto p-4 text-sm leading-relaxed space-y-3 text-foreground/85">
+    <p class="rounded-md bg-muted/40 p-2.5 text-2xs text-muted-foreground">What you actually said — compare the drafts against the source. Phrases used <span class="rounded bg-amber-100 px-1 text-amber-900">verbatim</span> in a draft are highlighted.</p>
+    <p><span class="font-semibold text-muted-foreground">Q:</span> So when someone comes in with neck pain, what’s the first thing you tell them?</p>
+    <p><span class="font-semibold text-primary">Dr. Q:</span> Honestly? Most “neck pain” isn’t really about the neck. <span class="rounded bg-amber-100 px-1 text-amber-900">It’s how your mid-back and shoulders stopped sharing the load.</span> People sit all day, the upper back locks up, and the neck ends up doing all the work.</p>
+    <p><span class="font-semibold text-muted-foreground">Q:</span> So what do you actually do about it?</p>
+    <p><span class="font-semibold text-primary">Dr. Q:</span> There’s a 30-second reset I give every desk-bound patient. You open the chest, get the mid-back moving again, and the neck finally gets a break. I tell them to try it at night and notice how the morning feels.</p>
+    <p><span class="font-semibold text-muted-foreground">Q:</span> And that holds up?</p>
+    <p><span class="font-semibold text-primary">Dr. Q:</span> When we restore that sharing of the load, yeah — the neck stops flaring up. That’s the whole point.</p>
+  </div>
+</aside>
+
+<!-- ── Screen switcher ──────────────────────────────────────────────── -->
+<div class="fixed bottom-3 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center justify-center gap-1 max-w-[94vw] rounded-2xl border bg-white/95 backdrop-blur px-1.5 py-1 shadow-lg">
+  <span class="px-2 text-2xs font-semibold text-muted-foreground">Flow:</span>
+  <button data-nav="start"   onclick="show('start')"   class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Start</button>
+  <button data-nav="setup"   onclick="show('setup')"   class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Setup</button>
+  <button data-nav="interviewdone" onclick="show('interviewdone')" class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Interview ✓</button>
+  <button data-nav="words"   onclick="show('words')"   class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Words</button>
+  <button data-nav="queue"   onclick="show('queue')"   class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Queue</button>
+  <button data-nav="piece"   onclick="show('piece')"   class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Choose media</button>
+  <button data-nav="compose" onclick="show('compose')" class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Compose</button>
+  <button data-nav="publish" onclick="show('publish')" class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Publish</button>
+  <button data-nav="done"    onclick="show('done')"    class="navpill rounded-full px-2.5 py-1 text-xs font-medium">Published</button>
+</div>
+
+<script>
+  // ── candidate cards for the focused page ──────────────────────────
+  const CARDS = [
+    { ph:'ph1', kind:'video', match:94, name:'q-neck-demo.mp4', dur:'0:48' },
+    { ph:'ph0', kind:'photo', match:91, name:'desk-posture.jpg' },
+    { ph:'ph2', kind:'photo', match:88, name:'spine-model.jpg' },
+    { ph:'ph5', kind:'video', match:85, name:'shoulder-reset.mp4', dur:'1:12' },
+    { ph:'ph3', kind:'photo', match:83, name:'adjust-table.jpg' },
+    { ph:'ph4', kind:'photo', match:80, name:'clinic-front.jpg' },
+    { ph:'ph1', kind:'video', match:77, name:'mobility-clip.mp4', dur:'0:35' },
+    { ph:'ph2', kind:'photo', match:74, name:'patient-smile.jpg' },
+    { ph:'ph0', kind:'photo', match:71, name:'stretch-band.jpg' },
+    { ph:'ph5', kind:'photo', match:68, name:'reception.jpg' },
+  ]
+  let attached = 0
+  function renderGrid() {
+    const grid = document.getElementById('grid')
+    grid.innerHTML = CARDS.map((c, i) => {
+      const badge = c.kind === 'video'
+        ? `<i data-lucide="video"></i> Video${c.dur ? ' · ' + c.dur : ''}`
+        : `<i data-lucide="image"></i> Photo`
+      const play = c.kind === 'video'
+        ? `<span class="absolute inset-0 flex items-center justify-center"><span class="h-9 w-9 rounded-full bg-white/85 flex items-center justify-center"><i data-lucide="play" class="text-foreground"></i></span></span>`
+        : ''
+      return `
+      <div class="group rounded-lg border bg-card overflow-hidden">
+        <div class="relative tile ${c.ph} aspect-[4/3]">
+          <span class="absolute top-1.5 left-1.5 rounded-full bg-black/65 text-white text-3xs px-1.5 py-0.5">${c.match}% match</span>
+          <span class="absolute bottom-1.5 left-1.5 inline-flex items-center gap-1 rounded-full bg-black/65 text-white text-3xs px-1.5 py-0.5">${badge}</span>
+          ${play}
+        </div>
+        <div class="p-2 flex items-center justify-between gap-2">
+          <span class="truncate text-2xs text-muted-foreground">${c.name}</span>
+          <button data-i="${i}" onclick="toggleAttach(${i}, this)" class="shrink-0 inline-flex items-center h-6 rounded-md border px-2 text-2xs font-medium hover:bg-accent/40">Attach</button>
+        </div>
+      </div>`
+    }).join('')
+    lucide.createIcons()
+  }
+  function toggleAttach(i, btn) {
+    const isAttached = btn.dataset.on === '1'
+    if (isAttached) { btn.dataset.on=''; btn.className='shrink-0 inline-flex items-center h-6 rounded-md border px-2 text-2xs font-medium hover:bg-accent/40'; btn.innerHTML='Attach'; attached-- }
+    else { btn.dataset.on='1'; btn.className='shrink-0 inline-flex items-center h-6 rounded-md border border-success/40 bg-success/10 text-success px-2 text-2xs font-medium'; btn.innerHTML='Attached ✓'; attached++ }
+    syncAttach()
+  }
+  function syncAttach() {
+    document.getElementById('attachedCount').textContent = '(' + attached + ')'
+    document.getElementById('suggCount').textContent = attached ? '· ' + attached + ' attached' : ''
+    const tray = document.getElementById('attachedTray')
+    tray.innerHTML = attached
+      ? Array.from({length: attached}).map(()=>'<span class="inline-block h-10 w-10 rounded tile ph1 mr-1.5 align-middle"></span>').join('')
+      : 'Nothing attached yet — pick from the suggestions →'
+    const top = document.getElementById('continueTop')
+    top.disabled = attached === 0
+    // bottom CTA
+    let bottom = document.getElementById('continueBottom')
+    const rightCol = document.getElementById('grid').parentElement
+    if (attached > 0 && !bottom) {
+      const div = document.createElement('div')
+      div.id = 'continueBottom'
+      div.className = 'flex justify-end pt-1'
+      div.innerHTML = `<button onclick="show('compose')" class="inline-flex items-center h-8 rounded-md px-3 text-xs font-medium bg-primary text-primary-foreground">Compose carousel <i data-lucide="arrow-right" class="ml-1"></i></button>`
+      rightCol.appendChild(div); lucide.createIcons()
+    } else if (attached === 0 && bottom) { bottom.remove() }
+  }
+
+  // Which sidebar item lights up for each screen — the menu tracks the flow.
+  const NAV_FOR_SCREEN = {
+    overview: 'overview',
+    stories: 'stories', words: 'stories',
+    queue: 'storyboard', piece: 'storyboard', compose: 'storyboard', publish: 'storyboard', done: 'storyboard',
+    library: 'library',
+  }
+  function show(screen) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.dataset.screen === screen))
+    document.querySelectorAll('.navpill').forEach(p => {
+      const on = p.dataset.nav === screen
+      p.classList.toggle('bg-primary', on); p.classList.toggle('text-primary-foreground', on)
+      p.classList.toggle('text-muted-foreground', !on)
+    })
+    const navTarget = NAV_FOR_SCREEN[screen]
+    document.querySelectorAll('[data-navitem]').forEach(a => {
+      const on = a.dataset.navitem === navTarget
+      a.classList.toggle('bg-primary/10', on); a.classList.toggle('text-primary', on)
+      a.classList.toggle('text-muted-foreground', !on)
+    })
+    window.scrollTo(0, 0)
+  }
+
+  // ── Compose screen: carousel + text-over-image composer ───────────
+  const THEMES = {
+    'bold-dark':   { name: 'Bold Dark',   scrim: 'linear-gradient(to top, rgba(15,18,25,.82), rgba(15,18,25,.15) 55%, rgba(15,18,25,.05))', head: 'text-white',      body: 'text-white/85',      font: 'font-bold',      accent: 'hsl(20 76% 52%)' },
+    'clean-light': { name: 'Clean Light', scrim: 'linear-gradient(to top, rgba(255,255,255,.94), rgba(255,255,255,.5) 50%, rgba(255,255,255,.05))', head: 'text-foreground', body: 'text-foreground/70', font: 'font-semibold', accent: 'hsl(20 76% 52%)' },
+    'brand-warm':  { name: 'Brand Warm',  scrim: 'linear-gradient(to top, rgba(214,90,40,.88), rgba(214,90,40,.2) 60%, rgba(214,90,40,.04))', head: 'text-white',      body: 'text-white/90',      font: 'font-extrabold',  accent: '#ffffff' },
+  }
+  let slides = [
+    { ph: 'ph0', template: 'Title',   headline: 'Why your neck pain keeps coming back', body: 'Move Better · Dr. Q',                              pos: 'bottom', align: 'left' },
+    { ph: 'ph2', template: 'Caption', headline: 'It’s usually NOT the neck',            body: 'It’s how your mid-back & shoulders stopped sharing the load.', pos: 'bottom', align: 'left' },
+    { ph: 'ph5', template: 'Caption', headline: 'The 30-second reset',                 body: 'The drill I give every desk-bound patient.',       pos: 'top',    align: 'left' },
+    { ph: 'ph3', template: 'CTA',     headline: 'Feeling it right now?',                body: 'Book a visit → movebetter.co',                     pos: 'middle', align: 'center' },
+  ]
+  let current = 0
+  let theme = 'bold-dark'
+  const esc = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+  function slideHTML(s, big) {
+    const t = THEMES[theme]
+    const posC = s.pos === 'top' ? 'justify-start' : s.pos === 'middle' ? 'justify-center' : 'justify-end'
+    const alignC = s.align === 'center' ? 'items-center text-center' : 'items-start text-left'
+    let block
+    if (s.template === 'CTA') {
+      block = `<h2 class="${t.head} ${t.font} ${big ? 'text-xl sm:text-2xl' : 'text-[7px]'} leading-tight">${esc(s.headline)}</h2>
+        <span class="${big ? 'mt-1.5 rounded-full px-3 py-1 text-xs' : 'mt-0.5 rounded-full px-1 py-px text-[5px]'} font-semibold" style="background:${t.accent};color:${theme === 'brand-warm' ? 'hsl(20 76% 40%)' : '#fff'}">${esc(s.body)}</span>`
+    } else if (s.template === 'Quote') {
+      block = `<h2 class="${t.head} ${t.font} italic ${big ? 'text-2xl sm:text-3xl' : 'text-[8px]'} leading-tight">“${esc(s.headline)}”</h2>
+        ${s.body ? `<p class="${t.body} ${big ? 'text-sm' : 'text-[5px]'} not-italic">${esc(s.body)}</p>` : ''}`
+    } else if (s.template === 'Title') {
+      block = `<h2 class="${t.head} ${t.font} ${big ? 'text-3xl sm:text-4xl' : 'text-[9px]'} leading-[1.05]">${esc(s.headline)}</h2>
+        ${s.body ? `<p class="${t.body} ${big ? 'text-xs uppercase tracking-wide' : 'text-[5px]'}">${esc(s.body)}</p>` : ''}`
+    } else {
+      block = `<h2 class="${t.head} ${t.font} ${big ? 'text-xl sm:text-2xl' : 'text-[7px]'} leading-tight">${esc(s.headline)}</h2>
+        ${s.body ? `<p class="${t.body} ${big ? 'text-sm' : 'text-[5px]'} leading-snug">${esc(s.body)}</p>` : ''}`
+    }
+    return `<div class="relative tile ${s.ph} h-full w-full overflow-hidden">
+      <div class="absolute inset-0" style="background:${t.scrim}"></div>
+      <div class="absolute inset-0 flex flex-col ${posC} ${alignC} ${big ? 'p-6 gap-1.5' : 'p-1 gap-0.5'}">${block}</div>
+    </div>`
+  }
+
+  function renderCanvas() {
+    const s = slides[current]
+    document.getElementById('canvasWrap').innerHTML = `
+      <div class="relative mx-auto w-full max-w-[480px] aspect-square rounded-xl border shadow-sm overflow-hidden">
+        ${slideHTML(s, true)}
+        <span class="absolute top-2 left-2 rounded-full bg-black/55 text-white text-3xs px-2 py-0.5">1:1 · Instagram</span>
+        <span class="absolute top-2 right-2 rounded-full bg-black/55 text-white text-3xs px-2 py-0.5">Slide ${current + 1} / ${slides.length} · ${s.template}</span>
+      </div>`
+    lucide.createIcons()
+  }
+
+  function renderFilmstrip() {
+    const strip = document.getElementById('filmstrip')
+    strip.innerHTML = slides.map((s, i) => `
+      <button onclick="setCurrent(${i})" class="relative shrink-0 h-20 w-20 rounded-md overflow-hidden border-2 ${i === current ? 'border-primary' : 'border-border'}">
+        ${slideHTML(s, false)}
+        <span class="absolute top-0.5 left-0.5 rounded bg-black/55 text-white text-[8px] px-1 leading-tight">${i + 1}</span>
+      </button>`).join('')
+      + `<button onclick="addSlide()" class="shrink-0 h-20 w-20 rounded-md border-2 border-dashed text-muted-foreground flex flex-col items-center justify-center gap-0.5 hover:border-primary/50 hover:text-foreground"><i data-lucide="plus"></i><span class="text-[9px]">Add slide</span></button>`
+    document.getElementById('slideTotal').textContent = slides.length
+    lucide.createIcons()
+  }
+
+  function renderInspector() {
+    const s = slides[current]
+    const seg = (on, val, label) => `<button onclick="setPos('${val}')" class="flex-1 rounded px-2 py-1 text-2xs font-medium ${on ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}">${label}</button>`
+    const tpl = (name) => `<button onclick="setTemplate('${name}')" class="rounded-full border px-2.5 py-1 text-2xs font-medium ${s.template === name ? 'bg-accent text-accent-foreground border-primary/40' : 'text-muted-foreground hover:text-foreground'}">${name}</button>`
+    const swatch = (k, v) => `<button onclick="setTheme('${k}')" class="rounded-md border-2 overflow-hidden text-left ${theme === k ? 'border-primary' : 'border-border'}">
+        <div class="relative tile ph0 h-12"><div class="absolute inset-0" style="background:${v.scrim}"></div><div class="absolute bottom-1 left-1.5 ${v.head} ${v.font} text-[10px]">Aa</div></div>
+        <div class="text-[9px] py-0.5 text-center text-muted-foreground">${v.name}</div></button>`
+    document.getElementById('inspector').innerHTML = `
+      <div class="rounded-lg border bg-card p-4 space-y-2.5">
+        <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">Slide ${current + 1} image</p>
+        <div class="flex items-center gap-2">
+          <div class="tile ${s.ph} h-12 w-12 rounded-md border"></div>
+          <button class="inline-flex items-center h-7 rounded-md border px-2 text-2xs font-medium hover:bg-accent/40"><i data-lucide="images" class="mr-1"></i> Swap from attached</button>
+          <button class="inline-flex items-center h-7 rounded-md border px-2 text-2xs font-medium text-muted-foreground hover:bg-accent/40">Text only</button>
+        </div>
+      </div>
+      <div class="rounded-lg border bg-card p-4 space-y-3">
+        <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1.5"><i data-lucide="type"></i> Text on this slide</p>
+        <div class="space-y-1">
+          <label class="text-2xs text-muted-foreground">Headline</label>
+          <input value="${esc(s.headline)}" oninput="editText('headline', this.value)" class="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-primary" />
+        </div>
+        <div class="space-y-1">
+          <label class="text-2xs text-muted-foreground">Body</label>
+          <textarea oninput="editText('body', this.value)" rows="2" class="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-primary resize-none">${esc(s.body)}</textarea>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-2xs text-muted-foreground">Text position</label>
+          <div class="flex rounded-md border p-0.5">${seg(s.pos === 'top', 'top', 'Top')}${seg(s.pos === 'middle', 'middle', 'Middle')}${seg(s.pos === 'bottom', 'bottom', 'Bottom')}</div>
+        </div>
+        <div class="space-y-1.5">
+          <label class="text-2xs text-muted-foreground">Slide template</label>
+          <div class="flex flex-wrap gap-1.5">${tpl('Title')}${tpl('Caption')}${tpl('Quote')}${tpl('CTA')}</div>
+        </div>
+      </div>
+      <div class="rounded-lg border bg-card p-4 space-y-2.5">
+        <p class="text-2xs font-semibold uppercase tracking-wide text-muted-foreground inline-flex items-center gap-1.5"><i data-lucide="palette"></i> Carousel theme <span class="font-normal normal-case tracking-normal text-muted-foreground/70">· all slides</span></p>
+        <div class="grid grid-cols-3 gap-2">${Object.entries(THEMES).map(([k, v]) => swatch(k, v)).join('')}</div>
+      </div>`
+    lucide.createIcons()
+  }
+
+  function renderCompose() { renderCanvas(); renderFilmstrip(); renderInspector() }
+  function setCurrent(i) { current = i; renderCompose() }
+  function setPos(p) { slides[current].pos = p; renderCanvas(); renderInspector() }
+  function setTemplate(t) { slides[current].template = t; renderCanvas(); renderInspector() }
+  function setTheme(t) { theme = t; renderCompose() }
+  function editText(field, val) { slides[current][field] = val; renderCanvas(); renderFilmstrip() }
+  function addSlide() {
+    const phs = ['ph1', 'ph4', 'ph5', 'ph2', 'ph0', 'ph3']
+    slides.push({ ph: phs[slides.length % phs.length], template: 'Caption', headline: 'New slide', body: 'Add your text…', pos: 'bottom', align: 'left' })
+    current = slides.length - 1
+    renderCompose()
+  }
+  window.setCurrent = setCurrent; window.setPos = setPos; window.setTemplate = setTemplate
+  window.setTheme = setTheme; window.editText = editText; window.addSlide = addSlide
+
+  // ── Pipeline stepper (connective tissue across the whole journey) ──
+  const PSTAGES = [['interview', 'Interview'], ['words', 'Words'], ['media', 'Media'], ['publish', 'Publish']]
+  function stepperHTML(cur) {
+    const ci = PSTAGES.findIndex((s) => s[0] === cur)
+    return `<nav aria-label="Pipeline" class="flex items-center gap-1 sm:gap-1.5 text-2xs font-medium overflow-x-auto pb-0.5">` +
+      PSTAGES.map((s, i) => {
+        const done = i < ci, active = i === ci
+        const pill = active ? 'bg-primary text-primary-foreground' : done ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'
+        const badge = active ? 'bg-white/25 text-white' : done ? 'bg-success/25 text-success' : 'bg-muted-foreground/15 text-muted-foreground'
+        const mark = done ? '✓' : (i + 1)
+        const conn = i < PSTAGES.length - 1 ? `<span class="h-px w-3 sm:w-6 shrink-0 ${done ? 'bg-success/40' : 'bg-border'}"></span>` : ''
+        return `<span class="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 ${pill}"><span class="inline-flex h-4 w-4 items-center justify-center rounded-full text-[9px] ${badge}">${mark}</span>${s[1]}</span>${conn}`
+      }).join('') + `</nav>`
+  }
+  // Which screens get a stepper, and at what stage. The Queue + interview-done
+  // moments are intentionally stepper-free.
+  const STEP_SCREENS = { setup: 'interview', words: 'words', piece: 'media', compose: 'media', publish: 'publish', done: 'publish' }
+  function renderSteppers() {
+    Object.entries(STEP_SCREENS).forEach(([screen, stage]) => {
+      const wrap = document.querySelector(`[data-screen=${screen}] > div`)
+      if (!wrap) return
+      let el = wrap.querySelector(':scope > [data-stepper]')
+      if (!el) { el = document.createElement('div'); el.setAttribute('data-stepper', ''); el.className = 'mb-1'; wrap.prepend(el) }
+      el.innerHTML = stepperHTML(stage)
+    })
+    lucide.createIcons()
+  }
+
+  // ── Words screen: approve → unmistakable Storyboard handoff ────────
+  let wordsApproved = false
+  function renderWordsApproval() {
+    const c = document.getElementById('wordsApproval'); if (!c) return
+    c.innerHTML = wordsApproved
+      ? `<div class="rounded-lg border border-success/30 bg-success/5 p-4 flex flex-wrap items-center justify-between gap-3">
+           <p class="inline-flex items-center gap-2 text-sm font-medium text-success"><i data-lucide="check-circle-2"></i> Words approved — ready for media</p>
+           <div class="flex items-center gap-3">
+             <button onclick="undoApprove()" class="text-xs text-muted-foreground hover:text-foreground">Undo</button>
+             <button onclick="show('piece')" class="inline-flex items-center h-9 rounded-md px-3.5 text-sm font-medium bg-primary text-primary-foreground">Add media in Storyboard <i data-lucide="arrow-right" class="ml-1"></i></button>
+           </div>
+         </div>`
+      : `<div class="rounded-lg border bg-muted/20 p-4 flex flex-wrap items-center justify-between gap-3">
+           <p class="text-sm text-muted-foreground">Happy with the words? Approve to send this draft to Storyboard for media.</p>
+           <button onclick="approveWords()" class="inline-flex items-center h-9 rounded-md px-3.5 text-sm font-medium bg-primary text-primary-foreground"><i data-lucide="check" class="mr-1.5"></i> Approve words</button>
+         </div>`
+    lucide.createIcons()
+  }
+  function approveWords() { wordsApproved = true; renderWordsApproval() }
+  function undoApprove() { wordsApproved = false; renderWordsApproval() }
+  window.approveWords = approveWords; window.undoApprove = undoApprove
+
+  // ── Transcript slide-over + setup "More options" ──────────────────
+  function openTranscript() {
+    document.getElementById('transcriptDrawer').classList.remove('translate-x-full')
+    document.getElementById('transcriptOverlay').classList.remove('opacity-0', 'pointer-events-none')
+  }
+  function closeTranscript() {
+    document.getElementById('transcriptDrawer').classList.add('translate-x-full')
+    document.getElementById('transcriptOverlay').classList.add('opacity-0', 'pointer-events-none')
+  }
+  function toggleAdvanced() {
+    const body = document.getElementById('advancedBody')
+    const chev = document.getElementById('advChevron')
+    const open = body.classList.toggle('hidden')
+    chev.style.transform = open ? '' : 'rotate(180deg)'
+  }
+  window.openTranscript = openTranscript; window.closeTranscript = closeTranscript; window.toggleAdvanced = toggleAdvanced
+
+  // ── Overview board: Pipeline / Calendar / Themes lens toggle ──────
+  function setOverviewView(v) {
+    ['pipeline', 'calendar', 'themes'].forEach(k => {
+      document.querySelector(`[data-ovview=${k}]`).classList.toggle('hidden', k !== v)
+      const b = document.getElementById('ovBtn' + k)
+      b.classList.toggle('bg-primary', k === v)
+      b.classList.toggle('text-primary-foreground', k === v)
+      b.classList.toggle('text-muted-foreground', k !== v)
+    })
+  }
+  window.setOverviewView = setOverviewView
+
+  // ── Library: slimmed asset grid ───────────────────────────────────
+  function libTile(ph, kind) {
+    const badge = kind === 'video'
+      ? `<span class="absolute bottom-1 left-1 inline-flex items-center rounded bg-black/65 text-white text-[8px] px-1"><i data-lucide="video" style="width:.6rem;height:.6rem"></i></span><span class="absolute inset-0 flex items-center justify-center"><span class="h-7 w-7 rounded-full bg-white/80 flex items-center justify-center"><i data-lucide="play" style="width:.8rem;height:.8rem"></i></span></span>`
+      : `<span class="absolute bottom-1 left-1 inline-flex items-center rounded bg-black/65 text-white text-[8px] px-1"><i data-lucide="image" style="width:.6rem;height:.6rem"></i></span>`
+    return `<div class="relative tile ${ph} aspect-square rounded-md border overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary/40">${badge}</div>`
+  }
+  function renderLibrary() {
+    const recent = [['ph1', 'video'], ['ph0', 'photo'], ['ph2', 'photo'], ['ph5', 'video'], ['ph3', 'photo'], ['ph4', 'photo']]
+    const earlier = [['ph2', 'photo'], ['ph0', 'photo'], ['ph5', 'photo'], ['ph1', 'video'], ['ph3', 'photo'], ['ph4', 'photo'], ['ph2', 'video'], ['ph0', 'photo'], ['ph5', 'photo'], ['ph3', 'photo'], ['ph1', 'photo'], ['ph4', 'video']]
+    const R = document.getElementById('libGridRecent'); const E = document.getElementById('libGridEarlier')
+    if (R) R.innerHTML = recent.map(([p, k]) => libTile(p, k)).join('')
+    if (E) E.innerHTML = earlier.map(([p, k]) => libTile(p, k)).join('')
+  }
+  window.renderLibrary = renderLibrary
+
+  renderGrid(); syncAttach(); renderCompose(); renderSteppers(); renderWordsApproval(); renderLibrary(); show('start'); lucide.createIcons()
+</script>
+</body>
+</html>

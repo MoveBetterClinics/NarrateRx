@@ -49,15 +49,18 @@ const AccessMatrix = lazy(() => import('@/pages/AccessMatrix'))
 const Account = lazy(() => import('@/pages/Account'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
 const Stories = lazy(() => import('@/pages/Stories'))
+const Overview = lazy(() => import('@/pages/Overview'))
 const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
 const Storyboard = lazy(() => import('@/pages/Storyboard'))
 const StoryboardPiece = lazy(() => import('@/pages/StoryboardPiece'))
+const StoryboardPublish = lazy(() => import('@/pages/StoryboardPublish'))
 const Synthesis = lazy(() => import('@/pages/Synthesis'))
 const PreVisitMessage = lazy(() => import('@/pages/PreVisitMessage'))
 const AuthorMode = lazy(() => import('@/pages/AuthorMode'))
 const Book = lazy(() => import('@/pages/Book'))
 const EditorialTest = lazy(() => import('@/pages/EditorialTest'))
 const Slate = lazy(() => import('@/pages/Slate'))
+const SlateClipEditor = lazy(() => import('@/pages/SlateClipEditor'))
 const Capture = lazy(() => import('@/pages/Capture'))
 import { workspace } from '@/lib/workspace'
 import { WorkspaceProvider, useWorkspaceState } from '@/lib/WorkspaceContext'
@@ -521,6 +524,10 @@ function AppRoutes() {
             <Route path="/staff/:staffId" element={guarded(<StaffProfile />)} />
             <Route path="/clinician/:staffId" element={<LegacyStaffRedirect />} />
             <Route path="/stories" element={guarded(<Stories />)} />
+            {/* Overview — clinic-wide board (Pipeline/Calendar/Themes). The
+                page self-guards to editors (owner/producer/director) and
+                redirects individual clinicians home. */}
+            <Route path="/overview" element={guarded(<Overview />)} />
             <Route path="/stories/:storyId" element={guarded(<StoryDetail />)} />
             <Route path="/synthesis" element={guarded(<Synthesis />)} />
             <Route path="/write" element={guarded(<AuthorMode />)} />
@@ -530,11 +537,14 @@ function AppRoutes() {
                 attach media at full size. /needs-media redirects to it. */}
             <Route path="/storyboard" element={guarded(<Storyboard />)} />
             <Route path="/storyboard/:pieceId" element={guarded(<StoryboardPiece />)} />
+            <Route path="/storyboard/:pieceId/publish" element={guarded(<StoryboardPublish />)} />
             <Route path="/needs-media" element={<Navigate to="/storyboard" replace />} />
             {/* Universal PWA capture surface — works on any device with a browser + camera. */}
             <Route path="/capture" element={guarded(<Capture />)} />
-            {/* Phase 3 Story Director — daily story slate for producers + clinicians. */}
+            {/* Slate — clip workshop. Uses the * catch-all pattern so descendant
+                routes resolve correctly (see CLAUDE.md Router conventions). */}
             <Route path="/slate" element={guarded(<Slate />)} />
+            <Route path="/slate/clip/:assetId" element={guarded(<SlateClipEditor />)} />
             {/* Internal dev surface — Phase 2 editorial pipeline test (search clips + render). */}
             <Route path="/internal/editorial-test" element={guarded(<EditorialTest />)} />
             {/* Legacy redirects — /review/:itemId and /review-queue → new IA paths */}

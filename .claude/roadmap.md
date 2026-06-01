@@ -301,6 +301,88 @@ lift**.
 
 ---
 
+## Pipeline UX redesign — smoothing interview → publish (design approved 2026-05-31)
+
+> **Status: ✅ ALL 5 PHASES SHIPPED to prod (2026-06-01).** The full interview→publish flow +
+> information-architecture redesign is live on `narraterx.ai`. The P0 media-matcher engine's gate
+> was blocked on cramped in-editor UX; this redesign unblocked it. It grew — with Q, iteratively,
+> through a clickable mockup — from "a media-approval page" into the whole spine. The visual spec
+> was the clickable prototype **`.claude/storyboard-flow-mockup.html`** (it WAS the build contract).
+>
+> **Shipped:** Phase 1 (#1104/#1105) + trial fixes (#1106) · Phase 2 video→Reel (#1118) + Slate
+> producer-side index fix (#1117) · **Phase 3 approve-handoff + rationalized setup + "See your
+> story" (#1121)** · **Phase 4 nav reorg + pipeline stepper + Overview route (#1122)** · **Phase 5
+> Stories→cards-only + Library slim (#1123)**. Phases 1–2 shipped one-PR-per-phase with Q driving
+> merge; Phases 3–5 were an overnight autonomous build (Q opted into auto-merge-on-green, skipping
+> the per-phase trial gate). See `memory/project_pipeline_ux_redesign_shipped.md` for the full
+> arc + the mid-build scope changes (Slate-as-editor reframe; several planned items dropped as
+> no-ops).
+
+**The shape.** A four-stage producer spine — **Interview → Words → Media → Publish** — made to
+feel like one flow via a persistent **pipeline stepper** on every stage + a reorganized sidebar
+that mirrors it.
+
+**Locked design decisions (Q-approved):**
+- **Storyboard = the producer's media stage**, edge-to-edge: gate "Continue to publish" on ≥1
+  attachment; platform-aware kind toggle (hide photo on video-only channels; warn on mismatched
+  Library picks via `isKindMismatch`); 4–5-col candidate grid; per-card photo/video badge; queue
+  uses an **age signal** (not uniform amber); publish step gets a **"Next up" loop-close** (no
+  dead-end); one consistent "Back to Storyboard" label.
+- **Compose moves INTO Storyboard** (Choose media → **Compose** → Publish). The carousel +
+  text-over-image composer (WYSIWYG canvas, slide filmstrip, per-slide text/position/template,
+  global theme) lives here, not on Publish. **Held at the mocked shape** — Q wants real-use trials
+  before adding font/colour/drag controls. Publish shrinks to preview + schedule.
+- **Words (Stories detail)**: approve→handoff promoted to a single primary "Add media in
+  Storyboard →"; **transcript drawer** to compare drafts against what was actually said; keep
+  remove-platform / delete / export.
+- **Interview Setup rationalized**: required = **who · topic · Practice/Personal**; **Tone
+  dropped** (fights the voice-faithful engine, barely wired); **Audience demoted** to an optional
+  hint; Draft-style kept as a simple toggle. Rule: *ask up front only what you can't change
+  later.* Completion screen leads with **"See your story →"** + voice %; video-attach optional,
+  not a gate.
+- **Nav reorg** (`Layout.jsx`): **Home · Overview** / **Produce**(Stories · Storyboard) /
+  **Library**(Library · Capture) / **Tools**(Book · Write · Pre-Visit). Active item tracks the flow.
+- **Three scopes, separated** (the key IA insight): **Home = me** (personal) · **Stories /
+  Storyboard = my work** (producer) · **Overview = the whole clinic** (top-down).
+- **Overview** = a new **role-gated** (owner/producer/director) clinic-wide board holding the
+  three top-down lenses **Pipeline** (by stage) · **Calendar** (by ship date) · **Themes** (by
+  topic + gaps) — relocated OFF the producer's Stories list, where they didn't belong.
+- **Stories → Cards only** (the view toggle moves to Overview; light filters replace it).
+- **Library slimmed**: drop the purpose filter ("B-roll" etc. — auto-tagging handles it), the
+  workflow-lifecycle grouping, and the admin backfill; keep search · kind · **Collections** ·
+  **Drive import** · upload · date grouping. Now that Storyboard does the picking, the Library is
+  just a tidy pool.
+
+**Build phases** (each a shippable, trial-able PR; ~12–18 focused days total):
+
+| Phase | Ships | Status |
+|---|---|---|
+| **1 · Storyboard core** | gate Continue, honest toggle, edge-to-edge + grid, publish loop-close, back-nav | ✅ SHIPPED #1104/#1105 + trial fixes #1106 (breadcrumbs, back-to-media, preview ratio, Ready-to-publish) |
+| **2 · Compose-in-Storyboard** | **RESCOPED → video-in-carousel.** Shipped: video attached to IG → publishes as a **Reel** (#1118). DROPPED: PublishPanel extraction (pure file-move, no visible change), brandRenderVideo caption-band on the Storyboard side (Slate bakes text — see reframe), the `video_segments` live-cut path (converged on `media_assets`). | ✅ SHIPPED #1118 (core video fix); composer polish deferred |
+| **3 · Words + interview entry** | approve→primary "Add media in Storyboard" handoff (rests on Words, no silent redirect); rationalized Setup (Tone control dropped, `tone` kept as silent default; Audience already gone; "Tune"→"More options"); "See your story →" completion leads with voice %, video-attach optional not a gate. Stories→Cards-only deferred to Phase 5. | ✅ SHIPPED #1121 |
+| **4 · Nav reorg + stepper** | `Layout.jsx` flat list → grouped `NAV_SECTIONS` (Home·Overview / Produce / Library / Tools); role-gated Overview nav item (`isEditor`); new `PipelineStepper` on the 4 stage pages (NewInterview/StoryDetail/StoryboardPiece/StoryboardPublish); new `/overview` page reusing the Stories* lens components (no dead link); mobile drawer + collapsed dividers. | ✅ SHIPPED #1122 |
+| **5 · Overview + Library slim** | Stories→cards-only (dropped the Pipeline/Calendar/Themes toggle + `?view=` dispatch — lenses now live on Overview); Library (`MediaHub`) slimmed: removed purpose filter, workflow-lifecycle grouping + its toggle, admin backfill (kept search·kind·Collections·Drive·upload·date grouping); e2e `content-hub.spec.ts` kanban test repointed to `/overview`. | ✅ SHIPPED #1123 |
+
+**Mid-build reframe (2026-06-01):** Slate = a video *editor* (manages clips, bakes on-clip text — size/position controls owned by the Slate session); Storyboard = the *publisher*. They meet through normal `media_assets`, NOT a special clip path. This collapsed several planned Phase-2 items. Cross-session threads resolved via `.claude/HANDOFF-slate-to-storyboard.md` (§Resolved contracts): (a) `indexMediaAsset` on Slate's approve→Library SHIPPED #1117 — approved clips now show in ranked Suggested media, consumer needs zero change; (b) Slate "As a post" → Storyboard receiver = create `content_items` draft (`media_urls=[{video}]`) + redirect to `/storyboard/:id` (contract C1 confirmed; `api/editorial/clip-to-post.js` to be built Slate-side); (c) on-video text = template-fixed caption band both sides, size/position controls deferred (need a new ffmpeg drawtext path, built jointly later). **Mixed photo+video IG carousel = parked, blocked on Buffer** (`.claude/ideas.md`).
+
+**All phases shipped — open follow-ups (NOT blockers):** (a) the Storyboard **carousel/overlay
+composer is held at the mocked shape** — Q wants real-use trials before adding font/colour/drag
+controls; (b) **mixed photo+video IG carousel** stays parked, blocked on Buffer (`.claude/ideas.md`);
+(c) the Slate "As a post" → Storyboard receiver `api/editorial/clip-to-post.js` is still Slate-side
+TODO (contract C1 in `.claude/HANDOFF-slate-to-storyboard.md`); (d) on-video text size/position
+controls deferred (needs a joint ffmpeg drawtext path). The parked `storyboard-ui-audit` worktree
+(early `Layout.jsx`/`BackLink.jsx`/`StoryboardPiece.jsx` scaffolding) is now superseded by shipped
+code — safe to retire once its uncommitted scratch is confirmed disposable.
+
+**Files that shipped this redesign:** `src/components/Layout.jsx` (grouped nav), new
+`src/components/PipelineStepper.jsx` + `src/pages/Overview.jsx`, `src/pages/Storyboard*.jsx` +
+`src/components/storyboard/*`, `src/components/story-detail/AssetsPane.jsx` (ApprovalPanel handoff),
+`src/pages/Stories.jsx` + `src/components/stories/*` (cards-only; lenses now on Overview),
+`src/pages/MediaHub.jsx` (Library slim), `src/pages/NewInterview.jsx` + `InterviewSession.jsx`
+(Setup + completion). Origin: the P0 bet's spawned "media-approval UI redesign (ask-before-build)".
+
+---
+
 ## The verification bar (why this won't become 4 months of merged-but-dead PRs)
 
 The prior video build "shipped in 4 days" yet delivered ~0 in-house value because **done was

@@ -89,6 +89,32 @@ export async function createAsset({ inputUrl, playbackPolicy = 'signed', passthr
   return { assetId: asset.id, playbackId: playback }
 }
 
+// Fetch a Mux Asset by id. Used by the webhook to recover display dimensions
+// when the `video.asset.ready` event payload omits `data.tracks` (Mux often
+// does — 14 of 16 ready videos had null width/height before this was added).
+// Returns { width, height, aspectRatio } in DISPLAY orientation (rotation
+// already applied), with nulls when the asset has no decodable video track.
+export async function getAssetDimensions(assetId) {
+  if (!assetId) throw new Error('getAssetDimensions: assetId required')
+  const res = await fetch(`${MUX_API_BASE}/video/v1/assets/${encodeURIComponent(assetId)}`, {
+    headers: { Authorization: basicAuthHeader() },
+  })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`Mux getAsset ${res.status}: ${text.slice(0, 300)}`)
+  let json
+  try { json = JSON.parse(text) }
+  catch { throw new Error(`Mux getAsset returned non-JSON body: ${text.slice(0, 200)}`) }
+  const data = json?.data
+  const videoTrack = Array.isArray(data?.tracks)
+    ? data.tracks.find((t) => t?.type === 'video')
+    : null
+  return {
+    width:  videoTrack?.max_width  || null,
+    height: videoTrack?.max_height || null,
+    aspectRatio: typeof data?.aspect_ratio === 'string' ? data.aspect_ratio : null,
+  }
+}
+
 // Verify the Mux-Signature header on an inbound webhook. The header looks
 // like: `t=1492774577,v1=<hex sha256 hmac>`. We HMAC the concatenation of
 // `${t}.${rawBody}` with the webhook signing secret and constant-time

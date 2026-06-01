@@ -37,6 +37,77 @@ const MAX_VIDEO_BYTES = 500 * 1024 * 1024
 // the function's ephemeral /tmp); beyond this we refuse rather than spend
 // minutes transcoding a pathological upload.
 const MAX_INGEST_BYTES = 4 * 1024 * 1024 * 1024 // 4GB
+
+// Source-file deduplication: when two clips from the same source render
+// concurrently on the same warm Fluid Compute instance, they share one
+// downloaded /tmp file instead of writing two copies (which blows the 512MB
+// /tmp budget). Key = videoUrl for the fast path (full source on disk) or
+// `url:start:dur` for the large-source proxy (window-specific). Value =
+// { tmpPath, downstreamStart, refCount, promise }.
+const _sourceCache = new Map()
+
+async function acquireSourceFile({ videoUrl, declaredLen, clipStart, clipDur, id }) {
+  // Mirror the original branching: fast path only when size is known and ≤ threshold.
+  // Unknown-size (declaredLen=0) falls through to the proxy path, same as before.
+  const isLarge = !(declaredLen > 0 && declaredLen <= MAX_VIDEO_BYTES)
+  const cacheKey = isLarge ? `${videoUrl}:${clipStart}:${clipDur}` : videoUrl
+
+  if (_sourceCache.has(cacheKey)) {
+    const entry = _sourceCache.get(cacheKey)
+    entry.refCount++
+    await entry.promise  // wait for an in-progress download on another concurrent render
+    return { tmpPath: entry.tmpPath, downstreamStart: entry.downstreamStart }
+  }
+
+  const tmpPath = `/tmp/vid-in-${id}.mp4`
+  const entry = {
+    tmpPath,
+    downstreamStart: isLarge ? 0 : clipStart,
+    refCount: 1,
+    promise: null,
+  }
+
+  entry.promise = (async () => {
+    if (!isLarge) {
+      const fetchRes = await fetch(videoUrl)
+      if (!fetchRes.ok) throw new Error(`Source video fetch failed: ${fetchRes.status}`)
+      await pipeline(Readable.fromWeb(fetchRes.body), createWriteStream(tmpPath))
+    } else {
+      const ingestArgs = []
+      if (clipStart > 0) ingestArgs.push('-ss', String(clipStart))
+      ingestArgs.push(
+        '-t', String(clipDur),
+        '-i', videoUrl,
+        '-vf', 'scale=w=1920:h=1920:force_original_aspect_ratio=decrease:flags=lanczos',
+        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26',
+        '-c:a', 'aac', '-b:a', '128k',
+        '-movflags', '+faststart',
+        '-y', tmpPath,
+      )
+      await runFfmpeg(ingestArgs)
+    }
+  })().catch((err) => {
+    // On failure, evict the cache entry so the next attempt retries fresh.
+    _sourceCache.delete(cacheKey)
+    throw err
+  })
+
+  _sourceCache.set(cacheKey, entry)
+  await entry.promise
+  return { tmpPath, downstreamStart: entry.downstreamStart }
+}
+
+function releaseSourceFile({ videoUrl, declaredLen, clipStart, clipDur }) {
+  const isLarge = !(declaredLen > 0 && declaredLen <= MAX_VIDEO_BYTES)
+  const cacheKey = isLarge ? `${videoUrl}:${clipStart}:${clipDur}` : videoUrl
+  const entry = _sourceCache.get(cacheKey)
+  if (!entry) return
+  entry.refCount--
+  if (entry.refCount <= 0) {
+    _sourceCache.delete(cacheKey)
+    unlinkP(entry.tmpPath).catch(() => {})
+  }
+}
 // Cap each rendered clip (and the Whisper pass) to this many seconds. Social
 // video posts are short, and render cost scales with duration × channels — an
 // uncapped multi-minute source blew past the 300s function budget and left
@@ -144,65 +215,27 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
   await ensureFontconfig()
 
   const id = randomUUID()
-  const tmpInput   = `/tmp/vid-in-${id}.mp4`
+  // tmpInput is managed by acquireSourceFile / releaseSourceFile (shared across
+  // concurrent renders from the same source URL to avoid downloading the source
+  // twice and blowing the 512MB /tmp budget — ENOSPC with two clips).
   const tmpAudio   = `/tmp/vid-audio-${id}.mp3`
   const tmpOverlay = `/tmp/vid-ov-${id}.png`
   const tmpSrt     = `/tmp/vid-sub-${id}.srt`
   const tmpOutput  = `/tmp/vid-out-${id}.mp4`
 
+  // HEAD the source once to get declared size (used for cache-key logic).
+  const headRes = await fetch(videoUrl, { method: 'HEAD' }).catch(() => null)
+  const declaredLen = parseInt(headRes?.headers?.get('content-length') || '0', 10)
+  if (declaredLen > MAX_INGEST_BYTES) {
+    throw new Error(`Source video too large: ${Math.round(declaredLen / 1e6)}MB (max ${MAX_INGEST_BYTES / 1e6}MB)`)
+  }
+
+  const { tmpPath: tmpInput, downstreamStart } = await acquireSourceFile({
+    videoUrl, declaredLen, clipStart, clipDur, id,
+  })
+
   try {
-    // ── 1. Obtain a render-ready source on /tmp ──────────────────────────────
-    // Small sources stream to disk untouched (fast path, unchanged behavior).
-    // Large sources (a clinician's raw 4K footage can be 1-2GB) won't fit
-    // alongside the render output on the function's ephemeral /tmp, so we
-    // transcode-downscale straight from the source URL: ffmpeg reads it over
-    // HTTPS with range requests (no full copy to /tmp, and it can seek to a
-    // trailing moov atom on non-faststart MP4s) and writes a ≤1080p proxy.
-    // Every VIDEO_CHANNEL_SPEC caps at 1080p, so downscaling on ingest costs no
-    // output quality. Found 2026-05-29: a 562MB source hard-failed the render.
-    const headRes = await fetch(videoUrl, { method: 'HEAD' }).catch(() => null)
-    const declaredLen = parseInt(headRes?.headers?.get('content-length') || '0', 10)
-    if (declaredLen > MAX_INGEST_BYTES) {
-      throw new Error(`Source video too large: ${Math.round(declaredLen / 1e6)}MB (max ${MAX_INGEST_BYTES / 1e6}MB)`)
-    }
-
-    // Where the clip window starts WITHIN tmpInput. The large-source path
-    // pulls only the window (proxy already starts at 0), so downstream seeks
-    // from 0; the fast path keeps the full original, so downstream seeks to
-    // clipStart.
-    let downstreamStart = clipStart
-
-    if (declaredLen > 0 && declaredLen <= MAX_VIDEO_BYTES) {
-      // Fast path — small enough to keep the original on /tmp.
-      const fetchRes = await fetch(videoUrl)
-      if (!fetchRes.ok) throw new Error(`Source video fetch failed: ${fetchRes.status}`)
-      await pipeline(Readable.fromWeb(fetchRes.body), createWriteStream(tmpInput))
-    } else {
-      // Large or unknown-size source — downscale-on-ingest from the URL so the
-      // full original never materializes on /tmp. ffmpeg fetches via HTTP range
-      // and (for a segment) input-seeks to the clip window, pulling only the
-      // ≤60s slice rather than the whole source.
-      const ingestArgs = []
-      if (clipStart > 0) ingestArgs.push('-ss', String(clipStart))  // input seek → fetch only the window
-      ingestArgs.push(
-        '-t', String(clipDur),              // input-limit: only pull the clip window over HTTP range
-        '-i', videoUrl,
-        '-vf', 'scale=w=1920:h=1920:force_original_aspect_ratio=decrease:flags=lanczos',
-        // ultrafast: this proxy is a throwaway intermediate (re-encoded per
-        // channel at crf 23), so spend no CPU on its compression — decoding a
-        // 4K source is the slow part; a 60s 4K downscale at veryfast measured
-        // ~135s, which left no headroom under the 300s budget once channel
-        // renders + Whisper were added.
-        '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26',
-        '-c:a', 'aac', '-b:a', '128k',
-        '-movflags', '+faststart',
-        '-y', tmpInput,
-      )
-      await runFfmpeg(ingestArgs)
-      // The proxy now contains only the clip window starting at 0.
-      downstreamStart = 0
-    }
-
+    // ── 1. Verify the source fits in /tmp ────────────────────────────────────
     const { size: actualSize } = await statP(tmpInput)
     if (actualSize > MAX_VIDEO_BYTES) {
       // Even the downscaled proxy overflowed the /tmp headroom (extremely long
@@ -291,12 +324,20 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
     let finalOutput = '[branded]'
     if (hadSubtitles) {
       // The subtitles filter path must not contain colons (fine — /tmp/vid-sub-uuid.srt has none).
-      // force_style overrides: large-ish font, white with black outline, positioned above lower-third.
+      // force_style overrides: white text, black outline, positioned above lower-third.
       // When the caption band is at the bottom (e.g. blog_hero_video) bump MarginV so the
       // last subtitle line clears the band — otherwise the bottom subtitle line overlaps it.
+      //
+      // FontSize in libass scales with video height — FontSize=N at 1080px gives roughly
+      // N*(1080/PlayRes) px of actual text. We normalise against 1080 so the visual size
+      // stays consistent across 1:1, 9:16, and 16:9 channels. Target ≈ 10px ref units at
+      // 1080p; tune via workspace.brand_style.subtitle_font_size (future setting).
+      const subtitleFontSize = Math.round(
+        (workspace?.brand_style?.subtitle_font_size ?? 10) * (1080 / spec.height)
+      )
       const marginV = spec.captionPos === 'bottom' ? 220 : 120
       filterComplex.push(
-        `[branded]subtitles=${tmpSrt}:force_style='PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,Bold=1,FontSize=20,Outline=1,Shadow=0,MarginV=${marginV}'[vout]`,
+        `[branded]subtitles=${tmpSrt}:force_style='PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BackColour=&H80000000,Bold=1,FontSize=${subtitleFontSize},Outline=1,Shadow=0,MarginV=${marginV}'[vout]`,
       )
       finalOutput = '[vout]'
     }
@@ -334,8 +375,10 @@ export async function renderVideoChannel({ videoUrl, channel, captionText, works
     return { buffer: outBuffer, width: W, height: H, channel, hadSubtitles }
 
   } finally {
-    // Always clean up /tmp files — even on error paths.
-    for (const f of [tmpInput, tmpAudio, tmpOverlay, tmpSrt, tmpOutput]) {
+    // tmpInput is ref-counted — release (and unlink when last render is done).
+    releaseSourceFile({ videoUrl, declaredLen, clipStart, clipDur })
+    // Per-render scratch files are always unique — unlink immediately.
+    for (const f of [tmpAudio, tmpOverlay, tmpSrt, tmpOutput]) {
       await unlinkP(f).catch(() => {})
     }
   }

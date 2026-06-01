@@ -1,16 +1,19 @@
 // POST /api/editorial/approve-package
 //
-// Phase 3 PR 2: Approve a story package from the Story Director Slate.
+// Approve a story package from the Story Director Slate.
 //
-// Creates one content_items row per unique platform (grouping channels that
-// share the same platform: e.g. linkedin_feed + linkedin_video → one 'linkedin'
-// row with both render URLs). Then marks the story_package as 'approved'.
+// Body: { packageId: string, destination?: 'publish' | 'library' }
 //
-// Body: { packageId: string }
+// destination='publish' (default): creates one content_items row per unique platform,
+//   grouping channels that share a platform (e.g. linkedin_feed + linkedin_video → one
+//   'linkedin' row). Response: { contentItems, packageId, platformCount }
 //
-// Response 200: { contentItems: [{ id, platform, ... }], packageId }
+// destination='library': creates one media_assets row per render, returning clips to
+//   the Library for reuse in future posts. Response: { assets, packageId, assetCount }
+//
+// Both paths mark the story_package as 'approved'.
+//
 // Errors: 400 / 401 / 403 / 404 / 409 (already approved) / 500
-//
 // Auth: all roles (clinicians approve their own packages).
 // Requires migration 090 (status constraint expansion) applied before use.
 
@@ -19,6 +22,7 @@ export const config = { runtime: 'nodejs' }
 import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { saveSlateBroll } from '../_lib/saveSlateBroll.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -74,8 +78,11 @@ export default async function handler(req, res) {
     return res.status(auth.reason === 'forbidden' ? 403 : 401).json({ error: auth.reason })
   }
 
-  const { packageId } = req.body || {}
+  const { packageId, destination = 'publish' } = req.body || {}
   if (!packageId) return res.status(400).json({ error: 'packageId_required' })
+  if (destination !== 'publish' && destination !== 'library') {
+    return res.status(400).json({ error: 'invalid_destination', message: "destination must be 'publish' or 'library'" })
+  }
 
   // --- Load package + source asset consent state (must belong to this workspace) ---
   const pkgRes = await sb(
@@ -128,20 +135,63 @@ export default async function handler(req, res) {
     byPlatform[platform].renders.push(render)
   }
 
-  if (Object.keys(byPlatform).length === 0) {
+  if (renders.length === 0) {
     return res.status(409).json({
       error: 'no_renders',
       message: 'Package has no rendered outputs to stage.',
     })
   }
 
-  // --- Insert one content_items row per platform ---
+  if (destination === 'publish' && Object.keys(byPlatform).length === 0) {
+    return res.status(409).json({
+      error: 'no_renders',
+      message: 'Package has no rendered outputs to stage.',
+    })
+  }
+
   const now = new Date().toISOString()
+
+  if (destination === 'library') {
+    // Each rendered clip lands in the Library as reusable broll for future posts.
+    // saveSlateBroll handles the media_assets insert + waitUntil(indexMediaAsset).
+    let assets
+    try {
+      assets = await saveSlateBroll({
+        ws,
+        renders,
+        staffId: pkg.staff_id || null,
+        notes: `${pkg.topic} · package ${packageId}`,
+        parentAssetId: pkg.source_asset_id || null,
+      })
+    } catch (e) {
+      console.error('[approve-package] saveSlateBroll failed:', e.message)
+      return res.status(500).json({ error: 'media_assets_insert_failed', detail: e.message })
+    }
+
+    const libraryPatchRes = await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'approved', updated_at: now }),
+    })
+    if (!libraryPatchRes.ok) {
+      const txt = await libraryPatchRes.text().catch(() => '')
+      console.error('[approve-package] status patch failed:', libraryPatchRes.status, txt)
+      return res.status(500).json({ error: 'status_patch_failed', detail: txt })
+    }
+
+    return res.status(200).json({
+      packageId,
+      destination: 'library',
+      assets,
+      assetCount: assets.length,
+    })
+  }
+
+  // --- destination === 'publish': insert one content_items row per platform ---
   const rows = Object.values(byPlatform).map(({ platform, renders: pRenders }) => ({
     workspace_id:   ws.id,
     interview_id:   null,
-    staff_id:   pkg.staff_id || null,
-    staff_name: staffName,
+    staff_id:       pkg.staff_id || null,
+    staff_name:     staffName,
     topic:          pkg.topic,
     platform,
     content:        pkg.caption_text,
@@ -166,6 +216,29 @@ export default async function handler(req, res) {
     },
   }))
 
+  // Idempotency guard: if content_items already exist for this package, a prior approve
+  // wrote them but the PATCH to 'approved' failed. Skip the insert, fix the status, and
+  // return the existing rows — prevents duplicates on client retry.
+  const existRes = await sb(
+    `content_items?workspace_id=eq.${ws.id}&provenance->>package_id=eq.${packageId}` +
+    `&select=id,platform,media_urls,status,content,approved_at,provenance`
+  )
+  if (existRes.ok) {
+    const existingItems = await existRes.json()
+    if (existingItems?.length > 0) {
+      const fixPatch = await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'approved', updated_at: now }),
+      })
+      if (!fixPatch.ok) {
+        const txt = await fixPatch.text().catch(() => '')
+        console.error('[approve-package] status patch failed (retry):', fixPatch.status, txt)
+        return res.status(500).json({ error: 'status_patch_failed', detail: txt })
+      }
+      return res.status(200).json({ packageId, destination: 'publish', contentItems: existingItems, platformCount: existingItems.length })
+    }
+  }
+
   const insertRes = await sb('content_items', {
     method: 'POST',
     body: JSON.stringify(rows),
@@ -177,16 +250,19 @@ export default async function handler(req, res) {
   }
   const contentItems = await insertRes.json()
 
-  // --- Mark package approved ---
-  await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
+  const publishPatchRes = await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({ status: 'approved', updated_at: now }),
-  }).catch((e) => {
-    console.error('[approve-package] status patch failed:', e.message)
   })
+  if (!publishPatchRes.ok) {
+    const txt = await publishPatchRes.text().catch(() => '')
+    console.error('[approve-package] status patch failed:', publishPatchRes.status, txt)
+    return res.status(500).json({ error: 'status_patch_failed', detail: txt })
+  }
 
   return res.status(200).json({
     packageId,
+    destination: 'publish',
     contentItems,
     platformCount: contentItems.length,
   })

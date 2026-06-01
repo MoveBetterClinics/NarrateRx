@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams, useLocation, Link } from 'react-router-dom'
 import { useUser } from '@clerk/react'
-import { ArrowLeft, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Check, RefreshCw, Send, Keyboard } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Loader2, Sparkles, AlertCircle, Mic, MicOff, Volume2, Mic2, PauseCircle, Quote, X, ArrowLeftRight, CheckCircle2, Circle, Check, RefreshCw, Send, Keyboard, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -1090,10 +1090,11 @@ export default function InterviewSession() {
   const blogStreamingTextRef = useRef('')
   const [genProgress, setGenProgress] = useState(0)
 
-  // Completion card — shown for ~3s between generation finishing and StoryDetail navigation.
+  // Completion card — the finish screen. Rests on a primary "See your story →"
+  // handoff; the user controls when to leave (no auto-nav).
   const [completionData, setCompletionData] = useState(null)
-  const completionNavTimerRef = useRef(null)
-  // Video attach prompt — replaces auto-nav; clinician can attach iPhone recording.
+  // Optional video-attach prompt, opened from the completion card's optional
+  // link. No longer an auto-advancing gate on the finish screen.
   const [showVideoPrompt, setShowVideoPrompt] = useState(false)
 
   useEffect(() => {
@@ -1108,10 +1109,6 @@ export default function InterviewSession() {
     }, 500)
     return () => clearInterval(id)
   }, [isGenerating])
-
-  useEffect(() => () => {
-    if (completionNavTimerRef.current) clearTimeout(completionNavTimerRef.current)
-  }, [])
 
   // "What you covered" recap — a fast 3-line summary generated in parallel
   // with the blog draft. It finishes in a few seconds (the blog takes 60-120s),
@@ -1281,11 +1278,9 @@ export default function InterviewSession() {
       const voicePct = deriveVoicePct(provenanceJson || '')
       setIsGenerating(false)
       setCompletionData({ voicePct, staffName: staffMember.name, topic: interview.topic })
-      // Show the video-attach prompt after a brief pause so the completion card
-      // is visible first. Auto-nav is deferred until the user skips or attaches.
-      completionNavTimerRef.current = setTimeout(() => {
-        setShowVideoPrompt(true)
-      }, 2000)
+      // The completion card now rests here as the primary "See your story →"
+      // handoff. Video attach is an optional link on that card, never an
+      // auto-advancing gate — so no timer pushes the user into it.
     } catch (err) {
       setError(`Failed to generate content: ${err.message}`)
       setIsGenerating(false)
@@ -1676,32 +1671,43 @@ export default function InterviewSession() {
 
       {completionData && !isGenerating && !showVideoPrompt && (
         <div className="flex-1 flex items-center justify-center py-6">
-          <button
-            type="button"
-            className="rounded-xl border bg-card p-6 max-w-md w-full text-left space-y-3 hover:border-primary/30 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-            onClick={() => {
-              if (completionNavTimerRef.current) clearTimeout(completionNavTimerRef.current)
-              setShowVideoPrompt(true)
-            }}
-          >
-            <div className="flex items-center gap-3">
-              <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" aria-hidden="true" />
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground truncate">{completionData.staffName}</p>
-                {completionData.topic && (
-                  <p className="text-sm text-muted-foreground line-clamp-1">{completionData.topic}</p>
-                )}
-              </div>
+          <div className="rounded-xl border bg-card p-6 max-w-md w-full text-center space-y-4">
+            <div className="mx-auto h-14 w-14 rounded-full bg-emerald-100 flex items-center justify-center">
+              <CheckCircle2 className="h-7 w-7 text-emerald-600" aria-hidden="true" />
+            </div>
+            <div className="space-y-1">
+              <h2 className="text-lg font-semibold">
+                Great conversation, {completionData.staffName?.split(' ')[0] || 'there'}.
+              </h2>
+              {completionData.topic && (
+                <p className="text-sm text-muted-foreground line-clamp-1">{completionData.topic}</p>
+              )}
             </div>
             <p className="text-base font-medium text-foreground">
               {completionData.voicePct != null
                 ? `Your words made up ${completionData.voicePct}% of this draft.`
                 : 'Voice-faithful draft complete.'}
             </p>
-            <p className="text-xs text-muted-foreground">
-              One moment… <span className="italic">tap to continue</span>
-            </p>
-          </button>
+            {/* Primary handoff — leads with the reason they did the interview.
+                Video attach is the small optional link below, never a gate. */}
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={() => navigate(`/stories/${interviewId}`, { replace: true })}
+            >
+              See your story
+              <ArrowRight className="h-4 w-4 ml-1.5" />
+            </Button>
+            <button
+              type="button"
+              onClick={() => setShowVideoPrompt(true)}
+              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <Video className="h-3.5 w-3.5" />
+              Recorded a video too? Attach it
+              <span className="text-muted-foreground/70">(optional)</span>
+            </button>
+          </div>
         </div>
       )}
 

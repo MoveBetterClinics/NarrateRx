@@ -1,4 +1,4 @@
-import { Play, Image as ImageIcon, Check, Plus, Loader2, Maximize2 } from 'lucide-react'
+import { Play, Image as ImageIcon, Check, Plus, Loader2, Maximize2, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 
 function topTags(aiTags, n = 5) {
@@ -7,6 +7,14 @@ function topTags(aiTags, n = 5) {
     .map((t) => (typeof t === 'string' ? t : t?.tag || t?.label || ''))
     .filter(Boolean)
     .slice(0, n)
+}
+
+// m:ss for a clip length in seconds; null when unknown so the badge falls back
+// to a plain "Video" label rather than showing a bogus "0:00".
+function fmtDuration(s) {
+  const n = Math.round(Number(s))
+  if (!Number.isFinite(n) || n <= 0) return null
+  return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`
 }
 
 /**
@@ -57,6 +65,13 @@ export default function CandidateCard({ clip, attached, attaching, onPreview, on
         </span>
         <span className="absolute right-2 top-2 rounded bg-black/55 p-1 text-white opacity-0 transition-opacity group-hover:opacity-100">
           <Maximize2 className="h-3.5 w-3.5" />
+        </span>
+        {/* Kind badge — labels each candidate Photo or Video (with its length
+            when known) so the producer can tell stills from clips at a glance,
+            on top of the centered play overlay videos already get. */}
+        <span className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded bg-black/65 px-1.5 py-0.5 text-3xs font-medium text-white">
+          {isVideo ? <Video className="h-2.5 w-2.5" /> : <ImageIcon className="h-2.5 w-2.5" />}
+          {isVideo ? (fmtDuration(clip.durationS) ? `Video · ${fmtDuration(clip.durationS)}` : 'Video') : 'Photo'}
         </span>
       </button>
       <div className="space-y-2 p-2.5">

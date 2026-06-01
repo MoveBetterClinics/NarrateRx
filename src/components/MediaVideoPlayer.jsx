@@ -62,45 +62,82 @@ async function fetchPlaybackToken(assetId) {
   return res.json()
 }
 
+// Parse a usable numeric aspect ratio (W/H) from the asset row, or null when
+// the DB has no dimensions. The Mux webhook misses tracks for many assets
+// (14 of 16 ready videos had null width/height in the 2026-06-01 audit), so
+// this is best-effort only — the runtime measurement below is the real source.
+function dbAspectRatio(asset) {
+  if (asset.width && asset.height) return asset.width / asset.height
+  if (typeof asset.aspect_ratio === 'string' && asset.aspect_ratio.includes(':')) {
+    const [w, h] = asset.aspect_ratio.split(':').map(Number)
+    if (w && h) return w / h
+  }
+  return null
+}
+
 function MuxPlayer({ asset, playbackToken }) {
   const ref = useRef(null)
+
+  // The video's true display aspect ratio, measured from the player once the
+  // stream's metadata loads. This is the ONLY fully reliable source: the DB
+  // width/height is null for most assets, so without this the box has no
+  // aspect-ratio and mux-player collapses to a ~150px-tall sliver (and a
+  // portrait video gets crammed into a landscape box). Seeded from the DB
+  // when available so there's no layout flash for assets that do have dims.
+  const [measuredAr, setMeasuredAr] = useState(() => dbAspectRatio(asset))
 
   // Mux's web component reads attributes; we set them imperatively because
   // React's prop-to-attribute coercion is unreliable for custom elements.
   useEffect(() => {
-    if (!ref.current) return
-    ref.current.setAttribute('playback-id', asset.mux_playback_id)
-    ref.current.setAttribute('stream-type', 'on-demand')
-    if (asset.filename) ref.current.setAttribute('metadata-video-title', asset.filename)
-    if (playbackToken) ref.current.setAttribute('playback-token', playbackToken)
-    else ref.current.removeAttribute('playback-token')
+    const el = ref.current
+    if (!el) return
+    el.setAttribute('playback-id', asset.mux_playback_id)
+    el.setAttribute('stream-type', 'on-demand')
+    if (asset.filename) el.setAttribute('metadata-video-title', asset.filename)
+    if (playbackToken) el.setAttribute('playback-token', playbackToken)
+    else el.removeAttribute('playback-token')
+
+    // mux-player re-dispatches the underlying media events. On loadedmetadata
+    // the real display dimensions are known (rotation already applied by Mux),
+    // so we read them and drive the box shape from the actual video — robust
+    // to a null/stale DB row. `resize` covers a mid-stream dimension change.
+    const readDims = () => {
+      const w = el.videoWidth || el.media?.videoWidth || 0
+      const h = el.videoHeight || el.media?.videoHeight || 0
+      if (w && h) setMeasuredAr(w / h)
+    }
+    el.addEventListener('loadedmetadata', readDims)
+    el.addEventListener('resize', readDims)
+    readDims()
+    return () => {
+      el.removeEventListener('loadedmetadata', readDims)
+      el.removeEventListener('resize', readDims)
+    }
   }, [asset.mux_playback_id, asset.filename, playbackToken])
 
-  // Derive the display aspect ratio so the player box matches the video's
-  // shape — otherwise a portrait clip gets cropped to fill a landscape box
-  // (the "very zoomed in" bug). Prefer numeric dimensions (set from the Mux
-  // webhook, which knows the rotation-applied display size); fall back to the
-  // "W:H" aspect_ratio string.
-  const ar = asset.width && asset.height
-    ? `${asset.width} / ${asset.height}`
-    : (typeof asset.aspect_ratio === 'string' && asset.aspect_ratio.includes(':')
-        ? asset.aspect_ratio.replace(':', ' / ')
-        : null)
+  // Final aspect ratio: measured (or DB-seeded) value, else a 16/9 default so
+  // the box never collapses before metadata arrives.
+  const arNum = measuredAr || 16 / 9
+
+  const MAX_HEIGHT = '70vh'
 
   return (
     <mux-player
       ref={ref}
       style={{
-        // With aspect-ratio set and BOTH width/height auto, the element
-        // preserves the video's shape and shrinks to fit within the max
-        // bounds — correct for portrait and landscape alike. A hardcoded
-        // width:100% breaks this for portrait video (forces a wide box that
-        // then crops). Only fall back to width:100% when we don't yet know
-        // the aspect ratio (legacy rows missing dimensions).
-        ...(ar ? { aspectRatio: ar } : { width: '100%' }),
-        maxHeight: '70vh',
-        maxWidth: '100%',
+        display: 'block',
+        width: '100%',
+        // Box takes the video's shape. The max-width cap = MAX_HEIGHT * ratio
+        // keeps a portrait video from being forced full-container-width (which
+        // would leave huge side bars); landscape stays width-bound. Verified
+        // live: 9:16→374×666, 1:1→666×666, 16:9→768×432, 2.4:1→768×320.
+        aspectRatio: String(arNum),
+        maxHeight: MAX_HEIGHT,
+        maxWidth: `calc(${MAX_HEIGHT} * ${arNum})`,
         margin: '0 auto',
+        // mux-player defaults --media-object-fit to `cover`, which CROPS the
+        // video to fill its box. `contain` shows the complete frame in every
+        // orientation, even if the measured ratio is briefly off. Never remove.
         '--media-object-fit': 'contain',
       }}
     />
@@ -201,7 +238,7 @@ export default function MediaVideoPlayer({ asset, className = '' }) {
     )
   }
   return (
-    <div className={baseClass}>
+    <div className={`${baseClass} w-full overflow-hidden`}>
       <MuxPlayer asset={asset} playbackToken={tokenState.token} />
     </div>
   )

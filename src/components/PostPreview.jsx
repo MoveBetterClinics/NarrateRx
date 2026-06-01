@@ -5,6 +5,8 @@ import emailTemplateHtml from '../email-template.html?raw'
 import { workspace } from '@/lib/workspace'
 import { useWorkspace } from '@/lib/WorkspaceContext'
 import { renderFreeformSlide } from '@/lib/overlayTemplates'
+import { pickHero } from '@/lib/publishImageMirror'
+import { isVideoEntry } from '@/lib/mediaEntry'
 
 // Pull the best logo URL for previews, preferring Brand Kit (primary_logo_url
 // is resolved by api/workspace/me from brand_kit_roles), then any legacy
@@ -220,12 +222,53 @@ function MediaCarousel({ mediaUrls, aspectClass = 'aspect-square' }) {
   )
 }
 
+// A single video attached to an Instagram post publishes as a Reel (9:16),
+// not a photo carousel — Instagram/Buffer can't mix photo + video in one post.
+// Shows the video in portrait with a Reel marker; the play-over-thumbnail
+// treatment matches MediaCarousel (real inline playback isn't needed for a
+// preview, and any on-clip text was already baked upstream in Slate).
+function ReelPreview({ video }) {
+  const src = mediaSrc(video)
+  return (
+    <div className="relative mx-auto aspect-[9/16] max-h-[70vh] overflow-hidden bg-slate-900 select-none">
+      {src ? (
+        <img
+          src={video.thumbnailUrl || src}
+          alt={video.name || ''}
+          className="absolute inset-0 h-full w-full object-cover opacity-80"
+          loading="lazy"
+          decoding="async"
+          onError={(e) => { e.target.style.display = 'none' }}
+        />
+      ) : null}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black/50">
+          <Play className="ml-1 h-7 w-7 text-white" />
+        </div>
+      </div>
+      <span className="absolute right-2 top-2 z-10 rounded-full bg-black/55 px-2 py-0.5 text-3xs font-medium text-white">
+        Reel
+      </span>
+      {video.name && (
+        <p className="absolute bottom-2 left-0 right-0 line-clamp-1 px-4 text-center text-3xs text-white/60">
+          {video.name}
+        </p>
+      )}
+    </div>
+  )
+}
+
 // ── Instagram ────────────────────────────────────────────────────────────────
 function InstagramPreview({ content, mediaUrls = [], slides = null }) {
   const [showFull, setShowFull] = React.useState(false)
   const lines = (content || '').split('\n')
   const preview = lines.slice(0, 4).join('\n')
   const hasMore = lines.length > 4
+
+  // A video attached → this is a Reel (9:16 single video), not a photo carousel.
+  // Instagram/Buffer can't mix photo + video in one post (mixed carousel parked,
+  // blocked on Buffer — see .claude/ideas.md). The first video wins as the Reel.
+  const reelVideo = mediaUrls.find(isVideoEntry) || null
 
   // When slides exist, render the carousel as one canvas per slide (photo +
   // baked text blocks). When slides are absent (legacy/fresh draft), fall back
@@ -247,11 +290,13 @@ function InstagramPreview({ content, mediaUrls = [], slides = null }) {
         <button className="ml-auto text-xs font-semibold text-blue-500">Follow</button>
       </div>
 
-      {/* Carousel */}
+      {/* Reel (video) takes precedence over the photo carousel. */}
       <div className="relative">
-        {hasSlides
-          ? <SlidesCarousel slides={slides} mediaUrls={mediaUrls} />
-          : <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />}
+        {reelVideo
+          ? <ReelPreview video={reelVideo} />
+          : hasSlides
+            ? <SlidesCarousel slides={slides} mediaUrls={mediaUrls} />
+            : <MediaCarousel mediaUrls={mediaUrls} aspectClass="aspect-square" />}
       </div>
 
       {/* Actions */}
@@ -438,9 +483,22 @@ function GBPPreview({ content, locationOverrides }) {
 }
 
 // ── Blog (rendered Markdown) ──────────────────────────────────────────────────
-function BlogPreview({ content }) {
+function BlogPreview({ content, mediaUrls = [] }) {
+  // Hero image — selected with the SAME helper the publish path uses
+  // (pickHero in src/lib/publishImageMirror.js → buildImagesManifest.heroImage),
+  // so the preview shows exactly what ships. Without this the preview was
+  // markdown-only: a blog with a photo attached read "1 media attached" but
+  // showed a header-less wall of text, confusing the publisher.
+  const hero = pickHero(mediaUrls)
   return (
     <div className="max-w-2xl mx-auto bg-white border rounded-xl shadow-sm overflow-hidden">
+      {hero?.url && (
+        <img
+          src={hero.url}
+          alt={hero.alt || ''}
+          className="w-full aspect-video object-cover border-b"
+        />
+      )}
       <div className="px-8 py-8 prose prose-sm max-w-none
         prose-headings:font-bold prose-headings:tracking-tight
         prose-h1:text-2xl prose-h1:mb-4
@@ -776,7 +834,7 @@ export default function PostPreview({ platform, content, mediaUrls = [], slides 
     case 'facebook':    return <FacebookPreview  content={content} mediaUrls={mediaUrls} />
     case 'linkedin':    return <LinkedInPreview  content={content} />
     case 'gbp':         return <GBPPreview       content={content} locationOverrides={locationOverrides} />
-    case 'blog':        return <BlogPreview      content={content} />
+    case 'blog':        return <BlogPreview      content={content} mediaUrls={mediaUrls} />
     case 'email':       return <EmailPreview     content={content} mediaUrls={mediaUrls} />
     case 'instagram_ads': return <InstagramAdsPreview content={content} mediaUrls={mediaUrls} />
     default:            return <PlainPreview     content={content} />
