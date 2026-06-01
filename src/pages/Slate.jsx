@@ -114,6 +114,7 @@ export default function Slate() {
 
   const [view, setView] = useState('today')  // 'today' | 'triage' | 'consent' | 'qc' | 'coverage'
   const [activeStaffId, setActiveStaffId] = useState(null)
+  const [isManualRefetching, setIsManualRefetching] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState({ current: 0, total: 0 })
   const generatingRef = useRef(false)  // guard against double-fire
@@ -145,7 +146,6 @@ export default function Slate() {
     isLoading,
     error,
     refetch,
-    isFetching,
   } = useQuery({
     queryKey: ['story-packages'],
     queryFn: fetchPackages,
@@ -434,10 +434,14 @@ export default function Slate() {
               variant="outline"
               size="sm"
               className="bg-white/90 text-foreground border-white/40 hover:bg-white"
-              onClick={() => refetch()}
-              disabled={isFetching}
+              onClick={async () => {
+                setIsManualRefetching(true)
+                await refetch()
+                setIsManualRefetching(false)
+              }}
+              disabled={isManualRefetching}
             >
-              {isFetching ? (
+              {isManualRefetching ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <RefreshCw className="h-3.5 w-3.5" />
