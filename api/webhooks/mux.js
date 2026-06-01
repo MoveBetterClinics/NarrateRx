@@ -23,7 +23,7 @@
 
 export const config = { runtime: 'nodejs' }
 
-import { verifyWebhookSignature, mintPlaybackToken, muxSignedConfigured } from '../_lib/muxClient.js'
+import { verifyWebhookSignature, mintPlaybackToken, muxSignedConfigured, getAssetDimensions } from '../_lib/muxClient.js'
 import { put as blobPut } from '@vercel/blob'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
@@ -174,6 +174,25 @@ export default async function handler(req, res) {
     }
     if (typeof event?.data?.aspect_ratio === 'string') {
       patch.aspect_ratio = event.data.aspect_ratio
+    }
+
+    // The ready event frequently omits data.tracks (observed: 14 of 16 ready
+    // videos landed with null width/height). Without dimensions the player has
+    // no aspect ratio and collapses portrait clips into a wrong-shaped box. Fall
+    // back to a direct asset fetch — Mux always knows the true display size.
+    // Non-fatal: a transient API error just leaves dims null (the client now
+    // also measures at runtime), so we still mark the asset ready.
+    if (!patch.width || !patch.height) {
+      try {
+        const dims = await getAssetDimensions(assetId)
+        if (dims.width && dims.height) {
+          patch.width  = dims.width
+          patch.height = dims.height
+        }
+        if (!patch.aspect_ratio && dims.aspectRatio) patch.aspect_ratio = dims.aspectRatio
+      } catch (e) {
+        console.error(`${tag} getAssetDimensions fallback failed:`, e?.message)
+      }
     }
 
     // Backfill a poster frame from Mux when the local ffmpeg pass didn't
