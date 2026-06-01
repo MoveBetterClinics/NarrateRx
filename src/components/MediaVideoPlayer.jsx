@@ -91,15 +91,17 @@ function MuxPlayer({ asset, playbackToken }) {
     <mux-player
       ref={ref}
       style={{
-        // With aspect-ratio set and BOTH width/height auto, the element
-        // preserves the video's shape and shrinks to fit within the max
-        // bounds — correct for portrait and landscape alike. A hardcoded
-        // width:100% breaks this for portrait video (forces a wide box that
-        // then crops). Only fall back to width:100% when we don't yet know
-        // the aspect ratio (legacy rows missing dimensions).
-        ...(ar ? { aspectRatio: ar } : { width: '100%' }),
-        maxHeight: '70vh',
+        // Always fill the container width so maxWidth/maxHeight constrain
+        // against a known anchor. Without width:100%, the mux-player web
+        // component may try to render at its native video resolution (e.g.
+        // 1920px) and overflow the modal horizontally.
+        // aspect-ratio preserves the correct shape; the player's internal
+        // --media-object-fit:contain handles portrait vs landscape framing.
+        width: '100%',
+        ...(ar ? { aspectRatio: ar } : {}),
+        maxHeight: '55vh',
         maxWidth: '100%',
+        display: 'block',
         margin: '0 auto',
         '--media-object-fit': 'contain',
       }}
@@ -201,7 +203,7 @@ export default function MediaVideoPlayer({ asset, className = '' }) {
     )
   }
   return (
-    <div className={baseClass}>
+    <div className={`${baseClass} w-full overflow-hidden`}>
       <MuxPlayer asset={asset} playbackToken={tokenState.token} />
     </div>
   )
