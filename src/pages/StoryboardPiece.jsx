@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, ImagePlus, Sparkles, Images, Video, ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import PipelineStepper from '@/components/PipelineStepper'
 import BackLink from '@/components/ui/BackLink'
 import Breadcrumb from '@/components/ui/Breadcrumb'
 import { pieceLabel } from '@/lib/pieceLabel'
@@ -143,6 +144,7 @@ export default function StoryboardPiece() {
 
   return (
     <div className="space-y-5 py-6">
+      <PipelineStepper current="media" />
       {/* Page name — stage + piece, so this screen can be referenced precisely.
           This IS the choose-media step. */}
       <Breadcrumb

@@ -7,7 +7,7 @@ import { useEnsureSelfStaff } from '@/lib/useEnsureSelfStaff'
 import {
   Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, ChevronLeft,
   Check, UserCircle, Mic2, BookOpen, PenLine, Scissors, Camera, GalleryHorizontalEnd,
-  LayoutDashboard, Newspaper, FolderOpen,
+  LayoutDashboard, Newspaper, FolderOpen, LayoutGrid,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,33 +25,56 @@ import TrialBanner from '@/components/TrialBanner'
 
 const APP_BYLINE = 'Voice-faithful clinical content'
 
-// Primary navigation. All items have icons so they render correctly when
-// the sidebar is in collapsed (icon-only) mode.
-const NAV_ITEMS = [
-  { to: '/',           label: 'Home',        match: (p) => p === '/',                         icon: LayoutDashboard,
-    requiresCapability: CAP_INTERVIEW_START },
-  { to: '/stories',    label: 'Stories',     match: (p) => p.startsWith('/stories'),           icon: Newspaper,
-    requiresCapability: CAP_INTERVIEW_START },
-  { to: '/library',    label: 'Library',     match: (p) => p.startsWith('/library'),                                       icon: FolderOpen },
-  // Storyboard — the content→media tool (sibling to Slate, which is the
-  // video→content tool). Drafts that still need a photo/video; open one to
-  // review + attach media at full size. Ungated like Library so producers
-  // (no interview.start) see it. '/needs-media' is the old route, redirected.
-  { to: '/storyboard', label: 'Storyboard', match: (p) => p.startsWith('/storyboard') || p.startsWith('/needs-media'), icon: GalleryHorizontalEnd },
-  { to: '/capture',    label: 'Capture',     match: (p) => p.startsWith('/capture'),                                    icon: Camera },
-  { to: '/pre-visit',  label: 'Pre-Visit',   match: (p) => p.startsWith('/pre-visit'),                                  icon: Mic2,
-    requiresCapability: CAP_INTERVIEW_START },
-  { to: '/book',       label: 'Book',        match: (p) => p.startsWith('/book'),              icon: BookOpen,
-    requiresCapability: CAP_INTERVIEW_START },
-  { to: '/write',      label: 'Write',       match: (p) => p.startsWith('/write'),             icon: PenLine,
-    hideWhenBookMode: 'group', requiresCapability: CAP_INTERVIEW_START },
-]
-
-// Tools section — conditionally shown items that live below the main nav.
-// Rendered separately so a "Tools" divider label can appear above them.
-const TOOLS_NAV_ITEMS = [
-  { to: '/slate', label: 'Slate', match: (p) => p.startsWith('/slate'), icon: Scissors,
-    showWhen: (ws) => ws?.video_pipeline_enabled === true },
+// Primary navigation, grouped to mirror the producer journey. The first
+// (unlabelled) group holds the two top-level surfaces — Home (personal) and
+// Overview (clinic-wide) — then the work spine (Produce), the asset pool
+// (Library), and the standalone Tools. The active item tracks the current
+// stage as the user moves through the flow. All items have icons so they
+// render correctly in collapsed (icon-only) mode.
+const NAV_SECTIONS = [
+  {
+    items: [
+      { to: '/',         label: 'Home',     match: (p) => p === '/',                  icon: LayoutDashboard,
+        requiresCapability: CAP_INTERVIEW_START },
+      // Overview — the clinic-wide board. Role-gated to editors (owner /
+      // producer / director); individual clinicians never see it.
+      { to: '/overview', label: 'Overview', hint: 'Clinic', match: (p) => p.startsWith('/overview'), icon: LayoutGrid,
+        requiresEditor: true },
+    ],
+  },
+  {
+    label: 'Produce',
+    items: [
+      { to: '/stories',    label: 'Stories',    hint: 'Words',           match: (p) => p.startsWith('/stories'),  icon: Newspaper,
+        requiresCapability: CAP_INTERVIEW_START },
+      // Storyboard — the content→media stage (Media · Publish). Ungated like
+      // Library so producers (no interview.start) see it. '/needs-media' is
+      // the old route, redirected.
+      { to: '/storyboard', label: 'Storyboard', hint: 'Media · Publish', match: (p) => p.startsWith('/storyboard') || p.startsWith('/needs-media'), icon: GalleryHorizontalEnd },
+    ],
+  },
+  {
+    label: 'Library',
+    items: [
+      { to: '/library', label: 'Library', match: (p) => p.startsWith('/library'), icon: FolderOpen },
+      { to: '/capture', label: 'Capture', match: (p) => p.startsWith('/capture'), icon: Camera },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { to: '/book',      label: 'Book',      match: (p) => p.startsWith('/book'),      icon: BookOpen,
+        requiresCapability: CAP_INTERVIEW_START },
+      { to: '/write',     label: 'Write',     match: (p) => p.startsWith('/write'),     icon: PenLine,
+        hideWhenBookMode: 'group', requiresCapability: CAP_INTERVIEW_START },
+      { to: '/pre-visit', label: 'Pre-Visit', match: (p) => p.startsWith('/pre-visit'), icon: Mic2,
+        requiresCapability: CAP_INTERVIEW_START },
+      // Slate — the video→content tool. Only when the workspace opts into the
+      // video pipeline.
+      { to: '/slate',     label: 'Slate',     match: (p) => p.startsWith('/slate'),     icon: Scissors,
+        showWhen: (ws) => ws?.video_pipeline_enabled === true },
+    ],
+  },
 ]
 
 function readCollapsed() {
@@ -60,7 +83,7 @@ function readCollapsed() {
 
 export default function Layout({ children }) {
   const location = useLocation()
-  const { role } = useUserRole()
+  const { role, isEditor } = useUserRole()
   const { has: hasCapability } = usePermission()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(readCollapsed)
@@ -76,17 +99,18 @@ export default function Layout({ children }) {
     try { localStorage.setItem('sidebar-collapsed', String(next)) } catch (_e) { /* non-critical */ }
   }
 
-  const navItems = NAV_ITEMS.filter((it) => {
+  function itemVisible(it) {
     if (it.requiresCapability && !hasCapability(it.requiresCapability)) return false
+    if (it.requiresEditor && !isEditor) return false
     if (it.hideWhenBookMode && ws?.book_mode === it.hideWhenBookMode) return false
     if (it.showWhen && !it.showWhen(ws)) return false
     return true
-  })
-
-  const toolsNavItems = TOOLS_NAV_ITEMS.filter((it) => {
-    if (it.showWhen && !it.showWhen(ws)) return false
-    return true
-  })
+  }
+  // Resolve each section to its visible items, then drop any section that has
+  // none left (so an empty group never renders a stray header).
+  const navSections = NAV_SECTIONS
+    .map((s) => ({ ...s, items: s.items.filter(itemVisible) }))
+    .filter((s) => s.items.length > 0)
 
   const sidebarW = collapsed ? 'w-14' : 'w-56'
   const contentML = collapsed ? 'md:ml-14' : 'md:ml-56'
@@ -144,39 +168,31 @@ export default function Layout({ children }) {
         )}
 
         {/* Primary nav — overflow-visible when collapsed so tooltips aren't clipped */}
-        <nav className={`flex-1 px-2 py-2 space-y-0.5 ${collapsed ? 'overflow-visible' : 'overflow-y-auto'}`}>
-          {navItems.map((item) => (
-            <SidebarNavLink
-              key={item.to}
-              to={item.to}
-              label={item.label}
-              active={item.match(location.pathname)}
-              icon={item.icon}
-              collapsed={collapsed}
-            />
-          ))}
-
-          {/* Tools section — shown only when there are visible tools */}
-          {toolsNavItems.length > 0 && (
-            <>
-              {!collapsed && (
-                <p className="px-2 pt-3 pb-1 text-3xs font-bold uppercase tracking-widest text-muted-foreground/60 select-none">
-                  Tools
+        <nav className={`flex-1 px-2 py-2 ${collapsed ? 'overflow-visible' : 'overflow-y-auto'}`}>
+          {navSections.map((section, si) => (
+            <div key={section.label || 'top'} className={si > 0 ? 'pt-2' : ''}>
+              {section.label && (collapsed ? (
+                <div className="mx-2 my-1.5 border-t border-border/70" aria-hidden="true" />
+              ) : (
+                <p className="px-3 pt-1 pb-1 text-3xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {section.label}
                 </p>
-              )}
-              {collapsed && <div className="pt-2 border-t border-border mx-1" />}
-              {toolsNavItems.map((item) => (
-                <SidebarNavLink
-                  key={item.to}
-                  to={item.to}
-                  label={item.label}
-                  active={item.match(location.pathname)}
-                  icon={item.icon}
-                  collapsed={collapsed}
-                />
               ))}
-            </>
-          )}
+              <div className="space-y-0.5">
+                {section.items.map((item) => (
+                  <SidebarNavLink
+                    key={item.to}
+                    to={item.to}
+                    label={item.label}
+                    hint={item.hint}
+                    active={item.match(location.pathname)}
+                    icon={item.icon}
+                    collapsed={collapsed}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
 
         {/* Bottom section: secondary links + user button + collapse toggle */}
@@ -276,34 +292,30 @@ export default function Layout({ children }) {
           <DrawerHeader className="border-b-0 p-2">
             <DrawerTitle>Menu</DrawerTitle>
           </DrawerHeader>
-          <div className="overflow-y-auto space-y-1">
-            {navItems.map((item) => (
-              <DrawerClose asChild key={item.to}>
-                <Link
-                  to={item.to}
-                  className={`flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium ${item.match(location.pathname) ? 'bg-accent/40 text-foreground' : 'text-muted-foreground active:bg-accent/30'}`}
-                >
-                  {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
-                  {item.label}
-                </Link>
-              </DrawerClose>
+          <div className="overflow-y-auto">
+            {navSections.map((section, si) => (
+              <div key={section.label || 'top'} className={si > 0 ? 'pt-2' : ''}>
+                {section.label && (
+                  <p className="px-3 pt-1 pb-1 text-2xs font-semibold uppercase tracking-wider text-muted-foreground/60">
+                    {section.label}
+                  </p>
+                )}
+                <div className="space-y-1">
+                  {section.items.map((item) => (
+                    <DrawerClose asChild key={item.to}>
+                      <Link
+                        to={item.to}
+                        className={`flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium ${item.match(location.pathname) ? 'bg-accent/40 text-foreground' : 'text-muted-foreground active:bg-accent/30'}`}
+                      >
+                        {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
+                        <span className="flex-1">{item.label}</span>
+                        {item.hint && <span className="text-2xs text-muted-foreground/60">{item.hint}</span>}
+                      </Link>
+                    </DrawerClose>
+                  ))}
+                </div>
+              </div>
             ))}
-            {toolsNavItems.length > 0 && (
-              <>
-                <p className="px-3 pt-3 pb-1 text-2xs font-bold uppercase tracking-widest text-muted-foreground/60 select-none">Tools</p>
-                {toolsNavItems.map((item) => (
-                  <DrawerClose asChild key={item.to}>
-                    <Link
-                      to={item.to}
-                      className={`flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium ${item.match(location.pathname) ? 'bg-accent/40 text-foreground' : 'text-muted-foreground active:bg-accent/30'}`}
-                    >
-                      {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
-                      {item.label}
-                    </Link>
-                  </DrawerClose>
-                ))}
-              </>
-            )}
           </div>
           <div className="pt-3 mt-2 border-t space-y-1 overflow-y-auto">
             {role === 'admin' && hasCapability(CAP_SETTINGS_VIEW) && (
@@ -452,7 +464,7 @@ function WorkspaceSwitcher({ inSidebar = false }) {
 // Vertical sidebar nav link. When collapsed, shows only the icon with a
 // hover tooltip to the right (overflow-visible on the parent nav prevents
 // clipping of the absolute-positioned tooltip).
-function SidebarNavLink({ to, label, active, icon: Icon, collapsed }) {
+function SidebarNavLink({ to, label, hint, active, icon: Icon, collapsed }) {
   const base = `flex items-center rounded-md text-sm font-medium transition-colors group relative
     ${active ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-accent/40 hover:text-foreground'}`
 
@@ -462,7 +474,8 @@ function SidebarNavLink({ to, label, active, icon: Icon, collapsed }) {
       className={`${base} ${collapsed ? 'justify-center py-2 px-0' : 'gap-2.5 px-3 py-2'}`}
     >
       {Icon && <Icon className="h-4 w-4 shrink-0" />}
-      {!collapsed && label}
+      {!collapsed && <span className="flex-1 truncate">{label}</span>}
+      {!collapsed && hint && <span className="text-3xs text-muted-foreground/60 shrink-0">{hint}</span>}
       {collapsed && (
         <span className="absolute left-full ml-2 px-2 py-1 text-xs font-medium bg-popover border border-border text-popover-foreground rounded-md shadow-md
                          invisible group-hover:visible opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-[200]

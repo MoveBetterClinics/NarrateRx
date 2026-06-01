@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, Eye, Video } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import PipelineStepper from '@/components/PipelineStepper'
 import BackLink from '@/components/ui/BackLink'
 import Breadcrumb from '@/components/ui/Breadcrumb'
 import { pieceLabel } from '@/lib/pieceLabel'
@@ -74,6 +75,7 @@ export default function StoryboardPublish() {
 
   return (
     <div className="space-y-5 py-6">
+      <PipelineStepper current="publish" />
       {/* Page name — stage + piece. The piece crumb links back to Choose media,
           which is also the fix for "back should return to media choices": from
           Publish you can step back to the media picker, not just the queue. */}
