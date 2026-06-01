@@ -86,13 +86,21 @@ export default async function handler(req, res) {
   // --- Fetch asset + clinician ---
   const assetRes = await sb(
     `media_assets?id=eq.${assetId}&workspace_id=eq.${ws.id}` +
-      `&select=id,kind,blob_url,filename,staff_id,archived_at`,
+      `&select=id,kind,blob_url,filename,staff_id,archived_at,consent_status`,
   )
   if (!assetRes.ok) return res.status(500).json({ error: 'db_error' })
   const assets = await assetRes.json()
   const asset = assets?.[0]
   if (!asset) return res.status(404).json({ error: 'asset_not_found' })
   if (asset.archived_at) return res.status(404).json({ error: 'asset_archived' })
+
+  // Consent gate — must be granted before rendering
+  if (asset.consent_status !== 'granted' && asset.consent_status != null) {
+    return res.status(403).json({
+      error: 'consent_not_granted',
+      message: `Asset consent is '${asset.consent_status}'. Consent must be granted before rendering.`,
+    })
+  }
   if (!asset.blob_url) return res.status(500).json({ error: 'asset_missing_blob_url' })
 
   const isVideo = asset.kind === 'video'
