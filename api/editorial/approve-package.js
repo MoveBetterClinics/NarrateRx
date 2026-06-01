@@ -19,11 +19,10 @@
 
 export const config = { runtime: 'nodejs' }
 
-import { waitUntil } from '@vercel/functions'
 import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
-import { indexMediaAsset } from '../_lib/visualMemoryIndex.js'
+import { saveSlateBroll } from '../_lib/saveSlateBroll.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -153,55 +152,21 @@ export default async function handler(req, res) {
   const now = new Date().toISOString()
 
   if (destination === 'library') {
-    // --- Insert one media_assets row per render ---
     // Each rendered clip lands in the Library as reusable broll for future posts.
-    // No Mux re-transcode: renders are already playable .mp4 files from Blob.
-    const assetRows = renders.map((r) => {
-      const isVideo = String(r.blobUrl || '').toLowerCase().endsWith('.mp4')
-      const kind = isVideo ? 'video' : 'photo'
-      const filename = (r.blobUrl || '').split('/').pop().split('?')[0] || `slate-${packageId}-${r.channel}.mp4`
-      const blobPathname = (() => {
-        try { return new URL(r.blobUrl).pathname } catch { return filename }
-      })()
-      return {
-        workspace_id:      ws.id,
-        kind,
-        asset_purpose:     kind === 'video' ? 'broll' : 'photo',
-        source:            'slate',
-        status:            'approved',
-        blob_url:          r.blobUrl,
-        blob_pathname:     blobPathname,
-        filename,
-        mime_type:         isVideo ? 'video/mp4' : 'image/jpeg',
-        width:             r.width  || null,
-        height:            r.height || null,
-        size_bytes:        r.sizeBytes || null,
-        staff_id:          pkg.staff_id || null,
-        // Renders are already processed mp4s — skip Mux re-transcode.
-        transcode_status:  kind === 'video' ? 'skipped' : null,
-        notes:             `${pkg.topic} · ${r.channel} render from Slate package ${packageId}`,
-      }
-    })
-
-    const assetInsertRes = await sb('media_assets', {
-      method: 'POST',
-      body: JSON.stringify(assetRows),
-    })
-    if (!assetInsertRes.ok) {
-      const text = await assetInsertRes.text().catch(() => '')
-      console.error('[approve-package] media_assets insert failed:', assetInsertRes.status, text)
-      return res.status(500).json({ error: 'media_assets_insert_failed', detail: text })
+    // saveSlateBroll handles the media_assets insert + waitUntil(indexMediaAsset).
+    let assets
+    try {
+      assets = await saveSlateBroll({
+        ws,
+        renders,
+        staffId: pkg.staff_id || null,
+        notes: `${pkg.topic} · package ${packageId}`,
+        parentAssetId: pkg.source_asset_id || null,
+      })
+    } catch (e) {
+      console.error('[approve-package] saveSlateBroll failed:', e.message)
+      return res.status(500).json({ error: 'media_assets_insert_failed', detail: e.message })
     }
-    const assets = await assetInsertRes.json()
-
-    // Index each new broll asset into visual_memory_chunks so it shows up in
-    // Storyboard's ranked Suggested media (not just Browse Library). Best-effort
-    // and backgrounded — a failed index must not fail the approve. waitUntil is
-    // required: this runs after the HTTP response, and a bare floating promise
-    // gets dropped when the Vercel Node instance freezes.
-    waitUntil(Promise.allSettled(
-      assets.map((a) => indexMediaAsset({ assetId: a.id }))
-    ))
 
     await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
       method: 'PATCH',

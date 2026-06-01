@@ -6,7 +6,7 @@ import { useSelfStaffId } from '@/lib/useSelfStaffId'
 import { useEnsureSelfStaff } from '@/lib/useEnsureSelfStaff'
 import {
   Plus, Settings, Building2, Menu, Palette, Layers, ChevronDown, ChevronLeft,
-  Check, UserCircle, Mic2, BookOpen, PenLine, Clapperboard, Camera, GalleryHorizontalEnd,
+  Check, UserCircle, Mic2, BookOpen, PenLine, Scissors, Camera, GalleryHorizontalEnd,
   LayoutDashboard, Newspaper, FolderOpen,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -45,7 +45,12 @@ const NAV_ITEMS = [
     requiresCapability: CAP_INTERVIEW_START },
   { to: '/write',      label: 'Write',       match: (p) => p.startsWith('/write'),             icon: PenLine,
     hideWhenBookMode: 'group', requiresCapability: CAP_INTERVIEW_START },
-  { to: '/slate',      label: 'Slate',       match: (p) => p.startsWith('/slate'),             icon: Clapperboard,
+]
+
+// Tools section — conditionally shown items that live below the main nav.
+// Rendered separately so a "Tools" divider label can appear above them.
+const TOOLS_NAV_ITEMS = [
+  { to: '/slate', label: 'Slate', match: (p) => p.startsWith('/slate'), icon: Scissors,
     showWhen: (ws) => ws?.video_pipeline_enabled === true },
 ]
 
@@ -74,6 +79,11 @@ export default function Layout({ children }) {
   const navItems = NAV_ITEMS.filter((it) => {
     if (it.requiresCapability && !hasCapability(it.requiresCapability)) return false
     if (it.hideWhenBookMode && ws?.book_mode === it.hideWhenBookMode) return false
+    if (it.showWhen && !it.showWhen(ws)) return false
+    return true
+  })
+
+  const toolsNavItems = TOOLS_NAV_ITEMS.filter((it) => {
     if (it.showWhen && !it.showWhen(ws)) return false
     return true
   })
@@ -145,6 +155,28 @@ export default function Layout({ children }) {
               collapsed={collapsed}
             />
           ))}
+
+          {/* Tools section — shown only when there are visible tools */}
+          {toolsNavItems.length > 0 && (
+            <>
+              {!collapsed && (
+                <p className="px-2 pt-3 pb-1 text-3xs font-bold uppercase tracking-widest text-muted-foreground/60 select-none">
+                  Tools
+                </p>
+              )}
+              {collapsed && <div className="pt-2 border-t border-border mx-1" />}
+              {toolsNavItems.map((item) => (
+                <SidebarNavLink
+                  key={item.to}
+                  to={item.to}
+                  label={item.label}
+                  active={item.match(location.pathname)}
+                  icon={item.icon}
+                  collapsed={collapsed}
+                />
+              ))}
+            </>
+          )}
         </nav>
 
         {/* Bottom section: secondary links + user button + collapse toggle */}
@@ -256,6 +288,22 @@ export default function Layout({ children }) {
                 </Link>
               </DrawerClose>
             ))}
+            {toolsNavItems.length > 0 && (
+              <>
+                <p className="px-3 pt-3 pb-1 text-2xs font-bold uppercase tracking-widest text-muted-foreground/60 select-none">Tools</p>
+                {toolsNavItems.map((item) => (
+                  <DrawerClose asChild key={item.to}>
+                    <Link
+                      to={item.to}
+                      className={`flex items-center gap-2 px-3 py-3 rounded-md text-base font-medium ${item.match(location.pathname) ? 'bg-accent/40 text-foreground' : 'text-muted-foreground active:bg-accent/30'}`}
+                    >
+                      {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
+                      {item.label}
+                    </Link>
+                  </DrawerClose>
+                ))}
+              </>
+            )}
           </div>
           <div className="pt-3 mt-2 border-t space-y-1 overflow-y-auto">
             {role === 'admin' && hasCapability(CAP_SETTINGS_VIEW) && (
