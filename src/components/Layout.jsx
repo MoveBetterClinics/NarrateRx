@@ -81,6 +81,14 @@ export default function Layout({ children }) {
   const sidebarW = collapsed ? 'w-14' : 'w-56'
   const contentML = collapsed ? 'md:ml-14' : 'md:ml-56'
 
+  // The Storyboard spine (queue → media → publish) is media-heavy: large
+  // candidate grids and a full-size live preview that want every available
+  // pixel. These pages opt out of the centered `.container` cap and run
+  // edge-to-edge inside the sidebar offset (just gutter padding), so the grid
+  // can grow to more columns and the preview/controls split stays balanced on
+  // wide screens. Every other page keeps the comfortable reading-width cap.
+  const fullBleed = location.pathname.startsWith('/storyboard')
+
   return (
     <div className="min-h-screen bg-background flex">
 
@@ -224,7 +232,7 @@ export default function Layout({ children }) {
 
         <TrialBanner />
 
-        <main className="container py-8">
+        <main className={fullBleed ? 'px-4 sm:px-6 lg:px-8 py-8' : 'container py-8'}>
           {children}
         </main>
       </div>

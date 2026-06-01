@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Loader2, ImagePlus, Sparkles, Images } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { ArrowRight, Loader2, ImagePlus, Sparkles, Images, Video, ImageIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import BackLink from '@/components/ui/BackLink'
 import LoadingState from '@/components/LoadingState'
 import ErrorState from '@/components/ErrorState'
 import MediaPicker from '@/components/MediaPicker'
@@ -10,7 +11,7 @@ import CandidateCard from '@/components/storyboard/CandidateCard'
 import MediaPreviewDialog from '@/components/storyboard/MediaPreviewDialog'
 import { useContentItem, useContentItems, useMediaSuggestions, useUpdateContentItem } from '@/lib/queries'
 import { clipToMediaEntry, pickerItemToMediaEntry, mediaEntryKey } from '@/lib/mediaEntry'
-import { mediaKindForPlatform } from '@/lib/platformMediaKind'
+import { mediaKindForPlatform, mediaKindLabel, isKindMismatch } from '@/lib/platformMediaKind'
 import { toast } from '@/lib/toast'
 
 const KIND_TABS = [
@@ -25,8 +26,8 @@ const NEEDS_MEDIA = (p) => !Array.isArray(p?.media_urls) || p.media_urls.length 
  * StoryboardPiece — the focused, full-size media-approval surface for one
  * draft. Left: the draft context (what message we're matching to). Right:
  * ranked candidates as large cards; click one to play/inspect it at full size,
- * then attach. Platform-aware (a video-only channel won't be shown photos) with
- * an override toggle, plus a manual Library browse fallback.
+ * then attach. Platform-aware (a video-only channel won't be shown — or let you
+ * attach — photos) plus a manual Library browse fallback.
  */
 export default function StoryboardPiece() {
   const { pieceId } = useParams()
@@ -34,18 +35,23 @@ export default function StoryboardPiece() {
 
   const { data: piece, isLoading, isError } = useContentItem(pieceId)
 
-  // Kind filter, seeded from the platform once the draft loads (video-only →
-  // Videos, image surface → Photos, else Both), overridable so the producer is
-  // never boxed in. `null` until seeded so we don't fire a Both query then
-  // immediately re-fire a Video one.
+  // What kind of media this platform can actually publish ('video' | 'photo' |
+  // null = either). Drives both the default filter and whether the producer is
+  // even offered the photo/video toggle: on a video-only channel (YouTube,
+  // TikTok) the toggle is hidden and the kind is locked, because attaching a
+  // photo there just breaks at publish.
+  const platformKind = piece ? mediaKindForPlatform(piece.platform) : null
+
+  // Kind filter, seeded from the platform once the draft loads, overridable
+  // only when the platform takes either kind. `null` until seeded so we don't
+  // fire a Both query then immediately re-fire a Video one.
   const [kind, setKind] = useState(null)
   const seeded = useRef(false)
   useEffect(() => {
     if (seeded.current || !piece) return
     seeded.current = true
-    const pk = mediaKindForPlatform(piece.platform)
-    setKind(pk === 'video' ? 'video' : pk === 'photo' ? 'photo' : 'both')
-  }, [piece])
+    setKind(platformKind === 'video' ? 'video' : platformKind === 'photo' ? 'photo' : 'both')
+  }, [piece, platformKind])
 
   const effectiveKind = kind === 'photo' ? 'photo' : kind === 'video' ? 'video' : undefined
   const {
@@ -55,6 +61,7 @@ export default function StoryboardPiece() {
   const updateItem = useUpdateContentItem()
   const media = useMemo(() => (Array.isArray(piece?.media_urls) ? piece.media_urls : []), [piece])
   const attachedKeys = useMemo(() => new Set(media.map(mediaEntryKey)), [media])
+  const hasMedia = media.length > 0
 
   const [attachingKey, setAttachingKey] = useState(null)
   const [removingKey, setRemovingKey] = useState(null)
@@ -90,7 +97,18 @@ export default function StoryboardPiece() {
   const handlePicked = (assets) => {
     setPickerOpen(false)
     const incoming = (Array.isArray(assets) ? assets : [assets]).filter(Boolean).map(pickerItemToMediaEntry)
-    const fresh = incoming.filter((e) => !attachedKeys.has(mediaEntryKey(e)))
+    // Guard the manual path the same way the suggestions are filtered: a
+    // video-only channel can't publish a photo. Skip mismatched picks and tell
+    // the producer why, rather than silently attaching media that breaks later.
+    const mismatched = incoming.filter((e) => isKindMismatch(piece.platform, e.type))
+    if (mismatched.length > 0) {
+      toast.warning(
+        `Skipped ${mismatched.length} item${mismatched.length === 1 ? '' : 's'} — this channel takes ${mediaKindLabel(platformKind).toLowerCase()}`,
+      )
+    }
+    const fresh = incoming
+      .filter((e) => !isKindMismatch(piece.platform, e.type))
+      .filter((e) => !attachedKeys.has(mediaEntryKey(e)))
     if (fresh.length === 0) return
     updateItem
       .mutateAsync({ id: pieceId, patch: { mediaUrls: [...media, ...fresh] } })
@@ -99,34 +117,33 @@ export default function StoryboardPiece() {
   }
 
   // "Next draft" — the next still-needs-media piece in the worklist, so a
-  // producer can work the queue down without bouncing back to the list.
+  // producer can work the queue down without bouncing back to the list. Show
+  // the remaining count so the batch has a visible finish line.
   const { data: worklist = [] } = useContentItems({ status: 'draft,in_review' })
-  const nextPieceId = useMemo(
-    () => worklist.filter((p) => p.id !== pieceId && NEEDS_MEDIA(p))[0]?.id || null,
+  const remainingNeedsMedia = useMemo(
+    () => worklist.filter((p) => p.id !== pieceId && NEEDS_MEDIA(p)),
     [worklist, pieceId],
   )
+  const nextPieceId = remainingNeedsMedia[0]?.id || null
 
   if (isLoading) return <LoadingState />
   if (isError || !piece) {
     return (
       <div className="space-y-4 py-6">
-        <Link to="/storyboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to Storyboard
-        </Link>
+        <BackLink to="/storyboard">Back to Storyboard</BackLink>
         <ErrorState message="Draft not found." />
       </div>
     )
   }
 
   const clips = (sugg?.clips || []).filter((c) => !attachedKeys.has(c.assetId))
+  const showKindToggle = platformKind === null
 
   return (
     <div className="space-y-5 py-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link to="/storyboard" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="h-4 w-4" /> Back to Storyboard
-        </Link>
+        <BackLink to="/storyboard">Back to Storyboard</BackLink>
         <div className="flex items-center gap-2">
           {piece.interview_id && (
             <Button
@@ -139,18 +156,25 @@ export default function StoryboardPiece() {
           )}
           {nextPieceId && (
             <Button variant="ghost" size="sm" onClick={() => navigate(`/storyboard/${nextPieceId}`)}>
-              Next draft <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              Next draft ({remainingNeedsMedia.length} left) <ArrowRight className="ml-1 h-3.5 w-3.5" />
             </Button>
           )}
-          {/* Forward to the final step — compose (carousel/overlay/theme),
-              preview at size, and schedule/publish all live on the publish page. */}
-          <Button size="sm" onClick={() => navigate(`/storyboard/${piece.id}/publish`)}>
+          {/* Forward to the final step — gated on at least one attachment, since
+              the whole job of this page is to give the draft media before it
+              moves on. Compose (carousel/overlay/theme), preview and publish all
+              live on the publish page. */}
+          <Button
+            size="sm"
+            disabled={!hasMedia}
+            title={hasMedia ? undefined : 'Attach a photo or video to continue'}
+            onClick={() => navigate(`/storyboard/${piece.id}/publish`)}
+          >
             Continue to publish <ArrowRight className="ml-1 h-3.5 w-3.5" />
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,340px)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-6 lg:[grid-template-columns:minmax(0,360px)_minmax(0,1fr)]">
         {/* Left — draft context */}
         <DraftContextPanel piece={piece} onRemoveMedia={removeEntry} removingKey={removingKey} />
 
@@ -159,22 +183,32 @@ export default function StoryboardPiece() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
               <Sparkles className="h-4 w-4 text-primary" /> Suggested media
+              {hasMedia && (
+                <span className="ml-1 text-xs font-normal text-muted-foreground">· {media.length} attached</span>
+              )}
             </p>
             <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-md border p-0.5">
-                {KIND_TABS.map((t) => (
-                  <button
-                    key={t.key}
-                    type="button"
-                    onClick={() => setKind(t.key)}
-                    className={`rounded px-2 py-1 text-2xs font-medium transition-colors ${
-                      kind === t.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
+              {showKindToggle ? (
+                <div className="inline-flex rounded-md border p-0.5">
+                  {KIND_TABS.map((t) => (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setKind(t.key)}
+                      className={`rounded px-2 py-1 text-2xs font-medium transition-colors ${
+                        kind === t.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-md border bg-muted/40 px-2.5 py-1 text-2xs font-medium text-muted-foreground">
+                  {platformKind === 'video' ? <Video className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />}
+                  {mediaKindLabel(platformKind)} for this channel
+                </span>
+              )}
               <Button variant="outline" size="sm" onClick={() => setPickerOpen(true)}>
                 <Images className="mr-1.5 h-3.5 w-3.5" /> Browse Library
               </Button>
@@ -182,9 +216,7 @@ export default function StoryboardPiece() {
           </div>
 
           {suggLoading || kind === null ? (
-            <div className="flex items-center gap-2 py-12 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Finding media that fits this draft…
-            </div>
+            <CandidateGridSkeleton />
           ) : suggError ? (
             <div className="rounded-lg border bg-muted/20 py-10 text-center text-sm text-muted-foreground">
               Couldn’t load suggestions.{' '}
@@ -197,12 +229,12 @@ export default function StoryboardPiece() {
                 No strong {kind === 'video' ? 'video' : kind === 'photo' ? 'photo' : ''} matches in your Library.
               </p>
               <p className="text-xs text-muted-foreground">
-                Try a different type above, or{' '}
+                {showKindToggle ? 'Try a different type above, or ' : ''}
                 <button type="button" onClick={() => setPickerOpen(true)} className="text-primary hover:underline">browse the Library</button>.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
               {clips.map((clip) => (
                 <CandidateCard
                   key={clip.chunkId || clip.assetId}
@@ -216,6 +248,17 @@ export default function StoryboardPiece() {
             </div>
           )}
           {isFetching && !suggLoading && <p className="text-2xs text-muted-foreground">Refreshing…</p>}
+
+          {/* Bottom forward CTA — appears once media is attached, right where the
+              producer just finished working, so they don't have to scroll back
+              up to the header to advance. */}
+          {hasMedia && (
+            <div className="flex justify-end pt-1">
+              <Button size="sm" onClick={() => navigate(`/storyboard/${piece.id}/publish`)}>
+                Continue to publish <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -231,6 +274,21 @@ export default function StoryboardPiece() {
       {pickerOpen && (
         <MediaPicker multi onClose={() => setPickerOpen(false)} onSelect={handlePicked} />
       )}
+    </div>
+  )
+}
+
+// Skeleton grid shown while suggestions load — preserves the layout rhythm so
+// the page doesn't jump from a centered spinner to a full grid.
+function CandidateGridSkeleton() {
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+      {Array.from({ length: 10 }).map((_, i) => (
+        <div key={i} className="space-y-1.5">
+          <div className="aspect-[4/3] animate-pulse rounded-lg bg-muted" />
+          <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+        </div>
+      ))}
     </div>
   )
 }
