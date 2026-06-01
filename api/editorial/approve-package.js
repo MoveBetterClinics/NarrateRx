@@ -168,12 +168,15 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'media_assets_insert_failed', detail: e.message })
     }
 
-    await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
+    const libraryPatchRes = await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ status: 'approved', updated_at: now }),
-    }).catch((e) => {
-      console.error('[approve-package] status patch failed:', e.message)
     })
+    if (!libraryPatchRes.ok) {
+      const txt = await libraryPatchRes.text().catch(() => '')
+      console.error('[approve-package] status patch failed:', libraryPatchRes.status, txt)
+      return res.status(500).json({ error: 'status_patch_failed', detail: txt })
+    }
 
     return res.status(200).json({
       packageId,
@@ -213,6 +216,29 @@ export default async function handler(req, res) {
     },
   }))
 
+  // Idempotency guard: if content_items already exist for this package, a prior approve
+  // wrote them but the PATCH to 'approved' failed. Skip the insert, fix the status, and
+  // return the existing rows — prevents duplicates on client retry.
+  const existRes = await sb(
+    `content_items?workspace_id=eq.${ws.id}&provenance->>package_id=eq.${packageId}` +
+    `&select=id,platform,media_urls,status,content,approved_at,provenance`
+  )
+  if (existRes.ok) {
+    const existingItems = await existRes.json()
+    if (existingItems?.length > 0) {
+      const fixPatch = await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'approved', updated_at: now }),
+      })
+      if (!fixPatch.ok) {
+        const txt = await fixPatch.text().catch(() => '')
+        console.error('[approve-package] status patch failed (retry):', fixPatch.status, txt)
+        return res.status(500).json({ error: 'status_patch_failed', detail: txt })
+      }
+      return res.status(200).json({ packageId, destination: 'publish', contentItems: existingItems, platformCount: existingItems.length })
+    }
+  }
+
   const insertRes = await sb('content_items', {
     method: 'POST',
     body: JSON.stringify(rows),
@@ -224,12 +250,15 @@ export default async function handler(req, res) {
   }
   const contentItems = await insertRes.json()
 
-  await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
+  const publishPatchRes = await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
     method: 'PATCH',
     body: JSON.stringify({ status: 'approved', updated_at: now }),
-  }).catch((e) => {
-    console.error('[approve-package] status patch failed:', e.message)
   })
+  if (!publishPatchRes.ok) {
+    const txt = await publishPatchRes.text().catch(() => '')
+    console.error('[approve-package] status patch failed:', publishPatchRes.status, txt)
+    return res.status(500).json({ error: 'status_patch_failed', detail: txt })
+  }
 
   return res.status(200).json({
     packageId,
