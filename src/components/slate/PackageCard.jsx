@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target, Zap, Clapperboard, Ban } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { Loader2, CheckCircle2, XCircle, Sparkles, Play, Pause, Pencil, RefreshCw, AlertTriangle, Clock, ShieldAlert, Mic, Brain, Target, Zap, Clapperboard, Ban } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { apiFetch } from '@/lib/api'
@@ -156,6 +156,19 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
   const [rerendering, setRerendering]       = useState(false)
   const [stopping, setStopping]             = useState(false)
   const [refreshingContext, setRefreshingContext] = useState(false)
+  const [isPlaying, setIsPlaying]           = useState(false)
+  const videoRef                            = useRef(null)
+
+  function handleVideoClick(e) {
+    e.stopPropagation()
+    const vid = videoRef.current
+    if (!vid) return
+    if (vid.paused) {
+      vid.play()
+    } else {
+      vid.pause()
+    }
+  }
 
   // pending_broll = Runway job submitted, renders will arrive async
   const isGeneratingBroll = pkg.status === 'pending_broll' || pkg.broll_status === 'generating'
@@ -325,11 +338,16 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
           <>
             {isVideo ? (
               <video
+                ref={videoRef}
                 src={previewRender.blobUrl}
-                className="absolute inset-0 w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-cover cursor-pointer"
                 muted
                 playsInline
                 preload="metadata"
+                onClick={handleVideoClick}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => setIsPlaying(false)}
               />
             ) : (
               <img
@@ -340,9 +358,15 @@ export default function PackageCard({ pkg, staffName, triageReason, onApprove, o
               />
             )}
             {isVideo && (
-              <div className="absolute inset-0 flex items-center justify-center">
+              <div
+                className="absolute inset-0 flex items-center justify-center cursor-pointer"
+                onClick={handleVideoClick}
+                style={{ opacity: isPlaying ? 0 : 1, transition: 'opacity 0.15s' }}
+              >
                 <div className="bg-black/50 rounded-full p-2">
-                  <Play className="h-5 w-5 text-white fill-white" />
+                  {isPlaying
+                    ? <Pause className="h-5 w-5 text-white fill-white" />
+                    : <Play className="h-5 w-5 text-white fill-white" />}
                 </div>
               </div>
             )}
