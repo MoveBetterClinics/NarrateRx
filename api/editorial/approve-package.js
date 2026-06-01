@@ -19,9 +19,11 @@
 
 export const config = { runtime: 'nodejs' }
 
+import { waitUntil } from '@vercel/functions'
 import { requireRole } from '../_lib/auth.js'
 import { ALL_KNOWN_ROLES } from '../_lib/roles.js'
 import { workspaceContext } from '../_lib/workspaceContext.js'
+import { indexMediaAsset } from '../_lib/visualMemoryIndex.js'
 
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY
@@ -191,6 +193,15 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'media_assets_insert_failed', detail: text })
     }
     const assets = await assetInsertRes.json()
+
+    // Index each new broll asset into visual_memory_chunks so it shows up in
+    // Storyboard's ranked Suggested media (not just Browse Library). Best-effort
+    // and backgrounded — a failed index must not fail the approve. waitUntil is
+    // required: this runs after the HTTP response, and a bare floating promise
+    // gets dropped when the Vercel Node instance freezes.
+    waitUntil(Promise.allSettled(
+      assets.map((a) => indexMediaAsset({ assetId: a.id }))
+    ))
 
     await sb(`story_packages?id=eq.${packageId}&workspace_id=eq.${ws.id}`, {
       method: 'PATCH',
