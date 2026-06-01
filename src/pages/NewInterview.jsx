@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dialog'
 import { getOrCreateStaff, createInterview } from '@/lib/api'
 import MicCheck from '@/components/MicCheck'
+import PipelineStepper from '@/components/PipelineStepper'
 import { useStaff, useStaffRecipes, useCreateStaffRecipe } from '@/lib/queries'
 import { getSuggestedTopics } from '@/lib/topicSuggestions'
 import { TONES, getVoiceModes, getPatientPrototypesUi } from '@/lib/prompts'
@@ -298,6 +299,7 @@ export default function NewInterview() {
 
   return (
     <div className="max-w-lg mx-auto space-y-5">
+      <PipelineStepper current="interview" />
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" asChild>
           <Link to="/">

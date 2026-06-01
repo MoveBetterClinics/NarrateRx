@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { useUser } from '@clerk/react'
 import { AlertCircle, ArrowLeft, ChevronDown, Link as LinkIcon, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
+import PipelineStepper from '@/components/PipelineStepper'
 import { Button } from '@/components/ui/button'
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
@@ -277,6 +278,7 @@ export default function StoryDetail() {
 
   return (
     <div className="space-y-5 py-6">
+      <PipelineStepper current="words" />
       {/* Header */}
       <div className="space-y-2">
         <Link

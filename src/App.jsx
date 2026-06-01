@@ -49,6 +49,7 @@ const AccessMatrix = lazy(() => import('@/pages/AccessMatrix'))
 const Account = lazy(() => import('@/pages/Account'))
 const Onboarding = lazy(() => import('@/pages/Onboarding'))
 const Stories = lazy(() => import('@/pages/Stories'))
+const Overview = lazy(() => import('@/pages/Overview'))
 const StoryDetail = lazy(() => import('@/pages/StoryDetail'))
 const Storyboard = lazy(() => import('@/pages/Storyboard'))
 const StoryboardPiece = lazy(() => import('@/pages/StoryboardPiece'))
@@ -522,6 +523,10 @@ function AppRoutes() {
             <Route path="/staff/:staffId" element={guarded(<StaffProfile />)} />
             <Route path="/clinician/:staffId" element={<LegacyStaffRedirect />} />
             <Route path="/stories" element={guarded(<Stories />)} />
+            {/* Overview — clinic-wide board (Pipeline/Calendar/Themes). The
+                page self-guards to editors (owner/producer/director) and
+                redirects individual clinicians home. */}
+            <Route path="/overview" element={guarded(<Overview />)} />
             <Route path="/stories/:storyId" element={guarded(<StoryDetail />)} />
             <Route path="/synthesis" element={guarded(<Synthesis />)} />
             <Route path="/write" element={guarded(<AuthorMode />)} />
